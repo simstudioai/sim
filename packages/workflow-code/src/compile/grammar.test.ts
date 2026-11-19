@@ -6,7 +6,7 @@ import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 
 const IMPORTS =
-  "import { agent, api, block, childWorkflow, codeFile, condition, credential, edge, env, file, fn, js, json, knowledgeBase, loop, md, note, parallel, raw, ref, router, slack, t, table, todo, trigger, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, block, childWorkflow, codeFile, condition, credential, edge, env, file, fn, js, json, knowledgeBase, loop, md, note, parallel, raw, ref, router, slack, stored, t, table, todo, trigger, workflow } from '@sim/workflow-sdk'"
 
 const DEFAULT_OPTIONS = "{ variables: { retries: { type: 'number', value: 3 } } }"
 
@@ -1483,5 +1483,26 @@ describe('table filters the runtime refuses', () => {
         "{ any: [{ field: 'a', op: 'isNull' }, { all: [{ field: 'b', op: 'gt', value: 1 }] }] }"
       )
     ).toEqual([])
+  })
+})
+
+describe('a loop or parallel config', () => {
+  it.each([
+    [
+      'stored()',
+      "loop.forEach('L', { collection: stored() }, (p) => api('In', { url: 'x' }))",
+      'Write collection as a value or a reference.',
+    ],
+    [
+      'codeFile()',
+      "loop.while('L', { condition: codeFile('./functions/c.js') }, (p) => api('In', { url: 'x' }))",
+      'Write condition: js`...`.',
+    ],
+  ])('refuses %s instead of dropping it', (_label, body, hint) => {
+    const result = run(source(body))
+    expect(result.workflow).toBeNull()
+    expect(
+      result.diagnostics.filter((d) => d.code === 'E_UNSUPPORTED_SYNTAX').map((d) => d.hint)
+    ).toEqual([hint])
   })
 })

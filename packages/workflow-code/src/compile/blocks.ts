@@ -1613,6 +1613,18 @@ function compileConfig<S>(
       continue
     }
     const compiled = compileValue(ctx, node, site)
+    if (compiled?.kind === 'stored' || compiled?.kind === 'codeFile') {
+      unsupported(
+        ctx,
+        node,
+        `${compiled.kind === 'stored' ? 'stored()' : 'codeFile()'} is not a ${container} config value.`,
+        entry.kind === 'text'
+          ? `Write ${key}: js\`...\`.`
+          : `Write ${key} as a value or a reference.`,
+        decl.key
+      )
+      continue
+    }
     if (!compiled || compiled.kind !== 'value') continue
     if (entry.kind === 'text' && typeof compiled.value !== 'string') {
       unsupported(ctx, node, `${field} is text.`, 'Write js`...`.', decl.key)
