@@ -411,7 +411,7 @@ export const listWorkspaceFilesInFolderScope = defineAuthorizedWorkspaceFileUseC
   },
 })
 
-export interface ReadWorkspaceFileContentStatesInput {
+interface ReadWorkspaceFileContentStatesInput {
   workspaceId: string
   fileIds: readonly string[]
 }
