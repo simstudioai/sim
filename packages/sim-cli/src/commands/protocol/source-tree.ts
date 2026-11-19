@@ -214,8 +214,9 @@ export interface WorkspaceTypes {
 /**
  * `workspace.d.ts` for the `stored` resources with what a workspace directory declares typed too:
  * its tables, secrets and credentials from their declarations, and its knowledge base, skill,
- * custom tool and workflow keys beside the stored ones (a declared workflow's inputs win, since the
- * directory's `workflow.ts` is what an apply writes). `null` without either.
+ * custom tool and workflow keys beside the stored ones. A workflow the directory declares only by
+ * its key (no `inputs`) keeps its stored inputs, so a parent's `inputMapping` stays checked; a
+ * declared `inputs` wins. `null` without either.
  */
 function workspaceTypesFrom(
   stored: WorkspaceManifest | null,
@@ -244,7 +245,12 @@ function workspaceTypesFrom(
     knowledgeBases: both('knowledgeBases'),
     skills: both('skills'),
     customTools: both('customTools'),
-    workflows: { ...stored.workflows, ...local.workflows },
+    workflows: Object.fromEntries([
+      ...Object.entries(stored.workflows ?? {}),
+      ...Object.entries(local.workflows ?? {}).filter(
+        ([key, entry]) => entry.inputs !== undefined || !Object.hasOwn(stored.workflows ?? {}, key)
+      ),
+    ]),
   }).text
   return { text, stored }
 }

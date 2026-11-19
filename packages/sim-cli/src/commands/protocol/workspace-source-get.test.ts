@@ -656,6 +656,53 @@ describe('workspaces source get', () => {
     expect(typecheck(uses('tnoe'))).toContain('"tnoe"')
   })
 
+  it("keeps typing a downloaded child workflow's stored inputs in a parent's inputMapping", async () => {
+    const child = [
+      '// @sim-sdk 1',
+      "import { trigger, workflow } from '@sim/workflow-sdk'",
+      "export default workflow('Enrich', {}, () => {",
+      "  trigger.start('Start', {})",
+      '})',
+      '',
+    ].join('\n')
+    serve(
+      { 'workflows/enrich/workflow.ts': child },
+      {
+        kinds: ['workflow'],
+        manifest: {
+          workspaceId: 'ws_local',
+          tables: [],
+          knowledgeBases: [],
+          credentials: [],
+          workflows: [{ key: 'enrich', inputs: [{ name: 'email', type: 'string' }] }],
+          skills: [],
+          customTools: [],
+          env: [],
+          truncated: false,
+        },
+      }
+    )
+    await get()
+    const parent = (field: string) =>
+      [
+        '// @sim-sdk 1',
+        "import { childWorkflow, runWorkflow, trigger, workflow } from '@sim/workflow-sdk'",
+        "export default workflow('Parent', {}, () => {",
+        "  const start = trigger.start('Start', {})",
+        `  start.to(runWorkflow('Run', { workflowId: childWorkflow('enrich'), inputMapping: { ${field}: 'a' } }))`,
+        '})',
+        '',
+      ].join('\n')
+    mkdirSync(join(dir, 'workflows/parent'), { recursive: true })
+    const typecheck = (field: string) => {
+      writeFileSync(join(dir, 'workflows/parent/workflow.ts'), parent(field))
+      return typecheckDirectory()
+    }
+
+    expect(typecheck('email')).toBe('')
+    expect(typecheck('emial')).toContain('emial')
+  })
+
   it('keeps the block types workflows on disk use when a get refreshes only tables', async () => {
     const notifying = [
       '// @sim-sdk 1',
