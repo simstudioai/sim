@@ -221,8 +221,9 @@ async function printLoadedSource(
 export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
   resolveContext: async (args: { principal: Principal; input: GetWorkflowSourceInput }) => {
-    await requireWorkflowCodeEnabled()
-    return resolvePrincipalWorkflowContext(args)
+    const context = await resolvePrincipalWorkflowContext(args)
+    await requireWorkflowCodeEnabled(args.principal, context)
+    return context
   },
   async execute({ principal, input, context }): Promise<ReadWorkflowSourceResult> {
     const [stored, gate, sourceMeta, prefetched] = await Promise.all([
@@ -262,9 +263,16 @@ export type WorkflowSourceRead =
  */
 export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
-  resolveContext: async ({ input }: { input: ReadWorkflowSourcesInput }) => {
-    await requireWorkflowCodeEnabled()
-    return resolveActiveWorkspaceApplicationContext(input.workspaceId)
+  resolveContext: async ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadWorkflowSourcesInput
+  }) => {
+    const context = await resolveActiveWorkspaceApplicationContext(input.workspaceId)
+    await requireWorkflowCodeEnabled(principal, context)
+    return context
   },
   async execute({ principal, input, context }): Promise<Map<string, WorkflowSourceRead>> {
     const { workspaceId } = context

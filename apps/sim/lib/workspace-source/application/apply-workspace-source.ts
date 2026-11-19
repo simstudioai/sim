@@ -199,7 +199,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ApplyWorkspaceSourceResult> {
-    await requireWorkflowCodeEnabled()
+    await requireWorkflowCodeEnabled(principal, context)
     const ctx: ApplyContext = {
       ...sourceContext(principal, context),
       ...(input.provenance ? { provenance: input.provenance } : {}),
