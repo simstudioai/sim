@@ -30,8 +30,9 @@ const SETTLE_MS = 1_200
  * replaced: a collaborator's field edit arrives as the collaborative hook applies it (a subblock
  * store write plus `markRemoteApplied`), with no workflow-store change and no queued operation.
  */
-describe('Code tab refresh', () => {
+describe('Code tab', () => {
   let root: Root
+  let container: HTMLDivElement
   let sourceReads: string[]
 
   beforeEach(() => {
@@ -96,16 +97,17 @@ describe('Code tab refresh', () => {
       parallels: {},
     })
     useOperationQueueStore.getState().reset()
+    container = document.createElement('div')
     mount()
   })
 
-  function mount() {
-    root = createRoot(document.createElement('div'))
+  function mount(workflowName?: string) {
+    root = createRoot(container)
     act(() => {
       root.render(
         <QueryClientProvider client={new QueryClient()}>
           <WorkflowScopeProvider workspaceId={WORKSPACE_ID} workflowId={WORKFLOW_ID}>
-            <Code isActive />
+            <Code isActive workflowName={workflowName} />
           </WorkflowScopeProvider>
         </QueryClientProvider>
       )
@@ -240,5 +242,23 @@ describe('Code tab refresh', () => {
     setVariable('wf-other', '3')
     await settle()
     expect(sourceReads).toHaveLength(1)
+  })
+
+  it('copies a CLI command that gets this workflow into a shell-safe directory', async () => {
+    const writeText = vi.fn(async () => {})
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    act(() => root.unmount())
+    mount(`Support "triage" & $HOME's v2`)
+    const button = container.querySelector('[data-testid="workflow-code-copy-cli"]')
+    if (!(button instanceof HTMLElement)) throw new Error('copy button missing')
+
+    await act(async () => button.click())
+
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(writeText.mock.calls[0]).toEqual([
+      expect.stringMatching(
+        new RegExp(`^sim workflows source get ${WORKFLOW_ID} --dir \\./[a-z0-9-]+$`)
+      ),
+    ])
   })
 })

@@ -1,5 +1,5 @@
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
-import { type QueryFunctionContext, useQuery } from '@tanstack/react-query'
+import { type QueryClient, type QueryFunctionContext, useQuery } from '@tanstack/react-query'
 import { requestJsonRevalidated } from '@/lib/api/client/request'
 import { getWorkflowSourceContract, type WorkflowSource } from '@/lib/api/contracts/workflow-source'
 
@@ -56,4 +56,20 @@ export function useWorkflowSourceText(workflowId?: string, options?: { enabled?:
     staleTime: WORKFLOW_SOURCE_STALE_TIME,
     select: selectEntryText,
   })
+}
+
+/**
+ * The draft's entry file text for a download. It revalidates the cached copy by `ETag` first
+ * (a `304` when nothing changed), so an edit made since the Code tab last read is never missed.
+ */
+export async function fetchWorkflowSourceText(
+  queryClient: QueryClient,
+  workflowId: string
+): Promise<string> {
+  const read = await queryClient.fetchQuery({
+    queryKey: workflowSourceKeys.detail(workflowId),
+    queryFn: fetchWorkflowSource,
+    staleTime: 0,
+  })
+  return selectEntryText(read)
 }
