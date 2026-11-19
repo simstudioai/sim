@@ -795,6 +795,56 @@ describe('table row writes against real PostgreSQL', () => {
       expect(await storedCount(table.id, { email: 'b@example.test' })).toBe(1)
     })
 
+    it('refuses a batch update writing a value a concurrent edit gives a batch row that keeps it', async () => {
+      const table = await createTable(uniqueColumns)
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { email: 'a@example.test' }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { email: 'b@example.test' }, orderKey: 'a1' },
+      ])
+
+      const results = await raceUnderHeldDefinitionRow(
+        table.id,
+        [
+          () =>
+            updateRow(
+              {
+                tableId: table.id,
+                rowId: `${table.id}-a`,
+                workspaceId,
+                data: { email: 'dup@example.test' },
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'unique-race'
+            ),
+          async () => {
+            // Read row a before the edit commits, so the batch holds its old email.
+            expect(
+              await waitForLockWaiters(table.id, { onDefinitionRow: 1, onValueLock: 0 })
+            ).toEqual({ onDefinitionRow: 1, onValueLock: 0 })
+            return batchUpdateRows(
+              {
+                tableId: table.id,
+                workspaceId,
+                updates: [
+                  { rowId: `${table.id}-a`, data: { score: 5 } },
+                  { rowId: `${table.id}-b`, data: { email: 'dup@example.test' } },
+                ],
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'unique-race'
+            )
+          },
+        ],
+        { onDefinitionRow: 1, onValueLock: 1 }
+      )
+
+      expect(fulfilled(results)).toBe(1)
+      expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(1)
+    })
+
     it('rejects a batch update that writes one JSON value to two rows in different key orders', async () => {
       const table = await createTable([{ id: 'meta', name: 'meta', type: 'json', unique: true }])
       await seedRows(table.id, [
