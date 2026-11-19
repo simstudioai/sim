@@ -20,6 +20,7 @@ import {
   isFileKind,
   KIND_DIRS,
   WORKSPACE_KIND_SPECS,
+  type WorkspaceDiagnosticCode,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { fileKindGroupKey } from '@sim/workspace-code/kinds/entries'
@@ -27,10 +28,14 @@ import { FILE_KIND_CODECS, isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/
 import {
   columnName,
   createTableCodec,
+  refusedTableRows,
   TABLE_COLUMN_METADATA_KEYS,
+  type TableDecl,
 } from '@sim/workspace-code/kinds/table'
+import { parseTableRows, tableRowsPath } from '@sim/workspace-code/kinds/table-rows'
 import { unchangedFiles, workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import {
+  DECLARATION_EXTENSION,
   DECLARATION_MODULES,
   isWorkspaceSourcePath,
   kindOfPath,
@@ -254,6 +259,22 @@ export interface WorkspaceDeclarations {
   keys: ReadonlyMap<string, ReadonlySet<string>>
   /** Each declared table's columns, by table key and then by stored column name. */
   tables: ReadonlyMap<string, ReadonlyMap<string, DeclaredColumn>>
+  /**
+   * What the declared rows of each table (`tables/<key>.rows.jsonl`) hold that an apply refuses,
+   * each at its line: a line that is not a JSON object of declared columns, a managed key two
+   * lines share, and a row the write refuses (`refusedTableRows`).
+   */
+  rowFindings: readonly RowFinding[]
+}
+
+/** A finding about a line of a table's rows file (`E_TABLE_ROWS`, an error). */
+export interface RowFinding {
+  code: WorkspaceDiagnosticCode
+  message: string
+  hint?: string
+  file: string
+  line: number
+  column: number
 }
 
 /**
@@ -282,29 +303,73 @@ export async function readWorkspaceDeclarations(root: string): Promise<Workspace
   }
   const secrets = present.includes('secret') ? declaredKeys('secret', files) : null
   const tables = new Map<string, ReadonlyMap<string, DeclaredColumn>>()
+  const rowFindings: RowFinding[] = []
   for (const [key, tablePaths] of KIND_LAYOUTS.table.group(
     paths.filter((path) => kindOfPath(path) === 'table')
   ).groups) {
-    const columns = declaredColumns(key, tablePaths, files)
-    if (columns) tables.set(key, columns)
+    const rowsPath = tableRowsPath(key)
+    const { decl } = declaredTable(
+      key,
+      tablePaths.filter((path) => path !== rowsPath),
+      files
+    )
+    if (!decl) continue
+    tables.set(key, declaredColumns(decl))
+    rowFindings.push(...tableRowFindings(key, decl, files[rowsPath]))
   }
-  return { ...(secrets ? { envNames: new Set(secrets) } : {}), keys, tables }
+  return { ...(secrets ? { envNames: new Set(secrets) } : {}), keys, tables, rowFindings }
 }
+
+/**
+ * The findings of table `key`'s rows file, read against `decl` (its declaration, read without the
+ * file): the reader's own (a line that is not a JSON object of declared columns, a managed key two
+ * lines share) and each row the write refuses, at the row's line.
+ */
+function tableRowFindings(key: string, decl: TableDecl, text: string | undefined): RowFinding[] {
+  const file = tableRowsPath(key)
+  const rows = decl.rows
+  if (!rows || text === undefined) return []
+  const parsed = parseTableRows(key, text, rows, new Set(Object.keys(decl.columns)))
+  const read = parsed.diagnostics.map(
+    ({ code, message, hint, span }): RowFinding => ({
+      code,
+      message,
+      ...(hint ? { hint } : {}),
+      file,
+      line: span?.line ?? 1,
+      column: span?.column ?? 1,
+    })
+  )
+  const refused = refusedTableRows(decl, parsed.data).map(
+    ({ row, errors }): RowFinding => ({
+      code: 'E_TABLE_ROWS',
+      message: `Line ${parsed.lines[row] ?? 1} does not fit the declared columns: ${errors.join('; ')}.`,
+      hint: `Write a value each column of ${KIND_DIRS.table}/${key}${DECLARATION_EXTENSION} holds (a select cell names one of its options), fill every required column, and keep unique values unique.`,
+      file,
+      line: parsed.lines[row] ?? 1,
+      column: 1,
+    })
+  )
+  return [...read, ...refused]
+}
+
+/** A table declaration as the codec reads it, with its findings. */
+type ParsedTable = ReturnType<ReturnType<typeof createTableCodec>['parse']>
 
 /** A column helper call and its arguments' text: `column.select({ options: [...] })`. */
 const COLUMN_CALL = /\bcolumn\.(\w+)\s*\(([^)]*)\)/g
 
 /**
- * A table declaration's columns by stored name, or `null` when it does not read. The server's
- * column-type catalog is not at hand offline, so the codec is built over the types the file
- * calls, each owning the options its calls set (`options`, `multiple`, `currencyCode`): only
- * the names and options are read here, and the dry run checks the declaration itself.
+ * A table declaration as the codec reads it. The server's column-type catalog
+ * is not at hand offline, so the codec is built over the types the file calls, each owning the
+ * options its calls set (`options`, `multiple`, `currencyCode`) and taking `unique`: the dry run
+ * checks the declaration itself against the real catalog.
  */
-function declaredColumns(
+function declaredTable(
   key: string,
   paths: readonly string[],
   files: Readonly<Record<string, string>>
-): ReadonlyMap<string, DeclaredColumn> | null {
+): ParsedTable {
   const text = Object.fromEntries(paths.map((path) => [path, files[path] ?? '']))
   const owned = new Map<string, Set<(typeof TABLE_COLUMN_METADATA_KEYS)[number]>>()
   for (const source of Object.values(text)) {
@@ -322,8 +387,11 @@ function declaredColumns(
     ),
     maxOptions: Number.MAX_SAFE_INTEGER,
   })
-  const decl = codec.parse(key, text, []).decl
-  if (!decl) return null
+  return codec.parse(key, text, [])
+}
+
+/** A table declaration's columns by stored name, as a workflow's row writes name them. */
+function declaredColumns(decl: TableDecl): ReadonlyMap<string, DeclaredColumn> {
   return new Map(
     Object.entries(decl.columns).map(([columnKey, column]) => [
       columnName(columnKey, column),

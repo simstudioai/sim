@@ -193,4 +193,88 @@ describe('sim workspaces source check', () => {
       ),
     })
   })
+
+  it('checks a managed rows file against its table, at each line, as the dry run would refuse it', async () => {
+    writeFile(
+      'tables/plans.ts',
+      [
+        '// @sim-sdk 1',
+        "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+        'export default defineTable({',
+        "  name: 'plans',",
+        '  columns: {',
+        '    code: column.string({ required: true, unique: true }),',
+        '    label: column.string({ required: true, unique: true }),',
+        "    tier: column.select({ options: ['free', 'pro'] }),",
+        '    seats: column.number(),',
+        '  },',
+        "  rows: { mode: 'managed', key: 'code' },",
+        '})',
+        '',
+      ].join('\n')
+    )
+    writeFile(
+      'tables/plans.rows.jsonl',
+      [
+        '{"code":"a","label":"A","tier":"pro","seats":5}',
+        '{"code":"b","tier":"free"}',
+        '{"code":"c","label":"A"}',
+        '{"code":"d","label":"D","seats":"five"}',
+        '{"code":"e","label":"E","tier":"platinum"}',
+        '{"code":"f",',
+        '{"code":"a","label":"G"}',
+        '',
+      ].join('\n')
+    )
+
+    await check()
+
+    const found = (stdoutJson().diagnostics as Array<Record<string, unknown>>).map(
+      ({ code, file, line, message }) => ({ code, file, line, message })
+    )
+    expect(found).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          line: 2,
+          message: expect.stringContaining('Missing required field: label'),
+        }),
+        expect.objectContaining({
+          line: 3,
+          message: expect.stringContaining('Column "label" must be unique'),
+        }),
+        expect.objectContaining({
+          line: 4,
+          message: expect.stringContaining('seats must be number'),
+        }),
+        expect.objectContaining({
+          line: 5,
+          message: expect.stringContaining('tier must be one of the defined options'),
+        }),
+        expect.objectContaining({ line: 6, message: expect.stringContaining('not JSON') }),
+        expect.objectContaining({ line: 7, message: expect.stringContaining('share the key') }),
+      ])
+    )
+    expect(found).toHaveLength(6)
+    expect(
+      found.every(({ code, file }) => code === 'E_TABLE_ROWS' && file === 'tables/plans.rows.jsonl')
+    ).toBe(true)
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('accepts seed rows the columns hold, coercing a numeric string as the write does', async () => {
+    writeFile(
+      'tables/seeds.ts',
+      [
+        '// @sim-sdk 1',
+        "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+        "export default defineTable({ name: 'seeds', columns: { n: column.number({ required: true }) }, rows: { mode: 'seed' } })",
+        '',
+      ].join('\n')
+    )
+    writeFile('tables/seeds.rows.jsonl', '{"n":"12"}\n{"n":3}\n')
+
+    await check()
+
+    expect(stdoutJson()).toMatchObject({ errors: 0 })
+  })
 })

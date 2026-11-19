@@ -102,6 +102,17 @@ export function attachWorkspaceSourceCheck(source: Command): void {
           )
           findings.push(...checked.findings)
         }
+        for (const { code, message, hint, file, line, column } of declarations.rowFindings) {
+          findings.push({
+            code,
+            severity: 'error',
+            message,
+            ...(hint !== undefined ? { hint } : {}),
+            file,
+            line,
+            column,
+          })
+        }
         await refreshWorkspaceTsconfigs(options.dir, workspaceId)
         reportCheck(profile.output, findings, { workflows: keys.length, catalogHash: catalog.hash })
       })
