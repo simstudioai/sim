@@ -112,6 +112,29 @@ Run the next command only when the cursor is non-null. `--limit` applies to each
 
 Results go to stdout; diagnostics go to stderr. JSON/YAML modes serialize API errors as `{error:{code,message,details?}}`. Display formats use `Error:` plus any supplied code/details. Configuration and argument-parser errors, run-wait outcome messages, and unexpected stack traces can remain text. Do not assume every stderr stream is a single JSON document.
 
+`sim workflows source check`, `sim workspaces source check` and both `source apply` commands (dry run or not) print their findings on stderr as `file:line:column` with the code frame. With `--output json` (or `yaml`), stdout is one document holding the counts and every finding as well:
+
+```json
+{
+  "checked": "compile",
+  "errors": 1,
+  "warnings": 0,
+  "diagnostics": [
+    {
+      "code": "W_UNKNOWN_OPTION",
+      "severity": "error",
+      "message": "method has no option FETCH; it is kept as written.",
+      "hint": "Options: GET, POST, PUT, DELETE, PATCH.",
+      "file": "workflow.ts",
+      "line": 12,
+      "column": 63
+    }
+  ]
+}
+```
+
+Each finding has `code`, `severity` and `message`, and when they apply `hint`, `file`, `line`, `column`, `endLine`, `endColumn`, `path` (a JSON path into a non-source file such as `.sim/lock.json`), and `kind` and `key` (the workspace resource it is about). A write the server refuses (stale, locked, too large, busy or rejected; exit 5, 6, 7, 10 or 1) prints nothing on stdout and the `{error:…}` document on stderr, whose `details` carries the refusal's own `code` (such as `SOURCE_STALE`) and its findings in the same shape: `{ "error": { "code", "message", "details": { "code", "diagnostics": [...] } } }`.
+
 Most successful actions exit 0; API, configuration, or argument failures exit 1. Interactive secret entry cancelled with Ctrl-C exits 130. The CLI resends a read, and a source apply or dry run, that the API answers `429` (rate limited), waiting at least its `Retry-After`; a request still limited after those retries, or a write the CLI does not resend, exits 9 with nothing more sent, so wait a minute and run it again. Other outcomes are command-specific:
 
 | Code | `sim whoami` |
@@ -142,6 +165,18 @@ Most successful actions exit 0; API, configuration, or argument failures exit 1.
 | `5` | The workflow changed since the directory was read (`409 SOURCE_STALE`): get it again, reapply the edit, and retry |
 | `6` | The workflow is locked (`423`) |
 | `7` | The source is over the size limits (`413`) |
+| `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
+
+| Code | `sim workflows source check` or `sim workspaces source check` |
+| --- | --- |
+| `0` | No errors (warnings may still print) |
+| `1` | The source has errors, or a warning that fails the check on a block the edit added (see `--strict`), or no block catalog is cached: run the get once |
+
+| Code | `sim workflows source get --dir` or `sim workspaces source get` |
+| --- | --- |
+| `0` | Written |
+| `1` | The directory holds edits no apply has saved (`SOURCE_LOCAL_EDITS`) or another workflow's source (`SOURCE_WORKFLOW_MISMATCH`): apply them, get into another directory, or pass `--force`; or command/request failure |
+| `7` | The workflow, or a kind of resource, is too large for one directory |
 | `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
 
 | Code | `sim workspaces source apply` |

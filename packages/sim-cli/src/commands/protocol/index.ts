@@ -99,7 +99,7 @@ export function attachProtocolCommands(program: Command): void {
 
   const workspaces = group(program, 'workspaces')
   attachWorkspaceOperationWait(group(workspaces, 'operations'))
-  const workspaceSource = group(workspaces, 'source')
+  const workspaceSource = group(workspaces, 'source').description('Manage workspace source')
   attachWorkspaceSourceGet(workspaceSource)
   attachWorkspaceSourceApply(workspaceSource)
   attachWorkspaceSourceCheck(workspaceSource)

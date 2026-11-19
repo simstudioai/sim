@@ -27,6 +27,7 @@ import {
   printRefusal,
   refusedExitCode,
   requireConsent,
+  resultDiagnostics,
 } from './source-ui'
 import {
   appliedBlobDigests,
@@ -35,6 +36,7 @@ import {
   stageBlobs,
 } from './workspace-source-blobs'
 import {
+  assertWorkspaceDir,
   assertWorkspacePaths,
   readWorkspaceDir,
   type WorkspaceSubmission,
@@ -55,19 +57,18 @@ interface ApplyOptions {
 const EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
 file:line:column with its frame and hint), or changes were held back because they use a declared
-secret the workspace has no value for or a declared credential key nothing binds to (the rest
-was applied: set the secret or connect the credential, then apply again), the directory was read from another workspace than
-the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base records binary
-files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed;
-5 a resource changed or was deleted on the server since the directory was read (SOURCE_STALE:
-get it again into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the
-directory is too large; 8 the apply stopped part-way on a server failure: what was written is
-saved into the directory, and applying again continues. An apply a resource refused part-way
-(stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1;
-9 rate limited (HTTP 429) after the CLI's retries,
-before anything was written: wait a minute and apply again (binary files already uploaded are
-not sent again); 10 another apply is writing the workspace (SOURCE_BUSY): nothing was written,
-apply again once it finished.`
+secret the workspace has no value for or a declared credential key nothing binds to (the rest was
+applied: set the secret or connect the credential, then apply again), the directory was read from
+another workspace than the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its
+base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the
+command failed; 5 a resource changed or was deleted on the server since the directory was read
+(SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is
+locked; 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was
+written is saved into the directory, and applying again continues. An apply a resource refused
+part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6
+or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a
+minute and apply again (binary files already uploaded are not sent again); 10 another apply is
+writing the workspace (SOURCE_BUSY): nothing was written, apply again once it finished.`
 
 const SYMBOLS: Record<Change['action'], string> = {
   create: '+',
@@ -259,6 +260,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     .action(async (options: ApplyOptions) => {
       requireConsent(options, 'writes the workspace', 'apply')
       const only = parseKinds(options.only)
+      await assertWorkspaceDir(options.dir)
       const { client, profile } = connect()
       const workspaceId = client.requireWorkspace()
       const post = async (submission: WorkspaceSubmission, dryRun: boolean) => {
@@ -290,7 +292,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
         try {
           staged = await stageBlobs(client, workspaceId, options.dir, submission.blobs, paths)
         } catch (error) {
-          return printRefusal(error)
+          return printRefusal(error, profile.output)
         }
         if (staged.count > 0) {
           printError(`Uploaded ${staged.count} binary file(s), ${staged.bytes} bytes.`)
@@ -318,6 +320,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
         return printRefusal(
           refusal,
+          profile.output,
           dryRun
             ? undefined
             : `It may have been written. Run \`sim workspaces source apply --dir ${options.dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it may have been, or someone else changed those resources. Run \`sim workspaces source get --dir <fresh dir>\` and compare it with ${options.dir}: if it holds your edits, \`sim workspaces source get --dir ${options.dir} --force\` brings this directory up to date; if not, reapply your edits in the fresh directory. Any other outcome means it was not written: apply again.`
@@ -348,7 +351,10 @@ export function attachWorkspaceSourceApply(source: Command): void {
         const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
         if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
         if (options.dryRun || refusesApply(preview)) {
-          printProtocolResult(profile.output, summarize(preview))
+          printProtocolResult(profile.output, {
+            ...summarize(preview),
+            ...resultDiagnostics(profile.output, preview.diagnostics),
+          })
           return
         }
         if (!options.yes && !(await confirm(`Apply these changes to workspace ${workspaceId}?`))) {
@@ -372,7 +378,10 @@ export function attachWorkspaceSourceApply(source: Command): void {
         printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
         setSoftExitCode(failedExitCode(data.failed))
       }
-      printProtocolResult(profile.output, summarize(data))
+      printProtocolResult(profile.output, {
+        ...summarize(data),
+        ...resultDiagnostics(profile.output, data.diagnostics),
+      })
     })
 }
 

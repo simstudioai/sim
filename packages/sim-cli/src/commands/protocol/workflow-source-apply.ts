@@ -34,6 +34,7 @@ import {
   printRefusal,
   refusedExitCode,
   requireConsent,
+  resultDiagnostics,
 } from './source-ui'
 import {
   refreshWorkflowTsconfigs,
@@ -102,8 +103,8 @@ function codeFilePaths(entry: string, lock: WorkflowLockV1 | null): string[] {
 }
 
 /**
- * Prints a write's diagnostics and notes (a name the source changed but the apply kept, a dropped
- * tool), skipping any already in `printed` and adding the rest: after a terminal preview, the
+ * Prints a write's diagnostics and notes (such as a custom tool the save could not store),
+ * skipping any already in `printed` and adding the rest: after a terminal preview, the
  * write it confirmed prints only what the preview did not.
  */
 function printFindings(data: SourceApplyData, printed: Set<string>): void {
@@ -235,7 +236,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       })
       return response.data
     } catch (error) {
-      return printRefusal(error, dryRun ? undefined : args.ifAnswerLost)
+      return printRefusal(error, args.output, dryRun ? undefined : args.ifAnswerLost)
     }
   }
   const printed = new Set<string>()
@@ -244,7 +245,10 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
     printFindings(preview, printed)
     if (preview.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
       setSoftExitCode(refusedExitCode(preview.diagnostics))
-      printProtocolResult(args.output, summarize(preview, creating))
+      printProtocolResult(args.output, {
+        ...summarize(preview, creating),
+        ...resultDiagnostics(args.output, preview.diagnostics),
+      })
       return
     }
     printError(diffSummary(preview))
@@ -263,7 +267,10 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
     else await writeBack(directory, data, args.previousLock)
   }
 
-  printProtocolResult(args.output, summarize(data, creating))
+  printProtocolResult(args.output, {
+    ...summarize(data, creating),
+    ...resultDiagnostics(args.output, data.diagnostics),
+  })
 }
 
 const DIR_DESCRIPTION =

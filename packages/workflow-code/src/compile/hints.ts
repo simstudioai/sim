@@ -144,8 +144,13 @@ export function hintForNode(node: Node): string {
   }
 }
 
-function levenshtein(a: string, b: string, cap: number): number {
+/**
+ * The edit distance between `a` and `b`, counting a swap of two adjacent characters as one edit
+ * (`saev` is one edit from `save`), or `cap + 1` once it exceeds `cap`.
+ */
+function editDistance(a: string, b: string, cap: number): number {
   if (Math.abs(a.length - b.length) > cap) return cap + 1
+  let beforePrevious: number[] = []
   let previous = Array.from({ length: b.length + 1 }, (_, i) => i)
   for (let i = 1; i <= a.length; i++) {
     const current = [i]
@@ -153,9 +158,13 @@ function levenshtein(a: string, b: string, cap: number): number {
     for (let j = 1; j <= b.length; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1
       current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost)
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        current[j] = Math.min(current[j], beforePrevious[j - 2] + 1)
+      }
       rowMin = Math.min(rowMin, current[j])
     }
     if (rowMin > cap) return cap + 1
+    beforePrevious = previous
     previous = current
   }
   return previous[b.length]
@@ -170,7 +179,7 @@ export function closest(word: string, candidates: Iterable<string>): string | nu
   let best: string | null = null
   let bestDistance = cap + 1
   for (const candidate of candidates) {
-    const distance = levenshtein(word.toLowerCase(), candidate.toLowerCase(), cap)
+    const distance = editDistance(word.toLowerCase(), candidate.toLowerCase(), cap)
     if (distance < bestDistance) {
       best = candidate
       bestDistance = distance
