@@ -8,7 +8,7 @@ import {
 } from '../agent-tools'
 import { literalText } from '../babel'
 import { toolModes } from '../canonicalize/modes'
-import { paramAliases } from '../catalog/surface'
+import { builderPins, paramAliases } from '../catalog/surface'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import { isJson } from '../lock'
 import {
@@ -131,6 +131,24 @@ function toolBuilderPath(
   return catalogBuilder(ctx.catalog, builderPath) ? builderPath : null
 }
 
+/**
+ * Refuses a tool param or `operation` option the builder already pins, as a block call does: the
+ * method name fixes it, and a written value would make the tool print as another builder.
+ */
+function fixedParam(
+  ctx: CompileContext,
+  property: ObjectProperty,
+  key: string,
+  site: ValueSite
+): null {
+  ctx.reporter.report('E_FIXED_PARAM', `The builder already sets ${key}.`, rangeOf(ctx, property), {
+    hint: `Remove ${key}; the method name pins it.`,
+    blockKey: site.decl.key,
+    param: key,
+  })
+  return null
+}
+
 /** A `stored()` tool param, resolved once the whole list is matched to the stored tools. */
 interface PendingStoredParam {
   param: string
@@ -185,14 +203,16 @@ function compileToolCall(
   const params: Record<string, Value> = {}
   const pending: PendingStoredParam[] = []
   for (const [id, value] of Object.entries(builder.fixed ?? {})) setOwn(params, id, value)
+  const pins = builderPins(builder)
   const block = catalogBlock(ctx.catalog, builder.type)
   const paramOf = new Map<string, string>()
   for (const [param, alias] of block ? paramAliases(block, false) : []) paramOf.set(alias, param)
   for (const [key, property] of objectEntries(ctx, paramsNode)) {
     const param = paramOf.get(key) ?? key
+    if (pins.has(param)) return fixedParam(ctx, property, key, site)
     const compiled = compileValue(ctx, property.value, site)
     if (!compiled) return null
-    if (Object.hasOwn(params, param) && !Object.hasOwn(builder.fixed ?? {}, param)) {
+    if (Object.hasOwn(params, param)) {
       return unsupported(
         ctx,
         property,
@@ -230,6 +250,7 @@ function compileToolCall(
   }
   for (const [key, property] of objectEntries(ctx, optionsNode)) {
     const text = literalText(property.value)
+    if (key === 'operation' && pins.has(key)) return fixedParam(ctx, property, key, site)
     switch (key) {
       case 'operation':
       case 'toolId':
