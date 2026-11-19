@@ -46,6 +46,11 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'google-unverified-oauth': {
+    description:
+      'Allow new Google Ads, Meet and Chat grants pending verification. Global deployment opt-in only; disabled by default.',
+    fallback: null,
+  },
   dashboards: {
     description:
       'Enable dashboard resources, rendering, analytics, and Mothership authoring. Supports global and organization rollout; disabled by default.',
