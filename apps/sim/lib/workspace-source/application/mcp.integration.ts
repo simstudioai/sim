@@ -572,7 +572,7 @@ describe('MCP servers as workspace source', () => {
       expect(JSON.stringify(read)).not.toContain(tenant)
       expect(read.files[path]).toContain("'X-Tenant': stored()")
       expect(read.files[path]).toContain('Bearer {{GH_TOKEN}}')
-      const address = `mcp-server:${path.slice(4, -3)}`
+      const address: `mcp-server:${string}` = `mcp-server:${path.slice(4, -3)}`
       expect(read.base.resources[address]).toEqual(written.base.resources[address])
     }
   )
