@@ -3,7 +3,10 @@ import {
   RATE_LIMIT_HEADERS,
   RESOURCE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
-import { v2GetSourceResourcesContract } from '@/lib/api/contracts/v2/source-resources'
+import {
+  MAX_MANIFEST_RESOURCES_PER_KIND,
+  v2GetSourceResourcesContract,
+} from '@/lib/api/contracts/v2/source-resources'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 
@@ -48,8 +51,7 @@ export const sourceResourcesOpenApiRoutes = [
       applicationOperation: workflowOperations.readSourceResources,
       operationId: 'getSourceResources',
       summary: 'Get source resources',
-      description:
-        'List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, workspace skills and custom tools, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while workflows as code is not enabled.',
+      description: `List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, workspace skills and custom tools, MCP servers with the tool names they list, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest ${MAX_MANIFEST_RESOURCES_PER_KIND} resources, and \`truncated\` says when there were more. Returns \`403\` while workflows as code is not enabled.`,
       tags: ['Workflows'],
       errors: RESOURCE_ERRORS,
       success: {
