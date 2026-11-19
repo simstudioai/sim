@@ -809,6 +809,12 @@ export const activityRollupState = pgTable('activity_rollup_state', {
   maintainedAt: timestamp('maintained_at', { withTimezone: true }),
   /** Passes in a row that failed after taking the lease; reset by the next pass that completes. */
   failedPasses: integer('failed_passes').notNull().default(0),
+  /**
+   * When a pass last ran both correction queues (dirty marks and in-flight rechecks) to the end of
+   * their step. Reads use the rollup only while this is recent, so cells nothing corrects any more
+   * are never served. Seeded when a coverage starts.
+   */
+  correctionsAt: timestamp('corrections_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -830,6 +836,8 @@ export const activityRollupDirty = pgTable(
     bucketStart: timestamp('bucket_start').notNull(),
     /** Rewritten by every mark; the pass removes a mark only at the `due_at` it read. */
     dueAt: timestamp('due_at', { withTimezone: true }).notNull(),
+    /** Recomputes of this cell that failed, each pushing `due_at` out with backoff. */
+    attempts: integer('attempts').notNull().default(0),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.workspaceId, table.bucketStart] }),

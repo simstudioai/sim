@@ -1,5 +1,5 @@
 import { dbReplica, runOutsideTransactionContext } from '@sim/db'
-import { workflow, workflowActivityHourly, workspace } from '@sim/db/schema'
+import { activityRollupDirty, workflow, workflowActivityHourly, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { type SQL, sql } from 'drizzle-orm'
 import {
@@ -54,8 +54,9 @@ export interface RollupReadPlan {
 
 /**
  * Splits `window` between the rollup and the source, or returns null when the rollup must not
- * serve it at all: another version's cells, no coverage yet, a stalled pass, or a window reaching
- * before a backfill that is still running. Once the backfill is complete, instants before the
+ * serve it at all: another version's cells, no coverage yet, a stalled pass, correction queues
+ * (dirty marks and in-flight rechecks) that no pass has run lately, or a window reaching before a
+ * backfill that is still running. Once the backfill is complete, instants before the
  * coverage hold no runs and are read live at the cost of an index probe per workspace.
  */
 export function planRollupRead(
@@ -66,7 +67,8 @@ export function planRollupRead(
   if (!state || state.version !== ACTIVITY_ROLLUP_VERSION) return null
   const { coverageStart, freshThrough } = state
   if (!coverageStart || !freshThrough) return null
-  if (now.getTime() - freshThrough.getTime() >= MAX_FRESHNESS_LAG_MS) return null
+  const lagging = (at: Date | null) => !at || now.getTime() - at.getTime() >= MAX_FRESHNESS_LAG_MS
+  if (lagging(freshThrough) || lagging(state.correctionsAt)) return null
   if (window.from < coverageStart && !state.backfillCompletedAt) return null
 
   const from = new Date(Math.max(ceilHour(window.from).getTime(), coverageStart.getTime()))
@@ -117,6 +119,19 @@ function storedCells(scope: ActivityScope, span: InstantRange): SQL {
       ${scope.workspaceId ? sql`AND w.id = ${scope.workspaceId}` : sql``}`
 }
 
+/**
+ * The rollup hours of the scope's workspaces that have a pending dirty mark, as `h`: their cells
+ * are known to be stale until the mark is processed (or while it backs off after failing), so
+ * reads take those hours live. Read per workspace on the mark queue's key, in the read's snapshot.
+ */
+function markedHours(scope: ActivityScope, span: InstantRange): SQL {
+  return sql`SELECT DISTINCT d.bucket_start AS h FROM ${workspace} w
+    JOIN ${activityRollupDirty} d ON d.workspace_id = w.id
+      AND d.bucket_start >= ${utcTimestamp(span.from)} AND d.bucket_start < ${utcTimestamp(span.to)}
+    WHERE w.organization_id = ${scope.organizationId}
+      ${scope.workspaceId ? sql`AND w.id = ${scope.workspaceId}` : sql``}`
+}
+
 type DayRow = Record<string, unknown> & {
   day: string
   runs: string | number
@@ -141,13 +156,15 @@ async function readWorkflowDays(
 ): Promise<[string, ActivityStretch][]> {
   const local = (instant: SQL) => sql`((${instant}) AT TIME ZONE 'UTC') AT TIME ZONE ${timezone}`
   const day = (instant: SQL) => sql`to_char(date_trunc('day', ${local(instant)}), 'YYYY-MM-DD')`
-  const last = sql`h + interval '1 hour' - interval '1 microsecond'`
+  /** Parenthesized: it is subtracted below, where `- h + …` would change the arithmetic. */
+  const last = sql`(h + interval '1 hour' - interval '1 microsecond')`
   const span = plan.rollup
   const straddles = span
     ? sql`SELECT h FROM generate_series(${utcTimestamp(span.from)},
           ${utcTimestamp(new Date(span.to.getTime() - HOUR_MS))}, interval '1 hour') AS h
         WHERE date_trunc('day', ${local(sql`h`)}) <> date_trunc('day', ${local(last)})
-          OR ${local(sql`h`)} - h <> ${local(last)} - ${last}`
+          OR ${local(sql`h`)} - h <> ${local(last)} - ${last}
+        UNION ${markedHours(scope, span)}`
     : sql`SELECT NULL::timestamp AS h WHERE false`
   const live = sql`SELECT ${day(sql`a.started_at`)} AS day, ${workflowRunCounters}
     FROM (${organizationWorkflowRuns(scope, sql`SELECT * FROM live_ranges`)}) a
@@ -227,14 +244,20 @@ async function timedChatDays(
 
 /**
  * Workflow runs of the window as breakdown cells: stored cells summed over the rollup span, and
- * the live edges, each keyed by workspace, workflow, and trigger. A stored cell's workflow is
- * looked up now, so one deleted since the cell was computed reads as deleted, as its runs do.
+ * the live edges and marked hours (see {@link markedHours}), each keyed by workspace, workflow, and
+ * trigger. A stored cell's workflow is looked up now, so one deleted since the cell was computed
+ * reads as deleted, as its runs do.
  */
 function workflowCells(scope: ActivityScope, plan: RollupReadPlan, resolveWorkflow: boolean) {
-  const live = sql`SELECT a.workspace_id, a.workflow_id, a.trigger, ${workflowRunCounters}
-    FROM (${organizationWorkflowRuns(scope, rangeRows(plan.live))}) a
+  const liveCells = (ranges: SQL) => sql`SELECT a.workspace_id, a.workflow_id, a.trigger,
+      ${workflowRunCounters}
+    FROM (${organizationWorkflowRuns(scope, ranges)}) a
     GROUP BY 1, 2, 3`
-  if (!plan.rollup) return live
+  if (!plan.rollup) return liveCells(rangeRows(plan.live))
+  const marked = markedHours(scope, plan.rollup)
+  const live = liveCells(
+    sql`${rangeRows(plan.live)} UNION ALL SELECT m.h, m.h + interval '1 hour' FROM (${marked}) m`
+  )
   const workflowId = resolveWorkflow
     ? sql`(SELECT f.id FROM ${workflow} f WHERE f.id = nullif(r.workflow_id, ''))`
     : sql`NULL::text`
@@ -247,6 +270,7 @@ function workflowCells(scope: ActivityScope, plan: RollupReadPlan, resolveWorkfl
         sum(r.in_flight) AS in_flight, sum(r.duration_sum_ms) AS duration_sum_ms,
         sum(r.duration_count) AS duration_count
       FROM ${storedCells(scope, plan.rollup)}
+        AND NOT EXISTS (SELECT 1 FROM (${marked}) m WHERE m.h = r.bucket_start)
       GROUP BY 1, 2, 3
     ) r
     UNION ALL ${live}`

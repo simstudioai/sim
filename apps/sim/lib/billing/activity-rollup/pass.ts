@@ -138,8 +138,15 @@ function startCoverage(
     freshThrough: settledThrough,
     lastEndScan: sql`(now() AT TIME ZONE 'UTC') - ${msInterval(marginMs)}`,
     maintainedAt: sql`now()`,
+    correctionsAt: sql`now()`,
   })
 }
+
+/**
+ * Once this many passes in a row have failed, a deferred hour counts as a retry, so a pass that
+ * keeps crashing while paging it backs it off instead of starting it again every tick.
+ */
+const CRASHING_PASSES = 3
 
 /** How long a retry of an hour too heavy to read may page through workspaces. */
 const HEAVY_RETRY_MS = 2 * 60 * 1000
@@ -183,6 +190,7 @@ async function deferPaging(hour: Date): Promise<void> {
  */
 async function computeHour(
   owner: string,
+  failedPasses: number,
   hour: Date,
   deadline: number,
   write: (
@@ -204,7 +212,7 @@ async function computeHour(
    * pass that dies paging it does not start it again at once. A deferred hour that runs out of its
    * own budget too is heavy after all, and is backed off from then on.
    */
-  const deferred = block?.attempts === 0
+  const deferred = block?.attempts === 0 && failedPasses < CRASHING_PASSES
   let budgetMs = 0
   let retryInMs: number | undefined
   if (block) {
@@ -266,10 +274,15 @@ async function finalizeSettledHours(
   let current = state
   while (current.freshThrough && current.freshThrough < settledThrough && Date.now() < deadline) {
     const hour = current.freshThrough
-    const computed = await computeHour(owner, hour, deadline, (cells, progress) =>
-      writeHour(hour, cells, (tx) =>
-        progress(tx, { freshThrough: new Date(hour.getTime() + HOUR_MS) })
-      )
+    const computed = await computeHour(
+      owner,
+      current.failedPasses,
+      hour,
+      deadline,
+      (cells, progress) =>
+        writeHour(hour, cells, (tx) =>
+          progress(tx, { freshThrough: new Date(hour.getTime() + HOUR_MS) })
+        )
     )
     if (!computed.state) break
     current = computed.state
@@ -297,20 +310,27 @@ async function recheckInflightCells(deadline: number): Promise<number> {
     if (Date.now() >= deadline) break
     const hour = new Date(Number(cell.bucketMs))
     const key = sql`workspace_id = ${cell.workspaceId} AND bucket_start = ${utcTimestamp(hour)}`
-    await recomputeCell(cell.workspaceId, hour, async (tx, inFlight) => {
-      if (inFlight === 0) {
-        await tx.execute(sql`DELETE FROM ${activityRollupInflight} WHERE ${key}`)
-        return
-      }
-      const attempts = Number(cell.attempts) + 1
-      await tx.execute(sql`
-        UPDATE ${activityRollupInflight}
-        SET attempts = ${attempts},
-          next_check_at = now() + ${msInterval(inflightBackoffMs(attempts))}
-        WHERE ${key}
-      `)
-    })
-    rechecked++
+    const attempts = Number(cell.attempts) + 1
+    const backOff = sql`UPDATE ${activityRollupInflight}
+      SET attempts = ${attempts}, next_check_at = now() + ${msInterval(inflightBackoffMs(attempts))}
+      WHERE ${key}`
+    try {
+      await recomputeCell(cell.workspaceId, hour, async (tx, inFlight) => {
+        await tx.execute(
+          inFlight === 0 ? sql`DELETE FROM ${activityRollupInflight} WHERE ${key}` : backOff
+        )
+      })
+      rechecked++
+    } catch (error) {
+      // One cell that cannot be recomputed must not hold up the rest of the queue.
+      logger.error('Activity rollup in-flight cell failed to recompute; backing off', {
+        workspaceId: cell.workspaceId,
+        hour: hour.toISOString(),
+        attempts,
+        error: getErrorMessage(error),
+      })
+      await db.execute(backOff)
+    }
   }
   return rechecked
 }
@@ -342,18 +362,23 @@ async function backfill(
     }
     const hour = floorHour(latest.startedAt)
     const started = Date.now()
-    const computed = await computeHour(owner, hour, deadline, (cells, progress) =>
-      writeHour(hour, cells, async (tx) => {
-        await tx
-          .delete(workflowActivityHourly)
-          .where(
-            and(
-              gte(workflowActivityHourly.bucketStart, new Date(hour.getTime() + HOUR_MS)),
-              lt(workflowActivityHourly.bucketStart, coverageStart)
+    const computed = await computeHour(
+      owner,
+      current.failedPasses,
+      hour,
+      deadline,
+      (cells, progress) =>
+        writeHour(hour, cells, async (tx) => {
+          await tx
+            .delete(workflowActivityHourly)
+            .where(
+              and(
+                gte(workflowActivityHourly.bucketStart, new Date(hour.getTime() + HOUR_MS)),
+                lt(workflowActivityHourly.bucketStart, coverageStart)
+              )
             )
-          )
-        return progress(tx, { coverageStart: hour })
-      })
+          return progress(tx, { coverageStart: hour })
+        })
     )
     if (!computed.state) break
     current = computed.state
@@ -591,6 +616,7 @@ export async function runActivityRollupPass(
     }
     result.dirtyRecomputed = await processDirtyMarks(state, deadline)
     result.inflightRechecked = await recheckInflightCells(deadline)
+    state = await updateLeasedState(owner, { correctionsAt: sql`now()` })
     if (replicaCurrent) state = await backfill(owner, state, options, deadline, result)
 
     const housekeepingDue =

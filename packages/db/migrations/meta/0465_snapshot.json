@@ -1,5 +1,5 @@
 {
-  "id": "6cc86245-b83f-4f22-a3dd-d3c2a40f6934",
+  "id": "dc5b2efb-06cc-4e32-85ab-648e265eaac7",
   "prevId": "77c516e8-a83a-4781-a08f-325bd0ef7281",
   "version": "7",
   "dialect": "postgresql",
@@ -218,6 +218,13 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         }
       },
       "indexes": {
@@ -378,6 +385,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "corrections_at": {
+          "name": "corrections_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "updated_at": {
           "name": "updated_at",

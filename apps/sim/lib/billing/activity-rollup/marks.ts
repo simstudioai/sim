@@ -3,7 +3,11 @@ import { activityRollupDirty, activityRollupState, workflowExecutionLogs } from 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { lt, sql } from 'drizzle-orm'
-import { boundedTransaction, recomputeCell } from '@/lib/billing/activity-rollup/cells'
+import {
+  boundedTransaction,
+  inflightBackoffMs,
+  recomputeCell,
+} from '@/lib/billing/activity-rollup/cells'
 import { floorHour, msInterval, utcTimestamp } from '@/lib/billing/activity-rollup/source'
 import {
   type ActivityRollupState,
@@ -151,9 +155,14 @@ export async function processDirtyMarks(
     await db.delete(activityRollupDirty).where(lt(activityRollupDirty.bucketStart, coverageStart))
   }
   // `due_at` is read as text: a JS `Date` would drop the microseconds the guard compares.
-  const marks = await db.execute<{ workspaceId: string; bucketMs: number; seen: string }>(sql`
+  const marks = await db.execute<{
+    workspaceId: string
+    bucketMs: number
+    seen: string
+    attempts: number
+  }>(sql`
     SELECT workspace_id AS "workspaceId", (extract(epoch FROM bucket_start) * 1000)::float8 AS "bucketMs",
-      due_at::text AS seen
+      due_at::text AS seen, attempts
     FROM ${activityRollupDirty}
     WHERE due_at <= now()
       AND bucket_start >= ${utcTimestamp(coverageStart)} AND bucket_start < ${utcTimestamp(freshThrough)}
@@ -164,14 +173,28 @@ export async function processDirtyMarks(
   for (const mark of marks) {
     if (Date.now() >= deadline) break
     const hour = new Date(Number(mark.bucketMs))
-    await recomputeCell(mark.workspaceId, hour, async (tx) => {
-      await tx.execute(sql`
-        DELETE FROM ${activityRollupDirty}
-        WHERE workspace_id = ${mark.workspaceId} AND bucket_start = ${utcTimestamp(hour)}
-          AND due_at = ${mark.seen}::timestamptz
+    const key = sql`workspace_id = ${mark.workspaceId} AND bucket_start = ${utcTimestamp(hour)}
+      AND due_at = ${mark.seen}::timestamptz`
+    try {
+      await recomputeCell(mark.workspaceId, hour, async (tx) => {
+        await tx.execute(sql`DELETE FROM ${activityRollupDirty} WHERE ${key}`)
+      })
+      processed++
+    } catch (error) {
+      // Retried with backoff so the rest of the queue proceeds; reads serve the hour live meanwhile.
+      const attempts = Number(mark.attempts) + 1
+      logger.error('Activity rollup dirty cell failed to recompute; backing off', {
+        workspaceId: mark.workspaceId,
+        hour: hour.toISOString(),
+        attempts,
+        error: getErrorMessage(error),
+      })
+      await db.execute(sql`
+        UPDATE ${activityRollupDirty}
+        SET attempts = ${attempts}, due_at = now() + ${msInterval(inflightBackoffMs(attempts - 1))}
+        WHERE ${key}
       `)
-    })
-    processed++
+    }
   }
   return processed
 }

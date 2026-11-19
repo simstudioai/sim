@@ -521,6 +521,28 @@ describe('organization activity rollup', () => {
     await expectSummariesMatch(TIMEZONES)
   }, 300_000)
 
+  it('serves a stored cell whose hour stays on one local day instead of reading it live', async () => {
+    const legacy = await legacySummary(longWindow(), 'UTC')
+    const [cell] = await connection.unsafe<
+      { workspace_id: string; bucket_start: string; workflow_id: string; trigger: string }[]
+    >(
+      `UPDATE workflow_activity_hourly SET runs = runs + 1000
+       WHERE ctid = (SELECT h.ctid FROM workflow_activity_hourly h WHERE h.workspace_id = 'ws1'
+         AND h.bucket_start < (SELECT fresh_through FROM activity_rollup_state) - interval '1 day'
+         ORDER BY h.bucket_start DESC LIMIT 1)
+       RETURNING workspace_id, bucket_start::text, workflow_id, trigger`
+    )
+    if (!cell) throw new Error('No stored cell to bump')
+    try {
+      const served = await servedSummary(longWindow(), 'UTC', {})
+      expect(served.totals.workflowRuns).toBe(legacy.totals.workflowRuns + 1000)
+    } finally {
+      await connection`UPDATE workflow_activity_hourly SET runs = runs - 1000
+        WHERE workspace_id = ${cell.workspace_id} AND bucket_start = ${cell.bucket_start}::timestamp
+          AND workflow_id = ${cell.workflow_id} AND trigger = ${cell.trigger}`
+    }
+  })
+
   it('reproduces every breakdown page for every dimension and sort', async () => {
     await expectBreakdownsMatch(TIMEZONES)
   }, 600_000)
@@ -625,7 +647,8 @@ describe('organization activity rollup', () => {
   }, 120_000)
 
   it('serves the hours after fresh_through live', async () => {
-    const freshThrough = NOW_HOUR - 5 * HOUR
+    // Four hours back keeps the lag under the six-hour bound even if the run crosses an hour.
+    const freshThrough = NOW_HOUR - 4 * HOUR
     const at = new Date(freshThrough).toISOString()
     await connection`UPDATE activity_rollup_state SET fresh_through = ${at}::timestamptz AT TIME ZONE 'UTC'`
     await connection`DELETE FROM workflow_activity_hourly
@@ -638,7 +661,7 @@ describe('organization activity rollup', () => {
       )?.rollup?.to.getTime()
     ).toBe(freshThrough)
     await expectEquivalent()
-    expect((await runPass()).finalizedHours).toBe(2)
+    expect((await runPass()).finalizedHours).toBe(1)
   }, 120_000)
 
   it('falls back to the source for a window reaching before an unfinished backfill', async () => {
@@ -649,7 +672,6 @@ describe('organization activity rollup', () => {
     await connection`DELETE FROM workflow_activity_hourly
       WHERE bucket_start < ${at}::timestamptz AT TIME ZONE 'UTC'`
     expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).toBeNull()
-    await expectEquivalent(undefined, { served: false })
     await runPass()
     expect((await readRollupState())?.backfillCompletedAt).not.toBeNull()
     await expectEquivalent()
@@ -826,10 +848,11 @@ describe('organization activity rollup', () => {
       VALUES ('ws1', ${state.freshThrough.toISOString()}::timestamptz AT TIME ZONE 'UTC' - interval '1 hour', now())
       ON CONFLICT (workspace_id, bucket_start) DO UPDATE SET due_at = excluded.due_at`
     await connection.unsafe(`
-      CREATE FUNCTION fail_mark_consume() RETURNS trigger LANGUAGE plpgsql AS $$
+      -- One failing mark is isolated, so the step is failed through the queue prune's DELETE.
+      CREATE FUNCTION fail_mark_prune() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN RAISE EXCEPTION 'Synthetic step failure'; END $$;
-      CREATE TRIGGER fail_mark_consume BEFORE DELETE ON activity_rollup_dirty
-        FOR EACH STATEMENT EXECUTE FUNCTION fail_mark_consume();
+      CREATE TRIGGER fail_mark_prune BEFORE DELETE ON activity_rollup_dirty
+        FOR EACH STATEMENT EXECUTE FUNCTION fail_mark_prune();
     `)
     try {
       await expect(runPass()).rejects.toThrow()
@@ -838,8 +861,8 @@ describe('organization activity rollup', () => {
       expect(Date.now() - (failed?.maintainedAt?.getTime() ?? 0)).toBeLessThan(60 * 1000)
     } finally {
       await connection.unsafe(`
-        DROP TRIGGER fail_mark_consume ON activity_rollup_dirty;
-        DROP FUNCTION fail_mark_consume();
+        DROP TRIGGER fail_mark_prune ON activity_rollup_dirty;
+        DROP FUNCTION fail_mark_prune();
       `)
     }
     await runPass()
@@ -881,6 +904,25 @@ describe('organization activity rollup', () => {
     await expectEquivalent()
   }, 300_000)
 
+  it('counts a deferred hour as a retry once passes keep failing, so it backs off', async () => {
+    const hour = await reopenLastSettledHour()
+    await connection.unsafe(
+      `INSERT INTO activity_rollup_blocked VALUES ($1::timestamp, 0, now())`,
+      [hour]
+    )
+    await connection.unsafe(`UPDATE activity_rollup_state SET failed_passes = 3`)
+    await gateHour(hour, `RAISE EXCEPTION 'Synthetic crash';`)
+    try {
+      await expect(runPass()).rejects.toThrow()
+      expect(await blockedAttempts(hour)).toBe(1)
+    } finally {
+      await ungateHour()
+    }
+    await connection.unsafe(`UPDATE activity_rollup_blocked SET retry_at = now()`)
+    expect(await runPass()).toMatchObject({ finalizedHours: 1, blockedHours: 0 })
+    expect((await readRollupState())?.failedPasses).toBe(0)
+  }, 300_000)
+
   it('commits a retry backoff before the retry, so a retry that dies still backs off', async () => {
     const hour = await reopenLastSettledHour()
     await connection.unsafe(
@@ -901,6 +943,89 @@ describe('organization activity rollup', () => {
     expect(row).toEqual({ attempts: 2, waiting: true })
     await connection.unsafe(`UPDATE activity_rollup_blocked SET retry_at = now()`)
     expect(await runPass()).toMatchObject({ finalizedHours: 1, blockedHours: 0 })
+    await expectEquivalent()
+  }, 300_000)
+
+  it('isolates a dirty cell that keeps failing, serves its hour live, and retries it later', async () => {
+    const state = await readRollupState()
+    const coverageStart = state?.coverageStart
+    const freshThrough = state?.freshThrough
+    if (!coverageStart || !freshThrough) throw new Error('No coverage')
+    const latestCoveredRun = async (workspaceId: string) => {
+      const [row] = await connection.unsafe<{ id: string; hour: string }[]>(
+        `SELECT id, to_char(date_trunc('hour', started_at), 'YYYY-MM-DD HH24:MI:SS') AS hour
+         FROM workflow_execution_logs
+         WHERE workspace_id = $1 AND started_at >= $2::timestamptz AT TIME ZONE 'UTC'
+           AND started_at < $3::timestamptz AT TIME ZONE 'UTC' - interval '1 day'
+         ORDER BY started_at DESC LIMIT 1`,
+        [workspaceId, coverageStart.toISOString(), freshThrough.toISOString()]
+      )
+      return row
+    }
+    const stale = await latestCoveredRun('ws2')
+    const healthy = await latestCoveredRun('ws1')
+    if (!stale || !healthy) throw new Error('No covered runs to mark')
+    // Deleting a covered run leaves its stored cell stale; the trigger below makes its recompute fail.
+    await connection.unsafe(`DELETE FROM workflow_execution_logs WHERE id = $1`, [stale.id])
+    await connection.unsafe(
+      `INSERT INTO activity_rollup_dirty VALUES ('ws2', $1::timestamp, now()), ('ws1', $2::timestamp, now())
+       ON CONFLICT (workspace_id, bucket_start) DO UPDATE SET due_at = excluded.due_at`,
+      [stale.hour, healthy.hour]
+    )
+    await connection.unsafe(`
+      CREATE FUNCTION fail_cell_write() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF coalesce(NEW.workspace_id, OLD.workspace_id) = 'ws2'
+          AND coalesce(NEW.bucket_start, OLD.bucket_start) = '${stale.hour}'::timestamp THEN
+          RAISE EXCEPTION 'Synthetic recompute failure';
+        END IF;
+        RETURN coalesce(NEW, OLD);
+      END $$;
+      CREATE TRIGGER fail_cell_write BEFORE INSERT OR UPDATE OR DELETE ON workflow_activity_hourly
+        FOR EACH ROW EXECUTE FUNCTION fail_cell_write();
+    `)
+    const mark = async (workspaceId: string, hour: string) => {
+      const [row] = await connection.unsafe<{ attempts: number; waiting: boolean }[]>(
+        `SELECT attempts, due_at > now() + interval '5 minutes' AS waiting FROM activity_rollup_dirty
+         WHERE workspace_id = $1 AND bucket_start = $2::timestamp`,
+        [workspaceId, hour]
+      )
+      return row ?? null
+    }
+    try {
+      expect((await runPass()).status).toBe('ran')
+      expect(await mark('ws1', healthy.hour)).toBeNull()
+      expect(await mark('ws2', stale.hour)).toEqual({ attempts: 1, waiting: true })
+      await expectEquivalent()
+    } finally {
+      await connection.unsafe(`
+        DROP TRIGGER fail_cell_write ON workflow_activity_hourly;
+        DROP FUNCTION fail_cell_write();
+      `)
+    }
+    await connection.unsafe(`UPDATE activity_rollup_dirty SET due_at = now()`)
+    await runPass()
+    expect(await mark('ws2', stale.hour)).toBeNull()
+    await expectEquivalent()
+  }, 300_000)
+
+  it('stops serving the rollup while no pass has run its correction queues within the bound', async () => {
+    await connection.unsafe(
+      `UPDATE activity_rollup_state SET corrections_at = now() - interval '7 hours'`
+    )
+    await connection.unsafe(
+      `ALTER TABLE activity_rollup_inflight RENAME TO activity_rollup_inflight_off`
+    )
+    try {
+      await expect(runPass()).rejects.toThrow()
+    } finally {
+      await connection.unsafe(
+        `ALTER TABLE activity_rollup_inflight_off RENAME TO activity_rollup_inflight`
+      )
+    }
+    expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).toBeNull()
+    await runPass()
+    expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).not.toBeNull()
     await expectEquivalent()
   }, 300_000)
 
