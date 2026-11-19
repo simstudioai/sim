@@ -44,6 +44,7 @@ import {
 } from '@/lib/workspace-source/lease/store'
 import { readStagedBlob } from '@/lib/workspace-source/staging/store'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
+import { ResourceKeyTakenError } from '@/lib/workspaces/resource-keys'
 
 const logger = createLogger('ApplyWorkspaceSource')
 
@@ -74,7 +75,10 @@ export interface ApplyWorkspaceSourceResult {
   plan: WorkspaceSourceChange[]
   /** The changes written, in the order they were written. */
   applied: WorkspaceSourceChange[]
-  /** The change that failed mid-apply; everything after it was not attempted. */
+  /**
+   * The change that failed mid-apply; everything after it was not attempted. A change written
+   * whose key another resource took meanwhile (`E_NAME_TAKEN`) is also in `applied`.
+   */
   failed?: { kind: WorkspaceKind; key: string; code: FlatDiagnostic['code']; message: string }
   /**
    * Blob paths a write needs whose bytes the caller has not staged: a dry run lists them so the
@@ -175,9 +179,13 @@ function failureOf(
  * (`E_APPLY_STALE`), and a write that binds a source key claims it only once it succeeded, so a
  * failed write leaves the key free and the next apply adopts the resource by name. A write no
  * later apply could adopt (a workflow create) claims its key in its own transaction instead
- * (`keyClaimed`).
+ * (`keyClaimed`). A key another resource took between the plan and the claim leaves the write
+ * committed but unbound: it comes back with `keyTaken`, the `E_NAME_TAKEN` finding that says so.
  */
-async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedResource> {
+async function write(
+  change: PlannedChange,
+  ctx: ApplyContext
+): Promise<AppliedResource & { keyTaken?: WorkspaceSourceDiagnostic }> {
   const adapter = adapterOf(change.kind)
   if (change.action !== 'create' && change.storedFingerprint !== undefined) {
     const now = await adapter.storedFingerprintNow?.(change, ctx)
@@ -190,10 +198,18 @@ async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedR
       ? change.action !== 'delete'
       : change.action === 'create' || change.action === 'adopt')
   if (!claims || written.keyClaimed) return written
-  const claimed = await claimKey(change, ctx, written.id)
-  return claimed.length > 0
-    ? { ...written, diagnostics: [...(written.diagnostics ?? []), ...claimed] }
-    : written
+  try {
+    const claimed = await claimKey(change, ctx, written.id)
+    return claimed.length > 0
+      ? { ...written, diagnostics: [...(written.diagnostics ?? []), ...claimed] }
+      : written
+  } catch (error) {
+    if (!(error instanceof ResourceKeyTakenError)) throw error
+    return {
+      ...written,
+      keyTaken: refusalDiagnostic(error, { kind: change.kind, key: change.key }),
+    }
+  }
 }
 
 /** The result of `plan` before anything is written: every planned change, none applied yet. */
@@ -255,9 +271,9 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     })
     try {
       const plan = await planWorkspaceSource(input, ctx, { requireBlobs: true })
-      if (plan.refused) {
+      if (plan.refusing.length > 0) {
         recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'rejected' })
-        throw new WorkspaceSourceRejectedError(plan.diagnostics)
+        throw new WorkspaceSourceRejectedError(plan.diagnostics, plan.refusing)
       }
       const result = planned(plan, context.workspaceId, false)
       Object.assign(result.files, plan.reprint)
@@ -330,12 +346,20 @@ async function writeAll(
     try {
       await lease.confirm()
       const written = await write(change, writeCtx)
-      const address = resourceAddress(change.kind, change.key)
-      if (written.base) base.resources[address] = written.base
-      else delete base.resources[address]
       Object.assign(result.files, written.text)
       result.diagnostics.push(...(written.diagnostics ?? []))
       result.applied.push(summarize(change, written.id))
+      if (written.keyTaken) {
+        // Written but not bound to its key, so the base keeps what it held, and a later write
+        // resolving the key would reach the resource that holds it: the apply stops here.
+        const { code, message } = written.keyTaken
+        result.failed = { kind: change.kind, key: change.key, code, message }
+        result.diagnostics.push(written.keyTaken)
+        break
+      }
+      const address = resourceAddress(change.kind, change.key)
+      if (written.base) base.resources[address] = written.base
+      else delete base.resources[address]
     } catch (error) {
       const failure = failureOf(error, change)
       result.failed = failure.failed

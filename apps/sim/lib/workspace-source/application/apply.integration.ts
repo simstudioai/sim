@@ -2144,6 +2144,51 @@ export default workflow('Notes', {}, () => {
   )
 
   check(
+    'a table written while another table took its key reports it applied, unbound, and stops',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const other = LEADS.replace("name: 'leads'", "name: 'other'")
+      const created = await apply(workspaceId, { 'tables/other.ts': other }, { kinds: ['table'] })
+      expect(created.failed).toBeUndefined()
+      const otherId = created.base.resources['table:other']?.id
+      if (!otherId) throw new Error('The table was not created')
+
+      // Between the plan and the key claim, the other table comes to hold the key "leads".
+      const createTable = tableUseCases.createTableUseCase.execute
+      const racing = vi
+        .spyOn(tableUseCases.createTableUseCase, 'execute')
+        .mockImplementation(async (args) => {
+          const table = await createTable(args)
+          await db
+            .update(workspaceResourceKey)
+            .set({ key: 'leads' })
+            .where(
+              and(
+                eq(workspaceResourceKey.workspaceId, workspaceId),
+                eq(workspaceResourceKey.resourceId, otherId)
+              )
+            )
+          return table
+        })
+      const result = await apply(
+        workspaceId,
+        { ...STARTER, 'tables/other.ts': other },
+        { base: created.base }
+      ).finally(() => racing.mockRestore())
+
+      const leads = (await tables(workspaceId)).find((table) => table.name === 'leads')
+      expect(result.applied).toMatchObject([
+        { kind: 'table', key: 'leads', action: 'create', id: leads?.id },
+      ])
+      expect(result.applied).toHaveLength(1)
+      expect(result.failed).toMatchObject({ kind: 'table', key: 'leads', code: 'E_NAME_TAKEN' })
+      expect(codes(result.diagnostics)).toEqual(['E_NAME_TAKEN'])
+      expect(result.base.resources['table:leads']).toBeUndefined()
+      expect(await workflows(workspaceId)).toEqual([])
+    }
+  )
+
+  check(
     'a workflow create whose key claim fails leaves no workflow behind, so applying again creates it',
     async () => {
       const workspaceId = await newWorkspace()
