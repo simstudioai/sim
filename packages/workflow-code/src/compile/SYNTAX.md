@@ -112,7 +112,7 @@ The value kind alone picks the member of a basic/advanced pair; there is no `met
 | `disabled: true` | Stored `enabled: false`. |
 | `locked: true` | Apply refuses any change to this block. |
 | `errorPort: boolean` | Exposes the error port. In the model, `errorPort` is `meta.errorPort` or the block has an `onError` edge. |
-| `retry: { enabled, maxTries, waitBetweenTriesMs }` | The stored `BlockRetryConfig`, written whole. |
+| `retry: { enabled, maxTries, waitBetweenTriesMs }` | The stored `BlockRetryConfig`, written whole: `maxTries` a whole number from 2 to 5, `waitBetweenTriesMs` from 0 to 5000 (the bounds the loader pins it to); anything else is `E_UNSUPPORTED_SYNTAX`. |
 | `advancedMode: boolean` | The block-level advanced toggle; it changes what serializes. |
 | `triggerMode: boolean` | Runs the block as its trigger. Trigger builders set it; any other builder writes it only for a block stored in trigger mode. |
 | `branches: { <key>: { title?, extra? } }` | Per condition/router row, the display title and stored row fields with no syntax. `title: null` is a row stored with no title, which the executor never takes for `else`. An `extra` field the row models (`id`, `title`, `value`, `key`) or editor state is `E_UNSUPPORTED_SYNTAX`. |
@@ -229,8 +229,11 @@ template.
   pass through. The printer writes a list the record cannot carry (an integer-like or repeated name,
   an unknown key) as `raw([…])`.
 - Tools (`valueKind: 'tools'`): an array of
-  - `ns.tool.method(params, options?)` (`slack.tool.sendMessage(…)`), or `builder.tool(params, options?)`
-    for a builder at the namespace root (`agent.tool(…)`);
+  - `ns.tool.method(params, options?)` (`slack.tool.sendMessage(…)`): an integration operation (a
+    `tools`-category block's namespaced builder, outside trigger mode). Any other builder as a tool
+    (`api.tool(…)`, `trigger.gmail.tool.poller(…)`) is `E_UNKNOWN_BUILDER`. Params are checked like
+    a block's: one the tool type does not have is `E_UNKNOWN_PARAM`, one of another operation
+    `W_FIELD_NOT_APPLICABLE`, a literal secret `W_LITERAL_SECRET`;
   - `customTool('key', options?)`: a workspace custom tool stored as the picker's reference (a
     copied definition prints as `raw`);
   - `mcp('key').tool('name', { args?, snapshot?, usageControl?, usageControlExpression? })`: one
@@ -243,7 +246,7 @@ template.
     derives it again;
   - `childWorkflow('key').asTool({ usageControl?, usageControlExpression? })`: a child workflow as
     the picker adds it (`type: 'workflow_input'`, `title: 'Workflow'`,
-    `toolId: 'workflow_executor'`). One with fixed inputs prints through `runWorkflow.tool(…)`;
+    `toolId: 'workflow_executor'`). One with fixed inputs prints as `raw(tool)`;
   - `raw(tool)`: any other stored tool, including an MCP or child-workflow tool whose stored fields
     drifted from what the picker writes (a renamed title, a foreign `toolId`, explicit modes) and a
     tool keyed by an alias name. A password param holding literal text prints as

@@ -6,7 +6,7 @@ import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 
 const IMPORTS =
-  "import { agent, api, block, childWorkflow, codeFile, condition, credential, edge, env, file, fn, js, json, knowledgeBase, loop, md, note, parallel, raw, ref, router, slack, t, table, todo, trigger, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, block, childWorkflow, codeFile, condition, credential, edge, env, file, fn, js, json, knowledgeBase, loop, md, note, parallel, raw, ref, router, slack, stored, t, table, todo, trigger, workflow } from '@sim/workflow-sdk'"
 
 const DEFAULT_OPTIONS = "{ variables: { retries: { type: 'number', value: 3 } } }"
 
@@ -655,11 +655,18 @@ describe('errors, each with its code, location and hint', () => {
       'Remove operation; the method name pins it.',
     ],
     [
-      'a tool param in the builder fixed values',
+      'a trigger builder as an agent tool',
       "const a = agent('A', { model: 'm', tools: [trigger.gmail.tool.poller({ selectedTriggerId: 'other' })] })",
-      'E_FIXED_PARAM',
-      'selectedTriggerId',
-      'Remove selectedTriggerId; the method name pins it.',
+      'E_UNKNOWN_BUILDER',
+      'trigger.gmail.tool.poller',
+      "Write an integration operation as namespace.tool.method(params), a child workflow as childWorkflow('key').asTool(), or any other stored tool as raw(tool).",
+    ],
+    [
+      'a core block builder as an agent tool',
+      "const a = agent('A', { model: 'm', tools: [api.tool({ url: 'x' })] })",
+      'E_UNKNOWN_BUILDER',
+      'api.tool',
+      "Write an integration operation as namespace.tool.method(params), a child workflow as childWorkflow('key').asTool(), or any other stored tool as raw(tool).",
     ],
     [
       'two blocks whose names normalize alike',
@@ -1476,5 +1483,109 @@ describe('table filters the runtime refuses', () => {
         "{ any: [{ field: 'a', op: 'isNull' }, { all: [{ field: 'b', op: 'gt', value: 1 }] }] }"
       )
     ).toEqual([])
+  })
+})
+
+describe('a finding names its fix', () => {
+  it.each([
+    [
+      'an edge into a trigger',
+      `${START}\nconst a = api('A', { url: 'x' })\na.to(start)`,
+      'E_TARGET_TRIGGER',
+      "Remove this edge: a trigger starts a run. To run Start's targets after A, wire A to them.",
+    ],
+    [
+      'onError on a trigger',
+      `${START}\nconst a = api('A', { url: 'x' })\nstart.onError(a)`,
+      'E_ERROR_PORT_UNSUPPORTED',
+      'Remove this onError; this block never fails into an error port.',
+    ],
+    [
+      'onError on a loop',
+      "const l = loop.for('L', { count: 2 }, (p) => api('In', { url: 'x' }))\nconst a = api('A', { url: 'x' })\nl.onError(a)",
+      'E_ERROR_PORT_UNSUPPORTED',
+      'Remove this onError, and wire onError from the blocks inside L that can fail.',
+    ],
+    [
+      'meta naming no branch',
+      "const c = condition('C', { yes: js`1 > 0`, else: true }, { branches: { no: { title: 'No' } } })",
+      'E_UNKNOWN_BRANCH',
+      'Branches: yes, else.',
+    ],
+    [
+      'undefined as a value',
+      "const a = agent('A', { model: undefined })",
+      'E_UNKNOWN_IDENTIFIER',
+      'Write null to store the param absent, or leave the param out.',
+    ],
+    [
+      'NaN as a value',
+      "const a = agent('A', { model: 'm', temperature: NaN })",
+      'E_UNKNOWN_IDENTIFIER',
+      'A workflow stores JSON, which has no NaN or Infinity: write a finite number or a string.',
+    ],
+    [
+      'a number written as text',
+      "const a = agent('A', { model: 'm', temperature: '0.5' })",
+      'W_VALUE_KIND',
+      "Write a number literal (3, not '3'), or a reference.",
+    ],
+  ])('%s', (_label, body, code, hint) => {
+    expect(
+      run(source(body))
+        .diagnostics.filter((d) => d.code === code)
+        .map((d) => d.hint)
+    ).toEqual([hint])
+  })
+})
+
+describe('a loop or parallel config', () => {
+  it.each([
+    [
+      'stored()',
+      "loop.forEach('L', { collection: stored() }, (p) => api('In', { url: 'x' }))",
+      'Write collection as a value or a reference.',
+    ],
+    [
+      'codeFile()',
+      "loop.while('L', { condition: codeFile('./functions/c.js') }, (p) => api('In', { url: 'x' }))",
+      'Write condition: js`...`.',
+    ],
+  ])('refuses %s instead of dropping it', (_label, body, hint) => {
+    const result = run(source(body))
+    expect(result.workflow).toBeNull()
+    expect(
+      result.diagnostics.filter((d) => d.code === 'E_UNSUPPORTED_SYNTAX').map((d) => d.hint)
+    ).toEqual([hint])
+  })
+})
+
+describe('meta.retry', () => {
+  it.each([
+    ['maxTries above the bound', '{ enabled: true, maxTries: 10, waitBetweenTriesMs: 1000 }'],
+    ['maxTries below the bound', '{ enabled: false, maxTries: 1, waitBetweenTriesMs: 1000 }'],
+    ['a fractional wait', '{ enabled: true, maxTries: 3, waitBetweenTriesMs: 1.5 }'],
+    ['a wait above the bound', '{ enabled: true, maxTries: 3, waitBetweenTriesMs: 60000 }'],
+  ])('refuses %s, which the loader would change', (_label, retry) => {
+    const result = run(source(`const a = api('A', { url: 'x' }, { retry: ${retry} })`))
+    expect(result.workflow).toBeNull()
+    expect(
+      result.diagnostics.filter((d) => d.code === 'E_UNSUPPORTED_SYNTAX').map((d) => d.hint)
+    ).toEqual([
+      'Write maxTries as a whole number from 2 to 5 and waitBetweenTriesMs as a whole number from 0 to 5000.',
+    ])
+  })
+
+  it('keeps a policy inside the bounds as written', () => {
+    const result = run(
+      source(
+        "const a = api('A', { url: 'x' }, { retry: { enabled: false, maxTries: 5, waitBetweenTriesMs: 0 } })"
+      )
+    )
+    expect(result.workflow?.blocks.a?.retry).toEqual({
+      enabled: false,
+      maxTries: 5,
+      waitBetweenTriesMs: 0,
+    })
   })
 })

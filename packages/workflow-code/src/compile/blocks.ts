@@ -1,7 +1,14 @@
 import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
-import type { BlockRetryConfig, WorkflowBranchKind } from '@sim/workflow-types/workflow'
+import {
+  BLOCK_RETRY_MAX_TRIES,
+  BLOCK_RETRY_MAX_WAIT_MS,
+  BLOCK_RETRY_MIN_TRIES,
+  BLOCK_RETRY_MIN_WAIT_MS,
+  type BlockRetryConfig,
+  type WorkflowBranchKind,
+} from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
 import { isBranchExtraField } from '../canonicalize/branches'
 import {
@@ -49,7 +56,7 @@ import {
   type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { BLOCK_META_KEYS } from '../sdk'
+import { BLOCK_META_KEYS, RESPONSE_BODY_KEYS, SDK_RESOURCE_CALLS } from '../sdk'
 import { holdsSecret, literalSecretFinding } from '../secrets'
 import { structuredCodec } from '../structured'
 import { checkStorableText } from './characters'
@@ -118,6 +125,17 @@ function booleanLiteral(ctx: CompileContext, property: ObjectProperty, decl: Blo
   return false
 }
 
+/** Whether `value` is a whole number from `min` to `max`. */
+function wholeNumberIn(value: number, min: number, max: number): boolean {
+  return Number.isInteger(value) && value >= min && value <= max
+}
+
+/**
+ * `meta.retry`, written whole. Its numbers must already lie in the bounds every reader pins them
+ * to (`normalizeBlockRetryTries`, `normalizeBlockRetryWaitMs`): persistence stores the policy
+ * verbatim but loads it clamped, so an out-of-range value would read back changed and every
+ * re-apply would show a retry change.
+ */
 function compileRetry(ctx: CompileContext, node: Node, site: ValueSite): BlockRetryConfig | null {
   const json = compileJsonLiteral(ctx, node, site)
   if (json === undefined) return null
@@ -128,6 +146,18 @@ function compileRetry(ctx: CompileContext, node: Node, site: ValueSite): BlockRe
     typeof json.maxTries === 'number' &&
     typeof json.waitBetweenTriesMs === 'number'
   ) {
+    if (
+      !wholeNumberIn(json.maxTries, BLOCK_RETRY_MIN_TRIES, BLOCK_RETRY_MAX_TRIES) ||
+      !wholeNumberIn(json.waitBetweenTriesMs, BLOCK_RETRY_MIN_WAIT_MS, BLOCK_RETRY_MAX_WAIT_MS)
+    ) {
+      return unsupported(
+        ctx,
+        node,
+        'retry is outside the range a workflow stores; loading it would change it.',
+        `Write maxTries as a whole number from ${BLOCK_RETRY_MIN_TRIES} to ${BLOCK_RETRY_MAX_TRIES} and waitBetweenTriesMs as a whole number from ${BLOCK_RETRY_MIN_WAIT_MS} to ${BLOCK_RETRY_MAX_WAIT_MS}.`,
+        site.decl.key
+      )
+    }
     return {
       enabled: json.enabled,
       maxTries: json.maxTries,
@@ -529,7 +559,13 @@ function applyBranchMeta(
         'E_UNKNOWN_BRANCH',
         `There is no branch ${key} to annotate.`,
         rangeOf(ctx, property),
-        { blockKey: site.decl.key }
+        {
+          hint:
+            rows && rows.length > 0
+              ? `Branches: ${rows.map((candidate) => candidate.key).join(', ')}.`
+              : 'Write the branch in params; meta.branches only annotates written branches.',
+          blockKey: site.decl.key,
+        }
       )
       continue
     }
@@ -959,6 +995,12 @@ function compileWrittenParams(
     }
     if (written.responseBody) {
       compileResponseParam(ctx, site, params, key, property)
+      const formParam = RESPONSE_BODY_KEYS.some((formKey) => formKey === key)
+        ? getOwn(params, key === 'body' ? 'data' : key)
+        : undefined
+      if (formParam?.kind === 'value' && holdsSecret(undefined, formParam.value)) {
+        reportLiteralSecret(ctx, decl.key, { property, param: key }, {})
+      }
       continue
     }
     if (conditionForm && !field && !pinned.has(key)) {
@@ -1451,6 +1493,29 @@ function sliderRangeProblem(
   return null
 }
 
+/** The fix for `W_VALUE_KIND`: the literal form the field's value kind takes. */
+function valueKindHint(sub: CatalogSubBlock): string {
+  const call = sub.resourceKind ? getOwn(SDK_RESOURCE_CALLS, sub.resourceKind) : undefined
+  switch (sub.valueKind) {
+    case 'resource':
+      return call ? `Write ${call}('<key>').` : 'Write the resource by its key.'
+    case 'string':
+    case 'code':
+    case 'picked':
+      return 'Write text: a string, a t`` template or a reference.'
+    case 'number':
+      return "Write a number literal (3, not '3'), or a reference."
+    case 'boolean':
+      return 'Write true or false, or a reference.'
+    case 'array':
+      return 'Write an array literal [ ... ], or a reference.'
+    case 'object':
+      return 'Write an object literal { ... }, or a reference.'
+    default:
+      return 'Write a value of that kind, or a reference.'
+  }
+}
+
 /** Catalog warnings: visibility, required fields, value kinds, slider ranges. */
 function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState): void {
   const { decl, params } = state
@@ -1489,7 +1554,7 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
         'W_VALUE_KIND',
         `${entry.param} expects a ${sub.valueKind} value; the value is kept as written.`,
         rangeOf(ctx, entry.property),
-        { blockKey: decl.key, param: entry.param }
+        { hint: valueKindHint(sub), blockKey: decl.key, param: entry.param }
       )
     }
     const outOfRange = entry.checked ? sliderRangeProblem(sub, entry.value) : null
@@ -1607,6 +1672,18 @@ function compileConfig<S>(
       continue
     }
     const compiled = compileValue(ctx, node, site)
+    if (compiled?.kind === 'stored' || compiled?.kind === 'codeFile') {
+      unsupported(
+        ctx,
+        node,
+        `${compiled.kind === 'stored' ? 'stored()' : 'codeFile()'} is not a ${container} config value.`,
+        entry.kind === 'text'
+          ? `Write ${key}: js\`...\`.`
+          : `Write ${key} as a value or a reference.`,
+        decl.key
+      )
+      continue
+    }
     if (!compiled || compiled.kind !== 'value') continue
     if (entry.kind === 'text' && typeof compiled.value !== 'string') {
       unsupported(ctx, node, `${field} is text.`, 'Write js`...`.', decl.key)

@@ -8,9 +8,15 @@ import {
 } from '../agent-tools'
 import { literalText } from '../babel'
 import { toolModes } from '../canonicalize/modes'
-import { builderPins, paramAliases } from '../catalog/surface'
-import type { CatalogBuilder } from '../catalog/types'
-import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
+import {
+  builderPins,
+  buildFieldIndex,
+  type FieldIndex,
+  paramAliases,
+  typedForBuilder,
+} from '../catalog/surface'
+import type { CatalogBlock, CatalogBuilder } from '../catalog/types'
+import { catalogBlock, catalogBuilder, catalogBuilderPaths, declarationsOf } from '../catalog/view'
 import { isJson } from '../lock'
 import {
   type CanonicalTool,
@@ -24,7 +30,8 @@ import {
   type Value,
 } from '../model'
 import { deepEqual, getOwn, setOwn } from '../records'
-import { CUSTOM_TOOL_TYPE } from '../sdk'
+import { CUSTOM_TOOL_TYPE, hasToolForm } from '../sdk'
+import { holdsSecret, literalSecretFinding } from '../secrets'
 import { type CompileContext, lookup, rangeOf, unsupported } from './context'
 import { didYouMean, hintForNode, nodeLabel, suggestBuilder } from './hints'
 import {
@@ -112,14 +119,14 @@ function isToolRef(value: Value): value is ResourceNode | UnresolvedNode {
 }
 
 /**
- * The builder a tool call names: `slack.tool.sendMessage(...)` → `slack.sendMessage`,
- * `agent.tool(...)` → `agent` (the printer's `printTools` forms).
+ * The builder a tool call names and its path: `slack.tool.sendMessage(...)` → `slack.sendMessage`
+ * (the printer's `printTools` form). Whether that builder has a tool form is the caller's check.
  */
 function toolBuilder(
   ctx: CompileContext,
   site: ValueSite,
   call: CallExpression
-): CatalogBuilder | null {
+): { builder: CatalogBuilder; path: string } | null {
   const path = calleePath(call.callee)
   if (!path) return null
   const binding = lookup(site.scope, path.root)
@@ -128,7 +135,9 @@ function toolBuilder(
   const toolIndex = segments.lastIndexOf('tool')
   if (toolIndex < 1 || toolIndex < segments.length - 2) return null
   segments.splice(toolIndex, 1)
-  return catalogBuilder(ctx.catalog, segments.join('.')) ?? null
+  const builderPath = segments.join('.')
+  const builder = catalogBuilder(ctx.catalog, builderPath)
+  return builder ? { builder, path: builderPath } : null
 }
 
 /**
@@ -149,6 +158,52 @@ function fixedParam(
   return null
 }
 
+/**
+ * Whether a tool param names a param of the builder's tool type (`Partial<Params>` in the SDK): a
+ * field under its own name or alias, never a pair member's id. Anything else is `E_UNKNOWN_PARAM`,
+ * as on a block; the printer would write such a tool as `raw(tool)`. A param of another operation
+ * is kept with `W_FIELD_NOT_APPLICABLE`, since the tool never reads it.
+ */
+function toolParamKnown(
+  ctx: CompileContext,
+  site: ValueSite,
+  block: CatalogBlock,
+  index: FieldIndex,
+  key: string,
+  param: string,
+  property: ObjectProperty,
+  pinned: Readonly<Record<string, unknown>>
+): boolean {
+  const field = index.fields.get(param) ?? index.aliased.get(param)
+  if (!field || field.param !== param) {
+    const member = index.memberAliases.get(key)
+    ctx.reporter.report(
+      'E_UNKNOWN_PARAM',
+      `${block.name} has no param ${key}.`,
+      rangeOf(ctx, property),
+      {
+        hint: member
+          ? `Write it as ${member}; the value kind picks the basic or advanced field.`
+          : didYouMean(key, index.fields.keys()),
+        blockKey: site.decl.key,
+        param: key,
+      }
+    )
+    return false
+  }
+  const members = field.kind === 'pair' ? field.members : [field.sub]
+  const declarations = members.flatMap((member) => index.declarations.get(member.id) ?? [member])
+  if (!typedForBuilder(declarations, pinned)) {
+    ctx.reporter.report(
+      'W_FIELD_NOT_APPLICABLE',
+      `${key} is not a param of this tool's operation; it is kept but not used.`,
+      rangeOf(ctx, property),
+      { hint: `Remove ${key}.`, blockKey: site.decl.key, param: key }
+    )
+  }
+  return true
+}
+
 /** A `stored()` tool param, resolved once the whole list is matched to the stored tools. */
 interface PendingStoredParam {
   param: string
@@ -166,8 +221,8 @@ function compileToolCall(
   call: CallExpression,
   site: ValueSite
 ): CompiledToolCall | null {
-  const builder = toolBuilder(ctx, site, call)
-  if (builder === null) {
+  const named = toolBuilder(ctx, site, call)
+  if (named === null) {
     const path = calleePath(call.callee)
     ctx.reporter.report(
       'E_UNKNOWN_BUILDER',
@@ -181,6 +236,20 @@ function compileToolCall(
               catalogBuilderPaths(ctx.catalog)
             ) ?? 'Write namespace.tool.method(params, options), or raw(tool).',
         }),
+        blockKey: site.decl.key,
+      }
+    )
+    return null
+  }
+  const { builder } = named
+  const block = catalogBlock(ctx.catalog, builder.type)
+  if (!block || !hasToolForm(named.path, builder, block)) {
+    ctx.reporter.report(
+      'E_UNKNOWN_BUILDER',
+      `${named.path} is not an agent tool: only an integration operation has a tool form.`,
+      rangeOf(ctx, call.callee),
+      {
+        hint: "Write an integration operation as namespace.tool.method(params), a child workflow as childWorkflow('key').asTool(), or any other stored tool as raw(tool).",
         blockKey: site.decl.key,
       }
     )
@@ -202,12 +271,16 @@ function compileToolCall(
   const pending: PendingStoredParam[] = []
   for (const [id, value] of Object.entries(builder.fixed ?? {})) setOwn(params, id, value)
   const pins = builderPins(builder)
-  const block = catalogBlock(ctx.catalog, builder.type)
   const paramOf = new Map<string, string>()
-  for (const [param, alias] of block ? paramAliases(block, false) : []) paramOf.set(alias, param)
+  for (const [param, alias] of paramAliases(block, false)) paramOf.set(alias, param)
+  const index = buildFieldIndex(block, false, new Set(pins.keys()))
+  const pinned = Object.fromEntries(pins)
   for (const [key, property] of objectEntries(ctx, paramsNode)) {
     const param = paramOf.get(key) ?? key
     if (pins.has(param)) return fixedParam(ctx, property, key, site)
+    if (!toolParamKnown(ctx, site, block, index, key, param, property, pinned)) {
+      return null
+    }
     const compiled = compileValue(ctx, property.value, site)
     if (!compiled) return null
     if (Object.hasOwn(params, param)) {
@@ -227,6 +300,15 @@ function compileToolCall(
     }
     const value = nestedToolValue(ctx, property.value, compiled, site)
     if (value === undefined) return null
+    const declared = declarationsOf(block, param)[0]
+    if (holdsSecret(declared, value)) {
+      const { message, hint } = literalSecretFinding(key, { password: declared?.password === true })
+      ctx.reporter.report('W_LITERAL_SECRET', message, rangeOf(ctx, property), {
+        hint,
+        blockKey: site.decl.key,
+        param: key,
+      })
+    }
     setOwn(params, param, value)
   }
   const tool: CanonicalTool = { type: builder.type, params, modes: {} }
@@ -644,7 +726,7 @@ function compileWorkflowTool(
         ctx,
         property,
         `asTool() takes usageControl and usageControlExpression; ${option} is not one.`,
-        'Write a tool with other stored fields through runWorkflow.tool(), or raw(tool).',
+        'Write a tool with other stored fields, such as fixed inputs, as raw(tool).',
         site.decl.key
       )
     }

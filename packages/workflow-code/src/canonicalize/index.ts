@@ -38,23 +38,14 @@ import { toJson, toValue } from './values'
 /** `block.data` keys the lock layout owns; with the model's own keys, the rest is `extra`. */
 const LAYOUT_DATA_KEYS: ReadonlySet<string> = new Set(BLOCK_LAYOUT_DATA_FIELDS)
 
-function isRetryConfig(value: unknown): value is BlockRetryConfig {
-  return (
-    isRecordLike(value) &&
-    typeof value.enabled === 'boolean' &&
-    typeof value.maxTries === 'number' &&
-    typeof value.waitBetweenTriesMs === 'number' &&
-    Object.keys(value).length === 3
-  )
-}
-
 /**
- * The stored retry policy, raw: numbers are kept when it is disabled (`BlockRetryConfig`). A
- * malformed policy is normalized the way every reader clamps it.
+ * The stored retry policy, with its numbers pinned the way the loader pins them
+ * (`normalizeStoredBlockRetry` in workflow-persistence), so it reads the same whether or not it
+ * went through a load; numbers are kept when it is disabled (`BlockRetryConfig`). Compile refuses
+ * an out-of-range policy, so every printed one compiles back unchanged.
  */
 function canonicalRetry(retry: unknown): BlockRetryConfig | null {
   if (retry === undefined || retry === null) return null
-  if (isRetryConfig(retry)) return { ...retry }
   const record = toRecord(retry)
   return {
     enabled: record.enabled === true,

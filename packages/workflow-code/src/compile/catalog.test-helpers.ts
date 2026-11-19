@@ -212,7 +212,8 @@ export const TEST_CATALOG: BlockCatalog = {
         }),
         sub('threadTs', 'short-input', 'string', { condition: { opaque: true } }),
       ],
-      { ts: TEXT, channel: TEXT, to: TEXT }
+      { ts: TEXT, channel: TEXT, to: TEXT },
+      { category: 'tools' }
     ),
     table: block(
       'table',
@@ -277,8 +278,18 @@ export const TEST_CATALOG: BlockCatalog = {
       { id: TEXT },
       { category: 'tools', paramAliases: { action: { oauthCredential: 'credential' } } }
     ),
-    loop: block('loop', [], { results: ANY }, { graph: graph({ container: 'loop' }) }),
-    parallel: block('parallel', [], { results: ANY }, { graph: graph({ container: 'parallel' }) }),
+    loop: block(
+      'loop',
+      [],
+      { results: ANY },
+      { graph: graph({ container: 'loop', errorPort: false }) }
+    ),
+    parallel: block(
+      'parallel',
+      [],
+      { results: ANY },
+      { graph: graph({ container: 'parallel', errorPort: false }) }
+    ),
   },
   triggers: {},
 }

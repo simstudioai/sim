@@ -283,6 +283,10 @@ function unresolvedHint(ctx: CompileContext, scope: Scope, name: string): string
   if (ctx.valueConsts.has(name)) {
     return `${name} is a const that holds a value, which a workflow file cannot name: write the value here.`
   }
+  if (name === 'undefined') return 'Write null to store the param absent, or leave the param out.'
+  if (name === 'NaN' || name === 'Infinity') {
+    return 'A workflow stores JSON, which has no NaN or Infinity: write a finite number or a string.'
+  }
   if (name === 'process') {
     return "Read an environment variable as env.NAME, with env imported from '@sim/workflow-sdk'."
   }
