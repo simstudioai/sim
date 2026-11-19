@@ -852,4 +852,39 @@ export default defineTable({
       expect(seats?.required).toBeFalsy()
     }
   )
+
+  check('changes the rows key and edits a row in one apply', async () => {
+    const workspaceId = await newWorkspace()
+    const withEmail = MANAGED.replace(
+      "    tier: column.select({ options: ['basic', 'pro'] }),\n",
+      "    tier: column.select({ options: ['basic', 'pro'] }),\n    email: column.string({ unique: true }),\n"
+    )
+    const rows = (soloSeats: number) =>
+      `{"code":"solo","seats":${soloSeats},"email":"solo@example.test"}\n{"code":"team","seats":10,"email":"team@example.test"}\n`
+    const created = await apply(workspaceId, {
+      'tables/plans.ts': withEmail,
+      'tables/plans.rows.jsonl': rows(1),
+    })
+    expect(created.failed).toBeUndefined()
+    const read = await runner.get(workspaceId)
+    const before = await rowIdentities(workspaceId)
+
+    const rekeyed = {
+      'tables/plans.ts': read.files['tables/plans.ts'].replace("key: 'code'", "key: 'email'"),
+      'tables/plans.rows.jsonl': rows(5),
+    }
+    const planned = await apply(workspaceId, rekeyed, { base: read.base, dryRun: true })
+    expect(codes(planned.diagnostics)).toEqual([])
+    const result = await apply(workspaceId, rekeyed, { base: read.base })
+
+    expect(result.failed).toBeUndefined()
+    expect((await storedRows(workspaceId)).map((row) => [row.code, row.seats])).toEqual([
+      ['solo', 5],
+      ['team', 10],
+    ])
+    const after = await rowIdentities(workspaceId)
+    expect([after.solo.id, after.team.id]).toEqual([before.solo.id, before.team.id])
+    const settled = await apply(workspaceId, result.files, { base: result.base })
+    expect(settled.applied).toEqual([])
+  })
 })

@@ -144,7 +144,8 @@ apart from the declarations').
   `--allow-delete`. A stored row whose key cell is empty (the grid's "add row" makes one) has
   nothing a line could match it by, so it is not managed: a get leaves it out of the file with
   `I_TABLE_ROWS_UNKEYED`, neither fingerprint counts it, and no rows write changes or removes it
-  (a column made required still counts its empty cells). The server marks a managed table in its metadata (`sourceRows`, by key column id),
+  (a column made required still counts its empty cells). The base records the rows under the key
+  the server marks, so a plan that changes `key` compares the server with the base under that one. The server marks a managed table in its metadata (`sourceRows`, by key column id),
   so a get prints the declaration's `rows` and the rows file.
 
 Every rows write is the table's one reshape (`reshapeTableUseCase`, `rows` and `sourceRows`):

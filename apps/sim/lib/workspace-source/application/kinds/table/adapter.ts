@@ -324,7 +324,12 @@ async function planRows(
     else outcome.base = baseRows(rows, stored.version)
     return outcome
   }
-  if (based && server !== based.fingerprint) {
+  // The base recorded the rows under the key the server still marks, which this apply may change.
+  const serverAsBased =
+    storedKey !== undefined && storedKey !== rows.key
+      ? tableRowsFingerprint({ mode: 'managed', key: storedKey, data: stored.data })
+      : server
+  if (based && serverAsBased !== based.fingerprint) {
     outcome.diagnostics.push(
       kindFinding(
         'table',
