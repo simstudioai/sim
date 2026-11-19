@@ -28,6 +28,7 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { replaceWorkflowChatDeployment } from '@/lib/chat-deployments/application/workflow-chat-deployment'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { listWorkflowTriggers } from '@/lib/workflows/application/triggers'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
 import { deploymentAdapter } from '@/lib/workspace-source/application/kinds/deployment/adapter'
 import {
@@ -645,6 +646,42 @@ describe('workspace source: deployments', () => {
         key: 'nightly',
         destructive: { what: 'workflow', counts: { schedules: 1 } },
       })
+    }
+  )
+
+  check(
+    'refuses deleting a workflow whose live triggers could not be counted, never claiming none end',
+    async () => {
+      const { workspaceId, files, base } = await deployedWorkspace()
+      const kept = NIGHTLY.replace("workflow('Nightly'", "workflow('Kept'")
+      const withKept = await apply(
+        workspaceId,
+        { ...files, 'workflows/kept/workflow.ts': kept },
+        { base }
+      )
+      expect(withKept.failed).toBeUndefined()
+      const withoutNightly = Object.fromEntries(
+        Object.entries({ ...files, ...withKept.files }).filter(
+          ([path]) => !path.startsWith('workflows/nightly/') && path !== DEPLOYMENT
+        )
+      )
+      // The workflow plan reads the trigger listing first; the deployment's undeploy reads it next.
+      const listTriggers = listWorkflowTriggers.execute.bind(listWorkflowTriggers)
+      vi.spyOn(listWorkflowTriggers, 'execute')
+        .mockRejectedValueOnce(new Error('trigger listing went away'))
+        .mockImplementation(listTriggers)
+
+      const plan = await apply(workspaceId, withoutNightly, {
+        base: withKept.base,
+        allowDelete: true,
+        dryRun: true,
+      }).finally(() => vi.mocked(listWorkflowTriggers.execute).mockRestore())
+
+      expect(
+        plan.diagnostics
+          .filter((finding) => finding.severity === 'error')
+          .map((finding) => `${finding.code} ${finding.kind}:${finding.key}`)
+      ).toEqual(['E_APPLY_STALE workflow:nightly'])
     }
   )
 
