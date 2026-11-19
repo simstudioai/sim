@@ -403,6 +403,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_RAW_HANDLE` | `edge()` with a handle kept verbatim. |
 | `E_EDGE_CYCLE` | Wiring that closes a cycle among enabled blocks, a self-loop included: no block on it ever runs. Framed at the edge back to a block declared earlier, the one to remove; repeat work with `loop()`/`parallel()`. |
 | `W_EDGE_CYCLE` | A cycle the stored workflow already holds, kept so it round-trips; none of it runs. |
+| `W_BRANCH_UNWIRED` | A condition or router branch no edge leaves, so a run that takes it ends there; the hint names the wiring. Not reported for a branch the stored workflow already leaves unwired. |
 | `E_UNKNOWN_BUILDER` | A builder path the catalog does not have, a bare builder-shaped call (`apii('Name', …)`) nothing binds, or a namespace the SDK lacks or the file did not import; `hint` names the builder a common other name stands for (`http.request` → `api`), then prefers a synonymous verb (`postMessage` → `sendMessage`), then the closest path, then the namespace's builders. |
 | `E_UNKNOWN_PARAM` | A param the block does not have; the hint has a did-you-mean. |
 | `E_FIXED_PARAM` | A param the builder already pins. |

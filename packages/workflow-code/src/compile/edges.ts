@@ -233,6 +233,39 @@ export class EdgeCollector {
   }
 
   /**
+   * Reports each condition or router branch row no edge leaves: a run that takes it ends there,
+   * which a source author rarely means. A branch the stored workflow holds unwired on the same
+   * block stays quiet, so a canvas-built workflow keeps compiling without new warnings.
+   */
+  reportUnwiredBranches(stored: CanonicalWorkflow | undefined): void {
+    const wiredIn = (edges: readonly CanonicalEdge[]) =>
+      new Set(
+        edges.flatMap((edge) =>
+          edge.port.kind === 'branch' ? [`${edge.from}\u0000${edge.port.key}`] : []
+        )
+      )
+    const wired = wiredIn(this.edges)
+    const storedWired = wiredIn(stored?.edges ?? [])
+    for (const [key, block] of this.blocks) {
+      const rows = block.branches?.rows
+      const decl = this.ctx.declsByKey.get(key)
+      if (!rows || !decl || !block.enabled) continue
+      const storedRows = stored?.blocks[key]?.branches?.rows ?? []
+      for (const { key: branch } of rows) {
+        const id = `${key}\u0000${branch}`
+        if (wired.has(id)) continue
+        if (storedRows.some((row) => row.key === branch) && !storedWired.has(id)) continue
+        this.ctx.reporter.report(
+          'W_BRANCH_UNWIRED',
+          `${decl.name} has no edge from its ${branch} branch, so a run that takes it ends there.`,
+          rangeOf(this.ctx, decl.anchorNode),
+          { hint: `Wire it: ${decl.ident ?? 'block'}.${branch}.to(...).`, blockKey: key }
+        )
+      }
+    }
+  }
+
+  /**
    * Whether the edge at `index` points back in source order: its target is declared no later than
    * its source. Every cycle holds one, and it is the edge an author removes to break the cycle.
    */
