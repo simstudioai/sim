@@ -49,6 +49,50 @@ export interface StoredDoc {
   tags: Partial<Record<AllTagSlot, string>>
   /** Its indexing state; never part of a fingerprint, only of a get's or apply's findings. */
   processingStatus: string
+  /**
+   * Set on a replacement a replace left under its upload name ({@link replacementName}) when it
+   * stopped partway. `stray` while the document it `replaces` is still stored: the replace
+   * stopped before its delete, so this one is not its name's document yet. Otherwise only the
+   * rename was left: the document reads as its name's (`filename` is that name), and
+   * `uploadName` is what it is stored as.
+   */
+  replacing?: { replaces: string; uploadName: string; stray: boolean }
+}
+
+/**
+ * The name a replace uploads a document's replacement under, naming the document it replaces,
+ * until that one is deleted and the replacement renamed: a replace that stops between its writes
+ * leaves a replacement this source can tell from any other document (a document uploaded twice
+ * in the UI, say), so the next apply finishes or discards it.
+ */
+export function replacementName(replaces: Pick<StoredDoc, 'id'>, name: string): string {
+  return `${REPLACEMENT_PREFIX}${replaces.id}.${name}`
+}
+
+const REPLACEMENT_PREFIX = '.sim-replace.'
+
+/** The document a replacement's upload name names, and the name it takes once renamed. */
+function parseReplacementName(filename: string): { replaces: string; name: string } | undefined {
+  if (!filename.startsWith(REPLACEMENT_PREFIX)) return undefined
+  const rest = filename.slice(REPLACEMENT_PREFIX.length)
+  const dot = rest.indexOf('.')
+  if (dot <= 0 || dot === rest.length - 1) return undefined
+  return { replaces: rest.slice(0, dot), name: rest.slice(dot + 1) }
+}
+
+/** `docs` with each replacement a stopped replace left marked (see {@link StoredDoc.replacing}). */
+function withReplacements(docs: StoredDoc[]): StoredDoc[] {
+  const ids = new Set(docs.map((doc) => doc.id))
+  return docs.map((doc) => {
+    const parsed = doc.connectorId === null ? parseReplacementName(doc.filename) : undefined
+    if (!parsed) return doc
+    const stray = ids.has(parsed.replaces)
+    return {
+      ...doc,
+      ...(stray ? {} : { filename: parsed.name }),
+      replacing: { replaces: parsed.replaces, uploadName: doc.filename, stray },
+    }
+  })
 }
 
 /** A document's revision: its upload time, which a replace (a new document) changes. */
@@ -80,14 +124,15 @@ function tagValues(
  * case, a page of {@link MAX_DOCUMENTS_PAGE_AFTER} at a time in id order, so a document changed,
  * added or deleted while the list is walked never makes another one skipped or listed twice.
  * Refuses one holding more documents than a directory lists (`maxBlobs`), on the page that passes
- * it, the last page included. With `documentIds`, lists only those (the ones still live).
+ * it, the last page included. With `documentIds`, lists only those (the ones still live), as
+ * stored; the whole listing marks what a stopped replace left ({@link StoredDoc.replacing}).
  */
 export async function loadDocs(
   ctx: SourceContext,
   knowledgeBaseId: string,
   documentIds?: readonly string[]
 ): Promise<StoredDoc[]> {
-  if (documentIds === undefined) return walkDocs(ctx, knowledgeBaseId)
+  if (documentIds === undefined) return withReplacements(await walkDocs(ctx, knowledgeBaseId))
   const docs: StoredDoc[] = []
   for (const ids of chunkArray([...documentIds], MAX_DOCUMENTS_PAGE_AFTER)) {
     docs.push(...(await walkDocs(ctx, knowledgeBaseId, ids)))
@@ -158,6 +203,8 @@ export function sourceDocs(docs: readonly StoredDoc[]): SourceDocs {
 interface SourceDocs {
   byName: Map<string, StoredDoc>
   ambiguous: Map<string, StoredDoc[]>
+  /** Replacements a replace stopped before its delete left beside the documents they replace. */
+  strays: StoredDoc[]
   /** Documents source leaves alone (connector-synced, too large, an odd name, ambiguous). */
   unmanaged: number
 }
@@ -167,8 +214,13 @@ const sourceDocsCache = new WeakMap<readonly StoredDoc[], SourceDocs>()
 
 function readSourceDocs(docs: readonly StoredDoc[]): SourceDocs {
   const named = new Map<string, StoredDoc[]>()
+  const strays: StoredDoc[] = []
   let unmanaged = 0
   for (const doc of docs) {
+    if (doc.replacing?.stray) {
+      strays.push(doc)
+      continue
+    }
     if (
       doc.connectorId !== null ||
       doc.fileSize > WORKSPACE_SOURCE_LIMITS.maxBlobBytes ||
@@ -198,36 +250,16 @@ function readSourceDocs(docs: readonly StoredDoc[]): SourceDocs {
       unmanaged += holders.length
     }
   }
-  return { byName, ambiguous, unmanaged }
+  return { byName, ambiguous, strays, unmanaged }
 }
 
 /**
- * The documents a plan may hash: every managed one, and both documents of a name held twice,
- * which a replace interrupted between its upload and its delete leaves behind.
+ * The documents a plan may hash: every managed one, and each replacement a replace stopped
+ * before its delete left, which the next apply finishes when it holds the declared bytes.
  */
 export function hashableDocs(docs: readonly StoredDoc[]): StoredDoc[] {
-  const { byName, ambiguous } = sourceDocs(docs)
-  return [
-    ...byName.values(),
-    ...[...ambiguous.values()].filter((holders) => holders.length === 2).flat(),
-  ]
-}
-
-/**
- * The stale half of a replace interrupted between its upload and its delete: of two documents
- * under one name, the one the base records, when the other hashes to the declared content.
- */
-export function supersededDuplicate(
-  holders: readonly StoredDoc[],
-  hashes: ReadonlyMap<string, string>,
-  base: BaseResource | undefined,
-  sha256: string
-): StoredDoc | undefined {
-  if (holders.length !== 2) return undefined
-  const recorded = baseHashes(holders, base)
-  const old = holders.find((doc) => recorded.has(doc.id))
-  const replacement = holders.find((doc) => !recorded.has(doc.id))
-  return old && replacement && hashes.get(replacement.id) === sha256 ? old : undefined
+  const { byName, strays } = sourceDocs(docs)
+  return [...byName.values(), ...strays]
 }
 
 /** The stored chunking settings as a declaration, or `undefined` when they are the defaults. */
@@ -331,9 +363,10 @@ function settingsFingerprint(
 /**
  * Whether every change the server took since `base` is one `decl` declares, as an apply that
  * stopped partway leaves it: settings that now equal the declared ones, documents that now hash
- * to the declared bytes or are gone where the declaration drops them, and a replaced document
- * still stored beside its replacement. Such a server is planned from the base, so the next apply
- * finishes the rest instead of refusing it as stale. A document of unknown hash never matches.
+ * to the declared bytes or are gone where the declaration drops them, and a replacement a
+ * stopped replace left (whatever it holds: the next apply finishes or replaces it). Such a server
+ * is planned from the base, so the next apply finishes the rest instead of refusing it as stale.
+ * A document of unknown hash never matches.
  */
 export function movedTowardDecl(input: {
   decl: KnowledgeBaseDecl
@@ -359,12 +392,11 @@ export function movedTowardDecl(input: {
   const { byName, ambiguous } = sourceDocs(docs)
   // Name → its hash on the server now; `null` when unknown.
   const server = new Map<string, string | null>()
-  for (const [name, doc] of byName) server.set(name, hashes.get(doc.id) ?? null)
-  for (const [name, holders] of ambiguous) {
-    const sha256 = declared(name)
-    const settled = sha256 !== undefined && supersededDuplicate(holders, hashes, base, sha256)
-    server.set(name, settled ? sha256 : null)
+  for (const [name, doc] of byName) {
+    const resumed = doc.replacing ? (declared(name) ?? baseDocs.get(name)) : undefined
+    server.set(name, resumed ?? hashes.get(doc.id) ?? null)
   }
+  for (const name of ambiguous.keys()) server.set(name, null)
   for (const name of new Set([...baseDocs.keys(), ...server.keys()])) {
     const now = server.get(name)
     if (now === null) return false

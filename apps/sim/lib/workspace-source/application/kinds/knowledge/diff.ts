@@ -3,7 +3,10 @@
  * chunking) and its documents, each kept, uploaded, replaced or deleted by file name and hash.
  * A replace is an upload followed by a delete of the old document, never an in-place edit, since
  * the knowledge use cases have none (`upsertKnowledgeDocument` creates a new document too). The
- * replacement therefore has a new id; the apply copies the old one's tag values onto it.
+ * replacement therefore has a new id: it is uploaded under a name naming the old document
+ * (`replacementName`), takes the old one's tag values, and is renamed once the old one is
+ * deleted, so a replace that stops between those writes leaves a replacement the next apply
+ * recognizes, then finishes (it holds the declared bytes) or discards and replaces again.
  */
 import { createLogger } from '@sim/logger'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
@@ -24,12 +27,12 @@ import { kindFinding } from '@/lib/workspace-source/application/findings'
 import { HASH_CONCURRENCY, takeHashBudget } from '@/lib/workspace-source/application/hash-budget'
 import {
   baseHashes,
+  replacementName,
   type StoredDoc,
   type StoredKnowledgeBase,
   sameChunking,
   sourceDocs,
   storedChunking,
-  supersededDuplicate,
 } from '@/lib/workspace-source/application/kinds/knowledge/stored'
 import type {
   PlanContext,
@@ -58,8 +61,15 @@ export interface KnowledgeChanges {
   uploads: DocUpload[]
   /** Undeclared documents the base records, deleted with `--allow-delete`. */
   deletes: StoredDoc[]
-  /** Replaced documents still stored beside their replacement, deleted to finish the replace. */
-  superseded: StoredDoc[]
+  /**
+   * Replaces a stopped replace left before deleting the old document, whose replacement holds the
+   * declared bytes: its tags carried over, the old document deleted, the replacement renamed.
+   */
+  finishes: Array<{ replacement: StoredDoc; replaces: StoredDoc }>
+  /** Replacements a stopped replace left before renaming them, holding the declared bytes. */
+  renames: StoredDoc[]
+  /** Replacements a stopped replace left that this apply does not finish: deleted. */
+  discards: StoredDoc[]
   fields: string[]
   diagnostics: WorkspaceSourceDiagnostic[]
 }
@@ -195,8 +205,8 @@ export function indexingFindings(
  * is unknown is downloaded and hashed, so an unchanged document is never re-embedded, and the hash
  * is added (one of another size is replaced without a download). One the request's download
  * budget leaves unhashed is neither uploaded nor deleted, only named. Only a document the base
- * records (an update's `base`) is deleted when undeclared; any other is kept. A name held twice is
- * settled when `base` shows a replace that stopped before its delete.
+ * records (an update's `base`) is deleted when undeclared; any other is kept. What a replace that
+ * stopped partway left is finished, or discarded when the directory no longer asks for it.
  */
 export async function diffKnowledgeBase(input: {
   key: string
@@ -209,12 +219,27 @@ export async function diffKnowledgeBase(input: {
 }): Promise<KnowledgeChanges> {
   const { key, decl, stored, docs, hashes, base, ctx } = input
   const { knowledgeBase, folderPath } = stored.state
-  const managed = new Set(base ? baseHashes(docs, base).keys() : [])
+  // A replacement left before its rename stands for the document the base records under its name.
+  const managed = new Set([
+    ...(base ? baseHashes(docs, base).keys() : []),
+    ...docs
+      .filter(
+        (doc) =>
+          doc.replacing !== undefined &&
+          !doc.replacing.stray &&
+          base?.blobs !== undefined &&
+          Object.hasOwn(base.blobs, doc.filename) &&
+          base.blobs[doc.filename].id === doc.replacing.replaces
+      )
+      .map((doc) => doc.id),
+  ])
   const changes: KnowledgeChanges = {
     settings: {},
     uploads: [],
     deletes: [],
-    superseded: [],
+    finishes: [],
+    renames: [],
+    discards: [],
     fields: [],
     diagnostics: [],
   }
@@ -236,26 +261,18 @@ export async function diffKnowledgeBase(input: {
     changes.fields.push('chunking')
   }
 
-  const { byName, ambiguous } = sourceDocs(docs)
-  const comparable: StoredDoc[] = []
+  const { byName, ambiguous, strays } = sourceDocs(docs)
+  const comparable: StoredDoc[] = [...strays]
   for (const [name, doc] of Object.entries(decl.docs)) {
-    const holders = ambiguous.get(name)
     const current = byName.get(name)
-    if (holders && base && holders.length === 2) comparable.push(...holders)
-    else if (current && current.fileSize === doc.size) comparable.push(current)
+    if (current && current.fileSize === doc.size) comparable.push(current)
   }
   const unchecked = new Set(
     (await hashDocs(ctx, stored.id, comparable, hashes)).map((doc) => doc.id)
   )
+  const finished = new Set<string>()
   for (const [name, doc] of Object.entries(decl.docs)) {
-    const holders = ambiguous.get(name)
-    if (holders) {
-      const superseded = supersededDuplicate(holders, hashes, base, doc.sha256)
-      if (superseded) {
-        changes.superseded.push(superseded)
-        changes.fields.push(`docs/${name} (replace)`)
-        continue
-      }
+    if (ambiguous.has(name)) {
       changes.diagnostics.push(
         kindFinding(
           KIND,
@@ -287,9 +304,30 @@ export async function diffKnowledgeBase(input: {
       )
       continue
     }
-    if (hashes.get(current.id) === doc.sha256) continue
-    changes.uploads.push({ name, doc, replaces: current })
+    if (hashes.get(current.id) === doc.sha256) {
+      if (current.replacing) {
+        changes.renames.push(current)
+        changes.fields.push(`docs/${name} (replace)`)
+      }
+      continue
+    }
     changes.fields.push(`docs/${name} (replace)`)
+    const replacement = strays.find(
+      (stray) =>
+        stray.replacing?.uploadName === replacementName(current, name) &&
+        hashes.get(stray.id) === doc.sha256
+    )
+    if (replacement) {
+      changes.finishes.push({ replacement, replaces: current })
+      finished.add(replacement.id)
+    } else {
+      changes.uploads.push({ name, doc, replaces: current })
+    }
+  }
+  for (const stray of strays) {
+    if (finished.has(stray.id)) continue
+    changes.discards.push(stray)
+    changes.fields.push(`docs/${stray.filename} (left by a stopped replace, removed)`)
   }
   for (const [name, current] of byName) {
     if (Object.hasOwn(decl.docs, name)) continue

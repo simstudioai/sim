@@ -187,6 +187,11 @@ const KNOWLEDGE_CODES = [
   'I_KB_DOCS_UNHASHED',
   /** Documents source leaves alone: connector-synced, too large, or not a plain file name. */
   'I_KB_UNMANAGED_DOCS',
+  /**
+   * A replace that stopped partway left a replacement document (under its upload name): the next
+   * apply that changes the knowledge base finishes the replace, or removes the replacement.
+   */
+  'I_KB_REPLACE_UNFINISHED',
 ] as const
 
 /** Deployments. */

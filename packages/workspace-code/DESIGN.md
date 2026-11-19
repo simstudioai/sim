@@ -159,6 +159,17 @@ the triggers of the rows written fire once the reshape commits. A column added `
 optional, filled by the rows, then made required in the same transaction, so a directory can add a
 required column and its values in one apply.
 
+### Knowledge documents
+
+A document is never edited in place (the knowledge use cases have no such write), so a changed
+document is replaced: the replacement is uploaded under a name that names the old document
+(`.sim-replace.<old id>.<name>`), takes the old one's tag values, the old one is deleted, and the
+replacement is renamed. Each step is one write, so a replace that stops between them leaves a
+replacement only source could have made: the next apply that changes the knowledge base finishes
+it when it holds the declared bytes, or removes it and replaces again (the directory edited since),
+and a get reports it (`I_KB_REPLACE_UNFINISHED`). A replacement left before its rename stands for
+its name meanwhile; one left before the delete does not.
+
 ### The MCP server kind
 
 `mcp/<key>.ts` declares a server the workspace consumes (`kinds/mcp.ts`, adapter
