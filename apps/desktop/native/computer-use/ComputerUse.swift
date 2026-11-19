@@ -162,10 +162,11 @@ func eventDate(_ text: String?, _ field: String, allDay: Bool) throws -> Date {
 func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
     switch command.name {
     case "list_reminder_lists":
-        let lists = try remindersStore().calendars(for: .reminder).prefix(200).map { list -> [String: Any] in
+        let allLists = try remindersStore().calendars(for: .reminder)
+        let lists = allLists.prefix(200).map { list -> [String: Any] in
             ["id": list.calendarIdentifier, "title": String(list.title.prefix(1024)), "allowsModifications": list.allowsContentModifications]
         }
-        return ["kind": "command", "command": command.name, "items": lists]
+        return ["kind": "command", "command": command.name, "items": lists, "truncated": allLists.count > 200]
     case "create_reminder":
         let title = (command.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, title.count <= 1024 else { throw ComputerError("invalid_arguments", "A reminder needs a title of at most 1024 characters.", dispatchState: "not_started") }
@@ -192,10 +193,11 @@ func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
         try store.save(reminder, commit: true)
         return ["kind": "command", "command": command.name, "created": ["id": reminder.calendarItemIdentifier, "title": title, "list": list.title]]
     case "list_calendars":
-        let calendars = try calendarStore().calendars(for: .event).prefix(200).map { calendar -> [String: Any] in
+        let allCalendars = try calendarStore().calendars(for: .event)
+        let calendars = allCalendars.prefix(200).map { calendar -> [String: Any] in
             ["id": calendar.calendarIdentifier, "title": String(calendar.title.prefix(1024)), "allowsModifications": calendar.allowsContentModifications]
         }
-        return ["kind": "command", "command": command.name, "items": calendars]
+        return ["kind": "command", "command": command.name, "items": calendars, "truncated": allCalendars.count > 200]
     case "create_event":
         let title = try commandText(command.title, "Title")
         let allDay = command.allDay ?? false
@@ -230,10 +232,11 @@ func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
         try store.save(event, span: .thisEvent, commit: true)
         return ["kind": "command", "command": command.name, "created": ["id": event.eventIdentifier ?? event.calendarItemIdentifier, "title": title, "list": calendar.title]]
     case "list_contact_groups":
-        let groups = try contactStore().groups(matching: nil).prefix(200).map { group -> [String: Any] in
+        let allGroups = try contactStore().groups(matching: nil)
+        let groups = allGroups.prefix(200).map { group -> [String: Any] in
             ["id": group.identifier, "title": String(group.name.prefix(1024)), "allowsModifications": true]
         }
-        return ["kind": "command", "command": command.name, "items": groups]
+        return ["kind": "command", "command": command.name, "items": groups, "truncated": allGroups.count > 200]
     case "create_contact_group":
         let name = try commandText(command.title, "Group name")
         let store = try contactStore()

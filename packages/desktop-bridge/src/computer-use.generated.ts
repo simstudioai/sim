@@ -425,6 +425,10 @@ export const ComputerUseCommandResultSchema = z
       })
       .optional(),
     items: z.array(CommandItem).max(200).optional(),
+    truncated: z
+      .boolean()
+      .optional()
+      .describe("True when more than 200 items exist and only the first 200 are listed."),
   })
   .refine(
     (result) =>

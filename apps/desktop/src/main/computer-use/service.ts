@@ -70,8 +70,10 @@ function workBundleId(input: ComputerUseWithAppCommandsInput): string | undefine
 
 /** The exact fields a write will save, for the user to confirm; null for a read, which needs none. */
 function writeSummary(command: AppCommand): string | null {
+  // Trimmed exactly as the helper trims before saving, so the user confirms the saved values.
   const lines = (entries: Array<[string, string | number | undefined]>) =>
     entries
+      .map(([label, value]) => [label, typeof value === 'string' ? value.trim() : value] as const)
       .filter(([, value]) => value !== undefined && value !== '')
       .map(([label, value]) => `${label}: ${value}`)
       .join('\n')
@@ -107,8 +109,8 @@ function writeSummary(command: AppCommand): string | null {
         ['Contact', [command.givenName, command.familyName].filter(Boolean).join(' ') || undefined],
         ['Organization', command.organization],
         ['Job title', command.jobTitle],
-        ['Emails', command.emails?.join(', ')],
-        ['Phones', command.phones?.join(', ')],
+        ['Emails', command.emails?.map((email) => email.trim()).join(', ')],
+        ['Phones', command.phones?.map((phone) => phone.trim()).join(', ')],
         ['Group', command.groupId],
       ])
     default:
