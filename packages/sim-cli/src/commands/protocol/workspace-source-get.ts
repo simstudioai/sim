@@ -45,6 +45,7 @@ import {
   sourceTreeChange,
   withSourceExitCode,
 } from './source-tree'
+import { removedWorkflowRecords, workflowFolderRecords } from './stored-edges'
 import {
   assertListedBlobs,
   blobDigests,
@@ -206,6 +207,12 @@ async function writeWorkspaceSource(
     loadWorkspaceTypes(client, source.workspaceId, localDeclarations(source.files)),
   ])
   assertSdkMajor(catalog)
+  const workflowRecords = await workflowFolderRecords(
+    client,
+    source.workspaceId,
+    catalog,
+    source.files
+  )
   // A get that leaves the workflows unread keeps the blocks those on disk type-check against.
   const tree = await sourceTreeChange(
     dir,
@@ -276,6 +283,7 @@ async function writeWorkspaceSource(
       [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
       [SOURCE_WRITTEN_FILE, writtenFile(record)],
       ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
+      ...workflowRecords,
       ...tree.change.write,
     ]
     await updateSourceDir(dir, {
@@ -285,6 +293,7 @@ async function writeWorkspaceSource(
       ),
       remove: [
         ...gone,
+        ...removedWorkflowRecords(gone),
         ...(skipped ? [] : [WORKSPACE_SKIPPED_FILE]),
         ...(tree.change.remove ?? []),
       ],

@@ -57,6 +57,7 @@ import {
   SOURCE_DOWNLOADS_DIR,
   SOURCE_SDK_DIR,
   SOURCE_STAGING_PREFIX,
+  SOURCE_STORED_EDGES_FILE,
   type StatDigest,
   type Written,
 } from './source-dir'
@@ -428,6 +429,11 @@ export function assertWorkspacePaths(paths: Iterable<string>): void {
   }
 }
 
+/** A workflow folder's CLI-only record (`.sim/stored-edges.json`): never sent, never ignored. */
+function isWorkflowRecord(kind: WorkspaceKind, path: string): boolean {
+  return kind === 'workflow' && path.endsWith(`/${SOURCE_STORED_EDGES_FILE}`)
+}
+
 /**
  * The folders (and root files) of `kinds`, each walked once: `present`, the kinds whose folder
  * holds any file (its `.gitkeep` marker included) or whose root file exists; `paths`, their source
@@ -452,7 +458,7 @@ export async function kindFolders(
     if (files.length > 0) present.push(kind)
     for (const path of files) {
       if (isWorkspaceSourcePath(path)) paths.push(path)
-      else if (path !== keepFile(kind)) ignored.push(path)
+      else if (path !== keepFile(kind) && !isWorkflowRecord(kind, path)) ignored.push(path)
     }
   }
   return { present, paths, ignored }

@@ -38,6 +38,7 @@ import {
   writtenFile,
   writtenRecord,
 } from './source-dir'
+import { cachedCatalog } from './source-tree'
 import {
   confirm,
   printNewDiagnostics,
@@ -46,6 +47,7 @@ import {
   requireConsent,
   resultDiagnostics,
 } from './source-ui'
+import { removedWorkflowRecords, workflowFolderRecords } from './stored-edges'
 import {
   appliedBlobDigests,
   assertBlobsFetched,
@@ -298,13 +300,15 @@ function droppedResourceFiles(
  * their digests in `.sim/written.json` (`written` is what it held), beside the digests of the
  * blobs the server now holds. The function files a written workflow no longer uses, and the files
  * a reprinted resource no longer has, are removed from disk and the record; the record also drops
- * the files of resources the apply deleted ({@link deletedRecordedPaths}).
+ * the files of resources the apply deleted ({@link deletedRecordedPaths}). `records` are the
+ * stored-edges records of the workflows it reprinted.
  */
 async function saveApplied(
   dir: string,
   data: ApplyData,
   submission: WorkspaceSubmission,
-  written: Written
+  written: Written,
+  records: ReadonlyArray<readonly [string, string]>
 ): Promise<void> {
   assertWorkspacePaths(Object.keys(data.files))
   const orphaned = [
@@ -324,8 +328,9 @@ async function saveApplied(
       ...Object.entries(data.files),
       [WORKSPACE_BASE_FILE, `${JSON.stringify(data.base, null, 2)}\n`],
       [SOURCE_WRITTEN_FILE, writtenFile(record)],
+      ...records,
     ],
-    remove: orphaned,
+    remove: [...orphaned, ...removedWorkflowRecords(deleted)],
   })
 }
 
@@ -410,6 +415,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     'findMissingWorkspaceSourceBlobs',
     'stageWorkspaceSourceBlobs',
     'getWorkspaceSource',
+    'getSourceCatalog',
   ])
   command
     .requiredOption('--dir <dir>', 'Workspace source directory written by `workspaces source get`')
@@ -551,7 +557,13 @@ export function attachWorkspaceSourceApply(source: Command): void {
           writing = false
           printNewDiagnostics(data.diagnostics, printed)
           // A promotion leaves the directory bound to the workspace it was read from.
-          if (!options.to) await saveApplied(options.dir, data, submission, written)
+          if (!options.to) {
+            const workspaceCatalog = cachedCatalog(workspaceId)
+            const records = workspaceCatalog
+              ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, data.files)
+              : []
+            await saveApplied(options.dir, data, submission, written, records)
+          }
           const held = data.plan.filter((change) => change.held)
           if (held.length > 0) {
             printError(

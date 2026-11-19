@@ -348,19 +348,23 @@ function declarationFindings(
 }
 
 /**
- * Compiles the workflow source directory `dir` against `catalog`, checking env names against the
- * names `secrets.ts` declares when `declarations` hold them.
+ * Compiles the workflow source directory `dir` against the catalog its base names when that one is
+ * cached (a workflow holding a type the workspace catalog lacks was printed with its own), else
+ * `catalog`, checking env names against the names `secrets.ts` declares when `declarations` hold
+ * them.
  */
 async function compileWorkflowDir(
   dir: string,
-  catalog: BlockCatalog,
+  workspaceCatalog: BlockCatalog,
   declarations?: WorkspaceDeclarations
 ) {
   const { lock } = parseWorkflowLock(await readSourceJson(dir, SOURCE_LOCK_FILE))
-  const [files, storedEdges] = await Promise.all([
+  const [files, storedEdges, printedWith] = await Promise.all([
     readSourceFiles(dir, lock ?? null),
     readStoredEdges(dir),
+    cachedSourceCatalog(dir),
   ])
+  const catalog = printedWith ?? workspaceCatalog
   const envNames = declarations?.envNames
   const compiled = compileWorkflow({
     entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
