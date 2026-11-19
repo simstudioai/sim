@@ -31,6 +31,8 @@ export interface FileDecl {
 const RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i
 const MAX_SEGMENT_BYTES = 255
 const MAX_KEY_LENGTH = 1024
+/** Folders deep a file may sit: each one is a prefix every collision check folds and looks up. */
+const MAX_KEY_SEGMENTS = 64
 
 /** The directory path of a file's bytes: `files/<key>`. */
 export function fileBlobPath(key: string): string {
@@ -40,11 +42,15 @@ export function fileBlobPath(key: string): string {
 /**
  * Why no directory can hold a file at `key` (its path under `files/`), or `null` when one can: a
  * dot or empty segment, a hidden name, a control or reserved character, a trailing space or dot,
- * a reserved device name, or a name over 255 bytes.
+ * a reserved device name, a name over 255 bytes, or more than 64 nested names.
  */
 export function filePathProblem(key: string): string | null {
   if (key.length > MAX_KEY_LENGTH) return `the path is over ${MAX_KEY_LENGTH} characters`
-  for (const segment of key.split('/')) {
+  const segments = key.split('/')
+  if (segments.length > MAX_KEY_SEGMENTS) {
+    return `the path nests more than ${MAX_KEY_SEGMENTS} names`
+  }
+  for (const segment of segments) {
     if (segment === '' || segment === '.' || segment === '..') {
       return 'the path has an empty or dot segment'
     }
@@ -79,14 +85,34 @@ export function fileKeyConflicts(keys: Iterable<string>): Map<string, string> {
       conflicts.set(key, conflict)
       continue
     }
-    files.set(foldedFileKey(key), key)
-    const segments = key.split('/')
-    for (let depth = 1; depth < segments.length; depth += 1) {
-      const folder = segments.slice(0, depth).join('/')
-      if (!folders.has(foldedFileKey(folder))) folders.set(foldedFileKey(folder), folder)
+    const { folded, prefixes } = foldedPrefixes(key)
+    files.set(folded, key)
+    for (const prefix of prefixes) {
+      if (!folders.has(prefix.folded)) folders.set(prefix.folded, prefix.path)
     }
   }
   return conflicts
+}
+
+/**
+ * `key` folded, with each folder above it and its folded spelling, built one segment at a time so
+ * a key costs one fold of each segment rather than one of every prefix.
+ */
+function foldedPrefixes(key: string): {
+  folded: string
+  prefixes: Array<{ path: string; folded: string }>
+} {
+  const segments = key.split('/')
+  const prefixes: Array<{ path: string; folded: string }> = []
+  let path = ''
+  let folded = ''
+  for (const [index, segment] of segments.entries()) {
+    const separator = index === 0 ? '' : '/'
+    path += separator + segment
+    folded += separator + foldedFileKey(segment)
+    if (index < segments.length - 1) prefixes.push({ path, folded })
+  }
+  return { folded, prefixes }
 }
 
 function keyConflict(
@@ -94,24 +120,23 @@ function keyConflict(
   files: ReadonlyMap<string, string>,
   folders: ReadonlyMap<string, string>
 ): string | null {
-  const file = files.get(foldedFileKey(key))
+  const { folded, prefixes } = foldedPrefixes(key)
+  const file = files.get(folded)
   if (file !== undefined) {
     return `${fileBlobPath(key)} and ${fileBlobPath(file)} differ only in letter case`
   }
-  const folder = folders.get(foldedFileKey(key))
+  const folder = folders.get(folded)
   if (folder !== undefined) {
     return `${fileBlobPath(folder)} is a folder, so ${fileBlobPath(key)} cannot also be a file`
   }
-  const segments = key.split('/')
-  for (let depth = 1; depth < segments.length; depth += 1) {
-    const prefix = segments.slice(0, depth).join('/')
-    const asFile = files.get(foldedFileKey(prefix))
+  for (const prefix of prefixes) {
+    const asFile = files.get(prefix.folded)
     if (asFile !== undefined) {
       return `${fileBlobPath(asFile)} is a file, so it cannot also be a folder of ${fileBlobPath(key)}`
     }
-    const asFolder = folders.get(foldedFileKey(prefix))
-    if (asFolder !== undefined && asFolder !== prefix) {
-      return `the folder ${fileBlobPath(prefix)} differs only in letter case from ${fileBlobPath(asFolder)}`
+    const asFolder = folders.get(prefix.folded)
+    if (asFolder !== undefined && asFolder !== prefix.path) {
+      return `the folder ${fileBlobPath(prefix.path)} differs only in letter case from ${fileBlobPath(asFolder)}`
     }
   }
   return null
