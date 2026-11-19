@@ -20,6 +20,7 @@
  * discover, such as a workspace API key) is a warning.
  */
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { didYouMean, type Json } from '@sim/workflow-code'
@@ -35,7 +36,6 @@ import { workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import type { CursorKey } from '@/lib/api/list-query'
 import { authorizeWorkspaceOperation, ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
   createMcpServerUseCase,
