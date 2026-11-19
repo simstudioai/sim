@@ -43,17 +43,25 @@ export const workflowRunCounters = sql`count(*) AS runs,
   coalesce(sum(a.duration_ms), 0) AS duration_sum_ms,
   count(a.duration_ms) AS duration_count`
 
-/** Every run that started in `range`, optionally in some workspaces only, for recomputing cells. */
+/**
+ * Every run that started in `range`, for recomputing cells. With `workspaceIds`, each workspace is
+ * read on its own through `workflow_execution_logs_workspace_activity_level_idx`, so a page of
+ * workspaces never falls back to scanning the whole range on `started_at`.
+ */
 export function workflowRunsStartedIn(range: InstantRange, workspaceIds?: string[]): SQL {
-  const inWorkspaces = workspaceIds
-    ? sql`AND l.workspace_id IN (${sql.join(
-        workspaceIds.map((id) => sql`${id}`),
-        sql`, `
-      )})`
-    : sql``
-  return sql`SELECT ${workflowRunColumns} FROM ${workflowExecutionLogs} l
-    WHERE l.started_at >= ${utcTimestamp(range.from)} AND l.started_at < ${utcTimestamp(range.to)}
-      ${inWorkspaces}`
+  const inRange = sql`l.started_at >= ${utcTimestamp(range.from)} AND l.started_at < ${utcTimestamp(range.to)}`
+  if (!workspaceIds) {
+    return sql`SELECT ${workflowRunColumns} FROM ${workflowExecutionLogs} l WHERE ${inRange}`
+  }
+  const ids = sql.join(
+    workspaceIds.map((id) => sql`(${id})`),
+    sql`, `
+  )
+  return sql`SELECT l.* FROM (VALUES ${ids}) AS p(workspace_id)
+    CROSS JOIN LATERAL (
+      SELECT ${workflowRunColumns} FROM ${workflowExecutionLogs} l
+      WHERE l.workspace_id = p.workspace_id AND ${inRange}
+    ) l`
 }
 
 /**
@@ -77,6 +85,19 @@ export function organizationWorkflowRuns(
     ) l
     WHERE w.organization_id = ${scope.organizationId}
       ${scope.workspaceId ? sql`AND w.id = ${scope.workspaceId}` : sql``}`
+}
+
+/**
+ * The runs of the workspace-hour cells `cells` returns as `(workspace_id, h)` rows, each read on the
+ * workspace activity index, for reading single stale cells live.
+ */
+export function cellRuns(cells: SQL): SQL {
+  return sql`SELECT l.* FROM (${cells}) c
+    CROSS JOIN LATERAL (
+      SELECT ${workflowRunColumns} FROM ${workflowExecutionLogs} l
+      WHERE l.workspace_id = c.workspace_id
+        AND l.started_at >= c.h AND l.started_at < c.h + interval '1 hour'
+    ) l`
 }
 
 /** `ranges` as `(range_start, range_end)` rows for {@link organizationWorkflowRuns}. */

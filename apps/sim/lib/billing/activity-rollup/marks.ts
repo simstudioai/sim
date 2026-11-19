@@ -3,7 +3,11 @@ import { activityRollupDirty, activityRollupState, workflowExecutionLogs } from 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { lt, sql } from 'drizzle-orm'
-import { boundedTransaction, recomputeCell } from '@/lib/billing/activity-rollup/cells'
+import {
+  boundedTransaction,
+  inflightBackoffMs,
+  recomputeCell,
+} from '@/lib/billing/activity-rollup/cells'
 import { floorHour, msInterval, utcTimestamp } from '@/lib/billing/activity-rollup/source'
 import {
   type ActivityRollupState,
@@ -140,20 +144,26 @@ export async function captureLateEnds(
  * meanwhile survives for the next pass. Marks of hours not covered yet wait: an hour being
  * finalized or backfilled is read on the replica, which may not have the change yet. Once the
  * backfill is complete, marks older than the coverage are dropped, since no cell holds them.
+ * `finished` is whether every due mark was taken: false when the deadline or the batch cut it short.
  */
 export async function processDirtyMarks(
   state: ActivityRollupState,
   deadline: number
-): Promise<number> {
+): Promise<{ processed: number; finished: boolean }> {
   const { coverageStart, freshThrough, backfillCompletedAt } = state
-  if (!coverageStart || !freshThrough) return 0
+  if (!coverageStart || !freshThrough) return { processed: 0, finished: true }
   if (backfillCompletedAt) {
     await db.delete(activityRollupDirty).where(lt(activityRollupDirty.bucketStart, coverageStart))
   }
   // `due_at` is read as text: a JS `Date` would drop the microseconds the guard compares.
-  const marks = await db.execute<{ workspaceId: string; bucketMs: number; seen: string }>(sql`
+  const marks = await db.execute<{
+    workspaceId: string
+    bucketMs: number
+    seen: string
+    attempts: number
+  }>(sql`
     SELECT workspace_id AS "workspaceId", (extract(epoch FROM bucket_start) * 1000)::float8 AS "bucketMs",
-      due_at::text AS seen
+      due_at::text AS seen, attempts
     FROM ${activityRollupDirty}
     WHERE due_at <= now()
       AND bucket_start >= ${utcTimestamp(coverageStart)} AND bucket_start < ${utcTimestamp(freshThrough)}
@@ -162,16 +172,30 @@ export async function processDirtyMarks(
   `)
   let processed = 0
   for (const mark of marks) {
-    if (Date.now() >= deadline) break
+    if (Date.now() >= deadline) return { processed, finished: false }
     const hour = new Date(Number(mark.bucketMs))
-    await recomputeCell(mark.workspaceId, hour, async (tx) => {
-      await tx.execute(sql`
-        DELETE FROM ${activityRollupDirty}
-        WHERE workspace_id = ${mark.workspaceId} AND bucket_start = ${utcTimestamp(hour)}
-          AND due_at = ${mark.seen}::timestamptz
+    const key = sql`workspace_id = ${mark.workspaceId} AND bucket_start = ${utcTimestamp(hour)}
+      AND due_at = ${mark.seen}::timestamptz`
+    try {
+      await recomputeCell(mark.workspaceId, hour, async (tx) => {
+        await tx.execute(sql`DELETE FROM ${activityRollupDirty} WHERE ${key}`)
+      })
+      processed++
+    } catch (error) {
+      // Retried with backoff so the rest of the queue proceeds; reads serve the hour live meanwhile.
+      const attempts = Number(mark.attempts) + 1
+      logger.error('Activity rollup dirty cell failed to recompute; backing off', {
+        workspaceId: mark.workspaceId,
+        hour: hour.toISOString(),
+        attempts,
+        error: getErrorMessage(error),
+      })
+      await db.execute(sql`
+        UPDATE ${activityRollupDirty}
+        SET attempts = ${attempts}, due_at = now() + ${msInterval(inflightBackoffMs(attempts - 1))}
+        WHERE ${key}
       `)
-    })
-    processed++
+    }
   }
-  return processed
+  return { processed, finished: marks.length < DIRTY_BATCH }
 }
