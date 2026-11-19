@@ -222,7 +222,7 @@ case "$group" in
       bun run test:workflow-source-apply:e2e
     WORKSPACE_SOURCE_E2E_BASE_URL="$local_app_url" \
     WORKSPACE_SOURCE_E2E_DATABASE_URL="$DATABASE_URL" \
-    WORKSPACE_SOURCE_REPORT_PATH="$report_dir/workspace-source-e2e-report.json" \
+    WORKSPACE_SOURCE_E2E_REPORT_PATH="$report_dir/workspace-source-e2e-report.json" \
       bun run test:workspace-source:e2e
     SIM_LINKS_E2E_BASE_URL="$local_app_url" \
     SIM_LINKS_E2E_DATABASE_URL="$DATABASE_URL" \

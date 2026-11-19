@@ -25,7 +25,7 @@ import postgres from 'postgres'
  *
  *   WORKSPACE_SOURCE_E2E_BASE_URL=http://127.0.0.1:3000 \
  *   WORKSPACE_SOURCE_E2E_DATABASE_URL=postgres://…/sim_test \
- *   WORKSPACE_SOURCE_REPORT_PATH=/tmp/workspace-source-report.json \
+ *   WORKSPACE_SOURCE_E2E_REPORT_PATH=/tmp/workspace-source-report.json \
  *   bun run test:workspace-source:e2e
  */
 const logger = createLogger('WorkspaceSourceE2E')
@@ -42,7 +42,7 @@ const baseUrl = new URL(requiredEnvironment('WORKSPACE_SOURCE_E2E_BASE_URL'))
 const databaseUrl = assertDisposableTestDatabaseUrl(
   requiredEnvironment('WORKSPACE_SOURCE_E2E_DATABASE_URL')
 )
-const reportPath = requiredEnvironment('WORKSPACE_SOURCE_REPORT_PATH')
+const reportPath = requiredEnvironment('WORKSPACE_SOURCE_E2E_REPORT_PATH')
 assert(new Set(['localhost', '127.0.0.1', '[::1]']).has(baseUrl.hostname), 'Use a loopback app')
 assert.equal(baseUrl.protocol, 'http:', 'Use a local HTTP app')
 
