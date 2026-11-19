@@ -103,6 +103,30 @@ describe('redirects', () => {
 })
 
 describe('non-JSON responses', () => {
+  it.each([200, 429, 503])(
+    'retains Retry-After when the HTTP %i response body is lost',
+    async (status) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new Error('Connection closed'))
+              },
+            }),
+            { status, headers: { 'retry-after': '10' } }
+          )
+        )
+      )
+      await expect(client().request('/api/v2/workflows')).rejects.toMatchObject({
+        code: 'RESPONSE_READ_FAILED',
+        status,
+        retryAfterMs: 10_000,
+      })
+    }
+  )
+
   it('turns a 200 that is not JSON into an explained error, not a SyntaxError', async () => {
     vi.stubGlobal(
       'fetch',
@@ -457,6 +481,7 @@ describe('destructive operations are gated', () => {
     'completeSourcePermissionImport',
     'replaceWorkflowChatDeployment',
     'replaceSearchSourcePermissions',
+    'updateSearchSource',
     'replaceWorkflowState',
     'revertWorkflowVersion',
     'updateRowsByFilter',
@@ -545,6 +570,8 @@ describe('destructive operations are gated', () => {
     'createServiceAccountCredential',
     'createSkill',
     'createSourcePermissionImport',
+    'createSearchSource',
+    'prepareSearchSources',
     'createTable',
     'createTableExport',
     'createTableFolder',
