@@ -41,6 +41,10 @@
     "./kinds/*": {
       "types": "./src/kinds/*.ts",
       "default": "./src/kinds/*.ts"
+    },
+    "./table-cells/*": {
+      "types": "./src/table-cells/*.ts",
+      "default": "./src/table-cells/*.ts"
     }
   },
   "scripts": {
@@ -55,7 +59,8 @@
   "dependencies": {
     "@babel/parser": "7.29.9",
     "@sim/utils": "workspace:*",
-    "@sim/workflow-code": "workspace:*"
+    "@sim/workflow-code": "workspace:*",
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@babel/types": "7.29.8",

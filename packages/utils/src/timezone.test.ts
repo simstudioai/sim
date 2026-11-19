@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest'
 import {
   getTimezoneOptions,
   getWallClockParts,
@@ -6,7 +5,8 @@ import {
   zonedWallClock,
   zonedWallClockToUtc,
   zonedWallClockWithOffset,
-} from '@/lib/core/utils/timezone'
+} from '@sim/utils/timezone'
+import { describe, expect, it } from 'vitest'
 
 describe('zonedWallClock', () => {
   it('preserves a four-digit low year in naive wall-clock output', () => {

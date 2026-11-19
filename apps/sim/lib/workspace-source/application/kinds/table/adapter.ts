@@ -22,9 +22,10 @@ import {
   type ResourceFingerprint,
   resourceAddress,
 } from '@sim/workspace-code'
-import { columnName, type TableDecl } from '@sim/workspace-code/kinds/table'
+import { columnName, refusedTableRows, type TableDecl } from '@sim/workspace-code/kinds/table'
 import {
   rowKeyText,
+  type TableRowsDecl,
   tableRowsFingerprint,
   tableRowsPath,
 } from '@sim/workspace-code/kinds/table-rows'
@@ -43,12 +44,8 @@ import {
   listTableDefinitionsUseCase,
 } from '@/lib/table/application/tables'
 import { getTableById } from '@/lib/table/service'
-import type { RowData, TableSchema } from '@/lib/table/types'
-import {
-  coerceRowToSchema,
-  findBatchUniqueDuplicates,
-  validateRowSize,
-} from '@/lib/table/validation'
+import type { RowData } from '@/lib/table/types'
+import { validateRowSize } from '@/lib/table/validation'
 import {
   keyRenamedChange,
   kindFinding,
@@ -183,54 +180,46 @@ const LISTED_INVALID_ROWS = 5
 
 /**
  * Refuses declared rows the declared columns cannot hold, checked at plan time as the write checks
- * them, so a dry run fails where the apply would and an apply fails before writing anything: each
- * row within the size limit, coerced to its columns' types and select options without blanking a
- * value (`coerceRowToSchema`, `reject`), with every required cell filled, and no unique value
- * repeated across the rows.
+ * them (`refusedTableRows`, which the CLI's offline check runs too), so a dry run fails where the
+ * apply would and an apply fails before writing anything: each row within the size limit, coerced
+ * to its columns' types and select options without blanking a value, with every required cell
+ * filled, and no unique value repeated across the rows.
  */
 function invalidRowsFinding(
   key: string,
   decl: TableDecl,
-  rows: readonly RowData[]
+  rows: TableRowsDecl['data']
 ): WorkspaceSourceDiagnostic | undefined {
-  const schema: TableSchema = {
-    columns: Object.entries(decl.columns).map(([columnKey, column]) =>
-      columnInput(columnKey, column)
-    ),
-  }
-  const errorsByRow = new Map<number, string[]>()
-  const coerced = rows.map((row, index) => {
-    const copy = structuredClone(row)
-    const size = validateRowSize(copy)
-    const result = size.valid ? coerceRowToSchema(copy, schema, 'reject') : size
-    if (!result.valid) errorsByRow.set(index, result.errors)
-    return copy
+  const names = namesByKey(decl)
+  const refused = refusedTableRows(decl, rows, (row) => {
+    const named: RowData = {}
+    for (const [column, value] of Object.entries(row)) named[names.get(column) ?? column] = value
+    return validateRowSize(named).errors
   })
-  for (const { row, errors } of findBatchUniqueDuplicates(coerced, schema)) {
-    errorsByRow.set(row, [...(errorsByRow.get(row) ?? []), ...errors])
-  }
-  if (errorsByRow.size === 0) return undefined
-  const listed = [...errorsByRow.entries()]
-    .sort(([a], [b]) => a - b)
+  if (refused.length === 0) return undefined
+  const listed = refused
     .slice(0, LISTED_INVALID_ROWS)
-    .map(([index, errors]) => `row ${index + 1}: ${errors.join(', ')}`)
-  const more = errorsByRow.size - listed.length
+    .map(({ row, errors }) => `row ${row + 1}: ${errors.join(', ')}`)
+  const more = refused.length - listed.length
   return kindFinding(
     'table',
     key,
     'E_TABLE_ROWS',
-    `${errorsByRow.size} row(s) of ${tableRowsPath(key)} do not fit the declared columns: ${listed.join('; ')}${more > 0 ? `; and ${more} more` : ''}.`,
+    `${refused.length} row(s) of ${tableRowsPath(key)} do not fit the declared columns: ${listed.join('; ')}${more > 0 ? `; and ${more} more` : ''}.`,
     { file: tableRowsPath(key) }
   )
 }
 
-/** The rows `write` writes, refused as {@link invalidRowsFinding} refuses them. */
+/**
+ * The declared rows a `write` writes (every row of `decl`, renamed to stored names), refused as
+ * {@link invalidRowsFinding} refuses them.
+ */
 function writeFindings(
   key: string,
   decl: TableDecl,
   write: ReshapeRows | undefined
 ): WorkspaceSourceDiagnostic[] {
-  const finding = write ? invalidRowsFinding(key, decl, write.rows) : undefined
+  const finding = write ? invalidRowsFinding(key, decl, decl.rows?.data ?? []) : undefined
   return finding ? [finding] : []
 }
 

@@ -7,6 +7,7 @@ import {
   workflowExecutionLogs,
   workspace,
 } from '@sim/db/schema'
+import { assertValidTimezone } from '@sim/utils/timezone'
 import { and, eq, type SQL, sql } from 'drizzle-orm'
 import {
   ACTIVITY_PAGE_SIZE,
@@ -21,7 +22,6 @@ import {
 } from '@/lib/billing/core/organization-activity'
 import { usageWindowSegments } from '@/lib/billing/core/usage-analytics'
 import { readThroughSegments } from '@/lib/billing/core/usage-segment-cache'
-import { assertValidTimezone } from '@/lib/core/utils/timezone'
 
 export async function readActivityWorkspace(organizationId: string, workspaceId: string) {
   const [row] = await dbReplica

@@ -4,7 +4,7 @@ import {
   isCalendarDateString,
   normalizeDateCellValue,
   storedDateToEditable,
-} from '@/lib/table/dates'
+} from './dates'
 
 /** The runtime zone's offset suffix at a given local wall time, e.g. `-07:00`. */
 function localOffsetSuffix(local: Date): string {

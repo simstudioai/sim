@@ -20,26 +20,19 @@
  */
 
 import type React from 'react'
+import { CELL_TYPES } from '@sim/workspace-code/table-cells/rules'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 /**
- * Every column type id, in picker order. Declared here — not derived from the
- * registry — so `constants.ts` can re-export it without dragging the registry's
- * icon imports into the 44 server modules that read the `@/lib/table` barrel.
+ * Every column type id, in picker order: the ids the shared cell rules (`CELL_RULES`) cover.
+ * Declared here — not derived from the registry — so `constants.ts` can re-export it without
+ * dragging the registry's icon imports into the 44 server modules that read the `@/lib/table`
+ * barrel.
  *
- * The registry's `Record<ColumnType, …>` annotation is what keeps the two in
- * step: adding an id here fails compilation until both registries have an entry.
+ * The registry's `Record<ColumnType, …>` annotation is what keeps the two in step: adding an id
+ * to `CELL_TYPES` fails compilation until both registries have an entry.
  */
-export const COLUMN_TYPES = [
-  'string',
-  'number',
-  'currency',
-  'boolean',
-  'date',
-  'ttl',
-  'json',
-  'select',
-] as const
+export const COLUMN_TYPES = CELL_TYPES
 
 export type ColumnType = (typeof COLUMN_TYPES)[number]
 

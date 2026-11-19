@@ -7,6 +7,7 @@
 
 import { isRecordLike } from '@sim/utils/object'
 import { escapeLikePattern, truncate } from '@sim/utils/string'
+import { normalizeDateCellValue } from '@sim/workspace-code/table-cells/dates'
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
@@ -21,7 +22,6 @@ import {
 } from '@/lib/table/column-types'
 import { columnTextForEquality, equalityCast } from '@/lib/table/column-types/comparison-sql'
 import { NAME_PATTERN } from '@/lib/table/constants'
-import { normalizeDateCellValue } from '@/lib/table/dates'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type {
   ColumnDefinition,

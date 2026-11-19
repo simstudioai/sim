@@ -81,6 +81,10 @@
     "./workflow-references": {
       "types": "./src/workflow-references.ts",
       "default": "./src/workflow-references.ts"
+    },
+    "./timezone": {
+      "types": "./src/timezone.ts",
+      "default": "./src/timezone.ts"
     }
   },
   "scripts": {

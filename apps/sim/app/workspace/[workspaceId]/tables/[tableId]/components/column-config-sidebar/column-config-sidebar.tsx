@@ -14,13 +14,13 @@ import {
 } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
-import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
-import type { ColumnDefinition, SelectOption } from '@/lib/table'
 import {
   DEFAULT_CURRENCY_CODE,
   getCurrencyOptions,
   resolveCurrencyCode,
-} from '@/lib/table/currency'
+} from '@sim/workspace-code/table-cells/currency'
+import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
+import type { ColumnDefinition, SelectOption } from '@/lib/table'
 import {
   FieldError,
   RequiredLabel,

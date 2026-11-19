@@ -1,5 +1,5 @@
 import { Clock } from '@sim/emcn/icons'
-import { getBrowserTimezone } from '@/lib/core/utils/timezone'
+import { getBrowserTimezone } from '@sim/utils/timezone'
 import type { BlockConfig } from '@/blocks/types'
 
 export const ScheduleBlock: BlockConfig = {

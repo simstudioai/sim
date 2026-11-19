@@ -4,11 +4,7 @@
  * through unparsed would break every query against the column.
  */
 import { describe, expect, it } from 'vitest'
-import {
-  formatCurrencyDisplay,
-  formatCurrencyForInput,
-  parseCurrencyInput,
-} from '@/lib/table/currency'
+import { formatCurrencyDisplay, formatCurrencyForInput, parseCurrencyInput } from './currency'
 
 describe('parseCurrencyInput', () => {
   it('strips symbols, ISO codes, and every flavor of space', () => {

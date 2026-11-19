@@ -1,4 +1,4 @@
-import { zonedWallClock, zonedWallClockToUtc } from '@/lib/core/utils/timezone'
+import { zonedWallClock, zonedWallClockToUtc } from '@sim/utils/timezone'
 import type { DashboardRange } from '@/lib/dashboards/spec'
 
 export interface DashboardTimeRange {
