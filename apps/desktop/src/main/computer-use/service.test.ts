@@ -20,38 +20,40 @@ function setup(enabled = true, askForApps = true) {
   config.set('computerUseEnabled', enabled)
   config.set('computerUseAskForApps', askForApps)
   let sequence = 0
-  const request = vi.fn(async (method: string): Promise<ComputerUseResult> => {
-    if (method === 'status' || method === 'request_permission')
-      return { kind: 'status', platform: 'darwin', accessibility: true, screenRecording: false }
-    if (method === 'list_apps')
+  const request = vi.fn(
+    async (method: string, _params?: Record<string, unknown>): Promise<ComputerUseResult> => {
+      if (method === 'status' || method === 'request_permission')
+        return { kind: 'status', platform: 'darwin', accessibility: true, screenRecording: false }
+      if (method === 'list_apps')
+        return {
+          kind: 'apps',
+          apps: [{ bundleId: 'com.example.Fixture', name: 'Fixture', pid: 42, isActive: false }],
+        }
+      if (method === 'app_command')
+        return {
+          kind: 'command',
+          command: 'create_reminder',
+          created: { id: 'r1', title: 'Pay rent', list: 'Reminders' },
+        }
+      if (method === 'get_app_state')
+        return {
+          kind: 'state',
+          bundleId: 'com.example.Fixture',
+          snapshotId: `s${++sequence}`,
+          windowId: '1',
+          windows: [],
+          nodes: [{ elementId: 'e1', role: 'AXTextArea', actions: [], windowId: '1' }],
+          truncated: false,
+        }
       return {
-        kind: 'apps',
-        apps: [{ bundleId: 'com.example.Fixture', name: 'Fixture', pid: 42, isActive: false }],
-      }
-    if (method === 'app_command')
-      return {
-        kind: 'command',
-        command: 'create_reminder',
-        created: { id: 'r1', title: 'Pay rent', list: 'Reminders' },
-      }
-    if (method === 'get_app_state')
-      return {
-        kind: 'state',
+        kind: 'action',
+        action: 'click',
         bundleId: 'com.example.Fixture',
-        snapshotId: `s${++sequence}`,
-        windowId: '1',
-        windows: [],
-        nodes: [{ elementId: 'e1', role: 'AXTextArea', actions: [], windowId: '1' }],
-        truncated: false,
+        dispatched: true,
+        verified: false,
       }
-    return {
-      kind: 'action',
-      action: 'click',
-      bundleId: 'com.example.Fixture',
-      dispatched: true,
-      verified: false,
     }
-  })
+  )
   const native = { request, stop: vi.fn() }
   const approveApp = vi.fn(async (): Promise<'always' | 'deny' | 'once'> => 'always')
   const confirmAppCommand = vi.fn(async (_request: { appName: string; summary: string }) => true)
@@ -175,6 +177,58 @@ describe('native computer use authority and lifecycle', () => {
     expect(confirmAppCommand.mock.calls[0]?.[0].summary).toBe(
       'Reminder: Pay rent\nList: default\nNotes: By Friday'
     )
+  })
+
+  it('names the chosen list, calendar or group in the confirmation, not its id', async () => {
+    const { service, native, confirmAppCommand } = setup()
+    const lists = {
+      list_reminder_lists: 'Sprint 14',
+      list_calendars: 'Travel',
+      list_contact_groups: 'Hires Q1 2027',
+    }
+    let truncated = false
+    native.request.mockImplementation(async (method, params): Promise<ComputerUseResult> => {
+      if (method !== 'app_command') return { kind: 'apps', apps: [] }
+      const { name } = params?.command as { name: keyof typeof lists }
+      return {
+        kind: 'command',
+        command: name,
+        items: [{ id: 'id-1', title: lists[name], allowsModifications: true }],
+        truncated,
+      }
+    })
+    confirmAppCommand.mockResolvedValue(false)
+    for (const command of [
+      { name: 'create_reminder', title: 'Pay rent', listId: 'id-1' },
+      {
+        name: 'create_event',
+        title: 'Flight',
+        start: '2027-06-09T07:15',
+        end: '2027-06-09T08:10',
+        calendarId: 'id-1',
+      },
+      { name: 'create_contact', givenName: 'Ana', groupId: 'id-1' },
+    ])
+      await expect(
+        service.execute(`named-${command.name}`, 'chat', { action: 'app_command', command })
+      ).rejects.toMatchObject({ details: { code: 'user_declined' } })
+    expect(
+      confirmAppCommand.mock.calls.map(([request]) => request.summary.split('\n').at(-1))
+    ).toEqual(['List: Sprint 14', 'Calendar: Travel', 'Group: Hires Q1 2027'])
+
+    const deleted = {
+      action: 'app_command',
+      command: { name: 'create_reminder', title: 'Pay rent', listId: 'deleted-list' },
+    }
+    await expect(service.execute('deleted', 'chat', deleted)).rejects.toMatchObject({
+      details: { code: 'list_unavailable', dispatchState: 'not_started' },
+    })
+    expect(confirmAppCommand).toHaveBeenCalledTimes(3)
+    truncated = true
+    await expect(service.execute('past-limit', 'chat', deleted)).rejects.toMatchObject({
+      details: { code: 'user_declined' },
+    })
+    expect(confirmAppCommand.mock.lastCall?.[0].summary).toContain('List: deleted-list')
   })
 
   it('refuses an app command when the user denies the app, before asking to confirm', async () => {
