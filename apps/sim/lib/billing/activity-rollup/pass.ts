@@ -147,9 +147,10 @@ const HEAVY_RETRY_MS = 2 * 60 * 1000
 const MAX_HEAVY_RETRY_MS = 6 * 60 * 1000
 
 /**
- * Backs off a heavy hour (before each retry, and when a first read finds it too heavy), so passes stop retrying it every tick and their other
- * steps keep running. Each blocked hour keeps its own backoff, so a heavy hour on the finalize side
- * and one on the backfill side never reset each other's delay. Returns the delay.
+ * Backs off a heavy hour (before each retry, and when a first read finds it too heavy), so passes
+ * stop retrying it every tick and their other steps keep running. Each blocked hour keeps its own
+ * backoff, so a heavy hour on the finalize side and one on the backfill side never reset each
+ * other's delay. Returns the delay.
  */
 async function blockHour(hour: Date, attempts: number): Promise<number> {
   const retryInMs = inflightBackoffMs(attempts - 1)
@@ -175,9 +176,10 @@ async function deferPaging(hour: Date): Promise<void> {
 
 /**
  * Aggregates and writes `hour` with the progress it completes, or leaves it: still backing off,
- * found too heavy to read, or out of pass budget while paging (left to the next pass). A retry of a blocked hour skips the reads known to time out and
- * pages through workspaces under its own budget, which grows with its attempts (the lease is
- * extended to cover it), and a write that completes it forgets the block in the same transaction.
+ * found too heavy to read, or out of pass budget while paging (left to the next pass). A blocked
+ * or deferred hour skips the reads known to time out and pages through workspaces under its own
+ * budget (a retry's grows with its attempts; the lease is extended to cover it), and a write that
+ * completes it forgets the block in the same transaction.
  */
 async function computeHour(
   owner: string,
@@ -196,28 +198,40 @@ async function computeHour(
     .from(activityRollupBlocked)
     .where(eq(activityRollupBlocked.bucketStart, hour))
   if (block && block.retryAt.getTime() > Date.now()) return { state: null, runs: 0 }
-  /** An hour a pass ran out of budget paging: paged from the start, with no backoff or attempt. */
+  /**
+   * An hour a pass ran out of budget paging is deferred, not a retry: it is paged from the start
+   * under its own budget, with no attempt counted and no backoff, only a hold for that window so a
+   * pass that dies paging it does not start it again at once. A deferred hour that runs out of its
+   * own budget too is heavy after all, and is backed off from then on.
+   */
   const deferred = block?.attempts === 0
-  const retry = block !== undefined && !deferred
-  let retryBudgetMs = 0
+  let budgetMs = 0
   let retryInMs: number | undefined
-  if (retry) {
-    /**
-     * The retry's backoff is committed before it starts, so a retry that crashes or loses its
-     * lease is not tried again until the backoff passes.
-     */
-    const attempts = block.attempts + 1
-    retryInMs = await blockHour(hour, attempts)
-    retryBudgetMs = Math.min(MAX_HEAVY_RETRY_MS, HEAVY_RETRY_MS * attempts)
-    await extendLease(owner, retryBudgetMs + LEASE_MARGIN_MS)
+  if (block) {
+    if (deferred) {
+      budgetMs = HEAVY_RETRY_MS
+      await db
+        .update(activityRollupBlocked)
+        .set({ retryAt: new Date(Date.now() + budgetMs + LEASE_MARGIN_MS) })
+        .where(eq(activityRollupBlocked.bucketStart, hour))
+    } else {
+      /**
+       * A retry's backoff is committed before it starts, so a retry that crashes or loses its
+       * lease is not tried again until the backoff passes.
+       */
+      const attempts = block.attempts + 1
+      retryInMs = await blockHour(hour, attempts)
+      budgetMs = Math.min(MAX_HEAVY_RETRY_MS, HEAVY_RETRY_MS * attempts)
+    }
+    await extendLease(owner, budgetMs + LEASE_MARGIN_MS)
   }
   let cells: ActivityCell[]
   try {
-    cells = await aggregateHour(hour, retry ? Date.now() + retryBudgetMs : deadline, {
+    cells = await aggregateHour(hour, block ? Date.now() + budgetMs : deadline, {
       byWorkspace: block !== undefined,
     })
   } catch (error) {
-    if (error instanceof PassDeadlineError && !retry) {
+    if (error instanceof PassDeadlineError && !block) {
       await deferPaging(hour)
       return { state: null, runs: 0 }
     }

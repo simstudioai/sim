@@ -867,9 +867,16 @@ describe('organization activity rollup', () => {
     try {
       await expect(runPass()).rejects.toThrow()
       expect(await blockedAttempts(hour)).toBe(0)
+      const [held] = await connection.unsafe<{ held: boolean }[]>(
+        `SELECT retry_at > now() + interval '1 minute' AS held FROM activity_rollup_blocked
+         WHERE bucket_start = $1::timestamp`,
+        [hour]
+      )
+      expect(held?.held).toBe(true)
     } finally {
       await ungateHour()
     }
+    await connection.unsafe(`UPDATE activity_rollup_blocked SET retry_at = now()`)
     expect(await runPass()).toMatchObject({ finalizedHours: 1, blockedHours: 0 })
     await expectEquivalent()
   }, 300_000)
