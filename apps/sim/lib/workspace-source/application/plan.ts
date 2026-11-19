@@ -75,10 +75,11 @@ export interface WorkspacePlan {
   /** The staged blob each written blob path reads its bytes from. */
   staged: ReadonlyMap<string, StagedBlob>
   /**
-   * Whether an error refuses the whole apply: any error but those of changes held back (see
-   * `PlannedChange.held`), which only keep those changes from being written.
+   * The errors that refuse the whole apply, empty when none does: every error but those of
+   * changes held back (see `PlannedChange.held`), which only keep those changes from being
+   * written. A refusal is classed by these alone.
    */
-  refused: boolean
+  refusing: WorkspaceSourceDiagnostic[]
   /**
    * The root files of the managed file kinds (`secrets.ts`), printed from their declarations: an
    * apply writes them back so the directory holds them as a get would.
@@ -334,7 +335,7 @@ export async function planWorkspaceSource(
       base,
       needBlobs: [],
       staged: new Map(),
-      refused: true,
+      refusing: diagnostics.filter((finding) => finding.severity === 'error'),
       reprint: {},
     }
   }
@@ -480,7 +481,11 @@ export async function planWorkspaceSource(
     options.requireBlobs === true && !refusedByPlan,
     diagnostics
   )
-  const refused = refusedByPlan || diagnostics.some((finding) => finding.code === 'E_BLOB_MISSING')
+  const isError = (finding: WorkspaceSourceDiagnostic) => finding.severity === 'error'
+  const refusing = [
+    ...diagnostics.filter(isError),
+    ...changes.flatMap((change) => (change.held ? [] : change.diagnostics.filter(isError))),
+  ]
   for (const change of changes) diagnostics.push(...change.diagnostics)
 
   return {
@@ -489,7 +494,7 @@ export async function planWorkspaceSource(
     base,
     needBlobs: blobs.missing,
     staged: blobs.staged,
-    refused,
+    refusing,
     reprint,
   }
 }
