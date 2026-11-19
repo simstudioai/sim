@@ -43,19 +43,19 @@ vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
-/** Lets a check run another apply between an apply's plan and its lease. */
-const leaseGate = vi.hoisted(() => ({
-  beforeAcquire: undefined as (() => Promise<void>) | undefined,
+/** Lets a check run another apply while an apply plans, once its deletes are planned. */
+const planGate = vi.hoisted(() => ({
+  whilePlanning: undefined as (() => Promise<void>) | undefined,
 }))
-vi.mock('@/lib/workspace-source/lease/store', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/workspace-source/lease/store')>()
+vi.mock('@/lib/workspace-source/application/in-use', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/workspace-source/application/in-use')>()
   return {
     ...actual,
-    acquireApplyLease: async (workspaceId: string) => {
-      const beforeAcquire = leaseGate.beforeAcquire
-      leaseGate.beforeAcquire = undefined
-      await beforeAcquire?.()
-      return actual.acquireApplyLease(workspaceId)
+    checkDeletesInUse: async (...args: Parameters<typeof actual.checkDeletesInUse>) => {
+      const whilePlanning = planGate.whilePlanning
+      planGate.whilePlanning = undefined
+      await whilePlanning?.()
+      return actual.checkDeletesInUse(...args)
     },
   }
 })
@@ -94,6 +94,7 @@ import {
   sourceWorkspaces,
   stageBlobsAs,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
+import { WorkspaceSourceBusyError } from '@/lib/workspace-source/lease/store'
 
 /** Local object storage the suite's uploads land in, under a temp directory. */
 let storageRoot = ''
@@ -1216,7 +1217,7 @@ export default workflow('Secret', {}, () => {
   )
 
   check(
-    'refuses a delete a workflow started using between the plan and the lease, keeping the resource',
+    'no apply saves a workflow using a resource while another apply plans its delete',
     async () => {
       const workspaceId = await newWorkspace()
       const { 'workflows/parent/workflow.ts': parentFile, ...childAndKeep } = CHILD_AND_PARENT
@@ -1227,28 +1228,32 @@ export default workflow('Secret', {}, () => {
         Object.entries(read.files).filter(([path]) => path.startsWith('workflows/keep/'))
       )
 
-      // The delete is planned while nothing uses the child; another apply then saves a parent that
-      // runs it and lets go of the lease before the deleting apply takes it.
-      leaseGate.beforeAcquire = async () => {
-        const added = await apply(workspaceId, {
+      // While the delete of the child is planned, another apply tries to save a parent that runs
+      // it: it is refused, so the delete never breaks a workflow its plan did not see.
+      let concurrent: unknown = null
+      planGate.whilePlanning = async () => {
+        concurrent = await apply(workspaceId, {
           files: { 'workflows/parent/workflow.ts': parentFile },
           blobs: {},
-        })
-        expect(added.failed).toBeUndefined()
+        }).then(
+          () => null,
+          (error: unknown) => error
+        )
       }
-      const refused = await refusal(
-        apply(workspaceId, { files: keep, blobs: {} }, { base: read.base, allowDelete: true })
+      const deleted = await apply(
+        workspaceId,
+        { files: keep, blobs: {} },
+        { base: read.base, allowDelete: true }
       )
-      expect(leaseGate.beforeAcquire).toBeUndefined()
-      expect(findings(refused.diagnostics, 'error')).toEqual(['E_APPLY_STALE workflow:child'])
-      expect(
-        refused.diagnostics.find((finding) => finding.code === 'E_APPLY_STALE')?.message
-      ).toContain('"Parent"')
+      expect(planGate.whilePlanning).toBeUndefined()
+      expect(concurrent).toBeInstanceOf(WorkspaceSourceBusyError)
+      expect(deleted.failed).toBeUndefined()
+      expect(deleted.applied).toMatchObject([{ kind: 'workflow', key: 'child', action: 'delete' }])
       const live = await db
         .select({ name: workflow.name })
         .from(workflow)
         .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
-      expect(live.map((row) => row.name).sort(compareStrings)).toEqual(['Child', 'Keep', 'Parent'])
+      expect(live.map((row) => row.name)).toEqual(['Keep'])
     }
   )
 

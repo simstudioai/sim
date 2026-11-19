@@ -168,11 +168,6 @@ interface ChangeFields {
    * its errors hold it alone back rather than refuse the apply.
    */
   held?: true
-  /**
-   * A delete's stored users outside the directory, by workflow id, as the plan found them (and
-   * warned of): the apply refuses the delete when its re-scan under the lease finds any other.
-   */
-  inUseBy?: string[]
   diagnostics: WorkspaceSourceDiagnostic[]
 }
 

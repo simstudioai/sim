@@ -9,16 +9,8 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import type { WorkspaceKind } from '@sim/workspace-code'
 import { sql } from 'drizzle-orm'
-import {
-  GET_HINT,
-  kindFinding,
-  refDeletedFinding,
-  where,
-} from '@/lib/workspace-source/application/findings'
-import type {
-  PlannedChange,
-  WorkspaceSourceDiagnostic,
-} from '@/lib/workspace-source/application/types'
+import { kindFinding, refDeletedFinding, where } from '@/lib/workspace-source/application/findings'
+import type { PlannedChange } from '@/lib/workspace-source/application/types'
 
 const logger = createLogger('WorkspaceSourceInUse')
 
@@ -119,27 +111,24 @@ export function inUseUncheckedFinding(change: Pick<PlannedChange, 'kind' | 'key'
   )
 }
 
-/** What the in-use scan found for one delete. */
-interface DeleteUsers {
-  /** The declared workflow folders kept as stored that use the resource, with their keys. */
-  declared: Array<UsingWorkflow & { key: string }>
-  /** The stored workflows outside the directory that use it. */
-  undeclared: UsingWorkflow[]
-}
-
 /**
- * The deletes the in-use check scans (a credential delete only unbinds its key and an undeploy
- * deletes no resource) and, for each, the stored workflows that still use the resource, or `null`
- * when the scan timed out. A workflow the directory declares unchanged (`unchanged` lists the keys
- * of each kind sent without files) keeps using it; one the apply deletes too is no user, and an
- * edited one is judged by the references its compiled source makes (the change's `refs`), unless
- * it is held back (`held`): its stored references stay.
+ * Checks every delete the plan makes against the stored workflows that use the resource. A workflow the directory declares unchanged (`unchanged` lists
+ * the keys of each kind sent without files) keeps using it, so the delete is
+ * `E_PLAN_REF_DELETED`; one the directory does not declare is named in a warning and counted in
+ * the delete's destructive line. A workflow the apply deletes too is no user, and an edited one is
+ * judged by the references its compiled source makes (the change's `refs`), unless it is held back
+ * (`held`, so the plan must decide holds first): its stored references stay.
  */
-async function deleteUsers(
+export async function checkDeletesInUse(
   changes: PlannedChange[],
   unchanged: ReadonlyMap<WorkspaceKind, ReadonlySet<string>>,
   workspaceId: string
-): Promise<{ deleting: PlannedChange[]; users: Map<PlannedChange, DeleteUsers> | null }> {
+): Promise<void> {
+  // A credential delete only unbinds its key, which leaves every stored workflow using the
+  // credential working; an undeploy deletes no resource (its stored id is its workflow's). A
+  // delete refused for want of --allow-delete deletes nothing, so it is not scanned: the plan that
+  // allows it (the CLI's dry run first) names the workflows. An update that would lose data (a
+  // dropped column, a removed option) deletes nothing a workflow names.
   const deleting = changes.filter(
     (change) =>
       change.kind !== 'credential' &&
@@ -147,12 +136,16 @@ async function deleteUsers(
       change.storedId !== undefined &&
       change.action === 'delete'
   )
-  if (deleting.length === 0) return { deleting, users: new Map() }
+  if (deleting.length === 0) return
   const using = await workflowsUsing(
     workspaceId,
     deleting.flatMap((change) => change.storedId ?? [])
   )
-  if (using === null) return { deleting, users: null }
+  // Fails closed: a delete whose users could not be checked is refused, never made blind.
+  if (using === null) {
+    for (const change of deleting) change.diagnostics.push(inUseUncheckedFinding(change))
+    return
+  }
   const deletedWorkflows = new Set<string>()
   // The workflows the directory declares, by stored id.
   const declared = new Map<string, { key: string; edited: boolean }>()
@@ -168,101 +161,34 @@ async function deleteUsers(
       declared.set(change.storedId, { key: change.key, edited })
     }
   }
-  const users = new Map<PlannedChange, DeleteUsers>()
   for (const change of deleting) {
-    const found: DeleteUsers = { declared: [], undeclared: [] }
+    const undeclared: UsingWorkflow[] = []
     for (const user of using.get(change.storedId ?? '') ?? []) {
       if (deletedWorkflows.has(user.id)) continue
       const folder = declared.get(user.id)
       if (folder?.edited) continue
-      if (folder) found.declared.push({ ...user, key: folder.key })
-      else found.undeclared.push(user)
+      if (folder && change.action === 'delete') {
+        change.diagnostics.push(refDeletedFinding({ kind: 'workflow', key: folder.key }, change))
+        continue
+      }
+      undeclared.push(user)
     }
-    users.set(change, found)
-  }
-  return { deleting, users }
-}
-
-/** The quoted names of `workflows`, up to {@link NAMED_WORKFLOWS}, then a count of the rest. */
-function named(workflows: UsingWorkflow[]): string {
-  const listed = workflows
-    .slice(0, NAMED_WORKFLOWS)
-    .map((user) => `"${user.name}"`)
-    .join(', ')
-  const more =
-    workflows.length > NAMED_WORKFLOWS ? ` and ${workflows.length - NAMED_WORKFLOWS} more` : ''
-  return `${listed}${more}`
-}
-
-/**
- * Checks every delete the plan makes against the stored workflows that use the resource (see
- * {@link deleteUsers}). A declared workflow kept as stored that uses it makes the delete
- * `E_PLAN_REF_DELETED`; one the directory does not declare is named in a warning, counted in the
- * delete's destructive line and recorded in its `inUseBy`, which the apply checks again under its
- * lease ({@link recheckDeletesInUse}).
- */
-export async function checkDeletesInUse(
-  changes: PlannedChange[],
-  unchanged: ReadonlyMap<WorkspaceKind, ReadonlySet<string>>,
-  workspaceId: string
-): Promise<void> {
-  // A delete refused for want of --allow-delete deletes nothing, so it is not scanned: the plan
-  // that allows it (the CLI's dry run first) names the workflows. An update that would lose data
-  // (a dropped column, a removed option) deletes nothing a workflow names.
-  const { deleting, users } = await deleteUsers(changes, unchanged, workspaceId)
-  // Fails closed: a delete whose users could not be checked is refused, never made blind.
-  if (users === null) {
-    for (const change of deleting) change.diagnostics.push(inUseUncheckedFinding(change))
-    return
-  }
-  for (const [change, found] of users) {
-    for (const { key } of found.declared) {
-      change.diagnostics.push(refDeletedFinding({ kind: 'workflow', key }, change))
-    }
-    const { undeclared } = found
     if (undeclared.length === 0) continue
-    change.inUseBy = undeclared.map((user) => user.id)
     if (change.destructive) change.destructive.counts.workflows = undeclared.length
+    const listed = undeclared
+      .slice(0, NAMED_WORKFLOWS)
+      .map((user) => `"${user.name}"`)
+      .join(', ')
+    const more =
+      undeclared.length > NAMED_WORKFLOWS ? ` and ${undeclared.length - NAMED_WORKFLOWS} more` : ''
     change.diagnostics.push(
       kindFinding(
         change.kind,
         change.key,
         'W_RESOURCE_IN_USE',
-        `Deleting ${where(change.kind, change.key)} breaks ${undeclared.length} stored workflow(s) that use it: ${named(undeclared)}.`,
+        `Deleting ${where(change.kind, change.key)} breaks ${undeclared.length} stored workflow(s) that use it: ${listed}${more}.`,
         { hint: 'Remove it from those workflows, or keep its declaration.' }
       )
     )
   }
-}
-
-/**
- * Scans the plan's deletes again once the apply holds the workspace's lease, before anything is
- * written: the plan scanned before the lease, so another apply could have saved a workflow that
- * uses a resource this one deletes in between. A delete that a workflow the plan did not find now
- * uses (`E_APPLY_STALE`), or whose users the scan could not confirm in time, is refused; the
- * findings it returns refuse the apply.
- */
-export async function recheckDeletesInUse(
-  changes: PlannedChange[],
-  unchanged: ReadonlyMap<WorkspaceKind, ReadonlySet<string>>,
-  workspaceId: string
-): Promise<WorkspaceSourceDiagnostic[]> {
-  const { deleting, users } = await deleteUsers(changes, unchanged, workspaceId)
-  if (users === null) return deleting.map(inUseUncheckedFinding)
-  const refused: WorkspaceSourceDiagnostic[] = []
-  for (const [change, found] of users) {
-    const known = new Set(change.inUseBy)
-    const added = [...found.declared, ...found.undeclared].filter((user) => !known.has(user.id))
-    if (added.length === 0) continue
-    refused.push(
-      kindFinding(
-        change.kind,
-        change.key,
-        'E_APPLY_STALE',
-        `${added.length} stored workflow(s) started using ${where(change.kind, change.key)} while this apply ran, so it is not deleted: ${named(added)}.`,
-        { hint: GET_HINT }
-      )
-    )
-  }
-  return refused
 }

@@ -83,8 +83,6 @@ export interface WorkspacePlan {
    * apply writes them back so the directory holds them as a get would.
    */
   reprint: Record<string, string>
-  /** The keys of each kind's declarations sent without their files: the codec reads them as unchanged. */
-  unchanged: ReadonlyMap<WorkspaceKind, ReadonlySet<string>>
 }
 
 /**
@@ -337,7 +335,6 @@ export async function planWorkspaceSource(
       staged: new Map(),
       refused: true,
       reprint: {},
-      unchanged: new Map(),
     }
   }
 
@@ -493,7 +490,6 @@ export async function planWorkspaceSource(
     staged: blobs.staged,
     refused,
     reprint,
-    unchanged,
   }
 }
 

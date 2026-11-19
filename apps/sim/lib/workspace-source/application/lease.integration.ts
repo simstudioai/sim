@@ -182,7 +182,7 @@ describe('workspace source: one apply at a time', () => {
   )
 
   check(
-    'an apply refused for its errors records one refused event and takes no lease',
+    'an apply refused for its errors records one refused event and leaves no lease',
     async () => {
       const workspaceId = await workspaces.create({ name: 'Refused apply', ownerId })
 
@@ -192,6 +192,33 @@ describe('workspace source: one apply at a time', () => {
       expect(refused).toBeInstanceOf(WorkspaceSourceRejectedError)
       expect(await leases(workspaceId)).toEqual([])
       expect(appliedEvents(workspaceId)).toEqual([{ outcome: 'refused', error_kind: 'rejected' }])
+    }
+  )
+
+  check(
+    'an apply started while another plans is refused SOURCE_BUSY, so the planning one writes all of itself',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Apply while planning', ownerId })
+      const plan = skillAdapter.plan.bind(skillAdapter)
+      let concurrent: unknown = null
+      vi.spyOn(skillAdapter, 'plan').mockImplementationOnce(async (desired, stored, ctx) => {
+        // The first apply is planning; a second one creates the skill it is about to create.
+        concurrent = await rejection(
+          runner.apply(workspaceId, { files: { 'skills/tone.md': skillFile('tone') } })
+        )
+        return plan(desired, stored, ctx)
+      })
+
+      const result = await runner.apply(workspaceId, { files: FIRST })
+
+      expect(concurrent).toBeInstanceOf(WorkspaceSourceBusyError)
+      expect(result.failed).toBeUndefined()
+      expect(result.applied.map(({ kind, key }) => `${kind}:${key}`)).toEqual([
+        'custom-tool:lookup',
+        'skill:tone',
+      ])
+      expect(await stored(workspaceId)).toEqual({ tools: ['Lookup order'], skills: ['tone'] })
+      expect(await leases(workspaceId)).toEqual([])
     }
   )
 
