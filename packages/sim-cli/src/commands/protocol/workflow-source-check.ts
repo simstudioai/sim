@@ -8,6 +8,7 @@ import {
   compileWorkflow,
   didYouMean,
   encodeAnchor,
+  parseJsonField,
   parseWorkflowLock,
   scriptName,
   startInputs,
@@ -53,6 +54,7 @@ const STRICT_CODES: ReadonlySet<string> = new Set([
   'W_LITERAL_SECRET',
   'W_TABLE_UNKNOWN_COLUMN',
   'W_CHILD_INPUT_UNKNOWN',
+  'W_BRANCH_UNWIRED',
 ])
 
 /**
@@ -178,14 +180,12 @@ function listed(keys: Iterable<string>): string {
   return `${all.slice(0, LISTED_KEYS).join(', ')}${more}`
 }
 
-/** A row-write param's value as JSON: compiled row data is a JSON string. */
+/**
+ * A row-write param's value as a JSON tree: compiled row data is JSON text whose non-string
+ * references sit bare (`"n": <score.value>`), so it parses as a JSON field, references as leaves.
+ */
 function rowJson(value: Value): unknown {
-  if (typeof value !== 'string') return value
-  try {
-    return JSON.parse(value)
-  } catch {
-    return undefined
-  }
+  return typeof value === 'string' ? parseJsonField(value) : value
 }
 
 /** The params of a table block that hold row data: one row, or a list of rows. */

@@ -152,6 +152,11 @@ const COMPILE_EDGE_CODES = [
   'E_EDGE_CYCLE',
   /** A cycle the stored workflow already holds: kept so it round-trips, but none of it runs. */
   'W_EDGE_CYCLE',
+  /**
+   * A condition or router branch no edge leaves, so a run that takes it ends there. A branch the
+   * stored workflow already leaves unwired is not reported.
+   */
+  'W_BRANCH_UNWIRED',
 ] as const
 
 /** Checks against the block catalog. */

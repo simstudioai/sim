@@ -613,6 +613,7 @@ function compileEntry(
   for (const entry of ctx.wiring) edges.statement(entry)
   for (const implied of ctx.implied) edges.implied(implied.container, implied.child, implied.body)
   edges.reportCycles(input.stored)
+  edges.reportUnwiredBranches(input.stored)
   const erroring = new Set<BlockKey>()
   for (const edge of edges.edges) {
     const source = compiled.get(edge.from)

@@ -266,6 +266,42 @@ describe('legacy block types', () => {
   })
 })
 
+describe('unwired branches', () => {
+  const ROUTE = [
+    START,
+    "const route = condition('Route', { hot: 'x > 1', else: true })",
+    "const a = api('A', { url: 'https://x' })",
+    'start.to(route)',
+    'route.hot.to(a)',
+  ]
+
+  it('warns on a branch no edge leaves, naming it', () => {
+    const [unwired, ...rest] = findings(run(ROUTE.join('\n')), 'W_BRANCH_UNWIRED')
+    expect(rest).toEqual([])
+    expect(unwired?.message).toBe(
+      'Route has no edge from its else branch, so a run that takes it ends there.'
+    )
+    expect(unwired?.hint).toBe('Wire it: route.else.to(...).')
+  })
+
+  it('stays quiet when every branch is wired', () => {
+    const body = [...ROUTE, 'route.else.to(a)'].join('\n')
+    expect(findings(run(body), 'W_BRANCH_UNWIRED')).toEqual([])
+  })
+
+  it('stays quiet for a branch the stored workflow already leaves unwired', () => {
+    const stored = run(ROUTE.join('\n')).workflow
+    if (!stored) throw new Error('expected a workflow')
+    expect(findings(run(ROUTE.join('\n'), stored), 'W_BRANCH_UNWIRED')).toEqual([])
+  })
+
+  it('warns when the edit unwires a branch the stored workflow wired', () => {
+    const stored = run([...ROUTE, 'route.else.to(a)'].join('\n')).workflow
+    if (!stored) throw new Error('expected a workflow')
+    expect(findings(run(ROUTE.join('\n'), stored), 'W_BRANCH_UNWIRED')).toHaveLength(1)
+  })
+})
+
 describe('unknown builders', () => {
   it.each([
     ["const s = slack.postMessage('S', {})", 'Did you mean slack.sendMessage?'],
@@ -273,6 +309,8 @@ describe('unknown builders', () => {
       "const s = slack.fetchEverything('S', {})",
       'slack has: slack.sendMessage, slack.listChannels.',
     ],
+    ["const h = http.request('H', {})", 'Did you mean api?'],
+    ["const f = javascript.run('F', {})", 'Did you mean fn?'],
   ])('%s', (body, hint) => {
     const [unknown] = findings(run(body), 'E_UNKNOWN_BUILDER')
     expect(unknown?.hint).toBe(hint)

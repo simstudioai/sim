@@ -118,6 +118,25 @@ describe('sim workspaces source check', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('checks the columns of a row that also writes a non-string reference', async () => {
+    // A number output is stored bare (`"seen": <start.count>`), so the row is not plain JSON.
+    writeFile(
+      'workflows/first/workflow.ts',
+      insertWorkflow('contacts', 'emial')
+        .replace(
+          "inputFormat: { email: 'string' }",
+          "inputFormat: { email: 'string', count: 'number' }"
+        )
+        .replace('emial: start.email', 'emial: start.email, seen: start.count')
+    )
+
+    await check()
+
+    expect(stderr()).toMatch(/W_TABLE_UNKNOWN_COLUMN: data writes emial/)
+    expect(stderr()).toMatch(/W_TABLE_UNKNOWN_COLUMN: data writes seen/)
+    expect(process.exitCode).toBe(1)
+  })
+
   it('puts each finding in the JSON on stdout, under its folder path', async () => {
     writeFile('workflows/second/workflow.ts', insertWorkflow('contact'))
 

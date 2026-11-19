@@ -722,7 +722,11 @@ export type WorkflowInputMapping<K extends string> = K extends keyof WorkspaceWo
     : InputMapping
   : InputMapping
 
-/** Runs a child workflow. A `childWorkflow('key')` checks `inputMapping` against its inputs. */
+/**
+ * Runs a child workflow. A `childWorkflow('key')` checks `inputMapping` against its inputs. Its
+ * `result` is the child's output: its first response block's `{ data, status, headers }` (a body
+ * field is `result.data.field`), else the output of the last block it ran.
+ */
 export declare function runWorkflow<K extends string = string>(
   name: string,
   params: Omit<SpecialParams<'runWorkflow'>, 'workflowId' | 'inputMapping'> & {

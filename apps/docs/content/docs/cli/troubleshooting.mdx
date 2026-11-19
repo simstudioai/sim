@@ -13,7 +13,7 @@ sim whoami
 
 `--no-verify` stays offline. Normal `whoami` checks authentication and access to the selected workspace. Inspect its `verification` result before changing credentials.
 
-Most command failures exit 1. Verification, run waiting, and workspace-operation waiting have additional outcomes; see [Exit codes](/cli/scripting#exit-codes).
+Most command failures exit 1; a missing or expired login exits 13 and a request still rate limited after the CLI's retries exits 9. Verification, run waiting, and workspace-operation waiting have additional outcomes; see [Exit codes](/cli/scripting#exit-codes).
 
 ## A command targets the wrong workspace or deployment
 

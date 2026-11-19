@@ -59,13 +59,13 @@ refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
 | `workflow.ts`, `functions/*` | The source. Edit these. |
 | `.sim/lock.json` | Binds each block to its stored id. Renaming a const or a display name keeps the id. Do not edit. |
 | `.sim/base.json` | The workflow, workspace, fingerprint and catalog hash the source was read at. Do not edit. |
-| `.sim/written.json` | The CLI's record of each file as it last wrote it, so a later `get` can tell your unapplied edits from files it may replace. Local only: gitignore it. Do not edit. |
+| `.sim/written.json` | The CLI's record of each file as it last wrote it, so `status`, `diff` and a later `get` can tell your unapplied edits from files it may replace. Commit it with the lock and base. Do not edit. |
 | `.sim/sdk/core.d.ts` | This package: `workflow`, `t`, `env`, `credential`, `table`, `BlockMeta`, ... |
 | `.sim/sdk/INDEX.md` | One line per builder: `slack.sendMessage — Slack: Send Message → blocks/slack_v2.d.ts (SlackSendMessageParams)`, legacy builders apart, and the block type → builder naming rule. `grep` it to find a builder. |
 | `.sim/sdk/blocks/{type}.d.ts` | One block type's builders with their params and outputs, for every block, not only the ones in use. `grep` the params type `INDEX.md` names rather than reading a file whole. |
 | `.sim/sdk/index.d.ts` | Imports every current block (not the legacy-only ones); `tsconfig.full.json` includes it. |
 | `.sim/sdk/workspace.d.ts` | This workspace's tables (with columns), knowledge bases, credentials, workflows (with inputs), skills, custom tools and env var names, so `table('tickets')`, `credential('support-slack')`, `skill('triage')` and `env.X` are checked. |
-| `tsconfig.json` | Resolves `@sim/workflow-sdk` to `.sim/sdk` and type-checks `workflow.ts` with the blocks it uses (from the source and the server's `blockTypes`) and the core builders' blocks: about 75 files and 40 MB for `tsc`, against 570 files and 260 MB for every block. |
+| `tsconfig.json` | Resolves `@sim/workflow-sdk` to `.sim/sdk` and type-checks `workflow.ts` with the blocks it uses (from the source and the server's `blockTypes`) and the core builders' blocks: a few dozen files for `tsc` instead of every block. |
 | `tsconfig.full.json` | The same with every current block, plus any legacy-only block the workflow uses. |
 | `.sim/AGENTS.md` | The authoring guide for agents, linking [the docs](https://docs.sim.ai/workflows/code). A top-level `AGENTS.md` of your own is never touched. |
 | `.sim/examples/*.ts` | Example workflows, together one correct example of each common block: `cookbook.ts` (agent, condition, function, table, knowledge, Slack, human in the loop, loop, response), `integrations.ts` (webhook, weekday cron, HTTP headers, table update by id, Gmail, `onError`), `agents.ts` (router, agent tools, child workflow, parallel). Read them before writing. They name example resources, so the tsconfig files leave them out. |
@@ -106,6 +106,7 @@ Every code and its meaning: the "Diagnostics" table of `SYNTAX.md` in the Sim re
 | 5 | `SOURCE_STALE`: the workflow changed since `get` | Get again, reapply the edit (step 5) |
 | 6 | The workflow is locked | Ask someone to unlock it in the workflow builder |
 | 7 | The source is too large | Split function code or remove blocks |
+| 9 | Still rate limited (HTTP 429) after the CLI's retries; nothing was written | Wait a minute and run the same command again |
 
 ## Write declarations, not programs
 
