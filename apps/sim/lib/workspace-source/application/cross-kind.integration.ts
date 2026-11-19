@@ -1048,6 +1048,24 @@ export default workflow('Big', {}, () => {
       )
     )
     expect(refused.code).toBe('validation')
+    // A size limit found after the first 1000 errors still classes the refusal as too large.
+    const oversized = await refusal(
+      withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: {
+            workspaceId,
+            files: {
+              ...files,
+              'tables/big.ts': 'x'.repeat(WORKSPACE_SOURCE_LIMITS.maxDeclarationBytes + 1),
+            },
+            kinds: KINDS,
+          },
+        })
+      )
+    )
+    expect(oversized.code).toBe('payload_too_large')
+    expect(codes(oversized.diagnostics)).toContain('E_LIMIT_EXCEEDED')
   })
 
   check(
@@ -1133,6 +1151,53 @@ export default workflow('Secret', {}, () => {
         action: 'delete',
         destructive: { counts: { workflows: 1 } },
       })
+    }
+  )
+
+  check(
+    'refuses deleting a child workflow an edited parent still runs, and deletes one that runs only itself',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        ...CHILD_AND_PARENT,
+        'workflows/self/workflow.ts': caller('Self', 'self'),
+      }
+      const created = await apply(workspaceId, { files, blobs: {} })
+      expect(created.failed).toBeUndefined()
+      const selfId = created.base.resources['workflow:self']?.id
+      if (!selfId) throw new Error('The workflow was not created')
+      expect(await runsWorkflow(selfId)).toEqual([selfId])
+      const read = await get(workspaceId)
+      const folder = (key: string) =>
+        Object.fromEntries(
+          Object.entries(read.files).filter(([path]) => path.startsWith(`workflows/${key}/`))
+        )
+      const parent = folder('parent')
+      const entry = 'workflows/parent/workflow.ts'
+      const before = await snapshot(workspaceId)
+
+      // The parent is edited (renamed) but still runs the child, whose folder is gone.
+      const edited = {
+        ...folder('keep'),
+        ...folder('self'),
+        ...parent,
+        [entry]: parent[entry].replace("workflow('Parent'", "workflow('Parent v2'"),
+      }
+      const refused = await refusal(
+        apply(workspaceId, { files: edited, blobs: {} }, { base: read.base, allowDelete: true })
+      )
+      expect(findings(refused.diagnostics, 'error')).toEqual(['E_PLAN_REF_DELETED workflow:parent'])
+      expect(await snapshot(workspaceId)).toEqual(before)
+
+      // A workflow that runs only itself is no user of itself: deleting it is clean.
+      const deleted = await apply(
+        workspaceId,
+        { files: { ...folder('keep'), ...parent, ...folder('child') }, blobs: {} },
+        { base: read.base, allowDelete: true }
+      )
+      expect(codes(deleted.diagnostics)).toEqual([])
+      expect(codes(deleted.diagnostics, 'warning')).not.toContain('W_RESOURCE_IN_USE')
+      expect(deleted.applied).toMatchObject([{ kind: 'workflow', key: 'self', action: 'delete' }])
     }
   )
 

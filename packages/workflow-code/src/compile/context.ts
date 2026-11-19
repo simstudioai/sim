@@ -164,6 +164,11 @@ export interface CompileContext {
    * stay quiet instead of adding `E_UNKNOWN_BRANCH` for the same mistake.
    */
   refusedBranches: Map<BlockKey, Set<string>>
+  /**
+   * Names of consts refused for holding a value rather than a block, so a reference to one says to
+   * write the value there instead of offering a did-you-mean.
+   */
+  valueConsts: Set<string>
 }
 
 /** A reference path into a block whose outputs its `responseFormat` declares. */
@@ -262,9 +267,20 @@ export function reportUnresolvedIdentifier(
     'E_UNKNOWN_IDENTIFIER',
     `${identifier.name} is not defined.`,
     rangeOf(ctx, identifier),
-    { hint: didYouMean(identifier.name, visibleNames(scope)), blockKey }
+    { hint: unresolvedHint(ctx, scope, identifier.name), blockKey }
   )
   return null
+}
+
+/** The fix for an identifier nothing binds. */
+function unresolvedHint(ctx: CompileContext, scope: Scope, name: string): string | undefined {
+  if (ctx.valueConsts.has(name)) {
+    return `${name} is a const that holds a value, which a workflow file cannot name: write the value here.`
+  }
+  if (name === 'process') {
+    return "Read an environment variable as env.NAME, with env imported from '@sim/workflow-sdk'."
+  }
+  return didYouMean(name, visibleNames(scope))
 }
 
 /** The enclosing containers of a declaration, innermost first (not the declaration itself). */

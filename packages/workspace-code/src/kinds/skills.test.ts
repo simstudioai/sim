@@ -91,6 +91,7 @@ describe('skillCodec', () => {
   it('refuses a missing fence, a missing field, an unquoted unsafe value, and NUL', () => {
     const first = (source: string) => parse(source).diagnostics.map((finding) => finding.message)
     expect(first('name: tone\n')).toEqual(['The file must start with a `---` line.'])
+    expect(first('')).toEqual(['The file must start with a `---` line.'])
     expect(first('---\nname: tone\ndescription: x\n')).toEqual([
       'The frontmatter has no closing `---` line.',
     ])

@@ -18,7 +18,7 @@ import {
   strictMode,
   workspaceWorkflowKeys,
 } from './workflow-source-check'
-import { readWorkspaceDeclarations } from './workspace-source-dir'
+import { assertWorkspaceDir, readWorkspaceDeclarations } from './workspace-source-dir'
 
 const CHECK_HELP = `
 Compiles every workflows/<key>/workflow.ts (and the function files each names) with the compiler
@@ -55,6 +55,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
     .action(async (options: { dir: string } & StrictOptions, command: Command) => {
       const profile = profileFrom(command)
       const base = toRecord(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
+      await assertWorkspaceDir(options.dir)
       const workspaceId =
         typeof base.workspaceId === 'string' ? base.workspaceId : profile.workspaceId
       if (!workspaceId) {

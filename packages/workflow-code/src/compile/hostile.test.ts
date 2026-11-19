@@ -289,6 +289,16 @@ describe('hostile sources produce diagnostics only', () => {
       expect(result.workflow).toBeNull()
     })
 
+    it('accepts exactly the block cap', () => {
+      const result = run(
+        fnFile(3, () => './a.js'),
+        { maxBlocks: 3 },
+        { 'workflows/a.js': 'return 1\n' }
+      )
+      expect(errorCodes(result)).toEqual([])
+      expect(Object.keys(result.workflow?.blocks ?? {})).toHaveLength(3)
+    })
+
     it('caps the number of blocks with one diagnostic', () => {
       const result = run(
         fnFile(4, () => './a.js'),

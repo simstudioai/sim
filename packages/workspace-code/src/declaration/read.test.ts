@@ -97,4 +97,15 @@ describe('readDeclaration on large files', () => {
     expect(read.spans.get('/b')).toMatchObject({ line: 5, column: 6 })
     expect(read.spans.get('/c')).toMatchObject({ line: 6, column: 6 })
   })
+
+  it('reads a file saved with a byte order mark as one without it, located alike', () => {
+    const text = `${HEADER}export default defineTable({ a: 1 })\n`
+
+    const plain = readDeclaration('tables/t.ts', text, { callee: 'defineTable' })
+    const marked = readDeclaration('tables/t.ts', `\uFEFF${text}`, { callee: 'defineTable' })
+
+    expect(marked.diagnostics).toEqual([])
+    expect(marked.value).toEqual(plain.value)
+    expect(marked.spans.get('/a')).toEqual(plain.spans.get('/a'))
+  })
 })

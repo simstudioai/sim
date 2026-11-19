@@ -57,6 +57,14 @@ class WorkspaceSourceLeaseLostError extends OrchestrationError {
   }
 }
 
+/**
+ * Whether `error` is this apply losing its lease part-way: not a refusal of anything it writes,
+ * so applying again (once the other apply finished) continues where it stopped.
+ */
+export function isApplyLeaseLost(error: unknown): boolean {
+  return error instanceof WorkspaceSourceLeaseLostError
+}
+
 /** A held apply lease. */
 export interface ApplyLease {
   /** Renews the lease, throwing {@link WorkspaceSourceLeaseLostError} when it is no longer held. */

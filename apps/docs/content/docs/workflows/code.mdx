@@ -35,9 +35,18 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
    sim workflows source check --dir ./support-triage
    ```
 
-   It exits 1 on an error, and on a missing required field, an unknown option or output path, a wrong value kind or a literal secret in a block you added since the get (`--strict` fails on these in every block, `--no-strict` never on a warning). It also adds the blocks the workflow now uses to `tsconfig.json`. Your editor type-checks the file against the generated declarations, and `bunx -p typescript@7.0.2 tsc -p ./support-triage` checks it from the command line with the TypeScript release the declarations are built for; `-p ./support-triage/tsconfig.full.json` type-checks against every block.
+   It exits 1 on an error, and on a missing required field, an unknown option or output path, a wrong value kind, an out-of-range value or a literal secret in a block you added since the get (`--strict` fails on these in every block, `--no-strict` never on a warning). It also adds the blocks the workflow now uses to `tsconfig.json`. Your editor type-checks the file against the generated declarations, and `bunx -p typescript@7.0.2 tsc -p ./support-triage` checks it from the command line with the TypeScript release the declarations are built for; `-p ./support-triage/tsconfig.full.json` type-checks against every block.
 
-3. Check the change without saving it:
+3. See what changed, and whether someone changed the workflow since your `get`:
+
+   ```bash
+   sim workflows source status --dir ./support-triage
+   sim workflows source diff --dir ./support-triage
+   ```
+
+   `status` lists the files you created, edited, or deleted, asks the server (with a dry run that saves nothing) whether the workflow changed since the `get`, and ends with the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unsaved, and `12` when the workflow changed in the editor since the `get` (a conflict, if you edited it too). Without a connection it shows your edits only and says so; `--offline` skips the server. `diff` prints each edit as a unified diff, and `diff --server` compares the directory with the workflow as it is saved now. Both take `--json` (or `--output json`).
+
+4. Check the change without saving it:
 
    ```bash
    sim workflows source apply --dir ./support-triage --dry-run
@@ -57,7 +66,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
      hint: Did you mean channel?
    ```
 
-4. Save the draft:
+5. Save the draft:
 
    ```bash
    sim workflows source apply --dir ./support-triage --yes
@@ -65,9 +74,11 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
 
    The workflow builder updates for anyone who has the workflow open. Deploy when you are ready. The save rewrites `workflow.ts` in canonical form, so read it again before the next edit.
 
-   Lines starting with `note:` explain where the save differs from the file. For example, renaming the workflow in `workflow('…')` does not rename the stored workflow, so the save writes the stored name back into `workflow.ts`.
+   Editing the name or description in `workflow('…')` renames or redescribes the workflow; a name another workflow in its folder already has is refused with `E_NAME_TAKEN`. Lines starting with `note:` report something the save did beyond what the file says; read them.
 
-To create a new workflow, write `workflow.ts` in an empty directory and run `sim workflows source create --dir <dir> --yes`. The file starts with the `// @sim-sdk 1` line and default-exports one `workflow('Name', {}, () => { ... })`. The command prints the new workflow ID and writes the same type declarations, `tsconfig.json`, and `.sim/` files that `get` writes, so you can continue editing with `apply`. If another workflow already has that name, the command exits `1`; pass `--name` to choose another.
+   A save that removes a block (its declaration is gone from `workflow.ts`) is refused with `E_APPLY_BLOCK_DELETE`, naming the blocks. Pass `--allow-delete` when the deletion is intended.
+
+To create a new workflow, run `sim workflows source create --dir <dir>` on an empty directory: without `--dry-run` or `--yes` it creates nothing and writes a starter `workflow.ts` with the type declarations, `tsconfig.json` and `.sim/AGENTS.md`. Edit the starter, then run `sim workflows source create --dir <dir> --yes`. The file starts with the `// @sim-sdk 1` line and default-exports one `workflow('Name', {}, () => { ... })`. The command prints the new workflow ID and writes the same type declarations, `tsconfig.json`, and `.sim/` files that `get` writes, so you can continue editing with `apply`. If another workflow already has that name, the command exits `1`; pass `--name` to choose another.
 
 Keep the `.sim/` folder the commands write. `.sim/lock.json` ties each block in the file to the stored block, so renaming a block keeps the same block, with its webhook URL, schedules and run history. Changing its name string keeps it through the lock; renaming the variable too keeps it when the block's type, parent and connections are unchanged, and the dry run reports that as `W_MAT_INFERRED_RENAME`. Renaming two blocks of the same type in the same place in one save is ambiguous, so do those one save at a time. `.sim/base.json` records the version you read.
 

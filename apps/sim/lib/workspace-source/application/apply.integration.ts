@@ -2019,6 +2019,43 @@ export default workflow('Notes', {}, () => {
       expect(noop.applied).toEqual([])
     }
   )
+
+  check(
+    'refuses at plan time two writes that leave one name twice in a folder: a rename and a create, or two renames',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await apply(workspaceId, {
+        ...STARTER,
+        'workflows/intake/workflow.ts': INGEST.replace("workflow('Ingest'", "workflow('Intake'"),
+      })
+      const read = await get(workspaceId)
+      const before = (await workflows(workspaceId)).map((stored) => stored.name).sort()
+      const renamed = (key: string, from: string, to: string) => {
+        const entry = `workflows/${key}/workflow.ts`
+        return { [entry]: read.files[entry].replace(`workflow('${from}'`, `workflow('${to}'`) }
+      }
+
+      for (const files of [
+        {
+          ...read.files,
+          ...renamed('ingest', 'Ingest', 'Shared'),
+          'workflows/shared/workflow.ts': INGEST.replace("workflow('Ingest'", "workflow('Shared'"),
+        },
+        {
+          ...read.files,
+          ...renamed('ingest', 'Ingest', 'Shared'),
+          ...renamed('intake', 'Intake', 'Shared'),
+        },
+      ]) {
+        const dryRun = await apply(workspaceId, files, { base: read.base, dryRun: true })
+        expect(codes(dryRun.diagnostics)).toEqual(['E_NAME_TAKEN'])
+        const refused = await refusal(apply(workspaceId, files, { base: read.base }))
+        expect(codes(refused.diagnostics)).toEqual(['E_NAME_TAKEN'])
+        expect((await workflows(workspaceId)).map((stored) => stored.name).sort()).toEqual(before)
+      }
+    }
+  )
+
   check(
     'a workflow create whose key claim fails leaves no workflow behind, so applying again creates it',
     async () => {
