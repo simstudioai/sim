@@ -487,12 +487,12 @@ export function attachWorkspaceSourceApply(source: Command): void {
         return printRefusal(
           refusal,
           profile.output,
-          dryRun
-            ? undefined
-            : `It may have been written. Run \`sim workspaces source apply --dir ${options.dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it may have been, or someone else changed those resources. Run \`sim workspaces source get --dir <fresh dir>\` and compare it with ${options.dir}: if it holds your edits, \`sim workspaces source get --dir ${options.dir} --force\` brings this directory up to date; if not, reapply your edits in the fresh directory. Any other outcome means it was not written: apply again.`
+          dryRun ? undefined : answerLostHint(options.dir)
         )
       }
 
+      // Set while the apply write is in flight, so an interrupt names what it may have done.
+      let writing = false
       await withSourceDirLock(
         options.dir,
         async () => {
@@ -546,7 +546,9 @@ export function attachWorkspaceSourceApply(source: Command): void {
 
           // Without a preview, stage the blobs the base does not hold as they are.
           await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
+          writing = true
           const data = await send(submission, false)
+          writing = false
           printNewDiagnostics(data.diagnostics, printed)
           // A promotion leaves the directory bound to the workspace it was read from.
           if (!options.to) await saveApplied(options.dir, data, submission, written)
@@ -566,9 +568,23 @@ export function attachWorkspaceSourceApply(source: Command): void {
             ...resultDiagnostics(profile.output, data.diagnostics),
           })
         },
-        { readOnly: options.dryRun === true }
+        {
+          readOnly: options.dryRun === true,
+          interruptNote: () =>
+            writing
+              ? `Interrupted while the apply was being sent. ${answerLostHint(options.dir)}`
+              : null,
+        }
       )
     })
+}
+
+/**
+ * The next step for an apply write whose answer never came back (a timeout, a dropped connection,
+ * an interrupt): it may or may not have been written.
+ */
+function answerLostHint(dir: string): string {
+  return `It may have been written. Run \`sim workspaces source apply --dir ${dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it may have been, or someone else changed those resources. Run \`sim workspaces source get --dir <fresh dir>\` and compare it with ${dir}: if it holds your edits, \`sim workspaces source get --dir ${dir} --force\` brings this directory up to date; if not, reapply your edits in the fresh directory. Any other outcome means it was not written: apply again.`
 }
 
 /** The result line: what a dry run would write, or what an apply wrote (not what it planned). */

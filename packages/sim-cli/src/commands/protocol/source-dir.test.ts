@@ -150,6 +150,30 @@ describe('withSourceDirLock', () => {
     expect(existsSync(join(dir, SOURCE_DIR_LOCK))).toBe(false)
   })
 
+  it('prints what the interrupted command may have done, then ends with the signal', () => {
+    const script = `
+      import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir.ts'))}
+      let sending = false
+      await withSourceDirLock(
+        process.env.SOURCE_DIR,
+        async () => {
+          sending = true
+          process.kill(process.pid, 'SIGINT')
+          await new Promise(() => {})
+        },
+        { interruptNote: () => (sending ? 'It may have been written.' : null) }
+      )
+    `
+    const interrupted = spawnSync('bun', ['-e', script], {
+      env: { ...process.env, SOURCE_DIR: dir },
+      timeout: 20_000,
+    })
+
+    expect(interrupted.signal).toBe('SIGINT')
+    expect(interrupted.stderr.toString()).toContain('It may have been written.')
+    expect(existsSync(join(dir, SOURCE_DIR_LOCK))).toBe(false)
+  })
+
   it('refuses a .sim that is a symbolic link, creating nothing where it points', async () => {
     const outside = mkdtempSync(join(tmpdir(), 'sim-source-dir-outside-'))
     symlinkSync(outside, join(dir, '.sim'))
