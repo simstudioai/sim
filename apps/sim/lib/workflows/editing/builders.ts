@@ -6,6 +6,7 @@ import {
   type BlockRetryConfig,
   normalizeBlockRetryTries,
   normalizeBlockRetryWaitMs,
+  wouldCreateCycle,
 } from '@sim/workflow-types/workflow'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { resolveAvailableAgentDefaultModel } from '@/lib/permission-groups/model-access.server'
@@ -582,6 +583,12 @@ export function normalizeResponseFormat(value: any): string {
 /**
  * Creates a validated edge between two blocks.
  * Returns true if edge was created, false if skipped due to validation errors.
+ *
+ * `storedEdges` holds the edges the workflow stored before this apply (see
+ * {@link storedEdgeKeys}). Re-sending one is restating it, not adding it: it is
+ * kept even where the engine would refuse a new edge, so a stored error edge
+ * from a container or a stored cycle survives an edit that rewrites the block's
+ * connections.
  */
 export function createValidatedEdge(
   modifiedState: any,
@@ -592,7 +599,7 @@ export function createValidatedEdge(
   operationType: string,
   logger: ReturnType<typeof createLogger>,
   skippedItems?: SkippedItem[],
-  storedErrorEdges?: ReadonlySet<string>
+  storedEdges?: ReadonlySet<string>
 ): boolean {
   if (!modifiedState.blocks[targetBlockId]) {
     // The target doesn't exist yet. It may be created by a later operation in
@@ -666,9 +673,9 @@ export function createValidatedEdge(
   const sourceValidation = validateSourceHandleForBlock(sourceHandle, sourceBlockType, sourceBlock)
   // An error edge the graph already stored is kept even where the engine no longer adds one
   // (from a loop or parallel): re-sending a block's connections must not drop it.
-  const restated =
-    sourceHandle === 'error' && storedErrorEdges?.has(errorEdgeKey(sourceBlockId, targetBlockId))
-  if (!sourceValidation.valid && !restated) {
+  const restatedErrorEdge =
+    sourceHandle === 'error' && storedEdges?.has(edgeKey(sourceBlockId, 'error', targetBlockId))
+  if (!sourceValidation.valid && !restatedErrorEdge) {
     logger.warn(`Invalid source handle. Edge skipped.`, {
       sourceBlockId,
       targetBlockId,
@@ -717,6 +724,29 @@ export function createValidatedEdge(
   )
   if (edgeExists) return true
 
+  // The canvas and realtime refuse a cycle with the same check, and the executor cannot run one.
+  if (
+    !storedEdges?.has(edgeKey(sourceBlockId, finalSourceHandle, targetBlockId)) &&
+    wouldCreateCycle(modifiedState.edges || [], sourceBlockId, targetBlockId)
+  ) {
+    logger.warn('Edge would close a cycle. Edge skipped.', {
+      sourceBlockId,
+      targetBlockId,
+      sourceHandle: finalSourceHandle,
+    })
+    skippedItems?.push({
+      type: 'edge_cycle',
+      operationType,
+      blockId: sourceBlockId,
+      reason:
+        sourceBlockId === targetBlockId
+          ? `Edge from "${sourceBlockId}" to itself skipped - a block wired to itself waits on its own output and never runs. To repeat work, put the block inside a loop container instead.`
+          : `Edge from "${sourceBlockId}" to "${targetBlockId}" skipped - "${targetBlockId}" already leads back to "${sourceBlockId}", so this edge would close a cycle and no block on it would run. Do not wire back to an earlier block; to repeat work, put the blocks inside a loop container (or a parallel one to fan out).`,
+      details: { sourceHandle: finalSourceHandle, targetHandle, targetId: targetBlockId },
+    })
+    return false
+  }
+
   modifiedState.edges.push({
     id: generateId(),
     source: sourceBlockId,
@@ -742,6 +772,18 @@ function asConnectionTarget(value: unknown): { block: string; handle?: string } 
 const CONNECTION_TARGET_SHAPES = 'a target block id, {block, handle?}, or an array of those'
 const CONNECTION_ARRAY_ENTRY_SHAPES = 'a target block id or {block, handle?}'
 
+/** The key of an edge in {@link storedEdgeKeys}. */
+function edgeKey(source: string, sourceHandle: string | null | undefined, target: string): string {
+  return `${source}\u0000${sourceHandle ?? 'source'}\u0000${target}`
+}
+
+/** The edges a graph stores, for {@link createValidatedEdge}'s `storedEdges`. */
+export function storedEdgeKeys(
+  edges: ReadonlyArray<{ source: string; target: string; sourceHandle?: string | null }>
+): Set<string> {
+  return new Set(edges.map((edge) => edgeKey(edge.source, edge.sourceHandle, edge.target)))
+}
+
 /**
  * Adds connections as edges for a block.
  * Supports multiple target formats:
@@ -756,22 +798,6 @@ const CONNECTION_ARRAY_ENTRY_SHAPES = 'a target block id or {block, handle?}'
  * block type does not have is already reported by {@link createValidatedEdge}
  * as an `invalid_source_handle` skip.
  */
-/** The key of an error edge in {@link storedErrorEdgeKeys}. */
-function errorEdgeKey(source: string, target: string): string {
-  return `${source}\u0000${target}`
-}
-
-/** The error edges a graph stores, for {@link createValidatedEdge}'s `storedErrorEdges`. */
-export function storedErrorEdgeKeys(
-  edges: ReadonlyArray<{ source: string; target: string; sourceHandle?: string | null }>
-): Set<string> {
-  return new Set(
-    edges
-      .filter((edge) => edge.sourceHandle === 'error')
-      .map((edge) => errorEdgeKey(edge.source, edge.target))
-  )
-}
-
 export function addConnectionsAsEdges(
   modifiedState: any,
   blockId: string,
@@ -779,7 +805,7 @@ export function addConnectionsAsEdges(
   logger: ReturnType<typeof createLogger>,
   skippedItems?: SkippedItem[],
   validationErrors?: ValidationError[],
-  storedErrorEdges?: ReadonlySet<string>
+  storedEdges?: ReadonlySet<string>
 ): void {
   const normalizeHandle = (handle: string): string => {
     if (handle === 'success') return 'source'
@@ -817,7 +843,7 @@ export function addConnectionsAsEdges(
         'add_edge',
         logger,
         skippedItems,
-        storedErrorEdges
+        storedEdges
       )
     }
 

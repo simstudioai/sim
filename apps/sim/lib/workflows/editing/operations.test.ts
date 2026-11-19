@@ -1683,6 +1683,113 @@ describe('connection shape validation', () => {
   })
 })
 
+describe('edge cycles', () => {
+  const BLOCK_A = '5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a'
+  const BLOCK_B = '6b6b6b6b-6b6b-4b6b-8b6b-6b6b6b6b6b6b'
+
+  function functionBlock(id: string, name: string) {
+    return {
+      id,
+      type: 'function',
+      name,
+      position: { x: 0, y: 0 },
+      enabled: true,
+      subBlocks: { code: { id: 'code', type: 'code', value: 'return 1' } },
+      outputs: {},
+      data: {},
+    }
+  }
+
+  function edge(id: string, source: string, target: string) {
+    return { id, source, sourceHandle: 'source', target, targetHandle: 'target', type: 'default' }
+  }
+
+  function workflowWithStoredCycle() {
+    return {
+      blocks: {
+        [BLOCK_A]: functionBlock(BLOCK_A, 'Block A'),
+        [BLOCK_B]: functionBlock(BLOCK_B, 'Block B'),
+      },
+      edges: [edge('edge-ab', BLOCK_A, BLOCK_B), edge('edge-ba', BLOCK_B, BLOCK_A)],
+      loops: {},
+      parallels: {},
+    }
+  }
+
+  const endpoints = (edges: Array<{ source: string; target: string }>) =>
+    edges.map(({ source, target }) => `${source}->${target}`).sort()
+
+  it('refuses an edge that closes a cycle as an edge_cycle skip', () => {
+    const { state, skippedItems, declinedOperationCount } = applyOperationsToWorkflowState(
+      { blocks: {}, edges: [], loops: {}, parallels: {} },
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: { type: 'function', name: 'Block A', connections: { source: BLOCK_B } },
+        },
+        {
+          operation_type: 'add',
+          block_id: BLOCK_B,
+          params: { type: 'function', name: 'Block B', connections: { source: BLOCK_A } },
+        },
+      ]
+    )
+
+    expect(endpoints(state.edges)).toEqual([`${BLOCK_A}->${BLOCK_B}`])
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'edge_cycle',
+        blockId: BLOCK_B,
+        details: expect.objectContaining({ targetId: BLOCK_A }),
+      }),
+    ])
+    expect(declinedOperationCount).toBe(1)
+  })
+
+  it('keeps a stored cycle through an unrelated edit and a restated connection', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflowWithStoredCycle(), [
+      { operation_type: 'edit', block_id: BLOCK_A, params: { inputs: { code: 'return 2' } } },
+      { operation_type: 'edit', block_id: BLOCK_B, params: { connections: { source: BLOCK_A } } },
+    ])
+
+    expect(skippedItems).toEqual([])
+    expect(endpoints(state.edges)).toEqual([`${BLOCK_A}->${BLOCK_B}`, `${BLOCK_B}->${BLOCK_A}`])
+  })
+
+  it('accepts loop start and end handle edges around a container', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(makeLoopWorkflow(), [
+      {
+        operation_type: 'add',
+        block_id: BLOCK_A,
+        params: { type: 'function', name: 'Before Loop', connections: { source: 'loop-1' } },
+      },
+      {
+        operation_type: 'add',
+        block_id: BLOCK_B,
+        params: { type: 'function', name: 'After Loop' },
+      },
+      {
+        operation_type: 'edit',
+        block_id: 'loop-1',
+        params: {
+          connections: { 'loop-start-source': 'condition-1', 'loop-end-source': BLOCK_B },
+        },
+      },
+    ])
+
+    expect(skippedItems).toEqual([])
+    expect(endpoints(state.edges)).toEqual(
+      [
+        `${BLOCK_A}->loop-1`,
+        'condition-1->agent-1',
+        'loop-1->condition-1',
+        `loop-1->${BLOCK_B}`,
+      ].sort()
+    )
+  })
+})
+
 describe('conditional input validation through workflow operations', () => {
   const blockId = 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77'
 

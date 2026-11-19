@@ -51,10 +51,12 @@ import { getBlock } from '@/blocks/registry'
  * reference cannot exist in source; compile refuses a duplicate or reserved block name
  * (`E_DUPLICATE_NAME`, `E_RESERVED_NAME`); and a block's container is the `loop` or `parallel` it
  * is declared inside, so its parent can never be missing or another type. The engine never refuses
- * nesting a container in a container either.
+ * nesting a container in a container either. Compile refuses a cycle the source closes
+ * (`E_EDGE_CYCLE`) and keeps a stored one (`W_EDGE_CYCLE`), as the engine does.
  */
 type SourceRefusedSkipType =
   | 'invalid_edge_target'
+  | 'edge_cycle'
   | 'invalid_subflow_parent'
   | 'nested_subflow_not_allowed'
   | 'duplicate_block_name'

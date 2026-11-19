@@ -575,6 +575,7 @@ type ApplyWorkflowOperationsResponseRef0 = {
     | 'invalid_edge_scope'
     | 'invalid_source_handle'
     | 'invalid_target_handle'
+    | 'edge_cycle'
     | 'invalid_subblock_field'
     | 'missing_required_params'
     | 'invalid_subflow_parent'
