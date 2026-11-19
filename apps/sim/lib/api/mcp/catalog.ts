@@ -35,7 +35,7 @@ const REQUEST_SLOTS = ['params', 'query', 'body', 'headers'] as const
 export const operationRequestInput = z
   .object({
     params: z
-      .record(z.string(), z.string())
+      .record(z.string(), z.union([z.string(), z.number()]))
       .optional()
       .describe(
         'Values for the bracketed segments of the operation’s path, by name, e.g. { "tableId": "..." }. IDs come from list operations such as listTables.'

@@ -272,6 +272,20 @@ describe('Sim MCP code mode in PostgreSQL and the isolate pool', () => {
     })
   })
 
+  it('passes a numeric path parameter, as signatures declare it, through to its route', async () => {
+    const result = await runCode(
+      'execute_read_code',
+      `
+      try {
+        await sim.api.getFileVersion({ params: { fileId: 'wf_${generateId().replaceAll('-', '')}', version: 1 }, query: { workspaceId: ${JSON.stringify(workspaceId)} } })
+      } catch (error) {
+        return { status: error.status, code: error.code }
+      }
+      `
+    )
+    expect(result.structuredContent?.result).toEqual({ status: 404, code: 'NOT_FOUND' })
+  })
+
   it('gives the program no network and no credential', async () => {
     const result = await runCode(
       'execute_read_code',
@@ -320,7 +334,9 @@ describe('Sim MCP code mode in PostgreSQL and the isolate pool', () => {
     expect(failed.error.message).toBe('stopped while writes were queued')
     await sleep(3000)
     const created = (await tableNames()).filter((name) => name.startsWith(prefix))
-    expect(created.length).toBeLessThan(40)
+    const sent = failed.calls.filter((call) => call.refused === undefined)
+    expect(sent.length).toBeLessThan(failed.calls.length)
+    expect(created.length).toBeLessThanOrEqual(sent.length)
     for (const call of failed.calls) {
       expect(
         call.status !== undefined || call.refused !== undefined || call.unreadable !== undefined

@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { CLIENT_INFO_HEADER } from '@sim/utils/client-info'
 import { isPlainRecord } from '@sim/utils/object'
 import { NextRequest } from 'next/server'
-import { callerHeaderNames, getMcpOperation } from '@/lib/api/mcp/catalog'
+import { callerHeaderNames, getMcpOperation, isReadOperation } from '@/lib/api/mcp/catalog'
 import type { V2McpOperationName } from '@/lib/api/mcp/generated/v2-operations'
 import { API_KEY_HEADER } from '@/lib/api/server/credential-headers'
 import type { V2CredentialHeaders } from '@/lib/api/server/routes/v2-credential-headers'
@@ -11,6 +11,7 @@ import {
   type OAuthAccessTokenOptions,
   withOAuthAccessTokenAudience,
 } from '@/lib/auth/oauth-access-token'
+import { normalizeStringRecord } from '@/lib/core/utils/records'
 import {
   consumeOrCancelBody,
   isPayloadSizeLimitError,
@@ -38,7 +39,7 @@ type V2RouteHandler = (
 /** One tool call, as the read and write tools accept it. */
 export interface McpOperationCall {
   operation: V2McpOperationName
-  params?: Record<string, string>
+  params?: Record<string, string | number>
   query?: Record<string, string | number | boolean>
   body?: unknown
   headers?: Record<string, string>
@@ -115,7 +116,31 @@ function buildHeaders(
 type McpDispatchOutcome =
   | { rejected: string }
   | { status: number; ok: boolean; text: string }
-  | { status: number; unreadable: string }
+  | UnreadableAnswer
+
+/** An answer the route gave that cannot be returned, and why. */
+interface UnreadableAnswer {
+  status: number
+  unreadable: string
+  tooLarge: boolean
+}
+
+/**
+ * Explains an unreadable answer to the model. The operation ran either way, so a
+ * write is never to be repeated; only a read that came back too large can be
+ * retried, asking for less.
+ */
+export function unreadableMessage(
+  operation: V2McpOperationName,
+  answer: UnreadableAnswer,
+  isRead: boolean
+): string {
+  const message = `${operation} ran (HTTP ${answer.status}), but its answer cannot be returned. ${answer.unreadable}`
+  if (!isRead) return `${message} Do not repeat it; read the resource to see its state.`
+  return answer.tooLarge
+    ? `${message} Request less, such as a smaller page with limit or cursor.`
+    : message
+}
 
 /** Reads the route's JSON answer, bounded by {@link MAX_RESULT_BYTES}. */
 async function readJsonAnswer(
@@ -126,8 +151,9 @@ async function readJsonAnswer(
   if (!/[/+]json\b/i.test(contentType)) {
     await consumeOrCancelBody(response)
     return {
-      unreadable: `${operation} answered with ${contentType || 'an empty body'} (HTTP ${response.status}). Only JSON responses can be returned over MCP.`,
       status: response.status,
+      unreadable: `The answer is ${contentType || 'empty'}; only JSON can be returned over MCP.`,
+      tooLarge: false,
     }
   }
   try {
@@ -139,8 +165,9 @@ async function readJsonAnswer(
   } catch (error) {
     if (!isPayloadSizeLimitError(error)) throw error
     return {
-      unreadable: 'Result is too large. Request a smaller page with limit or cursor.',
       status: response.status,
+      unreadable: 'The answer is too large to return.',
+      tooLarge: true,
     }
   }
 }
@@ -162,7 +189,8 @@ export async function dispatchMcpRequest(
   const startedAt = performance.now()
   const { contract, handler } = getMcpOperation(call.operation)
 
-  const resolved = resolvePath(contract.path, call.params ?? {})
+  const params = normalizeStringRecord(call.params)
+  const resolved = resolvePath(contract.path, params)
   if ('error' in resolved) return { rejected: resolved.error }
 
   const url = new URL(resolved.path, getBaseUrl())
@@ -195,7 +223,7 @@ export async function dispatchMcpRequest(
     signal: context.signal,
   })
   const response = await withOAuthAccessTokenAudience(context.audience, () =>
-    route(request, { params: Promise.resolve(call.params ?? {}) })
+    route(request, { params: Promise.resolve(params) })
   )
   logger.info('Sim MCP operation dispatched', {
     operation: call.operation,
@@ -213,6 +241,10 @@ export async function dispatchMcpOperation(
 ): Promise<CallToolResult> {
   const outcome = await dispatchMcpRequest(call, context)
   if ('rejected' in outcome) return toolError(outcome.rejected)
-  if ('unreadable' in outcome) return toolError(outcome.unreadable)
+  if ('unreadable' in outcome) {
+    return toolError(
+      unreadableMessage(call.operation, outcome, await isReadOperation(call.operation))
+    )
+  }
   return outcome.ok ? { content: [{ type: 'text', text: outcome.text }] } : toolError(outcome.text)
 }
