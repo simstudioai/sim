@@ -60,3 +60,23 @@ export function mapSettledWithConcurrency<T, R>(
     }
   })
 }
+
+/**
+ * {@link mapSettledWithConcurrency} for a fan-out of independent side effects (dispatches, events,
+ * writes): every item is attempted even after one fails, so a failure never leaves the rest
+ * undone, and then the first failure in `items` order is thrown, so the caller still sees it.
+ * Returns the results in `items` order when every item succeeds.
+ */
+export async function mapEachWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const outcomes = await mapSettledWithConcurrency(items, limit, fn)
+  const results: R[] = []
+  for (const outcome of outcomes) {
+    if (outcome.status === 'rejected') throw outcome.reason
+    results.push(outcome.value)
+  }
+  return results
+}

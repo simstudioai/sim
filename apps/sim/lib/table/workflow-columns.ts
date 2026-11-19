@@ -14,7 +14,7 @@ import {
   workflow as workflowTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { mapSettledWithConcurrency, mapWithConcurrency } from '@sim/utils/concurrency'
+import { mapEachWithConcurrency, mapWithConcurrency } from '@sim/utils/concurrency'
 import {
   findCause,
   getPostgresConstraintName,
@@ -737,39 +737,33 @@ export async function cancelWorkflowGroupRuns(
 
     // Every row's jobs were cancelled above, so every row gets its cancellation write even when
     // one fails; otherwise rows after the failure would stay "running" with no job behind them.
-    const writes = await mapSettledWithConcurrency(
-      mutations,
-      TABLE_CANCELLATION_CONCURRENCY,
-      async (mutation) => {
-        try {
-          const updated = await updateRow(
-            {
-              tableId,
-              rowId: mutation.rowId,
-              data: {},
-              /** No cell values are written, so there is nothing to stamp. */
-              secretProvenance: undefined,
-              workspaceId: table.workspaceId,
-              executionsPatch: mutation.executionsPatch,
-              /** A cancellation stamp writes no cell values and fires no enrichment. */
-              capabilityGovernedUserId: null,
-            },
-            table,
-            `wfgrp-cancel-${mutation.rowId}`
-          )
-          if (!updated) throw new Error('Authoritative cancellation write was rejected')
-        } catch (error) {
-          const rowNotFound = findCause(
-            error,
-            (cause): cause is TableRowNotFoundError => cause instanceof TableRowNotFoundError
-          )
-          if (rowNotFound) return
-          throw error
-        }
+    await mapEachWithConcurrency(mutations, TABLE_CANCELLATION_CONCURRENCY, async (mutation) => {
+      try {
+        const updated = await updateRow(
+          {
+            tableId,
+            rowId: mutation.rowId,
+            data: {},
+            /** No cell values are written, so there is nothing to stamp. */
+            secretProvenance: undefined,
+            workspaceId: table.workspaceId,
+            executionsPatch: mutation.executionsPatch,
+            /** A cancellation stamp writes no cell values and fires no enrichment. */
+            capabilityGovernedUserId: null,
+          },
+          table,
+          `wfgrp-cancel-${mutation.rowId}`
+        )
+        if (!updated) throw new Error('Authoritative cancellation write was rejected')
+      } catch (error) {
+        const rowNotFound = findCause(
+          error,
+          (cause): cause is TableRowNotFoundError => cause instanceof TableRowNotFoundError
+        )
+        if (rowNotFound) return
+        throw error
       }
-    )
-    const failedWrite = writes.find((write) => write.status === 'rejected')
-    if (failedWrite) throw failedWrite.reason
+    })
     cancelledCount += mutations.reduce((total, mutation) => total + mutation.cancelledCount, 0)
 
     if (inFlightRows.length < pageSize) {
@@ -819,7 +813,8 @@ export async function cancelWorkflowGroupRuns(
     const needsTombstone = aheadOfCursorTombstones.filter((t) => !handledGroupIds.has(t.groupId))
     if (needsTombstone.length > 0) {
       const now = new Date()
-      await mapWithConcurrency(
+      // Each tombstone is its own write: one failing must not leave the rest unwritten.
+      await mapEachWithConcurrency(
         needsTombstone,
         TABLE_CANCELLATION_CONCURRENCY,
         async (tombstone) => {

@@ -319,6 +319,21 @@ describe('cancelWorkflowGroupRuns deletion races', () => {
     expect(mockUpdateRow).toHaveBeenCalledTimes(12)
   })
 
+  it('still writes every other tombstone when one insert fails', async () => {
+    const groups = Array.from({ length: 12 }, (_, index) => makeGroup({ id: `g${index}` }))
+    const wideTable = makeTable(groups)
+    mockGetTableById.mockResolvedValue(wideTable)
+    mockListActiveDispatches.mockResolvedValueOnce([
+      { id: 'dispatch-1', scope: { groupIds: groups.map((g) => g.id), rowIds: ['row1'] } },
+    ])
+    const error = new Error('database unavailable')
+    dbChainMockFns.onConflictDoNothing.mockRejectedValueOnce(error)
+    const callsBefore = dbChainMockFns.onConflictDoNothing.mock.calls.length
+
+    await expect(cancelWorkflowGroupRuns(wideTable.id, 'row1')).rejects.toBe(error)
+    expect(dbChainMockFns.onConflictDoNothing.mock.calls.length - callsBefore).toBe(12)
+  })
+
   it('ignores a tombstone foreign-key failure caused by a deleted row', async () => {
     mockListActiveDispatches.mockResolvedValueOnce([
       { id: 'dispatch-1', scope: { groupIds: [group.id], rowIds: ['row1'] } },
