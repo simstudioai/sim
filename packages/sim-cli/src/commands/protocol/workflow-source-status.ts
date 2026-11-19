@@ -33,6 +33,7 @@ import {
   DIFF_HELP,
   type DiffReport,
   type FileDiff,
+  loginCommand,
   nextStep,
   pathFilter,
   printDiffReport,
@@ -159,8 +160,9 @@ export function attachWorkflowSourceStatus(source: Command): void {
       let note: string | undefined = options.offline ? 'Skipped with --offline.' : undefined
       let data: ApplyData | null = null
       let serverChanges: ServerResourceChange[] = []
+      let login: string | null = null
       if (!options.offline) {
-        const { client } = connect()
+        const { client, profile } = connect()
         const lock = await readLock(options.dir)
         const files = await readSourceFiles(options.dir, lock)
         try {
@@ -184,6 +186,7 @@ export function attachWorkflowSourceStatus(source: Command): void {
           } else {
             const reason = unreachableReason(error)
             if (reason === null) throw withSourceExitCode(error)
+            login = loginCommand(error, profile.authProfile)
             server = 'unreachable'
             note = `${reason} Showing local changes only.`
           }
@@ -206,6 +209,7 @@ export function attachWorkflowSourceStatus(source: Command): void {
           errors: plan?.errors ?? 0,
           deletes: (plan?.blocksRemoved ?? 0) > 0,
           scope: '',
+          login,
         }),
       }
       printStatusReport(output, `Workflow ${workflowId} in ${options.dir}`, report, planLine)

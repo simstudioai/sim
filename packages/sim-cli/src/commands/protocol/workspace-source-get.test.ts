@@ -784,5 +784,11 @@ describe('workspaces source get', () => {
     await expect(get()).rejects.toMatchObject({ code: 'SOURCE_OTHER_WORKSPACE' })
     expect(request).not.toHaveBeenCalled()
     expect(readFileSync(join(dir, '.sim/base.json'), 'utf8')).toContain('"ws_other"')
+
+    // A base the parser refuses (a field a later CLI added) still names the workspace it binds.
+    const extended = JSON.parse(base.replace('"ws_local"', '"ws_other"'))
+    writeFileSync(join(dir, '.sim/base.json'), JSON.stringify({ ...extended, later: true }))
+    await expect(get()).rejects.toMatchObject({ code: 'SOURCE_OTHER_WORKSPACE' })
+    expect(request).not.toHaveBeenCalled()
   })
 })

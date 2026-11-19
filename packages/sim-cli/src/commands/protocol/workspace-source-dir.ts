@@ -623,7 +623,11 @@ export async function readWorkspaceDir(
     try {
       base = JSON.parse(baseText)
     } catch {
-      throw new SimApiError(`${WORKSPACE_BASE_FILE} in ${dir} is not valid JSON.`, 0)
+      throw new SimApiError(
+        `${WORKSPACE_BASE_FILE} in ${dir} is not valid JSON (a merge conflict?). Restore it from version control, or get the workspace into a fresh directory with \`sim workspaces source get --dir <fresh dir>\` and carry your edits over.`,
+        0,
+        'SOURCE_BASE_INVALID'
+      )
     }
   }
   return { kinds, files, blobs, ignored, hashed, ...(base ? { base } : {}) }

@@ -117,7 +117,7 @@ The \`// @sim-sdk 1\` header must be the first line, and the file has exactly on
 
 ## Diagnostics and exit codes
 
-Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. Exit 0 applied, 1 source errors (or a name another workflow holds), 5 stale, 6 workflow locked, 7 source too large (on a get too), 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, so wait a minute and run the same command again.
+Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. Exit 0 applied, 1 source errors (or a name another workflow holds), 5 stale, 6 workflow locked, 7 source too large (on a get too), 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, so wait a minute and run the same command again; 13 not logged in (\`AUTH_REQUIRED\`): run \`sim login\`, then the command again.
 
 ## Rules
 

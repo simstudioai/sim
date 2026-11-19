@@ -14,6 +14,7 @@ import {
   AUTH_REQUIRED_CODE,
   SOURCE_DRIFT_EXIT_CODE,
   SOURCE_LOCAL_CHANGES_EXIT_CODE,
+  SOURCE_TOO_LARGE_EXIT_CODE,
 } from '../../exit-codes'
 import { noAnswer, SimApiError } from '../../http/client'
 import { printLine } from '../../output/io'
@@ -45,8 +46,9 @@ Exit codes: 0 clean (nothing to apply, and the server changed nothing since the 
 read); ${SOURCE_LOCAL_CHANGES_EXIT_CODE} local changes only (applying writes them); ${SOURCE_DRIFT_EXIT_CODE} the server changed since the
 directory was read: drift (a resource edited, added or deleted there that the directory leaves
 alone) or a conflict (also changed here, so applying it is refused as stale), with or without
-local changes; 1 the command failed. A server that cannot be reached is not a failure: the status
-shows the local changes only and says so (exit 0 or ${SOURCE_LOCAL_CHANGES_EXIT_CODE}).`
+local changes; ${SOURCE_TOO_LARGE_EXIT_CODE} the source is too large for the server to read in one dry run; 1 the command
+failed. A server that cannot be reached is not a failure: the status shows the local changes only
+and says so (exit 0 or ${SOURCE_LOCAL_CHANGES_EXIT_CODE}).`
 
 /** What `diff` compares, and its exit codes. */
 export const DIFF_HELP = `
@@ -55,7 +57,8 @@ against the text it was read at. The CLI records only each file's digest, so tha
 server's current text where it still matches the digest; a file the server changed since is
 named instead (compare it with --server). A binary file is shown by its sizes. Paths filter by
 file or folder (and in a workspace directory by kind:key, such as table:leads). Exit codes: 0 the
-differences were shown, whether or not there were any; 1 the command failed.`
+differences were shown, whether or not there were any; ${SOURCE_TOO_LARGE_EXIT_CODE} the source is too large for the server
+to read; 1 the command failed.`
 
 /** The exit status of a status report: drift or conflict, else local changes, else clean. */
 export function statusExitCode(state: SourceStatus['state']): number {
@@ -78,6 +81,16 @@ export function unreachableReason(error: unknown): string | null {
     (error.status === 0 && error.code === AUTH_REQUIRED_CODE)
   if (!offline) return null
   return /[.!?]$/.test(error.message) ? error.message : `${error.message}.`
+}
+
+/**
+ * The login a status recommends when `error` is the CLI's own refusal of a profile with no login
+ * (which a status treats as an unreachable server), or `null` for any other failure.
+ */
+export function loginCommand(error: unknown, authProfile: string): string | null {
+  return error instanceof SimApiError && error.status === 0 && error.code === AUTH_REQUIRED_CODE
+    ? `sim login --profile ${authProfile}`
+    : null
 }
 
 const SERVER_WORDS = {
@@ -362,6 +375,11 @@ interface NextStepInput {
    * scope the status was asked for (`--only`, `--workspace`), so the command acts on what it showed.
    */
   scope: string
+  /**
+   * The login command when the server was not checked because the profile has no login: nothing
+   * else can be decided until it runs.
+   */
+  login?: string | null
 }
 
 /**
@@ -371,6 +389,12 @@ interface NextStepInput {
  */
 export function nextStep(status: SourceStatus, input: NextStepInput): NextStep | null {
   const { prefix, dir } = input
+  if (input.login) {
+    return {
+      command: input.login,
+      reason: `This profile is not logged in, so the server was not checked: log in, then run \`${prefix} status --dir ${dir}\` again.`,
+    }
+  }
   if (status.conflicts.length > 0) {
     const names = status.conflicts.map((entry) => `${entry.kind} ${entry.key}`).join(', ')
     return {

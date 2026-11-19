@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SimApiError } from '../../http/client'
 import { contextMockFns } from '../../test/context-mock'
 import { attachWorkspaceSourceCheck } from './workspace-source-check'
 
@@ -165,6 +166,33 @@ describe('sim workspaces source check', () => {
       code: 'CATALOG_NOT_CACHED',
       message: expect.stringContaining('sim workspaces source get'),
     })
+  })
+
+  it('offline with no cached catalog, refuses naming the get; without a login, keeps exit 13', async () => {
+    rmSync(join(dir, 'config'), { recursive: true })
+    writeFile('workflows/first/workflow.ts', insertWorkflow())
+    contextMockFns.mockRequest.mockRejectedValueOnce(
+      new SimApiError('Could not reach https://sim.example: ECONNREFUSED', 0)
+    )
+
+    const offline = await check().catch((caught: unknown) => caught)
+
+    expect(offline).toMatchObject({
+      code: 'CATALOG_NOT_CACHED',
+      message: expect.stringContaining('sim workspaces source get'),
+    })
+
+    contextMockFns.mockRequest.mockRejectedValueOnce(
+      new SimApiError(
+        'Not logged in. Run: sim login --profile default',
+        0,
+        'AUTH_REQUIRED',
+        undefined,
+        13
+      )
+    )
+    const loggedOut = await check().catch((caught: unknown) => caught)
+    expect(loggedOut).toMatchObject({ code: 'AUTH_REQUIRED', exitCode: 13 })
   })
 
   it('refuses a directory that holds no workspace source instead of checking nothing', async () => {

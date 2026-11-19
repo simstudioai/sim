@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Command } from 'commander'
@@ -152,6 +152,65 @@ describe('workspaces source status', () => {
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
+  it('refuses a directory holding no workspace source, as an apply does, instead of calling it clean', async () => {
+    mockRequest.mockResolvedValue(dryRun())
+    const workspace = dir
+    const refusal = async (command: 'status' | 'diff') =>
+      run(command).then(
+        () => null,
+        (error: unknown) => error
+      )
+
+    dir = mkdtempSync(join(tmpdir(), 'sim-workspace-status-empty-'))
+    try {
+      expect(await refusal('status')).toMatchObject({
+        message: expect.stringContaining('holds no workspace source'),
+      })
+      expect(await refusal('diff')).toMatchObject({
+        message: expect.stringContaining('holds no workspace source'),
+      })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+    dir = join(workspace, 'workflows/ingest')
+    expect(await refusal('status')).toMatchObject({
+      message: expect.stringContaining('is a workflow source directory'),
+    })
+    dir = workspace
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('reads a directory no one may write without its lock, rather than crashing on it', async () => {
+    write('tables/leads.ts', `${LEADS}// edited\n`)
+    mockRequest.mockResolvedValue(dryRun([{ kind: 'table', key: 'leads', action: 'update' }]))
+    const folders = ['', '.sim', 'tables', 'workflows', 'workflows/ingest']
+    for (const path of folders) chmodSync(join(dir, path), 0o555)
+    try {
+      await run('status')
+      expect(printed()).toMatchObject({ state: 'local', local: [{ kind: 'table', key: 'leads' }] })
+      await run('diff')
+      expect(printed()).toMatchObject({ files: [{ path: 'tables/leads.ts', change: 'edited' }] })
+    } finally {
+      for (const path of folders) chmodSync(join(dir, path), 0o755)
+    }
+  })
+
+  it('refuses a written record a merge conflict broke, naming the get, rather than calling every file created', async () => {
+    write('.sim/written.json', '<<<<<<< HEAD\n{"version":1,"files":{}}\n=======\n')
+    mockRequest.mockResolvedValue(dryRun())
+
+    const refused = await run('status').then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    expect(refused).toMatchObject({
+      code: 'SOURCE_WRITTEN_INVALID',
+      message: expect.stringContaining(`sim workspaces source get --dir ${dir}`),
+    })
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
   it('reports an edit, a delete and a new file by resource, exit 11, and names the apply', async () => {
     write('tables/leads.ts', `${LEADS}// edited\n`)
     unlinkSync(join(dir, 'tables/deals.ts'))
@@ -265,10 +324,21 @@ describe('workspaces source status', () => {
         { kind: 'table', key: 'deals', change: 'deleted' },
         { kind: 'table', key: 'leads', change: 'deleted' },
       ],
+      // An apply leaves an unmanaged kind alone, so recommending it would loop forever.
+      next: {
+        command: `sim workspaces source get --dir ${dir} --only tables --force`,
+        reason: expect.stringContaining('an apply leaves their resources alone'),
+      },
     })
 
     await run('status', '--only', 'workflows')
     expect(printed()).toMatchObject({ state: 'clean', local: [] })
+
+    write('workflows/ingest/workflow.ts', `${INGEST}// edited\n`)
+    await run('status')
+    expect(printed()).toMatchObject({
+      next: { command: `sim workspaces source apply --dir ${dir} --yes` },
+    })
   })
 
   it('reports a binary file the CLI wrote that is missing now as deleted', async () => {
@@ -421,6 +491,26 @@ describe('workspaces source status', () => {
     })
     expect(report.note).toContain('Could not reach')
     expect(process.exitCode).toBe(11)
+  })
+
+  it('recommends the login, not a dry run that would exit 13, when the profile has none', async () => {
+    rmSync(join(dir, 'tables'), { recursive: true })
+    mockRequest.mockRejectedValue(
+      new SimApiError(
+        'Not logged in on profile "default". Run: sim login --profile default',
+        0,
+        'AUTH_REQUIRED',
+        undefined,
+        13
+      )
+    )
+
+    await run('status')
+
+    expect(printed()).toMatchObject({
+      server: 'unreachable',
+      next: { command: 'sim login --profile default' },
+    })
   })
 
   it('fails rather than hides a server refusal that is not about reaching it', async () => {
