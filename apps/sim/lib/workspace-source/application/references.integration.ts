@@ -35,6 +35,24 @@ vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
+/** Credential ids the editing gate refuses as unreachable, as if the caller lost access mid-plan. */
+const revokedCredentials = new Set<string>()
+vi.mock('@/lib/workflows/editing/selector-validator', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/workflows/editing/selector-validator')>()
+  return {
+    ...actual,
+    validateSelectorIds: async (...args: Parameters<typeof actual.validateSelectorIds>) => {
+      const result = await actual.validateSelectorIds(...args)
+      const revoked = result.valid.filter((id) => revokedCredentials.has(id))
+      return {
+        ...result,
+        valid: result.valid.filter((id) => !revokedCredentials.has(id)),
+        invalid: [...result.invalid, ...revoked],
+      }
+    },
+  }
+})
+
 const ownerId = generateId()
 const readerId = generateId()
 const writerId = generateId()
@@ -644,6 +662,47 @@ export default defineCredentials({})
           },
         ])
       })
+    }
+  )
+
+  check(
+    'a workflow held for a missing credential key still reports another key it cannot reach',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const opsId = await addSlackCredential(workspaceId, 'Ops Slack')
+      const credentials = `// @sim-sdk 1
+import { defineCredentials } from '@sim/workflow-sdk/workspace'
+
+export default defineCredentials({
+  ops: { provider: 'slack', name: 'Ops Slack' },
+  slack: { provider: 'slack', name: 'Missing Slack' },
+})
+`
+      const both = NOTIFY.replace(
+        '  start.to(post)',
+        `  const relay = slack.sendMessage('Relay', {
+    credential: credential('ops'),
+    destinationType: 'channel',
+    channel: 'ops',
+    messageFormat: 'text',
+    text: start.text,
+  })
+
+  start.to(post)
+  start.to(relay)`
+      )
+      revokedCredentials.add(opsId)
+
+      const result = await apply(workspaceId, {
+        'credentials.ts': credentials,
+        'workflows/notify/workflow.ts': both,
+      }).finally(() => revokedCredentials.delete(opsId))
+
+      expect(held(result.plan)).toEqual(['workflow:notify'])
+      expect(findings(result.diagnostics).sort()).toEqual([
+        'E_APPLY_CREDENTIAL_UNREACHABLE workflow:notify',
+        'E_CREDENTIAL_MISSING workflow:notify',
+      ])
     }
   )
 
