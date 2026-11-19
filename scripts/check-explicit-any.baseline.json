@@ -1660,7 +1660,7 @@
     "apps/sim/lib/workflows/operations/import-export.ts": 1,
     "apps/sim/lib/workflows/persistence/duplicate.ts": 3,
     "apps/sim/lib/workflows/persistence/utils.test.ts": 4,
-    "apps/sim/lib/workflows/persistence/utils.ts": 5,
+    "apps/sim/lib/workflows/persistence/utils.ts": 4,
     "apps/sim/lib/workflows/references/binding-targets.ts": 2,
     "apps/sim/lib/workflows/references/import-plan.ts": 2,
     "apps/sim/lib/workflows/references/manifest.test.ts": 1,
