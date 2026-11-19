@@ -55,7 +55,11 @@ import {
   unreachableReason,
 } from './source-status'
 import { withSourceExitCode } from './source-tree'
-import { readWorkspaceDir, type WorkspaceSubmission } from './workspace-source-dir'
+import {
+  readWorkspaceDir,
+  type WorkspaceSubmission,
+  withUnchangedWorkflowsPruned,
+} from './workspace-source-dir'
 import { ONLY_KINDS_HELP, parseKinds } from './workspace-source-get'
 
 type ApplyData = ApplyWorkspaceSourceResponse['data']
@@ -221,7 +225,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
           workspaceId = target
           let submission = local.submission
           if (!fitsWhole(submission.files)) {
-            submission = await readWorkspaceDir(options.dir, only, target, local.written)
+            submission = withUnchangedWorkflowsPruned(submission, local.written, target)
             note = `More workflow folders than one dry run compares: an unchanged folder's server edits are not checked (\`${PREFIX} get\` shows them).`
           }
           const body: ApplyWorkspaceSourceBody = {

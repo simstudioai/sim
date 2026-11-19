@@ -247,6 +247,35 @@ describe('workspaces source status', () => {
     })
   })
 
+  it('past one dry run, sends an unchanged workflow folder by its base and an edited one whole', async () => {
+    const files: Record<string, string> = { ...GOT }
+    for (let index = 0; index < 100; index++) {
+      const folder = `workflows/w${index}`
+      files[`${folder}/workflow.ts`] = INGEST
+      files[`${folder}/.sim/base.json`] = INGEST_BASE
+    }
+    for (const [path, text] of Object.entries(files)) write(path, text)
+    write(
+      '.sim/written.json',
+      JSON.stringify({
+        version: 1,
+        files: Object.fromEntries(
+          Object.entries(files).map(([path, text]) => [path, digest(text)])
+        ),
+      })
+    )
+    write('workflows/w7/workflow.ts', `${INGEST}// edited\n`)
+    mockRequest.mockResolvedValue(dryRun())
+
+    await run('status')
+
+    const sent = sentFiles()[0]
+    expect(sent['workflows/w7/workflow.ts']).toBe(`${INGEST}// edited\n`)
+    expect(sent['workflows/w8/workflow.ts']).toBeUndefined()
+    expect(sent['workflows/w8/.sim/base.json']).toBe(INGEST_BASE)
+    expect(printed().note).toContain('More workflow folders than one dry run compares')
+  })
+
   it('reports drift when the server changed a resource left alone here, exit 12, and names a get', async () => {
     mockRequest.mockResolvedValue(
       dryRun(
