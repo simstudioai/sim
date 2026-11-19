@@ -1,3 +1,4 @@
+import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -81,7 +82,7 @@ const connection = postgres(databaseUrl, {
   connection: { search_path: schemaName, timezone: 'Pacific/Auckland' },
   onnotice: () => undefined,
 })
-const database = drizzle(connection)
+const database = drizzle(connection, { schema })
 holder.database = database
 
 const HOUR = 60 * 60 * 1000

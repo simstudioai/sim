@@ -446,7 +446,7 @@ async function cleanupWorkflowExecutionLogs(
         if (budget && fileStats.filesDeleteFailed) throw new Error('Log file cleanup failed')
       }
     },
-    ...(markRollup ? { afterDelete: markWorkflowActivityDirty } : {}),
+    afterDelete: markRollup ? (tx, rows) => markWorkflowActivityDirty(tx, rows) : undefined,
     batchSize: WORKFLOW_LOG_CLEANUP_BATCH_SIZE,
     maxBatches: WORKFLOW_LOG_CLEANUP_MAX_BATCHES,
     totalRowLimit: WORKFLOW_LOG_CLEANUP_ROW_LIMIT,

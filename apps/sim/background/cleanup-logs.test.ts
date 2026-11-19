@@ -108,7 +108,8 @@ describe('cleanup logs worker', () => {
       workspaceId: schemaMock.workflowExecutionLogs.workspaceId,
       startedAt: schemaMock.workflowExecutionLogs.startedAt,
     })
-    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
+    // The only raw statement is the one-row probe for whether the activity rollup has run.
+    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
     expect(mockDeleteFiles).toHaveBeenCalledWith(
       ['execution-file-a', 'execution-file-b'],
       'execution'
