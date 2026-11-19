@@ -134,9 +134,30 @@ describe('sim workspaces source check', () => {
     })
   })
 
-  it('refuses without a cached catalog, naming the workspace get that caches one', async () => {
+  it('in a fresh clone (no cached catalog), downloads the catalog once and checks', async () => {
+    const catalog = readFileSync(
+      join(dir, `config/cache/source-catalog/${WORKSPACE_ID}.json`),
+      'utf8'
+    )
     rmSync(join(dir, 'config'), { recursive: true })
     writeFile('workflows/first/workflow.ts', insertWorkflow())
+    contextMockFns.mockRequest.mockResolvedValue({ data: JSON.parse(catalog) })
+
+    await check()
+
+    expect(result()).toMatchObject({ errors: 0, workflows: 1 })
+    expect(contextMockFns.mockRequest).toHaveBeenCalledTimes(1)
+    expect(contextMockFns.mockRequest.mock.calls[0][0]).toBe(
+      `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/catalog`
+    )
+  })
+
+  it('refuses without a cached catalog or credentials, naming the workspace get that caches one', async () => {
+    rmSync(join(dir, 'config'), { recursive: true })
+    writeFile('workflows/first/workflow.ts', insertWorkflow())
+    contextMockFns.mockClientFrom.mockImplementationOnce(() => {
+      throw new Error('Not signed in')
+    })
 
     const error = await check().catch((caught: unknown) => caught)
 

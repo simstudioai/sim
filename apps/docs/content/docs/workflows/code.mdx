@@ -8,8 +8,20 @@ import { Callout } from '@/components/ui/callout'
 Every workflow can be read and written as a TypeScript file. The file and the workflow builder show the same workflow: edit either one and the other follows. Use it to review agent changes as a diff, keep workflows in git, or let a coding agent such as Claude Code build and change them for you.
 
 <Callout type="info">
-Workflows as code is in preview. When it is enabled on your Sim deployment, the workflow builder shows a read-only **Code** tab and the [CLI](/cli) gains the `sim workflows source` commands.
+Workflows as code is in preview. When it is [enabled on your Sim deployment](/platform/self-hosting/environment-variables#preview-features), the workflow builder shows a read-only **Code** tab and the [CLI](/cli) gains the `sim workflows source` commands.
 </Callout>
+
+## For coding agents [#for-coding-agents]
+
+Claude Code, Cursor, Codex and other coding agents work from a directory that `get` writes. Point the agent at `.sim/AGENTS.md` in it, which walks through the loop:
+
+1. `sim workflows source get <workflowId> --dir <dir>` writes the workflow and the guide.
+2. Edit `workflow.ts`.
+3. `sim workflows source check --dir <dir>` compiles it offline.
+4. `sim workflows source status --dir <dir>` shows what changed and what to run next.
+5. `sim workflows source apply --dir <dir> --dry-run`, then `--yes`, saves the draft.
+
+For a whole workspace, use `sim workspaces source` with the same steps; see [Workspace as code](/workflows/workspace-code).
 
 ## What the file holds
 
@@ -189,9 +201,10 @@ In the file, `$ref.block.path` reads another block's output and `$env.NAME` read
 
 Run `sim workflows source apply <workflowId> --dir <dir> --dry-run` in CI to catch a broken workflow before it is saved. It exits `0` when the workflow is valid and `1` when it has errors, so a failing check blocks the merge. It exits `5` when the workflow was changed in the editor after you committed the directory; run `get` again and reapply your edit.
 
-- **Commit** `workflow.ts`, `functions/`, `.sim/lock.json`, `.sim/base.json`, `tsconfig.json` and `.gitattributes`. CI finds the workflow from `workflowId` in `.sim/base.json`.
-- **Gitignore** `.sim/sdk/` (the generated type declarations, thousands of files) and `.sim/written.json` (the CLI's local record of what it last wrote). The CLI does not write a `.gitignore`, so add these two lines yourself.
-- **Credentials:** CI needs `SIM_API_KEY`, and `SIM_WORKSPACE` unless you pass `--workspace`. Set `SIM_ENDPOINT` too if you use a self-hosted Sim.
+- **Commit** `workflow.ts`, `functions/`, `.sim/lock.json`, `.sim/base.json`, `.sim/written.json`, `tsconfig.json` and `.gitattributes`. CI finds the workflow from `workflowId` in `.sim/base.json`, and `status` and `get` use `.sim/written.json` to tell your edits apart from what the CLI last wrote.
+- **Optionally gitignore** `.sim/sdk/`, the generated type declarations (thousands of files); `get` and `check` write them again. A single-workflow directory gets no `.gitignore`, so add the line yourself.
+- **A whole workspace** in one repository, with dry runs on pull requests, apply on merge and promotion from one workspace to another, is covered in [Git and CI](/workflows/workspace-code#git-and-ci) and [Promote to another workspace](/workflows/workspace-code#promote-to-another-workspace).
+- **Credentials:** use a personal API key (**Settings → Sim API keys**, passed as `SIM_API_KEY`) or an OAuth login, not a workspace API key. Saving and dry-running source act as a person, so a workspace key is refused with `403`. Set `SIM_WORKSPACE` unless you pass `--workspace`, and `SIM_ENDPOINT` if you use a self-hosted Sim. See [Authenticating CI](/cli/authentication#authenticating-ci).
 
 ## Working with other people
 

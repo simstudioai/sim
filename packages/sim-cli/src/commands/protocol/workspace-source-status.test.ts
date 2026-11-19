@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { hostname, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -131,6 +131,24 @@ describe('workspaces source status', () => {
       next: null,
     })
     expect(process.exitCode ?? 0).toBe(0)
+  })
+
+  it('waits for no writer: a status while another command holds the directory exits 10, reading nothing', async () => {
+    write('.sim/command.lock/owner.json', JSON.stringify({ pid: process.pid, host: hostname() }))
+    mockRequest.mockResolvedValue(dryRun())
+
+    const busy = await run('status').then(
+      () => null,
+      (error: unknown) => error
+    )
+    const diffed = await run('diff').then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    expect(busy).toMatchObject({ code: 'SOURCE_DIR_BUSY', exitCode: 10 })
+    expect(diffed).toMatchObject({ code: 'SOURCE_DIR_BUSY', exitCode: 10 })
+    expect(mockRequest).not.toHaveBeenCalled()
   })
 
   it('reports an edit, a delete and a new file by resource, exit 11, and names the apply', async () => {

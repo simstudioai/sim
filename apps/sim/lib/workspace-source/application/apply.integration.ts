@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  auditLog,
   folder,
   user,
   userTableDefinitions,
@@ -16,6 +17,7 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
@@ -248,6 +250,43 @@ describe('workspace source apply', () => {
       )
     }
   }
+
+  check(
+    'every audit entry an apply writes carries its apply id, and the next apply has another',
+    async () => {
+      const workspaceId = await newWorkspace()
+
+      const first = await apply(workspaceId, STARTER)
+      const second = await apply(
+        workspaceId,
+        { 'tables/leads.ts': LEADS.replace("'won'", "'won', 'lost'") },
+        { base: first.base, kinds: ['table'] }
+      )
+
+      expect(first.applyId).toEqual(expect.any(String))
+      expect(second.applyId).toEqual(expect.any(String))
+      expect(second.applyId).not.toBe(first.applyId)
+      await vi.waitFor(async () => {
+        const rows = await db
+          .select({ action: auditLog.action, metadata: auditLog.metadata })
+          .from(auditLog)
+          .where(eq(auditLog.workspaceId, workspaceId))
+        const grouped = (applyId: string | undefined) =>
+          rows
+            .filter((row) => isRecordLike(row.metadata) && row.metadata.correlationId === applyId)
+            .map((row) => row.action)
+            .sort()
+        expect(grouped(first.applyId)).toEqual([
+          'table.created',
+          'workflow.created',
+          'workspace.updated',
+        ])
+        expect(grouped(second.applyId)).toEqual(
+          expect.arrayContaining(['table.updated', 'workspace.updated'])
+        )
+      })
+    }
+  )
 
   check('the workflow-code flag off refuses a get, and no key is allocated', async () => {
     const workspaceId = await newWorkspace()

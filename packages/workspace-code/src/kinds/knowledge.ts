@@ -12,7 +12,7 @@
  * ```
  */
 import { compareStrings } from '@sim/utils/string'
-import type { Json } from '@sim/workflow-code'
+import { hasSuspiciousCharacter, type Json } from '@sim/workflow-code'
 import {
   asDeclared,
   booleanField,
@@ -200,7 +200,7 @@ const CHUNKING_FIELDS: DeclFields<KnowledgeChunkingDecl> = {
  * changes, and a changed one is refused outright.
  */
 const KNOWLEDGE_FIELDS: DeclFields<Omit<KnowledgeBaseDecl, 'docs'>> = {
-  name: stringField({ required: true }),
+  name: stringField({ required: true, name: true }),
   description: stringField(
     { maxLength: KNOWLEDGE_DESCRIPTION_MAX_LENGTH },
     (description) => description || null
@@ -211,7 +211,12 @@ const KNOWLEDGE_FIELDS: DeclFields<Omit<KnowledgeBaseDecl, 'docs'>> = {
 }
 
 function fileFinding(
-  code: 'E_KB_DOC_NAME' | 'E_DECL_SHAPE' | 'E_LIMIT_EXCEEDED' | 'E_DECL_UNKNOWN_FILE',
+  code:
+    | 'E_KB_DOC_NAME'
+    | 'E_DECL_SHAPE'
+    | 'E_LIMIT_EXCEEDED'
+    | 'E_DECL_UNKNOWN_FILE'
+    | 'W_DECL_SUSPICIOUS_CHARACTER',
   key: string,
   path: string,
   message: string,
@@ -264,6 +269,17 @@ function readDocs(
         )
       )
     } else {
+      if (hasSuspiciousCharacter(name)) {
+        diagnostics.push(
+          fileFinding(
+            'W_DECL_SUSPICIOUS_CHARACTER',
+            key,
+            blob.path,
+            `${blob.path} holds an invisible bidi control or zero-width character, so it reads differently from its name.`,
+            'Rename it so the document name shows every character it holds.'
+          )
+        )
+      }
       folded.set(foldedFileKey(name), name)
       docs.push([name, { sha256: blob.sha256, size: blob.size }])
     }

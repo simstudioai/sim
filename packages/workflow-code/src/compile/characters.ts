@@ -69,8 +69,13 @@ function significantDigits(decimal: string): string {
   const [mantissa, exponent = '0'] = decimal.toLowerCase().split('e')
   const [whole, fraction = ''] = mantissa.split('.')
   const all = whole + fraction
-  const leadingZeros = all.length - all.replace(/^0+/, '').length
-  const digits = all.slice(leadingZeros).replace(/0+$/, '')
+  let start = 0
+  while (start < all.length && all[start] === '0') start += 1
+  // A backwards scan, not `/0+$/`, which retries from every zero of a long run.
+  let end = all.length
+  while (end > start && all[end - 1] === '0') end -= 1
+  const leadingZeros = start
+  const digits = all.slice(start, end)
   if (!digits) return '0'
   return `${digits}e${whole.length - leadingZeros - 1 + Number(exponent)}`
 }

@@ -615,6 +615,39 @@ describe('workspace source: deployments', () => {
     expect(result.base.resources['deployment:nightly']).toBeUndefined()
   })
 
+  check(
+    'deleting a deployed workflow counts the live triggers that go with it, so the plan says its schedule and webhook URLs end',
+    async () => {
+      const { workspaceId, files, base } = await deployedWorkspace()
+      const kept = NIGHTLY.replace("workflow('Nightly'", "workflow('Kept'")
+      const withKept = await apply(
+        workspaceId,
+        { ...files, 'workflows/kept/workflow.ts': kept },
+        { base }
+      )
+      // The kept workflow carries the same schedule but is never deployed, so it serves nothing.
+      expect(withKept.failed).toBeUndefined()
+      const withoutNightly = Object.fromEntries(
+        Object.entries({ ...files, ...withKept.files }).filter(
+          ([path]) => !path.startsWith('workflows/nightly/') && path !== DEPLOYMENT
+        )
+      )
+
+      const plan = await apply(workspaceId, withoutNightly, {
+        base: withKept.base,
+        allowDelete: true,
+        dryRun: true,
+      })
+
+      expect(
+        plan.plan.find((change) => change.kind === 'workflow' && change.action === 'delete')
+      ).toMatchObject({
+        key: 'nightly',
+        destructive: { what: 'workflow', counts: { schedules: 1 } },
+      })
+    }
+  )
+
   check('refuses a workspace API key and a member below admin, writing nothing', async () => {
     const { workspaceId, id, files, base } = await deployedWorkspace()
     const publicApi = {

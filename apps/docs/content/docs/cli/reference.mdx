@@ -9605,7 +9605,11 @@ sim workspaces source get [options]
 
 </CommandTable>
 
-Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and running the get again downloads only the rest.
+A directory that already holds a .sim/base.json is refreshed from the workspace it was read from, whatever the profile's default workspace.
+
+Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace names another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and running the get again downloads only the rest.
+
+Exit 10 (busy, retry): another sim workspaces source command is using this directory (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
 API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [downloadFile](/api-reference/files/downloadFile), [downloadKnowledgeDocument](/api-reference/knowledge-bases/downloadKnowledgeDocument).
 
@@ -9628,12 +9632,13 @@ sim workspaces source apply [options]
 | `-y, --yes` | No | Apply without asking for confirmation. |
 | `--allow-delete` | No | Delete resources, columns and data the directory no longer declares. |
 | `--only <kinds>` | No | Apply only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
+| `--to <workspaceId>` | No | Promote the directory to another workspace (dev to prod): its resources bind by key to that workspace's own and are updated in place; the directory is not changed. |
 
 </CommandTable>
 
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), or changes were held back because they use a declared secret the workspace has no value for or a declared credential key nothing binds to (the rest was applied: set the secret or connect the credential, then apply again), the directory was read from another workspace than the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed or was deleted on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was written is saved into the directory, and applying again continues. An apply a resource refused part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a minute and apply again (binary files already uploaded are not sent again); 10 another apply is writing the workspace (SOURCE_BUSY): nothing was written, apply again once it finished.
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), or changes were held back because they use a declared secret the workspace has no value for or a declared credential key nothing binds to (the rest was applied: set the secret or connect the credential, then apply again), the directory was read from another workspace than the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose, or --to to promote it), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed or was deleted on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was written is saved into the directory, and applying again continues. An apply a resource refused part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a minute and apply again (binary files already uploaded are not sent again); 10 another apply is writing the workspace (SOURCE_BUSY), or another command is using the directory (SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished.
 
-API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource), [findMissingWorkspaceSourceBlobs](/api-reference/workflows/findMissingWorkspaceSourceBlobs), [stageWorkspaceSourceBlobs](/api-reference/workflows/stageWorkspaceSourceBlobs).
+API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource), [findMissingWorkspaceSourceBlobs](/api-reference/workflows/findMissingWorkspaceSourceBlobs), [stageWorkspaceSourceBlobs](/api-reference/workflows/stageWorkspaceSourceBlobs), [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource).
 
 ### sim workspaces source check
 
@@ -9655,11 +9660,15 @@ sim workspaces source check [options]
 
 </CommandTable>
 
-Compiles every workflows/&lt;key&gt;/workflow.ts (and the function files each names) with the compiler the server runs, against the workspace's block catalog the last get cached, and checks each against what the directory declares: env names (secrets.ts), credential keys (credentials.ts), the keys of its tables, knowledge bases, custom tools, MCP servers and workflows, and the columns and select options of a table row write. No request is made. The dry run still checks what only the server knows (stored values, resource files, deployment), so run it before applying. A check also adds the blocks the workflows now use to the CLI's tsconfig.json, so tsc type-checks a block an edit added.
+Compiles every workflows/&lt;key&gt;/workflow.ts (and the function files each names) with the compiler the server runs, against the workspace's block catalog the last get cached (in a fresh clone with no cache, such as CI, it downloads the catalog once with the profile's credentials), and checks each against what the directory declares: env names (secrets.ts), credential keys (credentials.ts), the keys of its tables, knowledge bases, custom tools, MCP servers and workflows, and the columns and select options of a table row write. No other request is made. The dry run still checks what only the server knows (stored values, resource files, deployment), so run it before applying. A check also adds the blocks the workflows now use to the CLI's tsconfig.json, so tsc type-checks a block an edit added.
 
 Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once). With --output json, stdout is one document that also lists every finding under diagnostics.
 
 These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN. --strict fails on them in every block; --no-strict never fails on a warning.
+
+Exit 10 (busy, retry): another sim workspaces source command is using this directory (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
+
+API request and response schemas: [getSourceCatalog](/api-reference/catalog/getSourceCatalog).
 
 ### sim workspaces source status
 
@@ -9683,6 +9692,8 @@ sim workspaces source status [options]
 </CommandTable>
 
 Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 1 the command failed. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
+
+Exit 10 (busy, retry): another sim workspaces source command is using this directory (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
 API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource).
 
@@ -9717,5 +9728,7 @@ sim workspaces source diff [paths...] [options]
 </CommandTable>
 
 Without --server, each file created, edited or deleted since the directory was read is shown against the text it was read at. The CLI records only each file's digest, so that text is the server's current text where it still matches the digest; a file the server changed since is named instead (compare it with --server). A binary file is shown by its sizes. Paths filter by file or folder (and in a workspace directory by kind:key, such as table:leads). Exit codes: 0 the differences were shown, whether or not there were any; 1 the command failed.
+
+Exit 10 (busy, retry): another sim workspaces source command is using this directory (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
 API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource).

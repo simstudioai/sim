@@ -188,7 +188,7 @@ Most successful actions exit 0; API, configuration, or argument failures exit 1.
 | `7` | The directory is over the size limits (`413`) |
 | `8` | The apply stopped part-way: what was written is saved into the directory; apply again |
 | `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
-| `10` | Another apply is writing the workspace (`409 SOURCE_BUSY`); nothing was written: apply again once it finished |
+| `10` | Busy, retry: another apply is writing the workspace (`409 SOURCE_BUSY`), or another `sim workspaces source` command is using the same directory (`SOURCE_DIR_BUSY`); nothing was written: run the command again once the other finished |
 
 Both waits default to 3600 seconds; `--wait-timeout 0` waits indefinitely. `SIM_TIMEOUT_SECONDS` independently bounds one API request. A timeout does not cancel the underlying run or operation.
 
@@ -346,6 +346,47 @@ case "$status" in
   4) printf 'wait expired; inspect existing run %s before retrying\n' "$run_id" >&2 ;;
 esac
 exit "$status"
+```
+
+## Workspace source in CI
+
+Keep a [workspace source directory](/workflows/workspace-code) in a repository, `.sim/` included, and let CI plan each pull request and apply each merge. The dry run exits `1` on errors and `5` when the workspace changed since the committed base; `check` downloads the block catalog once on a fresh runner.
+
+```yaml title=".github/workflows/sim-workspace.yml"
+on:
+  pull_request:
+    paths: ['workspace/**']
+  push:
+    branches: [main]
+    paths: ['workspace/**']
+
+concurrency: sim-workspace
+
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    env:
+      SIM_API_KEY: ${{ secrets.SIM_API_KEY }}
+      SIM_WORKSPACE: ${{ vars.SIM_WORKSPACE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: oven-sh/setup-bun@v2
+      - run: bun add -g sim
+      - run: sim workspaces source check --dir workspace
+      - run: sim workspaces source apply --dir workspace --dry-run
+      - if: github.event_name == 'push'
+        run: sim workspaces source apply --dir workspace --yes
+```
+
+A workspace API key can apply tables, rows, knowledge bases, files, custom tools and MCP servers. Workflows, skills, secrets, credentials and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory: commit them back, or run `sim workspaces source get --dir workspace` on a branch and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
+
+To promote the same directory to a second workspace, add a step with `--to`:
+
+```bash
+sim workspaces source apply --dir workspace --to "$PROD_WORKSPACE_ID" --yes
 ```
 
 ## Related docs

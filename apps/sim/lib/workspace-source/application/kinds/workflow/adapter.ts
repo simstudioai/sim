@@ -78,6 +78,7 @@ import {
   serverGoneFinding,
 } from '@/lib/workspace-source/application/findings'
 import { bindStored, claimKey, listUpTo } from '@/lib/workspace-source/application/keys'
+import { liveTriggerCounts } from '@/lib/workspace-source/application/kinds/deployment/triggers'
 import type {
   KindAdapter,
   PlanContext,
@@ -763,6 +764,9 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
     // one (or one in a locked folder) is refused here, as the delete would refuse it mid-apply.
     const fingerprints = new Map<string, string>()
     const locks = new Map<string, string>()
+    // A delete counts the live triggers its workflow serves: their webhook URLs and schedules go
+    // with it, and a workflow created in its place gets new ones.
+    const triggers = new Map<string, Record<string, number>>()
     if (ctx.allowDelete) {
       const claimed = new Set(changes.map((change) => change.storedId))
       const candidates = [...stored.bound].filter(
@@ -776,6 +780,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
         if (locked) locks.set(workflow.id, locked)
         try {
           fingerprints.set(workflow.id, await currentFingerprint(ctx, workflow.id))
+          triggers.set(workflow.id, await liveTriggerCounts(ctx, workflow.id))
         } catch (error) {
           logger.warn('Could not read a workflow to fingerprint its delete', {
             workflowId: workflow.id,
@@ -794,6 +799,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
           declared: changes,
           fingerprint: (workflow) => fingerprints.get(workflow.id) ?? '',
           locked: (workflow) => locks.get(workflow.id),
+          counts: (workflow) => triggers.get(workflow.id) ?? {},
         }
       )
     )

@@ -1,14 +1,12 @@
 /**
  * `sim workflows source status` and `sim workflows source diff`: what changed in one workflow's
  * source directory since it was read, on either side, without applying anything. Local changes
- * come from the file digests `.sim/written.json` records (the workspace directory's record for a
- * `workflows/<key>` folder that has none of its own); the server's from a dry run of the
+ * come from the file digests `.sim/written.json` records (for a `workflows/<key>` folder, the
+ * workspace directory's record: `readFolderWritten`); the server's from a dry run of the
  * directory, whose `E_APPLY_STALE` says the workflow changed since the base.
  */
-import { basename, resolve } from 'node:path'
 import { compareStrings } from '@sim/utils/string'
 import { SOURCE_CODE_DIR, SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
-import { KIND_DIRS } from '@sim/workspace-code'
 import {
   type ChangedFile,
   changedFiles,
@@ -23,7 +21,13 @@ import { setSoftExitCode } from '../../embed-context'
 import type { ApplyWorkflowSourceResponse, GetWorkflowSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
-import { digest, listSourceFiles, readSourceText, readWritten, type Written } from './source-dir'
+import {
+  digest,
+  listSourceFiles,
+  readFolderWritten,
+  readSourceText,
+  type Written,
+} from './source-dir'
 import {
   baseUnavailable,
   DIFF_HELP,
@@ -41,33 +45,10 @@ import {
   unreachableReason,
 } from './source-status'
 import { readBase, readLock, readSourceFiles } from './workflow-source-apply'
-import { workspaceRootOf } from './workflow-source-check'
 
 type ApplyData = ApplyWorkflowSourceResponse['data']
 
 const PREFIX = 'sim workflows source'
-
-/**
- * What the CLI last wrote into the directory: its own `.sim/written.json`, or for a
- * `workflows/<key>` folder of a workspace directory without one, the workspace record's entries
- * for the folder (its `.sim/` records left out).
- */
-async function readWorkflowWritten(dir: string): Promise<Written> {
-  const own = await readWritten(dir)
-  if (Object.keys(own.digests).length > 0) return own
-  const workspace = await workspaceRootOf(dir)
-  if (!workspace) return own
-  const prefix = `${KIND_DIRS.workflow}/${basename(resolve(dir))}/`
-  const record = await readWritten(workspace.root)
-  const inFolder = <T>(entries: Record<string, T>) =>
-    Object.fromEntries(
-      Object.entries(entries).flatMap(([path, value]) => {
-        const relative = path.startsWith(prefix) ? path.slice(prefix.length) : null
-        return relative !== null && !relative.startsWith('.sim/') ? [[relative, value]] : []
-      })
-    )
-  return { digests: inFolder(record.digests), stats: inFolder(record.stats) }
-}
 
 /** The workflow directory as a status reads it, once. */
 interface LocalWorkflow {
@@ -82,7 +63,7 @@ interface LocalWorkflow {
 async function readLocalWorkflow(dir: string): Promise<LocalWorkflow> {
   const base = await readBase(dir, undefined)
   const { workflowId } = base
-  const written = await readWorkflowWritten(dir)
+  const written = await readFolderWritten(dir)
   const paths = [
     SOURCE_ENTRY_FILE,
     ...(await listSourceFiles(dir, SOURCE_CODE_DIR)).filter(

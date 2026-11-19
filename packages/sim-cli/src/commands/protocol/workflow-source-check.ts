@@ -1,4 +1,3 @@
-import { basename, dirname, resolve } from 'node:path'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   type BlockCatalog,
@@ -17,7 +16,7 @@ import { profileFrom } from '../../context'
 import { setSoftExitCode } from '../../embed-context'
 import { SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
-import { readSourceJson, readSourceText } from './source-dir'
+import { readSourceJson, readSourceText, workspaceFolderOf } from './source-dir'
 import { cachedCatalog, refreshTsconfigs } from './source-tree'
 import { printNewDiagnostics, resultDiagnostics } from './source-ui'
 import { readSourceFiles } from './workflow-source-apply'
@@ -104,15 +103,9 @@ ${STRICT_HELP}`
  * The workspace directory a workflow folder `dir` sits in (`<root>/workflows/<key>`, with a
  * workspace `.sim/base.json` at the root), or `null`.
  */
-export async function workspaceRootOf(
-  dir: string
-): Promise<{ root: string; workspaceId: string } | null> {
-  const folder = resolve(dir)
-  if (basename(dirname(folder)) !== KIND_DIRS.workflow) return null
-  const root = dirname(dirname(folder))
-  const base = toRecord(await readSourceJson(root, SOURCE_BASE_FILE))
-  if (typeof base.workspaceId !== 'string' || base.workflowId !== undefined) return null
-  return { root, workspaceId: base.workspaceId }
+async function workspaceRootOf(dir: string): Promise<{ root: string; workspaceId: string } | null> {
+  const folder = await workspaceFolderOf(dir)
+  return folder && { root: folder.root, workspaceId: folder.workspaceId }
 }
 
 /** Every workflow key of the workspace directory `root` that has a `workflow.ts`. */

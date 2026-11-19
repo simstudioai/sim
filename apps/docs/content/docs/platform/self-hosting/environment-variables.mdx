@@ -195,6 +195,12 @@ Who may sign up and sign in — the allowlists, blocklists, `DISABLE_REGISTRATIO
 
 Plain JavaScript without imports runs in isolated-vm within Node child workers in the app container. Python, Shell, imported JavaScript, sandbox/file-path execution, and Pi require the corresponding remote provider and image configuration. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and [Security](/platform/self-hosting/security) for the isolation comparison.
 
+## Preview features
+
+| Variable | Description |
+|----------|-------------|
+| `WORKFLOW_CODE` | Set to `true` to enable [workflows as code](/workflows/code) and [workspace as code](/workflows/workspace-code): the read-only **Code** tab in the workflow builder, and the source API and MCP operations that the `sim workflows source` and `sim workspaces source` CLI commands call. Off when unset; while off, those operations answer `403` |
+
 ## Chat and PII [#chat--pii]
 
 | Variable | Description |

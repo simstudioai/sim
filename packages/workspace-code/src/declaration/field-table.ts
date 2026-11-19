@@ -14,6 +14,7 @@ import {
   readFolderField,
   readObject,
   readStringField,
+  type StringFieldOptions,
 } from './fields'
 
 /**
@@ -95,7 +96,7 @@ export function asDeclared<V extends Json>(value: V | undefined): V | undefined 
 
 /** A string field, printed as declared and fingerprinted by `canonical` (as declared by default). */
 export function stringField(
-  options: { required?: boolean; maxLength?: number } = {},
+  options: StringFieldOptions = {},
   canonical: CanonicalRule<string | undefined> | null = asDeclared
 ): DeclField<string | undefined> {
   return {

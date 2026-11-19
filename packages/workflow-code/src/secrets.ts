@@ -50,7 +50,8 @@ const TOKEN_PATTERNS: readonly RegExp[] = [
   /\bhf_[A-Za-z0-9]{30,}/,
   /\bnpm_[A-Za-z0-9]{36}/,
   /\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/,
-  /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,
+  // Starts only where a run of token characters starts, so a long run of `-eyJ` is scanned once.
+  /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,
   /-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----/,
   /\bBearer\s+[A-Za-z0-9._~+/=-]{16,}/,
 ]

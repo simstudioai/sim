@@ -313,7 +313,7 @@ const authField: DeclField<McpAuthDecl | undefined> = {
 
 /** The fields of `mcp/<key>.ts`, in print order. */
 const MCP_FIELDS: DeclFields<McpServerDecl> = {
-  name: stringField(),
+  name: stringField({ name: true }),
   description: stringField({}, (description) => description || null),
   url: urlField,
   transport: transportField,

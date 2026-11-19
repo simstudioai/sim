@@ -51,7 +51,6 @@ import {
 } from '@/lib/workflows/application/deployments'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { listWorkflowTriggers } from '@/lib/workflows/application/triggers'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
 import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import { kindFinding, planUndeclared, where } from '@/lib/workspace-source/application/findings'
@@ -63,6 +62,10 @@ import {
   type StoredDeployment,
   storedFingerprint,
 } from '@/lib/workspace-source/application/kinds/deployment/stored'
+import {
+  liveTriggerCounts,
+  oneTrigger,
+} from '@/lib/workspace-source/application/kinds/deployment/triggers'
 import {
   holdsIn,
   type PartFingerprints,
@@ -621,46 +624,24 @@ async function resolveChat(
   }
 }
 
-type TriggerKind = Awaited<
-  ReturnType<typeof listWorkflowTriggers.execute>
->['triggers'][number]['kind']
-
-/** How an undeploy message names each kind of live trigger: one, then many (the count's key). */
-const TRIGGER_NOUNS: Record<TriggerKind, readonly [one: string, many: string]> = {
-  schedule: ['schedule', 'schedules'],
-  webhook: ['webhook', 'webhooks'],
-  polling: ['polling trigger', 'polling triggers'],
-  event: ['event trigger', 'event triggers'],
-}
-
 /** What undeploying a workflow stops: its API, chat and live triggers, counted by kind. */
 async function stopsOnUndeploy(
   ctx: SourceContext,
   workflowId: string,
   state: StoredDeployment
 ): Promise<Record<string, number>> {
-  const { triggers } = await listWorkflowTriggers.execute({
-    principal: ctx.principal,
-    input: { workflowId },
-  })
-  const counts: Record<string, number> = { api: 1, ...(state.chat ? { chat: 1 } : {}) }
-  for (const { kind } of triggers) {
-    const [, many] = TRIGGER_NOUNS[kind]
-    counts[many] = (counts[many] ?? 0) + 1
+  return {
+    api: 1,
+    ...(state.chat ? { chat: 1 } : {}),
+    ...(await liveTriggerCounts(ctx, workflowId)),
   }
-  return counts
 }
-
-/** The single noun of a count key {@link stopsOnUndeploy} wrote in the plural. */
-const ONE_TRIGGER: ReadonlyMap<string, string> = new Map(
-  Object.values(TRIGGER_NOUNS).map(([one, many]) => [many, one])
-)
 
 function describeStops(counts: Record<string, number>): string {
   return Object.entries(counts)
     .map(([what, count]) => {
       if (what === 'api' || what === 'chat') return `its ${what}`
-      return `${count} ${count === 1 ? (ONE_TRIGGER.get(what) ?? what) : what}`
+      return `${count} ${count === 1 ? oneTrigger(what) : what}`
     })
     .join(', ')
 }

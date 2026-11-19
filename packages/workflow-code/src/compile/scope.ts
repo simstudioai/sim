@@ -13,7 +13,7 @@ import { encodeAnchor } from '../anchors'
 import { literalText } from '../babel'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import { type BlockKey, isLoopType, isParallelType, LOOP_TYPES, PARALLEL_TYPES } from '../model'
-import { isSuspiciousCharacter } from '../print/strings'
+import { hasSuspiciousCharacter } from '../print/strings'
 import { GENERIC_BUILDER } from '../sdk'
 import type { ListOptions } from './comments'
 import {
@@ -221,6 +221,51 @@ function keyOverride(
   )
 }
 
+/**
+ * `W_SUSPICIOUS_CHARACTER` when `name` (a block's or the workflow's) holds a character that
+ * reorders or hides text, so the name reads differently from what it stores.
+ */
+export function checkSuspiciousName(
+  ctx: CompileContext,
+  name: string,
+  node: Node,
+  owner: 'block' | 'workflow'
+): void {
+  if (!hasSuspiciousCharacter(name)) return
+  ctx.reporter.report(
+    'W_SUSPICIOUS_CHARACTER',
+    `This ${owner} name holds an invisible bidi control or zero-width character.`,
+    rangeOf(ctx, node),
+    { hint: 'Remove it, or write it as an escape (\\u202E) so reviewers can see it.' }
+  )
+}
+
+/**
+ * Refuses a block whose key equals another's once both are NFC-normalized (`café` written
+ * precomposed and decomposed): the runtime binds keys by their bytes, so the two are distinct
+ * blocks no reader can tell apart. A pair the stored workflow already holds only warns, so it
+ * round-trips. The comparison form is never stored: each key stays as written.
+ */
+function checkLookalikeName(ctx: CompileContext, decl: BlockDecl): void {
+  const folded = decl.key.normalize('NFC')
+  const first = ctx.declsByLookalike.get(folded)
+  if (!first) {
+    ctx.declsByLookalike.set(folded, decl)
+    return
+  }
+  if (first.key === decl.key) return
+  const stored = ctx.knownKeys.has(first.key) && ctx.knownKeys.has(decl.key)
+  ctx.reporter.report(
+    stored ? 'W_LOOKALIKE_NAME' : 'E_LOOKALIKE_NAME',
+    `${decl.name} looks the same as ${first.name} but is spelled with different Unicode characters, so they are two blocks.`,
+    rangeOf(ctx, decl.nameNode),
+    {
+      hint: 'Rename one of them; retype the accented letters so both spell them the same way.',
+      related: [{ at: rangeOf(ctx, first.nameNode), message: `${first.name} is declared here.` }],
+    }
+  )
+}
+
 /** Registers one block declaration, checking its name. */
 function declare(
   ctx: CompileContext,
@@ -249,14 +294,7 @@ function declare(
     })
     return null
   }
-  if ([...name].some((char) => isSuspiciousCharacter(char.charCodeAt(0)))) {
-    ctx.reporter.report(
-      'W_SUSPICIOUS_CHARACTER',
-      'This block name holds an invisible bidi control or zero-width character.',
-      rangeOf(ctx, nameNode),
-      { hint: 'Remove it, or write it as an escape (\\u202E) so reviewers can see it.' }
-    )
-  }
+  checkSuspiciousName(ctx, name, nameNode, 'block')
   const metaIndex = classified.builder.kind === 'container' ? 3 : nameIndex + 2
   const override = keyOverride(ctx, call.arguments[metaIndex], normalized)
   const key = override?.key ?? normalized
@@ -299,6 +337,7 @@ function declare(
     )
   } else {
     ctx.declsByKey.set(key, decl)
+    checkLookalikeName(ctx, decl)
   }
   ctx.decls.push(decl)
   if (binding) {

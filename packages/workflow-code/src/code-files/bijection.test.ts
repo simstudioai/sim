@@ -230,3 +230,35 @@ describe('code with carriage returns', () => {
     expect(result.state.blocks.f1?.subBlocks.code?.value).toBe(CRLF_CODE)
   })
 })
+
+describe('code file paths', () => {
+  /** The folded spellings of `paths`: what a case-insensitive disk would hold them as. */
+  const folded = (paths: string[]) => paths.map((path) => path.normalize('NFC').toLowerCase())
+
+  it.each([
+    ['the new block first', ['Fetch', 'Fetch data']],
+    ['the hinted block first', ['Fetch data', 'Fetch']],
+  ])('never prints two code files one case-insensitive disk holds as one: %s', (_label, order) => {
+    const blocks = order.map((name, index) =>
+      blockState(`f${index}`, 'function', name, {
+        language: 'javascript',
+        code: `return ${index}`,
+      })
+    )
+    const stored = canonical(workflowState(blocks)).workflow
+    const hinted = 'functions/Fetch.js'
+    const print = () =>
+      printWorkflow({
+        workflow: stored,
+        catalog: CATALOG,
+        hints: { blocks: { fetchdata: { codeFile: hinted } } },
+        options: { functionCode: 'files' },
+      })
+    const paths = print()
+      .files.slice(1)
+      .map((file) => file.path)
+    expect(new Set(folded(paths)).size).toBe(paths.length)
+    expect(print().hints.blocks.fetchdata?.codeFile).toBe(hinted)
+    expect(print()).toEqual(print())
+  })
+})

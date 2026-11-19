@@ -71,7 +71,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
     resourceKind: 'custom-tool',
     typeChecked: [`${KIND_DIRS['custom-tool']}/*.ts`],
     manifestKey: 'customTools',
-    guide: `\`${KIND_DIRS['custom-tool']}/<key>.ts\` (\`defineTool({ title, schema, code: codeFile('./<key>.js') })\`) and its code in \`${KIND_DIRS['custom-tool']}/<key>.js\`, where each schema parameter is a variable. A workflow: \`customTool('<key>')\`.`,
+    guide: `\`${KIND_DIRS['custom-tool']}/<key>.ts\` (\`defineTool({ title, schema, code: codeFile('./<key>.js') })\`) and its code in \`${KIND_DIRS['custom-tool']}/<key>.js\`, where each schema parameter is a variable. Code holding a literal credential prints as \`code: stored()\`, which keeps the stored code. A workflow: \`customTool('<key>')\`.`,
   },
   skill: {
     noun: 'skill',

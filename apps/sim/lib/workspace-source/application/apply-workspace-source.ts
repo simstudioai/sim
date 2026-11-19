@@ -1,6 +1,7 @@
-import { AuditAction, AuditResourceType } from '@sim/audit'
+import { AuditAction, AuditResourceType, withAuditCorrelation } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import {
   APPLY_ORDER,
   type FlatDiagnostic,
@@ -35,6 +36,7 @@ import type {
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
 import {
+  type ApplyLease,
   acquireApplyLease,
   isApplyLeaseLost,
   WorkspaceSourceBusyError,
@@ -78,6 +80,11 @@ export interface ApplyWorkspaceSourceResult {
    * client stages exactly those; an apply with any is refused (`E_BLOB_MISSING`).
    */
   needBlobs: string[]
+  /**
+   * The id of an apply that writes (absent on a dry run): every audit entry its writes record
+   * carries it as `metadata.correlationId`, as does the apply's own roll-up.
+   */
+  applyId?: string
   /** Files reprinted from what was stored, for every resource written. */
   files: Record<string, string>
   /** The base after this apply: the next apply's `base`. */
@@ -257,24 +264,12 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       }
       throw error
     })
+    const applyId = generateId()
+    result.applyId = applyId
     try {
-      for (const change of writeOrder(plan.changes)) {
-        try {
-          await lease.confirm()
-          const written = await write(change, writeCtx)
-          const address = resourceAddress(change.kind, change.key)
-          if (written.base) base.resources[address] = written.base
-          else delete base.resources[address]
-          Object.assign(result.files, written.text)
-          result.diagnostics.push(...(written.diagnostics ?? []))
-          result.applied.push(summarize(change, written.id))
-        } catch (error) {
-          const failure = failureOf(error, change)
-          result.failed = failure.failed
-          result.diagnostics.push(...failure.diagnostics)
-          break
-        }
-      }
+      await withAuditCorrelation(applyId, () =>
+        writeAll(plan.changes, writeCtx, lease, base, result)
+      )
     } finally {
       await lease.release()
     }
@@ -282,6 +277,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     recordWorkspaceSourceApplied(facts, plan.changes, result)
     logger.info('Applied workspace source', {
       workspaceId: context.workspaceId,
+      applyId,
       applied: result.applied.length,
       failed: result.failed !== undefined,
     })
@@ -296,6 +292,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
           description: `Applied workspace source: ${result.applied.length} change(s)${result.failed ? `, stopped at ${result.failed.kind} ${result.failed.key}` : ''}`,
           metadata: {
             op: 'apply_workspace_source',
+            ...(result.applyId ? { correlationId: result.applyId } : {}),
             changes: result.applied.map(({ kind, key, action }) => `${action} ${kind}:${key}`),
             ...(result.failed ? { failed: `${result.failed.kind}:${result.failed.key}` } : {}),
             ...(input.provenance ? { client: input.provenance.client } : {}),
@@ -305,3 +302,33 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         }
       : [],
 })
+
+/**
+ * Writes the plan's changes in write order under `lease`, recording each into `base` and
+ * `result`; the first failure stops it and is reported as `result.failed`.
+ */
+async function writeAll(
+  changes: PlannedChange[],
+  writeCtx: ApplyContext,
+  lease: Pick<ApplyLease, 'confirm'>,
+  base: WorkspaceBaseV1,
+  result: ApplyWorkspaceSourceResult
+): Promise<void> {
+  for (const change of writeOrder(changes)) {
+    try {
+      await lease.confirm()
+      const written = await write(change, writeCtx)
+      const address = resourceAddress(change.kind, change.key)
+      if (written.base) base.resources[address] = written.base
+      else delete base.resources[address]
+      Object.assign(result.files, written.text)
+      result.diagnostics.push(...(written.diagnostics ?? []))
+      result.applied.push(summarize(change, written.id))
+    } catch (error) {
+      const failure = failureOf(error, change)
+      result.failed = failure.failed
+      result.diagnostics.push(...failure.diagnostics)
+      break
+    }
+  }
+}

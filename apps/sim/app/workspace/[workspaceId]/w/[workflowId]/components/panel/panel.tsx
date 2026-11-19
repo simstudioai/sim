@@ -21,7 +21,7 @@ import {
   Trash,
   toast,
 } from '@sim/emcn'
-import { BubbleChatDelay, Download, Lock, Plus, Unlock, X } from '@sim/emcn/icons'
+import { BubbleChatDelay, Code as CodeIcon, Download, Lock, Plus, Unlock, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
@@ -82,6 +82,7 @@ import {
 } from '@/hooks/queries/copilot-chats'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
+import { fetchWorkflowSourceText } from '@/hooks/queries/workflow-source'
 import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -689,6 +690,24 @@ export const Panel = memo(function Panel() {
     }
   }, [currentWorkflow, activeWorkflowId, downloadFile])
 
+  /** Downloads the draft as the TypeScript the Code tab shows, with function code inline. */
+  const handleDownloadSource = useCallback(async () => {
+    if (!currentWorkflow || !activeWorkflowId) return
+
+    setIsExporting(true)
+    try {
+      const source = await fetchWorkflowSourceText(queryClient, activeWorkflowId)
+      const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.ts`
+      downloadFile(source, filename, 'text/typescript')
+    } catch (error) {
+      logger.error('Failed to download workflow source', { error })
+      toast.error("Couldn't download the code")
+    } finally {
+      setIsExporting(false)
+      setIsMenuOpen(false)
+    }
+  }, [currentWorkflow, activeWorkflowId, queryClient, downloadFile])
+
   /**
    * Handles duplicating the current workflow
    */
@@ -885,6 +904,15 @@ export const Panel = memo(function Panel() {
                     <Download />
                     Export workflow
                   </DropdownMenuItem>
+                  {isCodeTabAvailable && (
+                    <DropdownMenuItem
+                      onSelect={handleDownloadSource}
+                      disabled={isExporting || !currentWorkflow}
+                    >
+                      <CodeIcon />
+                      Download as code
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     onSelect={handleDuplicateWorkflow}
                     disabled={!userPermissions.canEdit || isDuplicating}
@@ -1138,7 +1166,10 @@ export const Panel = memo(function Panel() {
                 className={_hasHydrated && activeTab === 'code' ? 'h-full' : 'hidden'}
                 data-tab-content='code'
               >
-                <Code isActive={_hasHydrated && activeTab === 'code'} />
+                <Code
+                  isActive={_hasHydrated && activeTab === 'code'}
+                  workflowName={currentWorkflow?.name}
+                />
               </div>
             )}
           </div>
