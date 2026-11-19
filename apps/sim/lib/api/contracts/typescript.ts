@@ -83,6 +83,7 @@ function toTypeScript(schema: JsonSchema, indent: number, refs?: Map<string, str
       const keys = Object.keys(properties)
 
       if (keys.length === 0) {
+        if (schema.additionalProperties === false) return 'Record<string, never>'
         const value = isRecordLike(schema.additionalProperties)
           ? toTypeScript(schema.additionalProperties, indent, refs)
           : 'unknown'
