@@ -74,7 +74,7 @@ This directory is a Sim workflow written as TypeScript. The server compiles \`${
 ## Start here
 
 1. Read the examples in \`${SOURCE_EXAMPLES_DIR}/\` before writing: \`cookbook.ts\` (agent with structured output, condition, function, table query and insert, knowledge search, Slack, human in the loop, loop, response), \`integrations.ts\` (webhook trigger, weekday cron schedule, HTTP request with headers, table update by row id, Gmail, an error path) and \`agents.ts\` (router, agent tools: custom tool, MCP tool, integration operation, child workflow; run a child workflow; parallel). Their resource keys are examples; this workspace's are in \`${WORKSPACE_TYPES_FILE}\`.
-2. For any other block, find its builder in \`${SDK_DIR}/${SDK_GUIDE_FILE}\` (one line per builder: \`grep -i "gmail" ${SDK_DIR}/${SDK_GUIDE_FILE}\`). It names the builder, the file and the params type; read just that type: \`grep -n -A40 "export type GmailSendEmailParams" ${SDK_DIR}/blocks/gmail_v2.d.ts\`. Builders are named for the service, not the block type: \`gmail_v2\` is \`gmail.*\`, \`workflow_input\` is \`runWorkflow\`, and \`legacy.*\` builders are old versions not to write.
+2. For any other block, find its builder in \`${SDK_DIR}/${SDK_GUIDE_FILE}\` (one line per builder: \`grep -i "gmail" ${SDK_DIR}/${SDK_GUIDE_FILE}\`). It names the builder, the file and the params type; read just that type: \`grep -n -A40 "export type GmailSendEmailParams" ${SDK_DIR}/blocks/gmail_v2.d.ts\`. Builders are named for the service, not the block type: \`gmail_v2\` is \`gmail.*\`, \`workflow_input\` is \`runWorkflow\`, the HTTP request block is \`api\`, and \`legacy.*\` builders are old versions not to write.
 3. Do not read \`${SDK_DIR}/blocks/*.d.ts\` or \`${SDK_DIR}/models.d.ts\` whole: they are large. \`grep\` them for a type or a model id.
 
 ## Edit loop (run from this directory)
@@ -90,7 +90,7 @@ An apply that deletes blocks (a declaration removed from \`${SOURCE_ENTRY_FILE}\
 
 Lines starting \`note:\` explain something the write did differently than the source says; read them.
 
-A new workflow: \`sim workflows source create --dir <new dir>\` (without \`--dry-run\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, these types, \`tsconfig.json\` and this guide, and creates nothing. Edit the starter, then run \`sim workflows source create --dir <dir> --yes\`: it prints the new workflow id and writes the lock files. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`. To fork a workflow, copy its directory, delete the copy's \`.sim/\` and run \`sim workflows source create --dir <copy> --name <new name> --yes\`.
+A new workflow: \`sim workflows source create --dir <new dir>\` (without \`--dry-run\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, these types, \`tsconfig.json\` and this guide, and creates nothing. Until the workflow exists there is no \`${SOURCE_BASE_FILE}\`, so \`status\`, \`diff\` and \`apply\` refuse the directory: edit the starter, run step 2 and 3, then \`sim workflows source create --dir <dir> --dry-run\` and \`sim workflows source create --dir <dir> --yes\`: it prints the new workflow id and writes the lock files. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`. To fork a workflow, copy its directory, delete the copy's \`.sim/\` and run \`sim workflows source create --dir <copy> --name <new name> --yes\`.
 
 ## File shape
 
@@ -117,12 +117,13 @@ The \`// @sim-sdk 1\` header must be the first line, and the file has exactly on
 
 ## Diagnostics and exit codes
 
-Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. Exit 0 applied, 1 source errors (or a name another workflow holds), 5 stale, 6 workflow locked, 7 source too large (on a get too), 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, so wait a minute and run the same command again.
+Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. \`check\` prints the \`W_*\` codes step 2 lists as \`error\` on a block you added, since they fail it there; the apply still saves them as warnings. Exit 0 applied, 1 source errors (or a name another workflow holds), 5 stale, 6 workflow locked, 7 source too large (on a get too), 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, so wait a minute and run the same command again.
 
 ## Rules
 
 - Beside the header and the imports from \`@sim/workflow-sdk\`, the file holds only the default-exported workflow. Its callback holds block declarations (\`const x = builder('Name', params)\`) and wiring (\`x.to(y)\`). Helpers, loops, conditionals and other imports have no stored form, so the compiler refuses them: use \`loop.forEach\`, \`condition\` and \`runWorkflow\` blocks instead.
 - Logic that does not fit a block goes in a function block with \`code: codeFile('./functions/name.js')\`; in JavaScript read outputs as \`$ref.blockKey.path\` (the block's key: its name lowercased with every whitespace run and every \`.\` removed, so "Triage Agent" is \`triageagent\`; not its variable) and env vars as \`$env.NAME\`.
+- Hosted Sim supplies an agent's model key. On self-hosted Sim the agent needs \`apiKey: env.NAME\` (a secret the workspace holds); without it \`check\` reports \`W_REQUIRED_MISSING: apiKey is required\`.
 - A table block's row is \`{ id, data }\`: read a cell as \`row.data.column\` (in a loop over \`query.rows\`, \`p.currentItem.data.column\`).
 - Keep \`${SOURCE_LOCK_FILE}\` and \`${SOURCE_BASE_FILE}\` as written: they bind each block to its stored id and make the next apply safe.
 

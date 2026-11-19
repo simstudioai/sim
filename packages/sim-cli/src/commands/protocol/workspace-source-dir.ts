@@ -104,7 +104,7 @@ const WORKSPACE_EXAMPLES_DIR = '.sim/examples/workspace'
 
 const AGENTS_GUIDE = `# Sim workspace source
 
-This directory is a Sim workspace written as files. The server reads every file statically; nothing in it runs. The workspace id is \`workspaceId\` in \`${WORKSPACE_BASE_FILE}\`. \`${WORKSPACE_EXAMPLES_DIR}/\` holds one correct example of each kind and a workflow using them: copy from it.
+This directory is a Sim workspace written as files. The server reads every file statically; nothing in it runs. The workspace id is \`workspaceId\` in \`${WORKSPACE_BASE_FILE}\`. \`${WORKSPACE_EXAMPLES_DIR}/\` holds one correct example of each kind and a workflow using them, and \`.sim/examples/*.ts\` one workflow example of each common block (agent with structured output, condition, HTTP request, child workflow, Slack, loop, …): copy from them. Find any other builder in \`${SOURCE_SDK_DIR}/${SDK_GUIDE_FILE}\`.
 
 ## Layout
 
@@ -138,14 +138,14 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 ## Git and CI
 
 - Commit the whole directory, \`.sim/\` included: \`${WORKSPACE_BASE_FILE}\`, each workflow's \`.sim/\` and \`.sim/written.json\` are what a later apply compares with, from any clone. The generated \`.gitignore\` leaves out only what a command keeps while it runs (\`.sim/downloads/\`, \`.sim/command.lock/\`, \`.sim-staging-*\`), and \`.gitattributes\` keeps workspace files and documents byte for byte.
-- A fresh clone runs \`check\` (it downloads the block catalog once when none is cached), \`apply --dry-run\` and \`apply --yes\` with only the committed files. A workspace API key may apply tables, rows, knowledge bases, files, custom tools and MCP servers; workflows, skills, secrets, credentials and deployments need a member's personal API key (deployments an admin's).
+- A fresh clone runs \`check\` (it downloads the block catalog once when none is cached), \`apply --dry-run\` and \`apply --yes\` with only the committed files. A workspace API key may apply tables, rows, knowledge bases, files, custom tools, MCP servers and credential bindings; workflows, skills, secrets and deployments need a member's personal API key (deployments an admin's).
 - Plan on every pull request (\`apply --dry-run\`), apply on merge, and commit the files the apply rewrote. Two branches that each applied: merge them, then run the dry run. No changes means the merged files match the workspace. Exit 5 means a resource changed since the base this branch holds: \`sim workspaces source get --dir <fresh dir>\`, carry the edit over, and apply from there.
 - \`sim workspaces source get --dir .\` refreshes the workspace \`${WORKSPACE_BASE_FILE}\` names, whatever the profile's default; a \`--workspace\` naming another is refused.
 - One command at a time per directory: a second \`get\`, \`apply\` or \`check\` on the same directory exits 10 while the first runs.
 
 ## Promote to another workspace
 
-\`sim workspaces source apply --dir . --to <workspaceId> --dry-run\`, then \`--yes\`: applies this directory to another workspace (dev to prod). Each resource binds by key to the target's own: one the target holds under the same key is updated in place (a workflow keeps its id and block ids, so its webhook URLs), a key it lacks is created (or adopts a resource of the same name), and a change made in the target since is refused as stale (exit 5). Secrets and credentials bind by name and key to the target's own; no value is copied. The target's resources this directory does not declare are kept with a warning, or deleted with \`--allow-delete\`. This directory is not changed and stays bound to the workspace it was read from. Without \`--to\`, an apply refuses a directory read from another workspace (\`SOURCE_OTHER_WORKSPACE\`).
+\`sim workspaces source apply --dir . --to <workspaceId> --dry-run\`, then \`--yes\`: applies this directory to another workspace (dev to prod). Each resource binds by key to the target's own: one the target holds under the same key is updated in place (a workflow keeps its id and block ids, so its webhook URLs), a key it lacks is created (or adopts a resource of the same name), and a change made in the target since is refused as stale (exit 5). Secrets and credentials bind by name and key to the target's own; no value is copied. The target's resources this directory does not declare are kept with a warning, or deleted with \`--allow-delete\`. Before the first promote, set the target's secrets (\`sim secrets set NAME --scope workspace -w <workspaceId>\`) and connect its credentials, or the workflows using them are held back. This directory is not changed and stays bound to the workspace it was read from. Without \`--to\`, an apply refuses a directory read from another workspace (\`SOURCE_OTHER_WORKSPACE\`).
 
 ## Good to know
 

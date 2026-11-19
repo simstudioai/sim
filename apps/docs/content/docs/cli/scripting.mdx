@@ -112,7 +112,7 @@ Run the next command only when the cursor is non-null. `--limit` applies to each
 
 Results go to stdout; diagnostics go to stderr. JSON/YAML modes serialize API errors as `{error:{code,message,details?}}`. Display formats use `Error:` plus any supplied code/details. Configuration and argument-parser errors, run-wait outcome messages, and unexpected stack traces can remain text. Do not assume every stderr stream is a single JSON document.
 
-`sim workflows source check`, `sim workspaces source check` and both `source apply` commands (dry run or not) print their findings on stderr as `file:line:column` with the code frame. With `--output json` (or `yaml`), stdout is one document holding the counts and every finding as well:
+`sim workflows source check`, `sim workspaces source check` and both `source apply` commands (dry run or not) print their findings on stderr as `file:line:column` with the code frame. In JSON output (the [default](/cli/output)) or `--output yaml`, stdout is one document holding the counts and every finding as well:
 
 ```json
 {
@@ -166,6 +166,7 @@ Most successful actions exit 0; API, configuration, or argument failures exit 1.
 | `6` | The workflow is locked (`423`) |
 | `7` | The source is over the size limits (`413`) |
 | `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
+| `10` | `--dir` is a workflow folder of a workspace directory another `sim` command is using (`SOURCE_DIR_BUSY`); nothing was written: run it again once the other finished |
 
 | Code | `sim workflows source check` or `sim workspaces source check` |
 | --- | --- |
@@ -393,7 +394,7 @@ jobs:
           fi
 ```
 
-`check` runs first because it is offline and fast, and it regenerates `.sim/sdk/workspace.d.ts`, so the `tsc` step after it types resources the pull request adds. A workspace API key can apply tables, rows, knowledge bases, files, custom tools and MCP servers. Workflows, skills, secrets, credentials and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory (each `.sim/base.json`, ids it allocated, values the server normalized), and the next apply compares with them, so the last step commits them back to the branch; `[skip ci]` keeps that commit from running the job again. Where the branch is protected, run `sim workspaces source get --dir workspace` on a new branch instead and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
+`check` runs first because it is offline and fast, and it regenerates `.sim/sdk/workspace.d.ts`, so the `tsc` step after it types resources the pull request adds. A workspace API key can apply tables, rows, knowledge bases, files, custom tools, MCP servers and credential bindings. Workflows, skills, secrets and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory (each `.sim/base.json`, ids it allocated, values the server normalized), and the next apply compares with them, so the last step commits them back to the branch; `[skip ci]` keeps that commit from running the job again. Where the branch is protected, run `sim workspaces source get --dir workspace` on a new branch instead and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
 
 To promote the same directory to a second workspace, add a step with `--to`:
 
