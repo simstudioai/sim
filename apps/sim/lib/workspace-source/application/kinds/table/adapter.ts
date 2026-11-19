@@ -366,7 +366,7 @@ function withRows(
       ...(rows.removed > 0
         ? { destructive: { what: 'rows', counts: { rows: rows.removed } } }
         : {}),
-      serverFingerprint: planFingerprint(storedFingerprint(state, bindings), rows.plan),
+      storedFingerprint: planFingerprint(storedFingerprint(state, bindings), rows.plan),
       detail: { ...(bindings ? { bindings } : {}), rows: rows.plan },
     }
   }
@@ -506,7 +506,7 @@ async function planTable(
               },
             }
           : {}),
-        serverFingerprint: planFingerprint(storedFingerprint(state, bindings), rows.plan),
+        storedFingerprint: planFingerprint(storedFingerprint(state, bindings), rows.plan),
         ...(action === 'noop' && rows.base
           ? { base: { ...printStoredTable(state, key, bindings).base, rows: rows.base } }
           : {}),
@@ -688,7 +688,7 @@ export const tableAdapter: KindAdapter<'table', StoredTableState> = {
     })
   },
 
-  async fingerprintNow(change, ctx) {
+  async storedFingerprintNow(change, ctx) {
     if (!change.storedId) throw new Error('A table check needs the stored table id')
     const table = storedFingerprint(await reload(ctx, change.storedId), change.detail?.bindings)
     const rows = change.detail?.rows

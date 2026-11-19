@@ -204,7 +204,7 @@ async function planServer(
       ? { pending: pendingOf({ ...change, action: 'adopt', storedId: record.id }) }
       : {}),
     ...(changed.length > 0 ? { fields: changed } : {}),
-    serverFingerprint: storedFingerprint(record.state),
+    storedFingerprint: storedFingerprint(record.state),
     detail: { changed },
   }
   // A URL that keeps the id is set in place (see `apply`); only a new id replaces the server.
@@ -502,7 +502,7 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
     }
   },
 
-  async fingerprintNow(change, ctx) {
+  async storedFingerprintNow(change, ctx) {
     if (!change.storedId) throw new Error('An MCP server check needs the stored id')
     return storedFingerprint(await getServer(ctx, change.storedId))
   },

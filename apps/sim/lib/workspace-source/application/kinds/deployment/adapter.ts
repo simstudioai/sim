@@ -108,11 +108,11 @@ export interface DeploymentPlan {
   publicApi?: boolean
   /** Whether the chat is written or removed. */
   chat?: 'replace' | 'delete'
-  /** The variable the base recorded the stored chat password under (for `fingerprintNow`). */
+  /** The variable the base recorded the stored chat password under (for `storedFingerprintNow`). */
   basePasswordEnv?: string
   /**
    * The stored chat's output block names at plan time, by the block id the chat stores. The
-   * workflow writes first, and may rename or re-create those blocks, so `fingerprintNow` reads each
+   * workflow writes first, and may rename or re-create those blocks, so `storedFingerprintNow` reads each
    * output by this name, as the plan did: the check compares the block ids the chat stores, and an
    * output re-pointed at another block since the plan still moves the fingerprint.
    */
@@ -446,7 +446,7 @@ async function planDeployment(
     next = { ...change, action: 'update', storedId: planned.stored.id, fields }
   }
   if (state) {
-    next.serverFingerprint = storedFingerprint(state, basePasswordEnv)
+    next.storedFingerprint = storedFingerprint(state, basePasswordEnv)
     const plannedOutputNames = Object.fromEntries(
       (state.chat?.outputs ?? []).flatMap((output) =>
         output.block === undefined ? [] : [[output.blockId, output.block]]
@@ -763,7 +763,7 @@ export const deploymentAdapter: KindAdapter<'deployment', StoredDeployment> = {
     }
   },
 
-  async fingerprintNow(change, ctx) {
+  async storedFingerprintNow(change, ctx) {
     const workflowId = change.detail?.workflowId
     if (!workflowId) throw new Error('A deployment check needs the workflow id')
     const read = await readDeployment(ctx, workflowId)

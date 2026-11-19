@@ -153,7 +153,7 @@ export function planNamed<K extends NamedKindName, S>(
           ? { pending: pendingOf({ ...change, action: 'adopt', storedId: id }, { name }) }
           : {}),
         ...(changed.length > 0 ? { fields: changed } : {}),
-        serverFingerprint: storedFingerprint(named, state),
+        storedFingerprint: storedFingerprint(named, state),
         detail: { changed },
       }
     }

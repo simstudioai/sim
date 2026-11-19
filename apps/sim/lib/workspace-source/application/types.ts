@@ -131,9 +131,9 @@ interface ChangeFields {
   pending?: PendingResource
   /**
    * The resource's fingerprint when planned (an update, adopt or delete): the apply re-reads it
-   * with the adapter's `fingerprintNow` just before the write and refuses one that moved since.
+   * with the adapter's `storedFingerprintNow` just before the write and refuses one that moved since.
    */
-  serverFingerprint?: string
+  storedFingerprint?: string
   /**
    * Resources of other kinds the change's declaration names by key, as the kind's own pipeline
    * read them (a workflow's compiled source): deleting one in the same plan refuses it.
@@ -273,10 +273,10 @@ export interface KindAdapter<K extends WorkspaceKind, S> {
   /** Throws when the principal may not make `change`, before anything is written. */
   authorize(change: PlannedChange<K>, ctx: SourceContext): Promise<void>
   /**
-   * The stored resource's fingerprint now, as `serverFingerprint` records it at plan time. A kind
+   * The stored resource's fingerprint now, as `storedFingerprint` records it at plan time. A kind
    * whose writes all carry their own atomic precondition (a file's revision) has none.
    */
-  fingerprintNow?(change: PlannedChange<K>, ctx: SourceContext): Promise<string>
+  storedFingerprintNow?(change: PlannedChange<K>, ctx: SourceContext): Promise<string>
   apply(change: PlannedChange<K>, ctx: ApplyContext): Promise<AppliedResource>
   read(stored: StoredResource<S>, ctx: SourceContext): Promise<ReadResource>
   /**

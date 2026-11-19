@@ -43,7 +43,7 @@ A kind has two halves:
   fingerprints a blob kind exactly as the server does. The table codec needs the server's column
   type catalog, so only its layout lives in the registry (`createTableCodec` takes the catalog).
 - **Adapter** (server, `apps/sim/lib/workspace-source/application/kinds/<kind>/adapter.ts`):
-  `KindAdapter` (`application/types.ts`) with `load`, `plan`, `authorize`, `fingerprintNow`,
+  `KindAdapter` (`application/types.ts`) with `load`, `plan`, `authorize`, `storedFingerprintNow`,
   `apply` and `read`. Every protected read and write goes through the use case that owns the
   resource, so its authorization, audit and notifications apply unchanged. `KIND_ADAPTERS`
   (`application/registry.ts`) is the total registry. Tools and skills share `kinds/named.ts`.

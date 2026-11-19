@@ -497,11 +497,11 @@ describe('workspace source: deployments', () => {
       .from(workflowBlocks)
       .where(and(eq(workflowBlocks.workflowId, id), eq(workflowBlocks.name, 'Start')))
     if (!start) throw new Error('No Start block')
-    const check = deploymentAdapter.fingerprintNow
+    const check = deploymentAdapter.storedFingerprintNow
     if (!check) throw new Error('The deployment adapter checks fingerprints before writing')
     // A teammate points the chat at another block between the plan and the pre-write check.
     const moved = vi
-      .spyOn(deploymentAdapter, 'fingerprintNow')
+      .spyOn(deploymentAdapter, 'storedFingerprintNow')
       .mockImplementation(async (change, ctx) => {
         await db
           .update(chat)
@@ -716,11 +716,11 @@ describe('workspace source: deployments', () => {
       expect(await deployState(id)).toMatchObject({ isPublicApi: false, chat: undefined })
 
       // Taken between the plan and the write: the write refuses before it sets the flag.
-      const check = deploymentAdapter.fingerprintNow
+      const check = deploymentAdapter.storedFingerprintNow
       if (!check) throw new Error('The deployment adapter checks fingerprints before writing')
       const other = await deployedWorkspace()
       const claimed = vi
-        .spyOn(deploymentAdapter, 'fingerprintNow')
+        .spyOn(deploymentAdapter, 'storedFingerprintNow')
         .mockImplementation(async (change, ctx) => {
           await serveChat(other.id, 'raced-chat')
           return check.call(deploymentAdapter, change, ctx)

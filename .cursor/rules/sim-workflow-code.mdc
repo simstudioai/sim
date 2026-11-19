@@ -42,6 +42,11 @@ Both words name the same feature, split by role; follow the split rather than re
   (`readWorkflowSource`, `applyWorkspaceSource`), the routes (`/source`), the CLI
   (`sim workflows source get`), `lib/workspace-source/`.
 
+A fingerprint of what the server stores now is a **stored fingerprint**: `storedFingerprint`
+(`rf1:`, a resource) and `storedSourceFingerprint` (`sf1:`, a workflow); a plan records it as
+`PlannedChange.storedFingerprint` and the apply re-reads it with `storedFingerprintNow`. The base
+records the fingerprint the directory last read (`base.fingerprint`).
+
 A new module goes where its neighbours are: an engine or engine glue under a `code` folder, a use
 case or surface under a `source` name.
 

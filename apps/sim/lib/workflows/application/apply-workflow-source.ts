@@ -65,7 +65,7 @@ import {
   type PrintedSource,
   printStoredSource,
   type StoredSource,
-  storedFingerprint,
+  storedSourceFingerprint,
 } from '@/lib/workflows/code/print-stored'
 import { loadEnvNames } from '@/lib/workflows/code/resources'
 import {
@@ -135,7 +135,7 @@ export interface EvaluatedSource {
   storedSourceMeta: WorkflowSourceMetaV1 | null
   storedCanonical: StoredCanonical
   /** The stored draft's fingerprint when evaluated; the write refuses a base that differs. */
-  currentFingerprint: SourceFingerprint
+  storedFingerprint: SourceFingerprint
   plan: SourcePlan
 }
 
@@ -515,7 +515,7 @@ async function runSourceApply(
         meta: stored.meta,
         catalog,
       })
-      const currentFingerprint = storedFingerprint(storedCanonical.canonical)
+      const storedFingerprint = storedSourceFingerprint(storedCanonical.canonical)
       /**
        * Refuses a commit; a dry run reports the same findings with a 200 instead. The dry run
        * echoes the caller's own base fingerprint, so applying its response after a stale or
@@ -526,8 +526,7 @@ async function runSourceApply(
         compiledReferences?: Pick<ApplyWorkflowSourceResult, 'references' | 'envReferences'>
       ) => {
         if (!dryRun) throw new WorkflowSourceRejectedError(diagnostics)
-        const fingerprint =
-          target.kind === 'existing' ? target.base.fingerprint : currentFingerprint
+        const fingerprint = target.kind === 'existing' ? target.base.fingerprint : storedFingerprint
         return result(
           { catalog, stored },
           { files: input.files, lock: input.lock, fingerprint },
@@ -546,8 +545,8 @@ async function runSourceApply(
           },
         ])
       }
-      if (target.kind === 'existing' && currentFingerprint !== target.base.fingerprint) {
-        if (!dryRun) throw new WorkflowSourceStaleError(currentFingerprint)
+      if (target.kind === 'existing' && storedFingerprint !== target.base.fingerprint) {
+        if (!dryRun) throw new WorkflowSourceStaleError(storedFingerprint)
         return refuse([
           {
             code: 'E_APPLY_STALE',
@@ -585,11 +584,11 @@ async function runSourceApply(
         stored,
         storedSourceMeta,
         storedCanonical,
-        currentFingerprint,
+        storedFingerprint,
         plan: evaluation.plan,
       }
     }
-    const { catalog, stored, storedSourceMeta, storedCanonical, currentFingerprint, plan } =
+    const { catalog, stored, storedSourceMeta, storedCanonical, storedFingerprint, plan } =
       evaluated
     const { diff, diagnostics, mintedIds } = plan
     /** The function files the submission named, kept so a write never renames the author's. */
@@ -645,7 +644,7 @@ async function runSourceApply(
           scope,
           plan,
           stored,
-          storedFingerprint: currentFingerprint,
+          storedFingerprint,
           catalog,
         })
       }
@@ -675,7 +674,7 @@ async function runSourceApply(
       }
       return result(
         evaluated,
-        { files: input.files, lock: input.lock, fingerprint: currentFingerprint },
+        { files: input.files, lock: input.lock, fingerprint: storedFingerprint },
         {
           applied: false,
           diff,
@@ -724,7 +723,7 @@ async function runSourceApply(
               scope,
               plan,
               stored,
-              storedFingerprint: currentFingerprint,
+              storedFingerprint,
               catalog,
             })),
             name: plan.meta.name,

@@ -127,7 +127,7 @@ function planSecret(
     storedId: secret.id,
     fields: ['description'],
     detail: entry,
-    serverFingerprint: storedFingerprint(secret),
+    storedFingerprint: storedFingerprint(secret),
   }
   const local = secretFingerprint(entry)
   const base = ctx.base?.resources[resourceAddress('secret', name)]
@@ -184,7 +184,7 @@ export const secretAdapter: KindAdapter<'secret', StoredSecret> = {
     })
   },
 
-  async fingerprintNow(change, ctx) {
+  async storedFingerprintNow(change, ctx) {
     const secret = (await listWorkspaceSecrets(ctx, change.key)).find(
       (candidate) => candidate.key === change.key
     )

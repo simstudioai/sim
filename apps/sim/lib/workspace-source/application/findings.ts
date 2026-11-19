@@ -368,8 +368,8 @@ export function planUndeclared<K extends WorkspaceKind, S>(
     const entry = ctx.base?.resources[resourceAddress(kind, key)]
     const managed = entry?.id === resource.id
     if (managed && ctx.allowDelete) {
-      const serverFingerprint = options.fingerprint(resource, entry)
-      if (serverFingerprint !== entry.fingerprint) {
+      const storedFingerprint = options.fingerprint(resource, entry)
+      if (storedFingerprint !== entry.fingerprint) {
         changes.push({
           kind,
           key,
@@ -390,7 +390,7 @@ export function planUndeclared<K extends WorkspaceKind, S>(
           what: WORKSPACE_KIND_SPECS[kind].noun,
           counts: options.counts?.(resource) ?? {},
         },
-        serverFingerprint,
+        storedFingerprint,
         ...(detail !== undefined ? { detail } : {}),
         diagnostics: locked
           ? [

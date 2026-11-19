@@ -122,7 +122,7 @@ export const skillAdapter: KindAdapter<'skill', SkillDecl> = {
     })
   },
 
-  async fingerprintNow(change, ctx) {
+  async storedFingerprintNow(change, ctx) {
     if (!change.storedId) throw new Error('A skill check needs the stored id')
     return storedFingerprint(skills, await getSkill(ctx, change.storedId))
   },

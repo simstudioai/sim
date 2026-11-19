@@ -122,7 +122,7 @@ function workflowFingerprint(source: SourceBase): ResourceFingerprint {
 }
 
 /** The fingerprint of workflow `workflowId` as it is stored now. */
-async function currentFingerprint(
+async function readStoredFingerprint(
   ctx: SourceContext,
   workflowId: string
 ): Promise<ResourceFingerprint> {
@@ -779,7 +779,7 @@ export const workflowAdapter: KindAdapter<'workflow', StoredWorkflowState> = {
         const locked = await lockOf(workflow)
         if (locked) locks.set(workflow.id, locked)
         try {
-          fingerprints.set(workflow.id, await currentFingerprint(ctx, workflow.id))
+          fingerprints.set(workflow.id, await readStoredFingerprint(ctx, workflow.id))
           triggers.set(workflow.id, await liveTriggerCounts(ctx, workflow.id))
         } catch (error) {
           logger.warn('Could not read a workflow to fingerprint its delete', {
@@ -823,9 +823,9 @@ export const workflowAdapter: KindAdapter<'workflow', StoredWorkflowState> = {
     }
   },
 
-  async fingerprintNow(change, ctx) {
+  async storedFingerprintNow(change, ctx) {
     if (!change.storedId) throw new Error('A workflow check needs the stored workflow id')
-    return currentFingerprint(ctx, change.storedId)
+    return readStoredFingerprint(ctx, change.storedId)
   },
 
   async apply(change, ctx) {

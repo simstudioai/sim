@@ -178,8 +178,8 @@ function failureOf(
  */
 async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedResource> {
   const adapter = adapterOf(change.kind)
-  if (change.action !== 'create' && change.serverFingerprint !== undefined) {
-    const now = await adapter.fingerprintNow?.(change, ctx)
+  if (change.action !== 'create' && change.storedFingerprint !== undefined) {
+    const now = await adapter.storedFingerprintNow?.(change, ctx)
     if (now !== undefined) assertUnchanged(change, now)
   }
   const written = await adapter.apply(change, ctx)

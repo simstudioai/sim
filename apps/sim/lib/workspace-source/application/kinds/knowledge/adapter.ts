@@ -89,7 +89,7 @@ export interface KnowledgePlan {
   /** Document id → SHA-256 for every stored document whose bytes the plan knows. */
   hashes: Map<string, string>
   /**
-   * The documents the apply's pre-write check listed (`fingerprintNow`), which it found as the
+   * The documents the apply's pre-write check listed (`storedFingerprintNow`), which it found as the
    * plan read them: the write's outcome is these, less what it removes, plus what it uploads.
    */
   listed?: StoredDoc[]
@@ -312,7 +312,7 @@ async function planKnowledgeBase(
           ? { destructive: { what: 'documents', counts: { documents: changes.deletes.length } } }
           : {}),
         ...(changes.uploads.length > 0 ? { needsBlobs: uploadPaths(key, changes.uploads) } : {}),
-        serverFingerprint: view.fingerprint,
+        storedFingerprint: view.fingerprint,
         detail: { changes, hashes },
       }
     }
@@ -569,7 +569,7 @@ export const knowledgeAdapter: KindAdapter<'knowledge-base', StoredKnowledgeStat
       }
     }
     // A delete is stale when the knowledge base changed on the server since the base; the
-    // hashes the base vouches for are kept for the apply's `fingerprintNow` re-check.
+    // hashes the base vouches for are kept for the apply's `storedFingerprintNow` re-check.
     const undeclared = new Map<string, { fingerprint: string; hashes: Map<string, string> }>()
     if (ctx.allowDelete) {
       const deletable = [...stored.bound].flatMap(([key, resource]) => {
@@ -642,7 +642,7 @@ export const knowledgeAdapter: KindAdapter<'knowledge-base', StoredKnowledgeStat
     }
   },
 
-  async fingerprintNow(change, ctx) {
+  async storedFingerprintNow(change, ctx) {
     const id = change.storedId
     if (!id) throw new Error('A knowledge base check needs the stored id')
     const [current, docs] = await Promise.all([reload(ctx, id), loadDocs(ctx, id)])

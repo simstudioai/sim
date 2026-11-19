@@ -202,7 +202,7 @@ export const toolAdapter: KindAdapter<'custom-tool', StoredTool> = {
     })
   },
 
-  async fingerprintNow(change, ctx) {
+  async storedFingerprintNow(change, ctx) {
     if (!change.storedId) throw new Error('A custom tool check needs the stored id')
     return storedFingerprint(tools, await getTool(ctx, change.storedId))
   },

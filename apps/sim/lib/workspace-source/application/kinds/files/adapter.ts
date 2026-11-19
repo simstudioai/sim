@@ -159,7 +159,7 @@ function serverSha(file: StoredFile, base?: BaseResource): string | null {
  * The fingerprint the server holds for a file: of its hash (its own, or the base's), or of its
  * revision when no hash is known, which matches nothing a directory declares.
  */
-function serverFingerprint(file: StoredFile, base?: BaseResource): string {
+function storedFingerprint(file: StoredFile, base?: BaseResource): string {
   const sha = serverSha(file, base)
   return sha === null ? `unknown:${file.state.rev}` : fileFingerprint(sha)
 }
@@ -291,7 +291,7 @@ function planFile(
     local: fileFingerprint(decl.sha256),
     stored: existing,
     base,
-    fingerprint: serverFingerprint,
+    fingerprint: storedFingerprint,
     holds: (id) => byId.has(id),
   })
   const planned = settle(resolution, change, (file) =>
@@ -360,7 +360,7 @@ function planDeletes(
     declared,
     fingerprint: (file, base) =>
       baseRev(file.key, base) === file.state.rev
-        ? serverFingerprint(file, base)
+        ? storedFingerprint(file, base)
         : `rev:${file.state.rev}`,
     counts: (file) => ({ bytes: file.state.size }),
     detail: (file) => ({ rev: file.state.rev }),
