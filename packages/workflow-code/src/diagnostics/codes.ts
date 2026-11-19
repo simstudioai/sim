@@ -114,6 +114,11 @@ const COMPILE_EDGE_CODES = [
   'E_DUPLICATE_EDGE',
   /** `.onError()` on a block whose catalog entry has no error port. */
   'E_ERROR_PORT_UNSUPPORTED',
+  /**
+   * `.onError()` on a block with no error port (a loop or parallel) that the stored workflow
+   * already wires: kept so it round-trips; source never adds one.
+   */
+  'W_ERROR_PORT_STORED',
   /** `x.key.to()` where `key` is not a branch of `x`. */
   'E_UNKNOWN_BRANCH',
   /** A condition or router branch key written twice. */
@@ -124,6 +129,12 @@ const COMPILE_EDGE_CODES = [
   'E_BRANCH_ELSE_LAST',
   /** `edge(a, 'raw', b)`: an unknown handle kept verbatim. */
   'W_RAW_HANDLE',
+  /**
+   * `edge()` from a loop or parallel's start handle to a block outside it (the executor runs it as
+   * the container's exit), or from any other of its handles into its own child. Kept as written,
+   * so a stored edge of either shape round-trips; the canvas never draws one.
+   */
+  'W_SUBFLOW_HANDLE_SCOPE',
   /**
    * Wiring that closes a cycle among enabled blocks (a self-loop included). The executor makes each
    * block wait for every incoming edge, so no block on a cycle ever runs; repeat work with loop().

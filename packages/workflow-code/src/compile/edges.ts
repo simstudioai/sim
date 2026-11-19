@@ -118,10 +118,24 @@ export class EdgeCollector {
       return false
     }
     if (port.kind === 'error' && sourceCatalog && !sourceCatalog.graph.errorPort) {
-      this.error('E_ERROR_PORT_UNSUPPORTED', `${from.name} has no error port.`, node, {
-        blockKey: from.key,
-      })
-      return false
+      const stored = (this.ctx.stored?.edges ?? []).some(
+        (edge) => edge.from === from.key && edge.to === to.key && edge.port.kind === 'error'
+      )
+      if (!stored) {
+        this.error('E_ERROR_PORT_UNSUPPORTED', `${from.name} has no error port.`, node, {
+          blockKey: from.key,
+        })
+        return false
+      }
+      this.ctx.reporter.report(
+        'W_ERROR_PORT_STORED',
+        `${from.name} has no error port; this error edge is kept because the stored workflow holds it.`,
+        rangeOf(this.ctx, node),
+        {
+          hint: 'Remove it unless you rely on it: no new error edge can leave this block.',
+          blockKey: from.key,
+        }
+      )
     }
     const scopeReason = getWorkflowEdgeScopeDropReason(
       { source: from.key, target: to.key },
@@ -457,7 +471,8 @@ export class EdgeCollector {
       })
       return null
     }
-    if (this.add(from, portForHandle(handle, from), to, statement, anchors, true)) {
+    const port = portForHandle(handle, from)
+    if (this.add(from, port, to, statement, anchors, true)) {
       this.ctx.reporter.report(
         'W_RAW_HANDLE',
         `The handle ${handle} is kept verbatim.`,
@@ -467,8 +482,41 @@ export class EdgeCollector {
           blockKey: from.key,
         }
       )
+      this.reportSubflowHandleScope(from, port, to, statement)
     }
     return 'void'
+  }
+
+  /**
+   * A container edge whose handle does not match where its target sits, which only `edge()` can
+   * write: a start handle to a block outside the container, or another handle into its own child.
+   * The executor wires a container's edge to an outside block as its exit whatever the handle.
+   */
+  private reportSubflowHandleScope(from: BlockDecl, port: Port, to: BlockDecl, node: Node): void {
+    const kind = containerKindOf(from)
+    if (!kind) return
+    const intoOwnChild = to.parent === from
+    if (port.kind === 'subflowStart' && !intoOwnChild) {
+      this.ctx.reporter.report(
+        'W_SUBFLOW_HANDLE_SCOPE',
+        `${to.name} is outside ${from.name}, so this ${kind}'s start handle runs it as the ${kind}'s exit: after the ${kind} finishes, not inside it.`,
+        rangeOf(this.ctx, node),
+        {
+          hint: `Write ${from.ident ?? from.key}.to(${to.ident ?? to.key}) for the exit, or move ${to.name} into the ${kind}.`,
+          blockKey: from.key,
+        }
+      )
+    } else if (port.kind !== 'subflowStart' && intoOwnChild) {
+      this.ctx.reporter.report(
+        'W_SUBFLOW_HANDLE_SCOPE',
+        `${to.name} is inside ${from.name}, and only the ${kind}'s start handle starts a block inside it.`,
+        rangeOf(this.ctx, node),
+        {
+          hint: `Start it with the ${kind} parameter (p.to(${to.ident ?? to.key})), or remove this edge.`,
+          blockKey: from.key,
+        }
+      )
+    }
   }
 
   /** Pass 2 for one wiring statement; registers its comment anchor. */

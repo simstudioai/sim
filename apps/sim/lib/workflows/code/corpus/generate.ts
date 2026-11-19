@@ -661,6 +661,36 @@ function subflowCases(registry: Registry, seed: number): CorpusCase[] {
   })
 }
 
+/**
+ * Container edges whose handle does not match where the target sits, which the canvas never draws
+ * but stored workflows hold (the editing engine keeps a start edge to a block extracted from the
+ * container): a loop's start handle to a block outside it, the only edge between them, which the
+ * executor runs as the loop's exit; and a parallel's end handle into its own child. Source writes
+ * both as `edge()` with W_SUBFLOW_HANDLE_SCOPE.
+ */
+function mismatchedHandleCases(registry: Registry, seed: number): CorpusCase[] {
+  const fn = registry.byType.get('function')
+  if (!fn) return []
+  return (['loop', 'parallel'] as const).map((kind) => {
+    const builder = new CaseBuilder(seed, `subflow:${kind}:mismatched-handle`)
+    const start = startBlock(builder, registry)
+    const spec: ContainerSpec =
+      kind === 'loop' ? { kind, loopType: 'for' } : { kind, parallelType: 'count' }
+    const container = containerBlock(builder, spec, `${kind} 0`)
+    builder.connect(start, container)
+    const body = subject(builder, registry, fn, { name: 'Body', parentId: container })
+    const outside = subject(builder, registry, fn, { name: 'Outside' })
+    if (kind === 'loop') {
+      builder.connect(container, body.block.id, 'loop-start-source')
+      builder.connect(container, outside.block.id, 'loop-start-source')
+    } else {
+      builder.connect(container, outside.block.id, 'parallel-end-source')
+      builder.connect(container, body.block.id, 'parallel-end-source')
+    }
+    return builder.build('subflow')
+  })
+}
+
 function inputFormatCases(registry: Registry, seed: number): CorpusCase[] {
   const builder = new CaseBuilder(seed, 'input-format:start_trigger:duplicate-and-empty-names')
   const field = (name: string, type: string) => ({
@@ -1058,6 +1088,7 @@ export function generateRegistryCorpus(options: CorpusOptions = {}): CorpusCase[
     ...branchCases(registry, seed),
     ...collisionCases(registry, seed),
     ...subflowCases(registry, seed),
+    ...mismatchedHandleCases(registry, seed),
     ...shapeCases(registry, seed),
     ...inputFormatCases(registry, seed),
     ...variableCases(registry, seed),
