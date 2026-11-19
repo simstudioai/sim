@@ -34,8 +34,11 @@ export type SourceFingerprint = `sf1:${string}`
 /** An extension field: tolerated and preserved by every validator, never interpreted. */
 export type LockExtensionKey = `x-${string}`
 
+// Lock and base shapes are type aliases, not interfaces, so they stay assignable to the generated
+// API types, which render these open (extension-carrying) objects with a string index signature.
+
 /** Canvas geometry; materialize applies it only to a block the stored graph does not hold. */
-export interface LockLayout {
+export type LockLayout = {
   [extension: LockExtensionKey]: Json
   x: number
   y: number
@@ -51,7 +54,7 @@ export interface LockLayout {
  * empty names keep their ids. These ids are cross-workflow foreign keys: custom block subBlock ids
  * are the Start field ids (`assembleCustomBlockInputMapping`).
  */
-export interface LockItem {
+export type LockItem = {
   name: string
   id: string
 }
@@ -60,7 +63,7 @@ export interface LockItem {
  * The id-bearing half of a lock block: what canonicalize derives from a stored graph and
  * materialize returns. `sourceFingerprint` hashes exactly this plus the CWM.
  */
-export interface LockIdentityBlock {
+export type LockIdentityBlock = {
   id: string
   /** The enclosing container's key, or `null` at the root. */
   parent: BlockKey | null
@@ -77,7 +80,7 @@ export interface LockIdentity {
   variables: Record<VarKey, string>
 }
 
-export interface WorkflowLockBlock extends LockIdentityBlock {
+export type WorkflowLockBlock = LockIdentityBlock & {
   [extension: LockExtensionKey]: Json
   /**
    * The TS `const` identifier the block is printed as. Derived camelCase from
@@ -96,7 +99,7 @@ export interface WorkflowLockBlock extends LockIdentityBlock {
   codeFile?: string
 }
 
-export interface WorkflowLockV1 {
+export type WorkflowLockV1 = {
   [extension: LockExtensionKey]: Json
   version: 1
   blocks: Record<BlockKey, WorkflowLockBlock>
@@ -104,7 +107,7 @@ export interface WorkflowLockV1 {
 }
 
 /** One environment's freshness facts for a lock, `.sim/base.json` (see the module comment). */
-export interface SourceBase {
+export type SourceBase = {
   [extension: LockExtensionKey]: Json
   /** Base format version; a base written before it existed reads as 1. */
   version: 1
