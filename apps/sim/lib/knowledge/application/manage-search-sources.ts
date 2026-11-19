@@ -16,7 +16,7 @@ import {
   updateKnowledgeConnector,
 } from '@/lib/knowledge/application/connectors'
 import { resolveActiveKnowledgeConnectorContext } from '@/lib/knowledge/application/contexts'
-import { knowledgeOperations, searchSourceOperations } from '@/lib/knowledge/application/operations'
+import { searchSourceOperations } from '@/lib/knowledge/application/operations'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { findSearchIndex } from '@/lib/knowledge/search/search-index'
 
@@ -115,7 +115,7 @@ export const readManagedSearchSource = defineAuthorizedOrganizationUseCase({
 
 /** Creates a source in the prepared Search index using the same validation and write as Settings. */
 export const createManagedSearchSource = defineAuthorizedOrganizationUseCase({
-  operation: knowledgeOperations.createConnector.organizationOperation,
+  operation: searchSourceOperations.create,
   async execute({ principal, input, request }: OrganizationUseCaseContext<CreateInput>) {
     await requireOrganizationSearchAvailable(input.organizationId)
     const index = await findSearchIndex({
@@ -151,7 +151,7 @@ export const createManagedSearchSource = defineAuthorizedOrganizationUseCase({
 
 /** Updates source settings while retaining the connector's permission revision and token rules. */
 export const updateManagedSearchSource = defineAuthorizedOrganizationUseCase({
-  operation: knowledgeOperations.updateConnector.organizationOperation,
+  operation: searchSourceOperations.update,
   async execute({
     principal,
     input,
@@ -182,7 +182,7 @@ export const updateManagedSearchSource = defineAuthorizedOrganizationUseCase({
 
 /** Removes only the resolved Search source, retaining the existing durable permission cleanup. */
 export const deleteManagedSearchSource = defineAuthorizedOrganizationUseCase({
-  operation: knowledgeOperations.deleteConnector.organizationOperation,
+  operation: searchSourceOperations.delete,
   async execute({ principal, input, request }: OrganizationUseCaseContext<SourceInput>) {
     await requireSearchSource(principal, input)
     return deleteKnowledgeConnector.execute({

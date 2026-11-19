@@ -20,6 +20,7 @@ const CSV_PROVIDERS = {
   },
 } as const
 
+/** Providers with a supported CSV permission format and bounded upload manifest. */
 export type PermissionCsvProvider = keyof typeof CSV_PROVIDERS
 type CsvField = keyof (typeof CSV_PROVIDERS)['gitlab']
 interface CsvManifest {

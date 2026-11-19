@@ -11,7 +11,7 @@ import {
   readManagedSearchSource,
   updateManagedSearchSource,
 } from '@/lib/knowledge/application/manage-search-sources'
-import { knowledgeOperations, searchSourceOperations } from '@/lib/knowledge/application/operations'
+import { searchSourceOperations } from '@/lib/knowledge/application/operations'
 
 export const GET = defineV2JsonRoute({
   contract: v2GetSearchSourceContract,
@@ -26,7 +26,7 @@ export const GET = defineV2JsonRoute({
 
 export const PATCH = defineV2JsonRoute({
   contract: v2UpdateSearchSourceContract,
-  operation: knowledgeOperations.updateConnector.organizationOperation,
+  operation: searchSourceOperations.update,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrganizationErrorPolicy,
@@ -37,7 +37,7 @@ export const PATCH = defineV2JsonRoute({
 
 export const DELETE = defineV2JsonRoute({
   contract: v2DeleteSearchSourceContract,
-  operation: knowledgeOperations.deleteConnector.organizationOperation,
+  operation: searchSourceOperations.delete,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrganizationErrorPolicy,

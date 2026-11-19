@@ -10941,7 +10941,7 @@
         "operationId": "createSearchSource",
         "summary": "Create Search source",
         "description": "Create a source in the prepared organization Search index using the same provider validation as Settings. Use connector-types list for provider configuration. This does not override an explicit integration approval decision. Organization admin required.\n\nOAuth scope: `api:write`.",
-        "x-sim-operation": "knowledge.connectors.create",
+        "x-sim-operation": "knowledge.search.sources.manage.create",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
         "security": [
@@ -11123,7 +11123,7 @@
         "operationId": "updateSearchSource",
         "summary": "Update Search source",
         "description": "Update source selection, supported provider credentials, or permission settings; pause or resume a source. Omitted fields are retained. sourceConfig replaces the complete configuration. GitLab token rotation retains saved grants and advances the permission revision; supply permissionConfig with the current expectedRevision for rotation or CSV updates. Organization admin required.\n\nOAuth scope: `api:write`.",
-        "x-sim-operation": "knowledge.connectors.update",
+        "x-sim-operation": "knowledge.search.sources.manage.update",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
         "security": [
@@ -11227,7 +11227,7 @@
         "operationId": "deleteSearchSource",
         "summary": "Delete Search source",
         "description": "Remove a source and its associated permission grants. Cleanup is asynchronous. Organization admin required.\n\nOAuth scope: `api:write`.",
-        "x-sim-operation": "knowledge.connectors.delete",
+        "x-sim-operation": "knowledge.search.sources.manage.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
         "security": [

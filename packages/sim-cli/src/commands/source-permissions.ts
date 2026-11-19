@@ -119,7 +119,7 @@ export function attachSourcePermissionCommands(program: Command): void {
           const result = await retry(() =>
             client.request<CompleteSourcePermissionImportResponse>(
               'completeSourcePermissionImport',
-              { params: importParams }
+              { params: importParams, body: {} }
             )
           )
           printProtocolResult(profile.output, { sourceId, revision: result.data.revision })

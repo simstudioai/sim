@@ -843,7 +843,7 @@ export const organizationOpenApiRoutes = [
   defineOpenApiRoute(
     v2CreateSearchSourceContract,
     {
-      applicationOperation: knowledgeOperations.createConnector.organizationOperation,
+      applicationOperation: searchSourceOperations.create,
       operationId: 'createSearchSource',
       summary: 'Create Search source',
       description:
@@ -877,7 +877,7 @@ export const organizationOpenApiRoutes = [
   defineOpenApiRoute(
     v2UpdateSearchSourceContract,
     {
-      applicationOperation: knowledgeOperations.updateConnector.organizationOperation,
+      applicationOperation: searchSourceOperations.update,
       operationId: 'updateSearchSource',
       summary: 'Update Search source',
       description:
@@ -911,7 +911,7 @@ export const organizationOpenApiRoutes = [
   defineOpenApiRoute(
     v2DeleteSearchSourceContract,
     {
-      applicationOperation: knowledgeOperations.deleteConnector.organizationOperation,
+      applicationOperation: searchSourceOperations.delete,
       operationId: 'deleteSearchSource',
       summary: 'Delete Search source',
       description:

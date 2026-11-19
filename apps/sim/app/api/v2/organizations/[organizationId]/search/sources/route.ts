@@ -10,7 +10,7 @@ import {
   createManagedSearchSource,
   listManagedSearchSources,
 } from '@/lib/knowledge/application/manage-search-sources'
-import { knowledgeOperations, searchSourceOperations } from '@/lib/knowledge/application/operations'
+import { searchSourceOperations } from '@/lib/knowledge/application/operations'
 import { cursorSortKey, decodeOffsetCursor, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 
 const cursorScope = (organizationId: string) =>
@@ -48,7 +48,7 @@ export const GET = defineV2JsonRoute({
 
 export const POST = defineV2JsonRoute({
   contract: v2CreateSearchSourceContract,
-  operation: knowledgeOperations.createConnector.organizationOperation,
+  operation: searchSourceOperations.create,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrganizationErrorPolicy,

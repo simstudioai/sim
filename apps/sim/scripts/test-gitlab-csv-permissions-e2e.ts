@@ -40,6 +40,7 @@ const otherOrg = generateId()
 const admin = generateId()
 const member = generateId()
 const otherAdmin = generateId()
+const billingOwner = generateId()
 const workspace = generateId()
 const kb = generateId()
 const source = generateId()
@@ -101,14 +102,16 @@ async function writeReport(status: 'running' | 'failed' | 'passed') {
 try {
   await writeReport('running')
   await sql.begin(async (tx) => {
-    for (const id of [admin, member, otherAdmin]) {
+    for (const id of [admin, member, otherAdmin, billingOwner]) {
       await tx`insert into "user" (id, name, email, email_verified, created_at, updated_at)
         values (${id}, 'GitLab CSV fixture', ${`${id}@fixture.test`}, true, now(), now())`
     }
     for (const id of [org, otherOrg]) {
       await tx`insert into organization (id, name, slug) values (${id}, 'GitLab CSV fixture', ${id})`
       await tx`insert into member (id, organization_id, user_id, role)
-        values (${generateId()}, ${id}, ${id === org ? admin : otherAdmin}, 'owner')`
+        values (${generateId()}, ${id}, ${id === org ? admin : otherAdmin}, 'admin')`
+      await tx`insert into member (id, organization_id, user_id, role)
+        values (${generateId()}, ${id}, ${billingOwner}, 'owner')`
     }
     await tx`insert into member (id, organization_id, user_id, role)
       values (${generateId()}, ${org}, ${member}, 'member')`
@@ -738,7 +741,7 @@ try {
       await tx`delete from workspace where id = ${workspace}`
       await tx`delete from project where id = ${workspace}`
       await tx`delete from organization where id in (${org}, ${otherOrg})`
-      await tx`delete from "user" where id in (${admin}, ${member}, ${otherAdmin})`
+      await tx`delete from "user" where id in (${admin}, ${member}, ${otherAdmin}, ${billingOwner})`
     })
   } catch (error) {
     failure ??= getErrorMessage(error)

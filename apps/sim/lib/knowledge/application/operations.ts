@@ -1033,6 +1033,27 @@ function defineKnowledgeSessionOperation<const Id extends string>(
 }
 
 export const searchSourceOperations = {
+  create: defineOrganizationOperation({
+    id: 'knowledge.search.sources.manage.create',
+    oauthScope: 'api:write',
+    minimumRole: 'admin',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    capability: 'knowledge.use',
+  }),
+  update: defineOrganizationOperation({
+    id: 'knowledge.search.sources.manage.update',
+    oauthScope: 'api:write',
+    minimumRole: 'admin',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    capability: 'knowledge.use',
+  }),
+  delete: defineOrganizationOperation({
+    id: 'knowledge.search.sources.manage.delete',
+    oauthScope: 'api:write',
+    minimumRole: 'admin',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    capability: 'knowledge.use',
+  }),
   list: defineOrganizationOperation({
     id: 'knowledge.search.sources.manage.list',
     oauthScope: 'api:read',
