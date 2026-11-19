@@ -137,13 +137,6 @@ describe('native computer use authority and lifecycle', () => {
     })
     expect(native.request.mock.calls.map(([method]) => method)).not.toContain('app_command')
     expect(confirmAppCommand.mock.calls[0]?.[0].summary).toContain('Priority: High')
-    await expect(
-      service.execute('padded', 'chat', {
-        action: 'app_command',
-        command: { name: 'create_reminder', title: '  Pay rent  ' },
-      })
-    ).resolves.toMatchObject({ kind: 'command' })
-    expect(confirmAppCommand.mock.calls[1]?.[0].summary.split('\n')[0]).toBe('Reminder: Pay rent')
 
     await expect(service.execute('confirmed', 'chat', create)).resolves.toMatchObject({
       kind: 'command',
@@ -171,6 +164,17 @@ describe('native computer use authority and lifecycle', () => {
     ).rejects.toMatchObject({ details: { code: 'user_declined' } })
     expect(confirmAppCommand).toHaveBeenCalledOnce()
     expect(native.request.mock.calls.map(([method]) => method)).not.toContain('app_command')
+  })
+
+  it('shows the trimmed values the helper will save', async () => {
+    const { service, confirmAppCommand } = setup()
+    await service.execute('padded', 'chat', {
+      action: 'app_command',
+      command: { name: 'create_reminder', title: '  Pay rent  ', notes: '\tBy Friday ' },
+    })
+    expect(confirmAppCommand.mock.calls[0]?.[0].summary).toBe(
+      'Reminder: Pay rent\nList: default\nNotes: By Friday'
+    )
   })
 
   it('refuses an app command when the user denies the app, before asking to confirm', async () => {
