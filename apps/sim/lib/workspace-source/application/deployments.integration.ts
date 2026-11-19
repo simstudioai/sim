@@ -18,7 +18,7 @@ import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
 import { toArray, toRecord } from '@sim/utils/object'
-import type { WorkspaceBaseV1 } from '@sim/workspace-code'
+import type { WorkspaceBaseV1, WorkspaceKind } from '@sim/workspace-code'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 
@@ -28,9 +28,11 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { replaceWorkflowChatDeployment } from '@/lib/chat-deployments/application/workflow-chat-deployment'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { listWorkflowTriggers } from '@/lib/workflows/application/triggers'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
 import { deploymentAdapter } from '@/lib/workspace-source/application/kinds/deployment/adapter'
+import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
 import {
   codes,
   refusal,
@@ -116,6 +118,46 @@ function renamedAnswer(files: Files): Files {
     [WORKFLOW]: files[WORKFLOW].replace("agent('Answer'", "agent('Responder'"),
     [DEPLOYMENT]: files[DEPLOYMENT].replace("block: 'Answer'", "block: 'Responder'"),
   }
+}
+
+const LEADS_TABLE = `// @sim-sdk 1
+import { column, defineTable } from '@sim/workflow-sdk/workspace'
+
+export default defineTable({
+  name: 'leads',
+  columns: {
+    email: column.string(),
+  },
+})
+`
+
+const INGEST_LEADS = `// @sim-sdk 1
+import { table, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Ingest', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { email: 'string' } })
+  const save = table.insertRow('Save Lead', {
+    tableId: table('leads'),
+    data: { email: start.email },
+  })
+
+  start.to(save)
+})
+`
+
+const INGEST_NOTHING = `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Ingest', {}, () => {
+  trigger.start('Start', { inputFormat: { email: 'string' } })
+})
+`
+
+/** A get of `kinds` of the workspace. */
+function getAll(workspaceId: string, kinds: WorkspaceKind[]) {
+  return withPermissionGroupScope(() =>
+    readWorkspaceSource.execute({ principal: owner, input: { workspaceId, kinds } })
+  )
 }
 
 function apply(
@@ -965,6 +1007,53 @@ describe('workspace source: deployments', () => {
     expect(deploymentCodes(result.diagnostics, 'warning')).toEqual(['W_DEPLOYED_DRAFT_CHANGED'])
     expect((await deployState(id)).versions).toBe(1)
   })
+
+  check(
+    'warns when a delete breaks the live version of a workflow whose draft no longer uses it, unless the apply redeploys',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Deployed table user', ownerId })
+      const kinds: WorkspaceKind[] = ['table', 'workflow', 'deployment']
+      const created = await apply(
+        workspaceId,
+        {
+          'tables/leads.ts': LEADS_TABLE,
+          'workflows/ingest/workflow.ts': INGEST_LEADS,
+          'deployments/ingest.ts': DRAFT,
+        },
+        { kinds }
+      )
+      expect(created.failed).toBeUndefined()
+      const read = await getAll(workspaceId, kinds)
+      const { 'tables/leads.ts': _leads, ...withoutTable } = read.files
+      // The draft stops writing to the table, which the live version still does.
+      const dropped = {
+        ...withoutTable,
+        'workflows/ingest/workflow.ts': INGEST_NOTHING,
+      }
+
+      const { 'deployments/ingest.ts': _deployment, ...undeclaredDeployment } = dropped
+      const kept = await apply(workspaceId, undeclaredDeployment, {
+        kinds: ['table', 'workflow'],
+        base: read.base,
+        allowDelete: true,
+        dryRun: true,
+      })
+      expect(codes(kept.diagnostics)).toEqual([])
+      const warning = kept.diagnostics.find((finding) => finding.code === 'W_RESOURCE_IN_USE')
+      expect(warning).toMatchObject({ kind: 'table', key: 'leads' })
+      expect(warning?.message).toContain('"Ingest" (live version)')
+
+      const redeployed = await apply(workspaceId, dropped, {
+        kinds,
+        base: read.base,
+        allowDelete: true,
+        dryRun: true,
+      })
+      expect(codes(redeployed.diagnostics)).toEqual([])
+      expect(actions(redeployed.plan)).toContain('update deployment:ingest')
+      expect(codes(redeployed.diagnostics, 'warning')).not.toContain('W_RESOURCE_IN_USE')
+    }
+  )
 
   check('refuses a deployment of a workflow the workspace does not hold', async () => {
     const workspaceId = await workspaces.create({ name: 'Deploy nothing', ownerId })
