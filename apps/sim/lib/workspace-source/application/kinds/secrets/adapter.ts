@@ -20,12 +20,14 @@ import { compareStrings } from '@sim/utils/string'
 import { KIND_DIRS, type ResourceFingerprint, resourceAddress } from '@sim/workspace-code'
 import { fileKindGroupKey } from '@sim/workspace-code/kinds/entries'
 import {
+  isDeclarableSecret,
   type SecretDecl,
   type SecretsDecl,
   secretCodec,
   secretFingerprint,
 } from '@sim/workspace-code/kinds/secrets'
 import type { CursorKey } from '@/lib/api/list-query'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listSecretsUseCase, setSecretUseCase } from '@/lib/secrets/application/use-cases'
 import { kindFinding, where } from '@/lib/workspace-source/application/findings'
 import { listUpTo } from '@/lib/workspace-source/application/keys'
@@ -139,8 +141,14 @@ function planSecret(
     ) {
       return update
     }
-    const recorded = entry.description === undefined ? local : storedFingerprint(secret)
-    return { ...change, storedId: secret.id, base: { id: secret.id, fingerprint: recorded } }
+    // An undeclared description records no base entry: recording `{}` would read as a description
+    // removed since the base, and recording the server's would clear it on the next apply.
+    if (entry.description === undefined) return { ...change, storedId: secret.id }
+    return {
+      ...change,
+      storedId: secret.id,
+      base: { id: secret.id, fingerprint: storedFingerprint(secret) },
+    }
   }
   const resolution = resolveDeclared({
     local,
@@ -210,6 +218,12 @@ export const secretAdapter: KindAdapter<'secret', StoredSecret> = {
   },
 
   async read(stored) {
+    if (!isDeclarableSecret(stored.key)) {
+      throw new OrchestrationError(
+        'validation',
+        `secrets.ts cannot declare a secret named "${stored.key}", so it is left out; rename the secret to manage it from source.`
+      )
+    }
     return { text: {}, blobs: [], base: { id: stored.id, fingerprint: storedFingerprint(stored) } }
   },
 

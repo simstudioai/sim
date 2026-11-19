@@ -104,6 +104,17 @@ describe('the SDK layout', () => {
     )
   })
 
+  it('prints no legacy section for a catalog without legacy builders', () => {
+    const catalog = loadCatalog()
+    const builders = Object.fromEntries(
+      Object.entries(catalog.builders).filter(([key]) => !key.startsWith('legacy.'))
+    )
+    const files = generateSdkTypes({ ...catalog, builders })
+    const index = files.find((file) => file.path === 'INDEX.md')?.text ?? ''
+    expect(index).toContain('## Builders')
+    expect(index).not.toContain('## Legacy builders')
+  })
+
   it('writes one file per block, and leaves legacy-only blocks out of index.d.ts', () => {
     const files = generateSdkTypes(catalogWithLegacySlack())
     const index = files.find((file) => file.path === 'index.d.ts')?.text ?? ''

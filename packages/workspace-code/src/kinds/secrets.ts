@@ -17,6 +17,7 @@
 
 import type { ResourceFingerprint } from '../base'
 import { type DeclFields, stringField } from '../declaration/field-table'
+import { isDeclarableKey } from '../declaration/read'
 import type { KindCodec } from '../kind'
 import { isSecretName } from '../layout'
 import { entryCodec, entryFingerprint } from './entries'
@@ -38,6 +39,15 @@ const SECRET_FIELDS: DeclFields<SecretDecl> = {
     { maxLength: SECRET_DESCRIPTION_MAX_LENGTH },
     (description) => description || null
   ),
+}
+
+/**
+ * Whether `secrets.ts` can declare the secret `name`. The server may hold a secret named
+ * `__proto__`, which the declaration reader refuses as a key, so a get leaves it out
+ * (`.sim/skipped.json`) rather than print a `secrets.ts` that no longer applies.
+ */
+export function isDeclarableSecret(name: string): boolean {
+  return isSecretName(name) && isDeclarableKey(name)
 }
 
 /** Reads and prints `secrets.ts`. */

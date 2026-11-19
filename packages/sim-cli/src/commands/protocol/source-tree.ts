@@ -34,7 +34,6 @@ import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
 import { cliVersion } from '../../version'
 import {
-  mergedGitattributes,
   readSourceText,
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_AGENTS_FILE,
@@ -43,6 +42,7 @@ import {
   SOURCE_GITIGNORE_FILE,
   type SourceDirChange,
   updateSourceDir,
+  withMissingLines,
 } from './source-dir'
 
 const TSCONFIG_FILE = 'tsconfig.json'
@@ -538,9 +538,9 @@ export async function sourceTreeChange(
   )
   write.push(...tsconfigs.write)
   const ownsTsconfig = tsconfigs.ownsTsconfig
-  const mergedAttributes = mergedGitattributes(gitattributes, profile.gitattributes)
+  const mergedAttributes = withMissingLines(gitattributes, profile.gitattributes)
   if (mergedAttributes !== null) write.push([SOURCE_GITATTRIBUTES_FILE, mergedAttributes])
-  const mergedIgnore = profile.gitignore ? mergedGitattributes(gitignore, profile.gitignore) : null
+  const mergedIgnore = profile.gitignore ? withMissingLines(gitignore, profile.gitignore) : null
   if (mergedIgnore !== null) write.push([SOURCE_GITIGNORE_FILE, mergedIgnore])
   const indexHead = index?.split('\n', 2).join('\n')
   if (indexHead !== `${sdkIndexHeader(catalog)}\n${sdkGeneratorLine()}`) {

@@ -38,7 +38,7 @@ export type WorkspaceDiagnostic<C extends WorkspaceDiagnosticCode = WorkspaceDia
     : never
 
 /** The optional fields of a finding. */
-export type DiagnosticExtras = Omit<DiagnosticFields, 'message'> & ResourceFields
+type DiagnosticExtras = Omit<DiagnosticFields, 'message'> & ResourceFields
 
 /**
  * Findings one declaration file lists; past it the file gets one `E_LIMIT_EXCEEDED` and the rest

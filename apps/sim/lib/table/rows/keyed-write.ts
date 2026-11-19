@@ -9,6 +9,7 @@
 
 import { isDeepStrictEqual } from 'node:util'
 import { userTableRows } from '@sim/db/schema'
+import { rowKeyText } from '@sim/workspace-code/kinds/table-rows'
 import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -19,6 +20,7 @@ import {
   deleteRowsByIdsWithTx,
   dispatchAfterBatchInsert,
 } from '@/lib/table/rows/service'
+import { setTableTxTimeouts } from '@/lib/table/tx'
 import type { JsonValue, RowData, TableDefinition } from '@/lib/table/types'
 import { coerceRowToSchema } from '@/lib/table/validation'
 
@@ -41,6 +43,13 @@ export interface KeyedWriteResult {
   dispatch: () => void
 }
 
+/**
+ * The statement timeout of a keyed write's statements, as the row API's standalone bulk writes set
+ * it: a joined transaction otherwise keeps its opener's 10s default, too short to read, patch or
+ * delete thousands of rows.
+ */
+const KEYED_WRITE_TIMEOUTS = { statementMs: 60_000 }
+
 /** A cell that holds no value, as a required column counts it. */
 function isEmpty(value: unknown): boolean {
   return (
@@ -49,13 +58,6 @@ function isEmpty(value: unknown): boolean {
     value === '' ||
     (Array.isArray(value) && value.length === 0)
   )
-}
-
-/** The text a row is matched by: its key cell, case folded as a unique column compares. */
-function keyText(value: unknown): string | undefined {
-  if (typeof value === 'string') return value.trim() === '' ? undefined : value.toLowerCase()
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  return undefined
 }
 
 /** `row` coerced to the stored form of each column, refusing a value its column cannot hold. */
@@ -81,6 +83,7 @@ export async function writeKeyedRowsWithTx(
   requestId: string
 ): Promise<KeyedWriteResult> {
   const { keyColumnId, columnIds } = declared
+  await setTableTxTimeouts(trx, KEYED_WRITE_TIMEOUTS)
   const stored = await trx
     .select({ id: userTableRows.id, data: userTableRows.data })
     .from(userTableRows)
@@ -90,7 +93,7 @@ export async function writeKeyedRowsWithTx(
   const storedByKey = new Map<string, { id: string; data: RowData }>()
   for (const row of stored) {
     const data = row.data as RowData
-    const key = keyText(data[keyColumnId])
+    const key = rowKeyText(data[keyColumnId])
     if (key !== undefined) storedByKey.set(key, { id: row.id, data })
   }
 
@@ -99,10 +102,10 @@ export async function writeKeyedRowsWithTx(
   const matched = new Set<string>()
   declared.rows.forEach((row, index) => {
     const desired = coerced(row, table, index)
-    const key = keyText(desired[keyColumnId])
+    const key = rowKeyText(desired[keyColumnId])
     const existing = key !== undefined ? storedByKey.get(key) : undefined
     if (!existing) {
-      inserts.push(row)
+      inserts.push(desired)
       return
     }
     matched.add(existing.id)

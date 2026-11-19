@@ -698,6 +698,16 @@ describe('workspaces source get', () => {
     await expect(get('--only', 'gadgets')).rejects.toThrow(/Unknown kind gadgets/)
   })
 
+  it('reads --only past a trailing comma, and refuses one that names no kind', async () => {
+    serve({}, { kinds: ['table'] })
+
+    await get('--only', 'tables,')
+
+    const call = request.mock.calls.find(([path]) => path === SOURCE_PATH)
+    expect(call?.[1].query).toEqual({ kinds: 'table' })
+    await expect(get('--only', ' , ')).rejects.toThrow(/--only names no kind/)
+  })
+
   it('keeps the bytes of workspace files and documents through a git commit and a fresh clone', async () => {
     serve({ 'tables/leads.ts': LEADS })
     await get()

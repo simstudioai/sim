@@ -158,6 +158,17 @@ describe('workspaces source apply', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('refuses a workflow source directory before sending anything', async () => {
+    write('.sim/base.json', INGEST_BASE)
+
+    const error = await apply('--yes').catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({
+      message: expect.stringContaining('is a workflow source directory'),
+    })
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('sends a workflow folder whole only when it was edited since the CLI wrote it', async () => {
     write(
       '.sim/written.json',
@@ -855,6 +866,47 @@ describe('workspaces source apply', () => {
     unlinkSync(join(dir, 'knowledge/docs/docs/guide.md'))
     write('files/b.txt', 'stale')
     await expect(apply('--yes', '--allow-delete')).resolves.toBeUndefined()
+  })
+
+  it('drops the record of what an apply deleted, but keeps a delete it held', async () => {
+    const gone = sha('gone')
+    const kept = sha('kept')
+    write('files/kept.txt', 'kept')
+    const before = {
+      ...BASE,
+      resources: {
+        'table:leads': { id: 't1' },
+        'table:old': { id: 't2' },
+        'table:held': { id: 't3' },
+        'file:gone.txt': {
+          id: 'f1',
+          blobs: { 'files/gone.txt': { id: 'f1', rev: '1', sha256: gone } },
+        },
+        'file:kept.txt': {
+          id: 'f2',
+          blobs: { 'files/kept.txt': { id: 'f2', rev: '1', sha256: kept } },
+        },
+      },
+    }
+    write('.sim/base.json', JSON.stringify(before))
+    const recorded = {
+      'tables/leads.ts': digest(LEADS),
+      'tables/old.ts': digest('old'),
+      'tables/held.ts': digest('held'),
+      'files/gone.txt': gone,
+      'files/kept.txt': kept,
+    }
+    write('.sim/written.json', JSON.stringify({ version: 1, files: recorded }))
+    const { 'table:old': _old, 'file:gone.txt': _gone, ...remaining } = before.resources
+    request.mockResolvedValue(answer({ base: { ...BASE, resources: remaining } }))
+
+    await apply('--yes', '--allow-delete')
+
+    expect(JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8')).files).toEqual({
+      'tables/leads.ts': digest(LEADS),
+      'tables/held.ts': digest('held'),
+      'files/kept.txt': kept,
+    })
   })
 
   it.each([

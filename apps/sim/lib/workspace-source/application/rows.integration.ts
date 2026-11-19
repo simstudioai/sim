@@ -552,6 +552,73 @@ describe('table rows as workspace source', () => {
     expect(await storedRows(workspaceId)).toHaveLength(2)
   })
 
+  check('makes an existing column required in the apply whose managed rows fill it', async () => {
+    const workspaceId = await newWorkspace()
+    const gappy = '{"code":"solo","seats":1,"tier":"basic"}\n{"code":"team","tier":"pro"}\n'
+    const created = await apply(workspaceId, {
+      'tables/plans.ts': MANAGED,
+      'tables/plans.rows.jsonl': gappy,
+    })
+    expect(created.failed).toBeUndefined()
+    const read = await runner.get(workspaceId)
+    const required = {
+      ...read.files,
+      'tables/plans.ts': read.files['tables/plans.ts'].replace(
+        'seats: column.number()',
+        'seats: column.number({ required: true })'
+      ),
+    }
+
+    // Rows that leave a cell empty cannot make it required.
+    const refused = await refusal(apply(workspaceId, required, { base: read.base }))
+    expect(codes(refused.diagnostics)).toEqual(['E_APPLY_REFUSED'])
+    expect(refused.diagnostics[0].message).toContain('"seats" cannot become required')
+
+    const result = await apply(
+      workspaceId,
+      { ...required, 'tables/plans.rows.jsonl': ROWS },
+      { base: read.base }
+    )
+
+    expect(result.failed).toBeUndefined()
+    expect(await storedRows(workspaceId)).toEqual([
+      { code: 'solo', seats: 1, tier: 'basic' },
+      { code: 'team', seats: 10, tier: 'pro' },
+    ])
+    const seats = (await storedTable(workspaceId)).schema.columns.find(
+      (column) => column.name === 'seats'
+    )
+    expect(seats?.required).toBe(true)
+  })
+
+  check('refuses seeding a table that gained a row after the plan saw it empty', async () => {
+    const workspaceId = await newWorkspace()
+    const bare = PLANS('undefined').replace('  rows: undefined,\n', '')
+    expect((await apply(workspaceId, { 'tables/plans.ts': bare })).failed).toBeUndefined()
+    const write = tableAdapter.apply.bind(tableAdapter)
+    vi.spyOn(tableAdapter, 'apply').mockImplementationOnce(async (change, ctx) => {
+      // A row added in the UI between this apply's plan and its write.
+      const table = await storedTable(workspaceId)
+      const codeId = table.schema.columns.find((column) => column.name === 'code')?.id ?? ''
+      await db.insert(userTableRows).values({
+        id: generateId(),
+        tableId: table.id,
+        workspaceId,
+        data: { [codeId]: 'ui' },
+        position: 0,
+      })
+      return write(change, ctx)
+    })
+
+    const result = await apply(workspaceId, {
+      'tables/plans.ts': SEED,
+      'tables/plans.rows.jsonl': ROWS,
+    })
+
+    expect(result.failed).toMatchObject({ kind: 'table', key: 'plans', code: 'E_APPLY_STALE' })
+    expect(await storedRows(workspaceId)).toEqual([{ code: 'ui' }])
+  })
+
   check('stops managing rows when the declaration drops them, keeping every row', async () => {
     const workspaceId = await newWorkspace()
     const read = await managedPlans(workspaceId)

@@ -387,9 +387,14 @@ describe('workspace source across kinds', () => {
         ),
       }
 
-      // The cookbook declares the secrets its workflow and MCP server read, and a Slack and a Gmail
-      // credential.
-      for (const name of ['ANTHROPIC_API_KEY', 'DOCS_MCP_KEY', 'DOCS_MCP_TOKEN']) {
+      // The cookbook declares the secrets its workflow, tool and MCP server read, and a Slack and a
+      // Gmail credential.
+      for (const name of [
+        'ANTHROPIC_API_KEY',
+        'DOCS_MCP_KEY',
+        'DOCS_MCP_TOKEN',
+        'ORDERS_API_KEY',
+      ]) {
         await setSecretUseCase.execute({
           principal: owner,
           input: { workspaceId, name, scope: 'workspace', value: 'test' },
@@ -424,6 +429,7 @@ describe('workspace source across kinds', () => {
         'update secret:ANTHROPIC_API_KEY',
         'update secret:DOCS_MCP_KEY',
         'update secret:DOCS_MCP_TOKEN',
+        'update secret:ORDERS_API_KEY',
         'adopt credential:gmail',
         'adopt credential:slack',
         'create custom-tool:lookup-order',

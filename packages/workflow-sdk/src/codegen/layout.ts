@@ -9,6 +9,7 @@ import { compareStrings } from '@sim/utils/string'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBuilder, catalogBuilderPaths } from '@sim/workflow-code/catalog/view'
 import { SDK_SPECIAL_BUILDERS } from '@sim/workflow-code/sdk'
+import { TOOL_NAMESPACE } from './names'
 
 /**
  * Builders whose blocks every directory type-checks: the ones `core.d.ts` declares itself, whose
@@ -40,7 +41,7 @@ export function isLegacyBuilder(key: string): boolean {
   return key.startsWith(`${LEGACY_NAMESPACE}.`)
 }
 
-/** Every block type with a builder, sorted: each has a `blocks/<type>.d.ts`. */
+/** Every block type with a builder, in catalog order: each has a `blocks/<type>.d.ts`. */
 function declaredBlockTypes(catalog: BlockCatalog): Map<string, { legacyOnly: boolean }> {
   const types = new Map<string, { legacyOnly: boolean }>()
   for (const key of catalogBuilderPaths(catalog)) {
@@ -73,8 +74,9 @@ export function referencedBlockTypes(catalog: BlockCatalog, sources: Iterable<st
   for (const text of sources) {
     for (const match of text.matchAll(CALL)) {
       const path = match[1].replace(/\s+/g, '').split('.')
-      if (path.length > 1 && path[path.length - 2] === 'tool') path.splice(path.length - 2, 1)
-      else if (path.length > 1 && path[path.length - 1] === 'tool') path.pop()
+      if (path.length > 1 && path[path.length - 2] === TOOL_NAMESPACE)
+        path.splice(path.length - 2, 1)
+      else if (path.length > 1 && path[path.length - 1] === TOOL_NAMESPACE) path.pop()
       const builder = catalogBuilder(catalog, path.join('.'))
       if (builder) types.add(builder.type)
     }

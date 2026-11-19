@@ -29,6 +29,7 @@ import { selectExportRowPage } from '@/lib/table/jobs/service'
 import type { DbTransaction } from '@/lib/table/planner'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import { decodeCursor } from '@/lib/table/rows/cursor'
+import { writeKeyedRowsWithTx } from '@/lib/table/rows/keyed-write'
 import { lockLiveTableSchema } from '@/lib/table/rows/live-schema'
 import { loadTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import {
@@ -43,7 +44,7 @@ import {
   upsertRow,
 } from '@/lib/table/rows/service'
 import { lockUniqueColumns, lockUniqueValues } from '@/lib/table/rows/unique-locks'
-import { getTableById } from '@/lib/table/service'
+import { getTableById, withTableWriteTx } from '@/lib/table/service'
 import { getOrCreateTableSnapshot } from '@/lib/table/snapshot-cache'
 import type { ColumnDefinition, JsonValue, RowData, TableDefinition } from '@/lib/table/types'
 import { checkBatchUniqueConstraintsDb } from '@/lib/table/validation'
@@ -339,6 +340,40 @@ describe('table row writes against real PostgreSQL', () => {
       }
     }
   )
+
+  it('gives a keyed write that only patches and deletes the bulk statement timeout', async () => {
+    const table = await createTable([
+      { id: 'key', name: 'key', type: 'string', unique: true },
+      ...textColumns('note'),
+    ])
+    await seedRows(table.id, [
+      { id: generateId(), data: { key: 'kept', note: 'old' }, orderKey: 'a0' },
+      { id: generateId(), data: { key: 'gone', note: 'old' }, orderKey: 'a1' },
+    ])
+
+    const timeout = await withTableWriteTx(table.id, async (locked, tx) => {
+      const written = await writeKeyedRowsWithTx(
+        tx.trx,
+        locked,
+        {
+          keyColumnId: 'key',
+          columnIds: ['key', 'note'],
+          rows: [{ key: 'kept', note: 'new' }],
+          allowDelete: true,
+        },
+        { userId, capabilityGovernedUserId: null },
+        'keyed-timeout'
+      )
+      expect(written).toMatchObject({ inserted: 0, updated: 1, deleted: 1 })
+      const [setting] = await tx.trx.execute<{ timeout: string }>(
+        sql`SELECT current_setting('statement_timeout') AS timeout`
+      )
+      return setting?.timeout
+    })
+
+    // The reshape's own transaction opens at the 10s default; the row API's bulk writes run at 60s.
+    expect(timeout).toBe('1min')
+  })
 
   describe('unique columns under concurrent writes', () => {
     const uniqueColumns: ColumnDefinition[] = [

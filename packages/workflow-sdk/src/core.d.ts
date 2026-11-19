@@ -3,7 +3,8 @@
  *
  * Nothing declared here runs. `@sim/workflow-code` compiles a workflow file statically, and every
  * runtime export of this package throws `SimSdkNotExecutable`. These declarations exist so an
- * editor, `tsgo --noEmit` or an agent can check a workflow file before the compiler sees it.
+ * editor, `tsc` (the type-check command `sim` prints) or an agent can check a workflow file before
+ * the compiler sees it.
  *
  * Block builders (`slack.sendMessage`, `agent`, `trigger.gmail.poller`, ...) are not declared here:
  * they are generated from the block catalog into `blocks/{type}.d.ts`, which augment this module.

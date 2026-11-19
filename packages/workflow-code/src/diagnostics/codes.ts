@@ -458,6 +458,15 @@ export const DIAGNOSTIC_CODES = [
 ] as const
 export type DiagnosticCode = (typeof DIAGNOSTIC_CODES)[number]
 
+/**
+ * Whether a finding with `code` may carry a code frame. A finding about a literal secret in
+ * source carries its span only, so the frame never echoes the secret over the API into logs or
+ * agent context.
+ */
+export function framesSource(code: DiagnosticCode): boolean {
+  return code !== 'W_LITERAL_SECRET'
+}
+
 export type DiagnosticSeverity = 'error' | 'warning' | 'info'
 
 /** The severity a code's prefix fixes. */

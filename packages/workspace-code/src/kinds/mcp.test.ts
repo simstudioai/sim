@@ -144,6 +144,16 @@ describe('mcpCodec', () => {
     ])
   })
 
+  it('refuses headers written as one env reference or helper call instead of an object', () => {
+    for (const headers of ['env.GITHUB_TOKEN', 'stored()']) {
+      const parsed = parse(`{ url: 'https://a.example', headers: ${headers} }`)
+      expect(parsed.decl).toBeUndefined()
+      expect(parsed.diagnostics).toMatchObject([
+        { code: 'E_DECL_SHAPE', message: expect.stringContaining('headers must be an object') },
+      ])
+    }
+  })
+
   it('refuses env without its import and any other member read', () => {
     expect(
       errorCodes(

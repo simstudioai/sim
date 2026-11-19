@@ -4,6 +4,7 @@ import {
   codeFrame,
   type Diagnostic,
   encodeAnchor,
+  framesSource,
   type SourceSpan,
   splitLines,
 } from '@sim/workflow-code'
@@ -67,7 +68,8 @@ export function createLocator(
         }
       }
     }
-    const lines = span && diagnostic.frame === undefined ? linesOf(span.file) : undefined
+    const framed = framesSource(diagnostic.code)
+    const lines = framed && span && diagnostic.frame === undefined ? linesOf(span.file) : undefined
     const blockId =
       diagnostic.blockId ?? (diagnostic.blockKey ? idByKey.get(diagnostic.blockKey) : undefined)
     return {
@@ -84,18 +86,20 @@ export function createLocator(
             endColumn: span.endColumn,
           }
         : {}),
-      ...(diagnostic.frame !== undefined
-        ? { frame: diagnostic.frame }
-        : span && lines !== undefined
-          ? {
-              frame: codeFrame(lines, {
-                line: span.line,
-                column: span.column,
-                endLine: span.endLine,
-                endColumn: span.endColumn,
-              }),
-            }
-          : {}),
+      ...(!framed
+        ? {}
+        : diagnostic.frame !== undefined
+          ? { frame: diagnostic.frame }
+          : span && lines !== undefined
+            ? {
+                frame: codeFrame(lines, {
+                  line: span.line,
+                  column: span.column,
+                  endLine: span.endLine,
+                  endColumn: span.endColumn,
+                }),
+              }
+            : {}),
       ...(diagnostic.blockKey !== undefined ? { blockKey: diagnostic.blockKey } : {}),
       ...(blockId !== undefined ? { blockId } : {}),
       ...(diagnostic.param !== undefined ? { param: diagnostic.param } : {}),

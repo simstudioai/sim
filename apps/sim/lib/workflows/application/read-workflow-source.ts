@@ -24,6 +24,7 @@ import {
   withCatalogBlockScope,
 } from '@/lib/catalog/application/context'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -252,6 +253,9 @@ interface ReadWorkflowSourcesInput {
   workflowIds: readonly string[]
 }
 
+/** Workflows a batched read prints at once: each may wait on its own resolver queries. */
+const PRINT_CONCURRENCY = 8
+
 /** One workflow of a batched read: its source, or why it could not be read as source. */
 export type WorkflowSourceRead =
   | { source: ReadWorkflowSourceResult }
@@ -286,38 +290,38 @@ export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
       readWorkflowSourceMetas(db, input.workflowIds),
       prefetchStoredResourcesFor({ workspaceId, createdBy }, input.workflowIds),
     ])
-    const reads = new Map<string, WorkflowSourceRead>()
-    for (const workflowId of input.workflowIds) {
-      const loaded = graphs.get(workflowId)
-      if (!loaded) {
-        reads.set(workflowId, { error: new OrchestrationError('not_found', 'Workflow not found') })
-        continue
-      }
-      const { blocks, edges, loops, parallels, variables } = loaded.graph
-      try {
-        const source = await printLoadedSource(
-          {
-            scope: {
-              workflowId,
-              workspaceId,
-              workspaceOrganizationId: context.workspaceOrganizationId,
+    const printed = await mapWithConcurrency(
+      input.workflowIds,
+      PRINT_CONCURRENCY,
+      async (workflowId): Promise<WorkflowSourceRead> => {
+        const loaded = graphs.get(workflowId)
+        if (!loaded) return { error: new OrchestrationError('not_found', 'Workflow not found') }
+        const { blocks, edges, loops, parallels, variables } = loaded.graph
+        try {
+          const source = await printLoadedSource(
+            {
+              scope: {
+                workflowId,
+                workspaceId,
+                workspaceOrganizationId: context.workspaceOrganizationId,
+              },
+              stored: {
+                state: { blocks, edges, loops, parallels, variables },
+                meta: { name: loaded.name, description: loaded.description ?? null },
+              },
+              gate,
+              sourceMeta: sourceMetas.get(workflowId) ?? null,
+              prefetched: { ...prefetched, workflowId },
             },
-            stored: {
-              state: { blocks, edges, loops, parallels, variables },
-              meta: { name: loaded.name, description: loaded.description ?? null },
-            },
-            gate,
-            sourceMeta: sourceMetas.get(workflowId) ?? null,
-            prefetched: { ...prefetched, workflowId },
-          },
-          'files'
-        )
-        reads.set(workflowId, { source })
-      } catch (error) {
-        if (!(error instanceof OrchestrationError)) throw error
-        reads.set(workflowId, { error })
+            'files'
+          )
+          return { source }
+        } catch (error) {
+          if (!(error instanceof OrchestrationError)) throw error
+          return { error }
+        }
       }
-    }
-    return reads
+    )
+    return new Map(input.workflowIds.map((workflowId, index) => [workflowId, printed[index]]))
   },
 })

@@ -8,6 +8,7 @@
  * Client-safe: no Node built-ins, so the CLI and the server's tests share one reading.
  */
 import { compareStrings } from '@sim/utils/string'
+import type { WorkspaceDiagnosticCode } from './diagnostics'
 import { isFileKind, isWorkspaceKind, type WorkspaceKind } from './kind'
 import { KIND_LAYOUTS } from './kinds/registry'
 import { kindOfPath } from './layout'
@@ -99,7 +100,9 @@ export function localResourceChanges(files: readonly ChangedFile[]): LocalResour
   for (const file of files) {
     const kind = kindOfPath(file.path)
     if (kind === null) continue
-    byKind.set(kind, [...(byKind.get(kind) ?? []), file])
+    const kindFiles = byKind.get(kind)
+    if (kindFiles) kindFiles.push(file)
+    else byKind.set(kind, [file])
   }
   const changes: LocalResourceChange[] = []
   for (const [kind, kindFiles] of byKind) {
@@ -128,18 +131,20 @@ export function localResourceChanges(files: readonly ChangedFile[]): LocalResour
  * resource the server holds that the base never recorded (added since the get), and
  * `E_APPLY_NO_BASE` one the server added under a key the directory also declares.
  */
-const SERVER_FINDINGS: Readonly<Record<string, ServerChange>> = {
-  I_SERVER_CHANGED: 'changed',
-  I_SERVER_DELETED: 'deleted',
-  I_SERVER_MOVED: 'moved',
-  E_APPLY_STALE: 'changed',
-  W_UNDECLARED: 'added',
-  E_APPLY_NO_BASE: 'added',
-}
+const SERVER_FINDINGS: ReadonlyMap<string, ServerChange> = new Map(
+  Object.entries({
+    I_SERVER_CHANGED: 'changed',
+    I_SERVER_DELETED: 'deleted',
+    I_SERVER_MOVED: 'moved',
+    E_APPLY_STALE: 'changed',
+    W_UNDECLARED: 'added',
+    E_APPLY_NO_BASE: 'added',
+  } satisfies Partial<Record<WorkspaceDiagnosticCode, ServerChange>>)
+)
 
 /** The codes {@link serverResourceChanges} reads: a status counts none of them as an error. */
 export function isServerChangeFinding(code: string): boolean {
-  return Object.hasOwn(SERVER_FINDINGS, code)
+  return SERVER_FINDINGS.has(code)
 }
 
 /**
@@ -151,7 +156,7 @@ export function serverResourceChanges(
 ): ServerResourceChange[] {
   const changes = new Map<string, ServerResourceChange>()
   for (const finding of diagnostics) {
-    const server = SERVER_FINDINGS[finding.code]
+    const server = SERVER_FINDINGS.get(finding.code)
     const { kind, key } = finding
     if (!server || kind === undefined || key === undefined || !isWorkspaceKind(kind)) continue
     const address = `${kind}:${key}`

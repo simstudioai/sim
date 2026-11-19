@@ -1,9 +1,9 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SimApiError } from '../../http/client'
+import { REQUEST_CANCELLED, SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { digest } from './source-dir'
 import { attachWorkflowSourceDiff, attachWorkflowSourceStatus } from './workflow-source-status'
@@ -242,6 +242,21 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBe(11)
   })
 
+  it('fails on a cancelled request instead of reporting the server unreachable', async () => {
+    write(root, 'workflow.ts', `${ENTRY}// edited\n`)
+    mockRequest.mockRejectedValue(new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED))
+
+    await expect(run(root, 'status')).rejects.toMatchObject({ code: REQUEST_CANCELLED })
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('exits 7 when the server refuses the workflow as too large, as a get does', async () => {
+    mockRequest.mockRejectedValue(new SimApiError('Too large', 413, 'PAYLOAD_TOO_LARGE'))
+
+    await expect(run(root, 'status')).rejects.toMatchObject({ exitCode: 7 })
+    await expect(run(root, 'diff', '--server')).rejects.toMatchObject({ exitCode: 7 })
+  })
+
   it("reads a workspace folder's changes from the workspace directory's record", async () => {
     const folder = join(root, 'ws/workflows/score')
     write(
@@ -332,6 +347,36 @@ describe('workflows source diff', () => {
       against: 'server',
       files: [{ path: 'workflow.ts', change: 'edited' }],
     })
+  })
+
+  it('selects files by ./, an absolute path or a path from the current directory', async () => {
+    write(root, 'functions/score.js', 'return 2\n')
+    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+    const cwd = process.cwd()
+    try {
+      process.chdir(dirname(root))
+      for (const filter of [
+        './',
+        join(root, 'functions'),
+        join(basename(root), 'functions/score.js'),
+      ]) {
+        await run(root, 'diff', filter)
+        expect(printed()).toMatchObject({ files: [{ path: 'functions/score.js' }] })
+      }
+    } finally {
+      process.chdir(cwd)
+    }
+  })
+
+  it('refuses a filter that selects no file instead of printing no changes', async () => {
+    write(root, 'functions/score.js', 'return 2\n')
+    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+
+    await expect(run(root, 'diff', 'functions/scroe.js')).rejects.toMatchObject({
+      code: 'SOURCE_PATH_UNMATCHED',
+      message: expect.stringContaining('"functions/scroe.js" selects no file'),
+    })
+    await expect(run(root, 'diff', '/')).rejects.toMatchObject({ code: 'SOURCE_PATH_UNMATCHED' })
   })
 
   it('prints a colorless unified diff for a person when stdout is not a terminal', async () => {

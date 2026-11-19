@@ -255,9 +255,9 @@ export interface WorkspaceDeclarations {
   envNames?: ReadonlySet<string>
   /**
    * The keys declared for each resource kind a workflow names them by (`table`, `credential`,
-   * …), for the kinds the directory
-   * manages (its folder or root file exists and reads): a get writes every resource of such a
-   * kind, so a key outside the list names nothing an apply can resolve.
+   * …), for the kinds the directory manages (its folder or root file exists and reads): a get
+   * writes every resource of such a kind, so a key outside the list names nothing an apply can
+   * resolve.
    */
   keys: ReadonlyMap<string, ReadonlySet<string>>
   /** Each declared table's columns, by table key and then by stored column name. */
@@ -499,6 +499,53 @@ export interface WorkspaceSubmission {
 }
 
 /**
+ * Drops from `files` the workflow folders whose every file is as `.sim/written.json` records it,
+ * keeping what `unchangedFiles` sends for one (its base alone when it was read from
+ * `workspaceId`): an apply sends only the workflows that were edited.
+ */
+function pruneUnchangedWorkflows(
+  files: Record<string, string>,
+  written: Written,
+  workspaceId: string
+): void {
+  const workflowPaths = Object.keys(files).filter((path) => kindOfPath(path) === 'workflow')
+  const folders = KIND_LAYOUTS.workflow.group(workflowPaths).groups
+  // Files per workflow folder that `.sim/written.json` records.
+  const recorded = new Map<string, number>()
+  for (const path of Object.keys(written.digests)) {
+    if (kindOfPath(path) !== 'workflow') continue
+    const folder = path.split('/', 2).join('/')
+    recorded.set(folder, (recorded.get(folder) ?? 0) + 1)
+  }
+  for (const [key, folderPaths] of folders) {
+    const unchanged =
+      recorded.get(workflowFolder(key)) === folderPaths.length &&
+      folderPaths.every((path) => written.digests[path] === digest(files[path]))
+    if (!unchanged) continue
+    const sent = unchangedFiles(
+      key,
+      Object.fromEntries(folderPaths.map((path) => [path, files[path]])),
+      workspaceId
+    )
+    for (const path of folderPaths) if (!Object.hasOwn(sent, path)) delete files[path]
+  }
+}
+
+/**
+ * `submission` (read `whole`) as a read without `whole` sends it: its unchanged workflow folders
+ * pruned for `workspaceId`, without walking, reading or hashing the directory again.
+ */
+export function withUnchangedWorkflowsPruned(
+  submission: WorkspaceSubmission,
+  written: Written,
+  workspaceId: string
+): WorkspaceSubmission {
+  const files = { ...submission.files }
+  pruneUnchangedWorkflows(files, written, workspaceId)
+  return { ...submission, files }
+}
+
+/**
  * Reads the directory for an apply to `workspaceId`. A workflow folder whose every file is as the
  * CLI last wrote it is sent as `unchangedFiles` says (its base alone when it was read from
  * `workspaceId`), so an apply sends only the workflows that were edited, and a copy to another
@@ -545,27 +592,7 @@ export async function readWorkspaceDir(
     const text = texts[index]
     if (text !== null) files[path] = text
   })
-  const workflowPaths = Object.keys(files).filter((path) => kindOfPath(path) === 'workflow')
-  const folders = KIND_LAYOUTS.workflow.group(workflowPaths).groups
-  // Files per workflow folder that `.sim/written.json` records.
-  const recorded = new Map<string, number>()
-  for (const path of Object.keys(written.digests)) {
-    if (kindOfPath(path) !== 'workflow') continue
-    const folder = path.split('/', 2).join('/')
-    recorded.set(folder, (recorded.get(folder) ?? 0) + 1)
-  }
-  for (const [key, folderPaths] of options.whole ? [] : folders) {
-    const unchanged =
-      recorded.get(workflowFolder(key)) === folderPaths.length &&
-      folderPaths.every((path) => written.digests[path] === digest(files[path]))
-    if (!unchanged) continue
-    const sent = unchangedFiles(
-      key,
-      Object.fromEntries(folderPaths.map((path) => [path, files[path]])),
-      workspaceId
-    )
-    for (const path of folderPaths) if (!Object.hasOwn(sent, path)) delete files[path]
-  }
+  if (!options.whole) pruneUnchangedWorkflows(files, written, workspaceId)
   const root = await realpath(dir)
   const verified = new Set<string>()
   const hashed = new Map<string, StatDigest>()

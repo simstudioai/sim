@@ -112,15 +112,6 @@ CLI's tsconfig.json, so tsc type-checks a block the edit added.
 
 ${STRICT_HELP}`
 
-/**
- * The workspace directory a workflow folder `dir` sits in (`<root>/workflows/<key>`, with a
- * workspace `.sim/base.json` at the root), or `null`.
- */
-async function workspaceRootOf(dir: string): Promise<{ root: string; workspaceId: string } | null> {
-  const folder = await workspaceFolderOf(dir)
-  return folder && { root: folder.root, workspaceId: folder.workspaceId }
-}
-
 /** Every workflow key of the workspace directory `root` that has a `workflow.ts`. */
 export async function workspaceWorkflowKeys(root: string): Promise<string[]> {
   const { paths } = await kindFolders(root, ['workflow'])
@@ -520,7 +511,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
           0
         )
       }
-      const workspace = await workspaceRootOf(options.dir)
+      const workspace = await workspaceFolderOf(options.dir)
       const workspaceId =
         typeof base.workspaceId === 'string'
           ? base.workspaceId
