@@ -87,6 +87,19 @@ export function organizationWorkflowRuns(
       ${scope.workspaceId ? sql`AND w.id = ${scope.workspaceId}` : sql``}`
 }
 
+/**
+ * The runs of the workspace-hour cells `cells` returns as `(workspace_id, h)` rows, each read on the
+ * workspace activity index, for reading single stale cells live.
+ */
+export function cellRuns(cells: SQL): SQL {
+  return sql`SELECT l.* FROM (${cells}) c
+    CROSS JOIN LATERAL (
+      SELECT ${workflowRunColumns} FROM ${workflowExecutionLogs} l
+      WHERE l.workspace_id = c.workspace_id
+        AND l.started_at >= c.h AND l.started_at < c.h + interval '1 hour'
+    ) l`
+}
+
 /** `ranges` as `(range_start, range_end)` rows for {@link organizationWorkflowRuns}. */
 export function rangeRows(ranges: InstantRange[]): SQL {
   if (ranges.length === 0) {

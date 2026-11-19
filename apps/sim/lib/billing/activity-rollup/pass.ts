@@ -296,7 +296,9 @@ async function finalizeSettledHours(
  * from the queue; one still unfinished is checked again later, backing off to a few hours, since
  * it is usually a paused run waiting on a person.
  */
-async function recheckInflightCells(deadline: number): Promise<number> {
+async function recheckInflightCells(
+  deadline: number
+): Promise<{ rechecked: number; finished: boolean }> {
   const due = await db.execute<{ workspaceId: string; bucketMs: number; attempts: number }>(sql`
     SELECT workspace_id AS "workspaceId", (extract(epoch FROM bucket_start) * 1000)::float8 AS "bucketMs",
       attempts
@@ -307,7 +309,7 @@ async function recheckInflightCells(deadline: number): Promise<number> {
   `)
   let rechecked = 0
   for (const cell of due) {
-    if (Date.now() >= deadline) break
+    if (Date.now() >= deadline) return { rechecked, finished: false }
     const hour = new Date(Number(cell.bucketMs))
     const key = sql`workspace_id = ${cell.workspaceId} AND bucket_start = ${utcTimestamp(hour)}`
     const attempts = Number(cell.attempts) + 1
@@ -322,7 +324,11 @@ async function recheckInflightCells(deadline: number): Promise<number> {
       })
       rechecked++
     } catch (error) {
-      // One cell that cannot be recomputed must not hold up the rest of the queue.
+      /**
+       * One cell that cannot be recomputed must not hold up the rest of the queue. Its runs may
+       * have finished with an end the late-end scan never sees, so it is also marked dirty: reads
+       * serve it live, and the dirty queue retries it with its own backoff.
+       */
       logger.error('Activity rollup in-flight cell failed to recompute; backing off', {
         workspaceId: cell.workspaceId,
         hour: hour.toISOString(),
@@ -330,9 +336,14 @@ async function recheckInflightCells(deadline: number): Promise<number> {
         error: getErrorMessage(error),
       })
       await db.execute(backOff)
+      await db.execute(sql`
+        INSERT INTO ${activityRollupDirty} (workspace_id, bucket_start, due_at)
+        VALUES (${cell.workspaceId}, ${utcTimestamp(hour)}, now() + ${msInterval(inflightBackoffMs(0))})
+        ON CONFLICT (workspace_id, bucket_start) DO NOTHING
+      `)
     }
   }
-  return rechecked
+  return { rechecked, finished: due.length < INFLIGHT_BATCH }
 }
 
 /**
@@ -614,9 +625,14 @@ export async function runActivityRollupPass(
         maxLagMs: MAX_REPLICA_LAG_MS,
       })
     }
-    result.dirtyRecomputed = await processDirtyMarks(state, deadline)
-    result.inflightRechecked = await recheckInflightCells(deadline)
-    state = await updateLeasedState(owner, { correctionsAt: sql`now()` })
+    const marks = await processDirtyMarks(state, deadline)
+    const inflight = await recheckInflightCells(deadline)
+    result.dirtyRecomputed = marks.processed
+    result.inflightRechecked = inflight.rechecked
+    /** Only a pass that got through every due item of both queues vouches for the cells. */
+    if (marks.finished && inflight.finished) {
+      state = await updateLeasedState(owner, { correctionsAt: sql`now()` })
+    }
     if (replicaCurrent) state = await backfill(owner, state, options, deadline, result)
 
     const housekeepingDue =

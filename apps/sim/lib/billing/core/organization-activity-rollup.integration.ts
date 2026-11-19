@@ -997,6 +997,21 @@ describe('organization activity rollup', () => {
       expect(await mark('ws1', healthy.hour)).toBeNull()
       expect(await mark('ws2', stale.hour)).toEqual({ attempts: 1, waiting: true })
       await expectEquivalent()
+      // Only the marked workspace's hour is read live: another workspace's cell there still serves.
+      const legacy = await legacySummary(longWindow(), 'UTC')
+      await connection.unsafe(
+        `INSERT INTO workflow_activity_hourly (workspace_id, bucket_start, workflow_id, trigger, runs,
+           completed, failed, cancelled, in_flight, duration_sum_ms, duration_count)
+         VALUES ('ws1', $1::timestamp, 'probe', 'probe', 1000, 0, 0, 0, 0, 0, 0)`,
+        [stale.hour]
+      )
+      try {
+        expect((await servedSummary(longWindow(), 'UTC', {})).totals.workflowRuns).toBe(
+          legacy.totals.workflowRuns + 1000
+        )
+      } finally {
+        await connection.unsafe(`DELETE FROM workflow_activity_hourly WHERE workflow_id = 'probe'`)
+      }
     } finally {
       await connection.unsafe(`
         DROP TRIGGER fail_cell_write ON workflow_activity_hourly;
@@ -1007,6 +1022,81 @@ describe('organization activity rollup', () => {
     await runPass()
     expect(await mark('ws2', stale.hour)).toBeNull()
     await expectEquivalent()
+  }, 300_000)
+
+  it('marks a cell whose in-flight recheck keeps failing dirty, so its hour reads live', async () => {
+    const state = await readRollupState()
+    const coverageStart = state?.coverageStart
+    const freshThrough = state?.freshThrough
+    if (!coverageStart || !freshThrough) throw new Error('No coverage')
+    const [run] = await connection.unsafe<{ id: string; hour: string }[]>(
+      `SELECT id, to_char(date_trunc('hour', started_at), 'YYYY-MM-DD HH24:MI:SS') AS hour
+       FROM workflow_execution_logs
+       WHERE workspace_id = 'ws1' AND status IN ('running', 'paused', 'pending', 'redacting')
+         AND started_at >= $1::timestamptz AT TIME ZONE 'UTC'
+         AND started_at < $2::timestamptz AT TIME ZONE 'UTC'
+       ORDER BY started_at DESC LIMIT 1`,
+      [coverageStart.toISOString(), freshThrough.toISOString()]
+    )
+    if (!run) throw new Error('No unfinished covered run')
+    // Finishes early, so only its in-flight recheck can see the change.
+    await connection.unsafe(
+      `UPDATE workflow_execution_logs SET status = 'completed', total_duration_ms = 1234,
+         ended_at = started_at + interval '20 minutes' WHERE id = $1`,
+      [run.id]
+    )
+    await connection.unsafe(
+      `INSERT INTO activity_rollup_inflight VALUES ('ws1', $1::timestamp, now(), 0)
+       ON CONFLICT (workspace_id, bucket_start) DO UPDATE SET next_check_at = now()`,
+      [run.hour]
+    )
+    await connection.unsafe(`
+      CREATE FUNCTION fail_inflight_cell() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF coalesce(NEW.workspace_id, OLD.workspace_id) = 'ws1'
+          AND coalesce(NEW.bucket_start, OLD.bucket_start) = '${run.hour}'::timestamp THEN
+          RAISE EXCEPTION 'Synthetic recompute failure';
+        END IF;
+        RETURN coalesce(NEW, OLD);
+      END $$;
+      CREATE TRIGGER fail_inflight_cell BEFORE INSERT OR UPDATE OR DELETE ON workflow_activity_hourly
+        FOR EACH ROW EXECUTE FUNCTION fail_inflight_cell();
+    `)
+    try {
+      expect((await runPass()).status).toBe('ran')
+      const [marked] = await connection.unsafe<{ count: number }[]>(
+        `SELECT count(*)::int AS count FROM activity_rollup_dirty
+         WHERE workspace_id = 'ws1' AND bucket_start = $1::timestamp`,
+        [run.hour]
+      )
+      expect(marked?.count).toBe(1)
+      await expectEquivalent()
+    } finally {
+      await connection.unsafe(`
+        DROP TRIGGER fail_inflight_cell ON workflow_activity_hourly;
+        DROP FUNCTION fail_inflight_cell();
+      `)
+    }
+    await connection.unsafe(`UPDATE activity_rollup_dirty SET due_at = now()`)
+    await connection.unsafe(`UPDATE activity_rollup_inflight SET next_check_at = now()`)
+    await runPass()
+    await expectEquivalent()
+  }, 300_000)
+
+  it('does not vouch for the corrections when the pass budget cut its queues short', async () => {
+    const state = await readRollupState()
+    if (!state?.freshThrough) throw new Error('No coverage')
+    await connection`UPDATE activity_rollup_state SET corrections_at = now() - interval '1 hour'`
+    await connection`INSERT INTO activity_rollup_dirty
+      VALUES ('ws1', ${state.freshThrough.toISOString()}::timestamptz AT TIME ZONE 'UTC' - interval '2 hours', now())
+      ON CONFLICT (workspace_id, bucket_start) DO UPDATE SET due_at = excluded.due_at`
+    await runPass(NOW, { budgetMs: 1 })
+    const [row] = await connection.unsafe<{ stale: boolean }[]>(
+      `SELECT corrections_at < now() - interval '50 minutes' AS stale FROM activity_rollup_state`
+    )
+    expect(row?.stale).toBe(true)
+    await runPass()
+    expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).not.toBeNull()
   }, 300_000)
 
   it('stops serving the rollup while no pass has run its correction queues within the bound', async () => {

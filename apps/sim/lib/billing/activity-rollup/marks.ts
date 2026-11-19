@@ -144,13 +144,14 @@ export async function captureLateEnds(
  * meanwhile survives for the next pass. Marks of hours not covered yet wait: an hour being
  * finalized or backfilled is read on the replica, which may not have the change yet. Once the
  * backfill is complete, marks older than the coverage are dropped, since no cell holds them.
+ * `finished` is whether every due mark was taken: false when the deadline or the batch cut it short.
  */
 export async function processDirtyMarks(
   state: ActivityRollupState,
   deadline: number
-): Promise<number> {
+): Promise<{ processed: number; finished: boolean }> {
   const { coverageStart, freshThrough, backfillCompletedAt } = state
-  if (!coverageStart || !freshThrough) return 0
+  if (!coverageStart || !freshThrough) return { processed: 0, finished: true }
   if (backfillCompletedAt) {
     await db.delete(activityRollupDirty).where(lt(activityRollupDirty.bucketStart, coverageStart))
   }
@@ -171,7 +172,7 @@ export async function processDirtyMarks(
   `)
   let processed = 0
   for (const mark of marks) {
-    if (Date.now() >= deadline) break
+    if (Date.now() >= deadline) return { processed, finished: false }
     const hour = new Date(Number(mark.bucketMs))
     const key = sql`workspace_id = ${mark.workspaceId} AND bucket_start = ${utcTimestamp(hour)}
       AND due_at = ${mark.seen}::timestamptz`
@@ -196,5 +197,5 @@ export async function processDirtyMarks(
       `)
     }
   }
-  return processed
+  return { processed, finished: marks.length < DIRTY_BATCH }
 }

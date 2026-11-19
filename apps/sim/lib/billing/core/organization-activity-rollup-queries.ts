@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { type SQL, sql } from 'drizzle-orm'
 import {
   ceilHour,
+  cellRuns,
   floorHour,
   HOUR_MS,
   type InstantRange,
@@ -120,16 +121,22 @@ function storedCells(scope: ActivityScope, span: InstantRange): SQL {
 }
 
 /**
- * The rollup hours of the scope's workspaces that have a pending dirty mark, as `h`: their cells
- * are known to be stale until the mark is processed (or while it backs off after failing), so
- * reads take those hours live. Read per workspace on the mark queue's key, in the read's snapshot.
+ * The rollup cells of the scope's workspaces that have a pending dirty mark, as
+ * `(workspace_id, h)`: known to be stale until the mark is processed (or while it backs off after
+ * failing), so reads take exactly those workspace-hours live and every other workspace's stored
+ * cell for the hour still serves. Read on the mark queue's key, in the read's snapshot.
  */
-function markedHours(scope: ActivityScope, span: InstantRange): SQL {
-  return sql`SELECT DISTINCT d.bucket_start AS h FROM ${workspace} w
+function markedCells(scope: ActivityScope, span: InstantRange): SQL {
+  return sql`SELECT DISTINCT d.workspace_id, d.bucket_start AS h FROM ${workspace} w
     JOIN ${activityRollupDirty} d ON d.workspace_id = w.id
       AND d.bucket_start >= ${utcTimestamp(span.from)} AND d.bucket_start < ${utcTimestamp(span.to)}
     WHERE w.organization_id = ${scope.organizationId}
       ${scope.workspaceId ? sql`AND w.id = ${scope.workspaceId}` : sql``}`
+}
+
+/** A stored cell `r` of workspace `w` whose workspace-hour is not among `marked` cells `m`. */
+function notMarked(marked: SQL): SQL {
+  return sql`NOT EXISTS (SELECT 1 FROM (${marked}) m WHERE m.workspace_id = w.id AND m.h = r.bucket_start)`
 }
 
 type DayRow = Record<string, unknown> & {
@@ -145,7 +152,7 @@ type DayRow = Record<string, unknown> & {
 /**
  * Workflow activity per local day of the viewer. Stored hours are summed by the day they fall
  * on; an hour that crosses a local midnight, or a change of UTC offset, belongs to two days, so it
- * is read live with the edges instead. Both are found with the database's time zone rules, the
+ * is read live with the edges instead, as is each marked cell (see {@link markedCells}). Both are found with the database's time zone rules, the
  * ones the legacy reads use. Only zones off the whole hour have such hours.
  */
 async function readWorkflowDays(
@@ -163,11 +170,13 @@ async function readWorkflowDays(
     ? sql`SELECT h FROM generate_series(${utcTimestamp(span.from)},
           ${utcTimestamp(new Date(span.to.getTime() - HOUR_MS))}, interval '1 hour') AS h
         WHERE date_trunc('day', ${local(sql`h`)}) <> date_trunc('day', ${local(last)})
-          OR ${local(sql`h`)} - h <> ${local(last)} - ${last}
-        UNION ${markedHours(scope, span)}`
+          OR ${local(sql`h`)} - h <> ${local(last)} - ${last}`
     : sql`SELECT NULL::timestamp AS h WHERE false`
   const live = sql`SELECT ${day(sql`a.started_at`)} AS day, ${workflowRunCounters}
-    FROM (${organizationWorkflowRuns(scope, sql`SELECT * FROM live_ranges`)}) a
+    FROM (
+      ${organizationWorkflowRuns(scope, sql`SELECT * FROM live_ranges`)}
+      UNION ALL ${cellRuns(sql`SELECT * FROM marked`)}
+    ) a
     GROUP BY 1`
   const stored = span
     ? sql`SELECT ${day(sql`r.bucket_start`)} AS day, sum(r.runs) AS runs,
@@ -176,12 +185,16 @@ async function readWorkflowDays(
         sum(r.duration_count) AS duration_count
       FROM ${storedCells(scope, span)}
         AND NOT EXISTS (SELECT 1 FROM straddles s WHERE s.h = r.bucket_start)
+        AND ${notMarked(sql`SELECT * FROM marked`)}
       GROUP BY 1`
     : null
   const rows = await tx.execute<DayRow>(sql`
     WITH straddles AS (${straddles}), live_ranges AS (
       ${rangeRows(plan.live)}
       UNION ALL SELECT h, h + interval '1 hour' FROM straddles
+    ), marked AS (
+      SELECT c.* FROM (${span ? markedCells(scope, span) : sql`SELECT NULL::text AS workspace_id, NULL::timestamp AS h WHERE false`}) c
+      WHERE NOT EXISTS (SELECT 1 FROM straddles s WHERE s.h = c.h)
     )
     ${stored ? sql`${stored} UNION ALL ${live}` : live}
   `)
@@ -244,7 +257,7 @@ async function timedChatDays(
 
 /**
  * Workflow runs of the window as breakdown cells: stored cells summed over the rollup span, and
- * the live edges and marked hours (see {@link markedHours}), each keyed by workspace, workflow, and
+ * the live edges and marked cells (see {@link markedCells}), each keyed by workspace, workflow, and
  * trigger. A stored cell's workflow is looked up now, so one deleted since the cell was computed
  * reads as deleted, as its runs do.
  */
@@ -254,10 +267,11 @@ function workflowCells(scope: ActivityScope, plan: RollupReadPlan, resolveWorkfl
     FROM (${organizationWorkflowRuns(scope, ranges)}) a
     GROUP BY 1, 2, 3`
   if (!plan.rollup) return liveCells(rangeRows(plan.live))
-  const marked = markedHours(scope, plan.rollup)
-  const live = liveCells(
-    sql`${rangeRows(plan.live)} UNION ALL SELECT m.h, m.h + interval '1 hour' FROM (${marked}) m`
-  )
+  const marked = markedCells(scope, plan.rollup)
+  const live = sql`${liveCells(rangeRows(plan.live))}
+    UNION ALL SELECT a.workspace_id, a.workflow_id, a.trigger, ${workflowRunCounters}
+    FROM (${cellRuns(marked)}) a
+    GROUP BY 1, 2, 3`
   const workflowId = resolveWorkflow
     ? sql`(SELECT f.id FROM ${workflow} f WHERE f.id = nullif(r.workflow_id, ''))`
     : sql`NULL::text`
@@ -270,7 +284,7 @@ function workflowCells(scope: ActivityScope, plan: RollupReadPlan, resolveWorkfl
         sum(r.in_flight) AS in_flight, sum(r.duration_sum_ms) AS duration_sum_ms,
         sum(r.duration_count) AS duration_count
       FROM ${storedCells(scope, plan.rollup)}
-        AND NOT EXISTS (SELECT 1 FROM (${marked}) m WHERE m.h = r.bucket_start)
+        AND ${notMarked(marked)}
       GROUP BY 1, 2, 3
     ) r
     UNION ALL ${live}`
