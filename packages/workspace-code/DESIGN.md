@@ -170,7 +170,9 @@ it, deleting the old one if it is still there; a different server already at the
 `E_NAME_TAKEN`. A header value is stored text in
 which `{{NAME}}` names an env variable (`env.NAME` in source); a credential header holding literal
 text is `E_MCP_LITERAL_SECRET`, and a get prints one as `stored()`, which the server fingerprints
-by a keyed hash of the value it holds. After every kind is planned, the adapter's `checkRefs`
+by a keyed hash of the value it holds. A get by a member who may not rewrite headers prints every
+literal value as `stored()`; the server resolves such a header to the value it holds, so the
+directory applies back unchanged. After every kind is planned, the adapter's `checkRefs`
 lists each server's tools through the discovery use case and checks the tools workflows call
 (`refs` with a `member`): an unknown one is `E_MCP_TOOL_UNKNOWN`, a server it cannot list
 (unreachable, created by this apply, a workspace API key) `W_MCP_TOOLS_UNCHECKED`.
