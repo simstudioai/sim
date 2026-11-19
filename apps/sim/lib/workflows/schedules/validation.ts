@@ -142,7 +142,12 @@ export function validateScheduleBlock(block: BlockState): ScheduleValidationResu
 
   if (!hasValidConfig) {
     const fields = SCHEDULE_CONFIG_FIELDS[scheduleType] ?? []
-    const missing = fields.length === 0 || fields.some((id) => !getSubBlockValue(block, id))
+    const missing =
+      fields.length === 0 ||
+      fields.some((id) => {
+        const value: unknown = block.subBlocks[id]?.value
+        return value === undefined || value === null || value === ''
+      })
     return {
       isValid: false,
       error: getMissingConfigError(scheduleType),
