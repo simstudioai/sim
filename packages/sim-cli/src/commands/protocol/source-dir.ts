@@ -738,6 +738,11 @@ Exit 10 (busy, retry): another sim workspaces source command is using this direc
 /** A lock whose owner never recorded itself is stale after this long (it died while taking it). */
 const UNRECORDED_LOCK_STALE_MS = 60_000
 
+/** The file in the lock folder that records its owner. */
+const LOCK_OWNER_FILE = 'owner.json'
+/** The folder a command creates in a lock it found stale while it takes that lock over. */
+const LOCK_TAKEOVER_DIR = 'takeover'
+
 /** Who holds the lock, as its owner file records it. */
 interface LockOwner {
   pid: number
@@ -765,7 +770,7 @@ function isAlive(pid: number): boolean {
  */
 async function isStaleLock(lock: string): Promise<boolean> {
   const owner = toRecord(
-    await readFile(join(lock, 'owner.json'), 'utf8').then(
+    await readFile(join(lock, LOCK_OWNER_FILE), 'utf8').then(
       (text): unknown => JSON.parse(text),
       () => null
     )
@@ -781,23 +786,49 @@ async function isStaleLock(lock: string): Promise<boolean> {
 }
 
 /**
+ * Removes the lock at `lock`, which the caller found stale, unless another command took it over
+ * first. Two commands can find one lock stale at once: one removes it and takes the lock, and the
+ * other, acting on what it read before, must not remove the live lock that replaced it. So a
+ * takeover first claims the lock folder it means to remove (creating {@link LOCK_TAKEOVER_DIR} in
+ * it, which only one command can) and checks it is still stale before removing it; a lock that
+ * replaced the stale one is fresh, so the late command leaves it. A command that died mid-takeover
+ * leaves its claim in a stale lock, which the busy message says to remove.
+ */
+export async function takeOverStaleLock(lock: string): Promise<void> {
+  const claim = join(lock, LOCK_TAKEOVER_DIR)
+  try {
+    await mkdir(claim)
+  } catch (error) {
+    if (errorCode(error) === 'EEXIST' || isMissing(error)) return
+    throw error
+  }
+  if (await isStaleLock(lock)) await rm(lock, { recursive: true, force: true })
+  else await rmdir(claim).catch(() => {})
+}
+
+/**
  * Runs `run` holding the directory's command lock ({@link SOURCE_DIR_LOCK}). A second command on
  * the directory meanwhile is refused (`SOURCE_DIR_BUSY`, exit 10) with nothing read or written; a
- * lock its command left behind when it died is taken over. An embedded run has no local directory
- * to lock.
+ * lock its command left behind when it died is taken over ({@link takeOverStaleLock}). Like every
+ * other source path, `.sim` and the lock are never followed through a symbolic link
+ * (`SOURCE_SYMLINK`). An embedded run has no local directory to lock.
  */
 export async function withSourceDirLock<T>(dir: string, run: () => Promise<T>): Promise<T> {
   if (embedStore.getStore()) return run()
-  const records = join(dir, '.sim')
   const absent = async (path: string) =>
-    stat(path).then(
+    lstat(path).then(
       () => false,
       () => true
     )
   const createdDir = await absent(dir)
+  await mkdir(dir, { recursive: true })
+  const root = await realpath(dir)
+  const records = await checkedPath(root, '.sim', new Set())
   const createdRecords = createdDir || (await absent(records))
-  await mkdir(records, { recursive: true })
-  const lock = join(dir, SOURCE_DIR_LOCK)
+  await mkdir(records).catch((error: unknown) => {
+    if (errorCode(error) !== 'EEXIST') throw error
+  })
+  const lock = await checkedPath(root, SOURCE_DIR_LOCK, new Set())
   let held = false
   for (let attempt = 0; attempt < 2 && !held; attempt += 1) {
     try {
@@ -805,8 +836,8 @@ export async function withSourceDirLock<T>(dir: string, run: () => Promise<T>): 
       held = true
     } catch (error) {
       if (errorCode(error) !== 'EEXIST') throw error
-      if (attempt === 0 && (await isStaleLock(lock)))
-        await rm(lock, { recursive: true, force: true })
+      await checkedPath(root, SOURCE_DIR_LOCK, new Set())
+      if (attempt === 0 && (await isStaleLock(lock))) await takeOverStaleLock(lock)
     }
   }
   if (!held) {
@@ -820,12 +851,29 @@ export async function withSourceDirLock<T>(dir: string, run: () => Promise<T>): 
   }
   const owner: LockOwner = { pid: process.pid, host: hostname() }
   try {
-    await writeFile(join(lock, 'owner.json'), JSON.stringify(owner))
+    await writeFile(join(lock, LOCK_OWNER_FILE), JSON.stringify(owner))
     return await run()
   } finally {
-    await rm(lock, { recursive: true, force: true })
+    await rm(await checkedPath(root, SOURCE_DIR_LOCK, new Set()), { recursive: true, force: true })
     // Folders the lock alone created go with it; one the command filled stays.
     if (createdRecords) await rmdir(records).catch(() => {})
     if (createdDir) await rmdir(dir).catch(() => {})
   }
 }
+
+/**
+ * Runs a single-workflow command on `dir` holding the command lock of the workspace directory it
+ * is a workflow folder of, if any: such a command rewrites the workspace's own records (see
+ * {@link writeBack}), so it must not interleave with a workspace command, or with another workflow
+ * command in a sibling folder. Refused like a workspace command (`SOURCE_DIR_BUSY`, exit 10), with
+ * nothing read or written.
+ */
+export async function withWorkspaceFolderLock<T>(dir: string, run: () => Promise<T>): Promise<T> {
+  const folder = await workspaceFolderOf(dir)
+  return folder ? withSourceDirLock(folder.root, run) : run()
+}
+
+/** The help line every single-workflow command that writes a directory adds to its exit codes. */
+export const WORKSPACE_FOLDER_BUSY_HELP = `
+Exit 10 (busy, retry): --dir is a workflow folder of a workspace directory another sim command is
+using (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.`
