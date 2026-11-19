@@ -646,6 +646,9 @@ function collectOperations(specFile: string, spec: Json): Operation[] {
   return ops
 }
 
+/** The status a conditional read answers when the caller already holds the current entity. */
+const NOT_MODIFIED = '304'
+
 function isSuccessStatus(code: string): boolean {
   const status = Number(code)
   return Number.isInteger(status) && status >= 200 && status < 400
@@ -789,8 +792,14 @@ function checkSuccessStatuses(operation: Operation, contract: ContractLike): voi
         ? [configured]
         : [...configured]
   ).sort((a, b) => a - b)
-  const documented = Object.keys((op.responses as Json) ?? {})
-    .filter(isSuccessStatus)
+  const responses = (op.responses as Json) ?? {}
+  // A conditional read's 304 answers outside the contract, which declares only the statuses a
+  // route sends a body (or redirect) with; it must stay bodiless.
+  if ((responses[NOT_MODIFIED] as Json | undefined)?.content) {
+    fail(specFile, `${label}: a 304 response cannot document a body`)
+  }
+  const documented = Object.keys(responses)
+    .filter((status) => isSuccessStatus(status) && status !== NOT_MODIFIED)
     .map(Number)
     .sort((a, b) => a - b)
 

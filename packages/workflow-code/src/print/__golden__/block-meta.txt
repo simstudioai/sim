@@ -1,0 +1,22 @@
+// @sim-sdk 1
+import { api, response, todo, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const flaky = api('Flaky', { url: 'https://b.test', method: todo() })
+  const fallback = response('Fallback', {})
+  const guarded = api(
+    'Guarded',
+    { url: 'https://a.test', method: 'POST' },
+    {
+      disabled: true,
+      locked: true,
+      advancedMode: true,
+      errorPort: true,
+      retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 1000 },
+    }
+  )
+
+  start.to(flaky, guarded)
+  flaky.onError(fallback)
+})

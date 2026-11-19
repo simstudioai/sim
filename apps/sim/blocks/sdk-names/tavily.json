@@ -1,0 +1,9 @@
+{
+  "namespace": "legacy.tavily",
+  "methods": {
+    "tavily_crawl": "crawlWebsite",
+    "tavily_extract": "extractContent",
+    "tavily_map": "mapWebsite",
+    "tavily_search": "search"
+  }
+}

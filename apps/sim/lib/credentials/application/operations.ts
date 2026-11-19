@@ -36,6 +36,11 @@ const HUMAN_AND_COPILOT_PRINCIPALS = {
   delegatedServices: ['copilot'],
 } as const
 
+/** Who applies workspace source, and so binds its credential keys. */
+const SOURCE_KEY_PRINCIPALS = {
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+} as const
+
 export const credentialOperations = {
   resolvePersonalToken: defineCredentialOperation(
     defineWorkspaceOperation({
@@ -260,6 +265,28 @@ export const credentialOperations = {
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
     principalKinds: ['session'],
+  }),
+  /**
+   * Binds a workspace source key (`credential('slack')`) to a credential the caller can see, or
+   * releases one. No credential changes, but which credential every workflow naming the key uses
+   * from the next apply on does, so it takes write. A workspace API key binds the shared
+   * connections its listing shows. Workspace source only: not offered to Copilot.
+   */
+  bindKey: defineWorkspaceOperation({
+    id: 'credentials.keys.bind',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'integrations.manage',
+    ...SOURCE_KEY_PRINCIPALS,
+  }),
+  releaseKey: defineWorkspaceOperation({
+    id: 'credentials.keys.release',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'integrations.manage',
+    ...SOURCE_KEY_PRINCIPALS,
   }),
   useManagedOAuth: defineWorkspaceOperation({
     id: 'credentials.managed_oauth.use',

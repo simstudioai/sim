@@ -1,0 +1,21 @@
+{
+  "namespace": "legacy.identityCenter",
+  "methods": {
+    "check_assignment_deletion_status": "checkAssignmentDeletionStatus",
+    "check_assignment_status": "checkAssignmentStatus",
+    "create_account_assignment": "createAccountAssignment",
+    "delete_account_assignment": "deleteAccountAssignment",
+    "describe_account": "describeAccount",
+    "describe_group": "describeGroup",
+    "describe_user": "describeUser",
+    "get_group": "getGroup",
+    "get_user": "getUser",
+    "list_account_assignments": "listAccountAssignmentsForPrincipal",
+    "list_accounts": "listAccounts",
+    "list_assignments_for_account": "listAssignmentsForAccount",
+    "list_group_memberships": "listGroupMemberships",
+    "list_groups": "listGroups",
+    "list_instances": "listInstances",
+    "list_permission_sets": "listPermissionSets"
+  }
+}

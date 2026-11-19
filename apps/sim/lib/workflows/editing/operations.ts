@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import { isNonEmptyValue } from '@sim/workflow-code/catalog/canonical-index'
 import { isEqual } from 'es-toolkit'
+import { checkBlockPlacement } from '@/lib/workflows/editing/gates'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
-import { buildSubBlockValues, isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
-import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
+import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
@@ -13,51 +14,53 @@ import {
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   createSubBlockInputGate,
-  filterDisallowedTools,
+  gateToolInputValue,
   normalizeConditionRouterIds,
   normalizeResponseFormat,
   normalizeSubblockValue,
-  normalizeTools,
   updateCanonicalModesForInputs,
 } from './builders'
 import { VALID_LOOP_TYPES, VALID_PARALLEL_TYPES } from './container-types'
-import type { EditWorkflowOperation, OperationContext, SkippedItem } from './types'
+import type { EditWorkflowOperation, OperationContext } from './types'
 import { logSkippedItem } from './types'
-import {
-  findBlockWithDuplicateNormalizedName,
-  isBlockTypeAllowed,
-  validateInputsForBlock,
-} from './validation'
+import { findBlockWithDuplicateNormalizedName, validateInputsForBlock } from './validation'
 
 const logger = createLogger('EditWorkflowServerTool')
 
+/** The graph's blocks other than `blockId`, for judging that block's own type change. */
+function otherBlocks(
+  blocks: Record<string, { type: string }>,
+  blockId: string
+): Array<{ type: string }> {
+  return Object.entries(blocks)
+    .filter(([id]) => id !== blockId)
+    .map(([, block]) => block)
+}
+
 /**
- * Refuses a new block of a sunset (`legacy` / `deprecated`) type and names its
- * successor. Placed instances keep executing and stay editable.
+ * Holds a new child of a container to the same placement gates as a top-level `add`.
  *
  * @returns whether the placement was refused
  */
-function refuseSunsetPlacement(
-  skippedItems: SkippedItem[],
-  placement: {
-    blockType: string | undefined
-    operationType: string
-    blockId: string
-    outcome: string
-    details?: Record<string, unknown>
-  }
+function refuseNestedPlacement(
+  parentBlockId: string,
+  childId: string,
+  childBlock: { type?: unknown },
+  ctx: OperationContext
 ): boolean {
-  const { blockType, operationType, blockId, outcome, details } = placement
-  const sunset = blockType ? getBlock(blockType)?.sunset : undefined
-  if (!sunset) return false
-  const successor = sunset.replacedBy ? ` - use "${sunset.replacedBy}" instead` : ''
-  logSkippedItem(skippedItems, {
-    type: 'block_not_allowed',
-    operationType,
-    blockId,
-    reason: `Block type "${blockType}" is ${sunset.status}${successor} - ${outcome}`,
-    details: { requestedType: blockType, replacedBy: sunset.replacedBy, ...details },
-  })
+  const refusal = checkBlockPlacement(
+    {
+      blockId: childId,
+      blockType: typeof childBlock.type === 'string' ? childBlock.type : '',
+      operationType: 'add_nested_node',
+      outcome: 'child block skipped',
+      details: { parentBlockId },
+      others: ctx.modifiedState.blocks,
+    },
+    { permissionConfig: ctx.permissionConfig }
+  )
+  if (!refusal) return false
+  logSkippedItem(ctx.skippedItems, refusal)
   return true
 }
 
@@ -134,17 +137,7 @@ function processNestedNodesForParent(
       return
     }
 
-    if (
-      refuseSunsetPlacement(skippedItems, {
-        blockType: childBlock.type,
-        operationType: 'add_nested_node',
-        blockId: childId,
-        outcome: 'child block skipped',
-        details: { parentBlockId },
-      })
-    ) {
-      return
-    }
+    if (refuseNestedPlacement(parentBlockId, childId, childBlock, ctx)) return
 
     const childBlockState = createBlockFromParams(
       childId,
@@ -265,16 +258,13 @@ function mergeNestedNodesForParent(
         Object.entries(childValidation.validInputs).forEach(([key, value]) => {
           if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) return
           if (!isInputAllowed(key, value)) return
-          let sanitizedValue = normalizeSubblockValue(key, value)
+          let sanitizedValue = normalizeSubblockValue(key, value, existingBlock.type)
           sanitizedValue = normalizeConditionRouterIds(existingId, key, sanitizedValue)
-          if (key === 'tools' && Array.isArray(value)) {
-            sanitizedValue = filterDisallowedTools(
-              normalizeTools(value),
-              permissionConfig,
-              existingId,
-              skippedItems
-            )
-          }
+          sanitizedValue = gateToolInputValue(
+            { blockId: existingId, blockType: existingBlock.type, key, value, sanitizedValue },
+            permissionConfig,
+            skippedItems
+          )
           if (key === 'responseFormat' && value) {
             sanitizedValue = normalizeResponseFormat(value)
           }
@@ -325,17 +315,7 @@ function mergeNestedNodesForParent(
       return
     }
 
-    if (
-      refuseSunsetPlacement(skippedItems, {
-        blockType: childBlock.type,
-        operationType: 'add_nested_node',
-        blockId: childId,
-        outcome: 'child block skipped',
-        details: { parentBlockId },
-      })
-    ) {
-      return
-    }
+    if (refuseNestedPlacement(parentBlockId, childId, childBlock, ctx)) return
 
     const childBlockState = createBlockFromParams(
       childId,
@@ -486,6 +466,23 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     return
   }
 
+  // Before the inputs, so they are judged against the type the block will have.
+  if (params?.type !== undefined) {
+    const refusal = checkBlockPlacement(
+      {
+        blockId: block_id,
+        blockType: params.type,
+        previousType: block.type,
+        operationType: 'edit',
+        outcome: 'type change skipped',
+        ...(params.type !== block.type && { others: otherBlocks(modifiedState.blocks, block_id) }),
+      },
+      { permissionConfig }
+    )
+    if (refusal) logSkippedItem(skippedItems, refusal)
+    else block.type = params.type
+  }
+
   if (params?.inputs) {
     if (!block.subBlocks) block.subBlocks = {}
 
@@ -530,18 +527,15 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
 
       explicitInputKeys.add(key)
-      let sanitizedValue = normalizeSubblockValue(key, value)
+      let sanitizedValue = normalizeSubblockValue(key, value, block.type)
 
       sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 
-      if (key === 'tools' && Array.isArray(value)) {
-        sanitizedValue = filterDisallowedTools(
-          normalizeTools(value),
-          permissionConfig,
-          block_id,
-          skippedItems
-        )
-      }
+      sanitizedValue = gateToolInputValue(
+        { blockId: block_id, blockType: block.type, key, value, sanitizedValue },
+        permissionConfig,
+        skippedItems
+      )
 
       if (key === 'responseFormat' && value) {
         sanitizedValue = normalizeResponseFormat(value)
@@ -640,39 +634,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     }
   }
 
-  if (params?.type !== undefined) {
-    // Special container types (loop, parallel) are not in the block registry but are valid
-    const isContainerType = params.type === 'loop' || params.type === 'parallel'
-
-    const blockConfig = getBlock(params.type)
-    if (!blockConfig && !isContainerType) {
-      logSkippedItem(skippedItems, {
-        type: 'invalid_block_type',
-        operationType: 'edit',
-        blockId: block_id,
-        reason: `Invalid block type "${params.type}" - type change skipped`,
-        details: { requestedType: params.type },
-      })
-    } else if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
-      logSkippedItem(skippedItems, {
-        type: 'block_not_allowed',
-        operationType: 'edit',
-        blockId: block_id,
-        reason: `Block type "${params.type}" is unavailable in this deployment or blocked by access control - type change skipped`,
-        details: { requestedType: params.type },
-      })
-    } else if (
-      params.type === block.type ||
-      !refuseSunsetPlacement(skippedItems, {
-        blockType: params.type,
-        operationType: 'edit',
-        blockId: block_id,
-        outcome: 'type change skipped',
-      })
-    ) {
-      block.type = params.type
-    }
-  }
   if (params?.name !== undefined) {
     const normalizedName = normalizeName(params.name)
     if (!normalizedName) {
@@ -732,11 +693,12 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
   // block's post-update mode: turning a block into a trigger in the same
   // operation makes it ineligible, exactly as the editor treats it.
   if (params?.retry !== undefined) {
-    applyBlockRetry(block, params.retry, {
-      operationType: 'edit',
-      blockId: block_id,
-      skippedItems,
-    })
+    applyBlockRetry(
+      block,
+      params.retry,
+      { operationType: 'edit', blockId: block_id, skippedItems },
+      permissionConfig
+    )
   }
 
   // Merge strategy: existing children that match an incoming node by name are updated in place
@@ -827,67 +789,18 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
     return
   }
 
-  // Special container types (loop, parallel) are not in the block registry but are valid
-  const isContainerType = params.type === 'loop' || params.type === 'parallel'
-
-  const addBlockConfig = getBlock(params.type)
-  if (!addBlockConfig && !isContainerType) {
-    logSkippedItem(skippedItems, {
-      type: 'invalid_block_type',
-      operationType: 'add',
+  const refusal = checkBlockPlacement(
+    {
       blockId: block_id,
-      reason: `Invalid block type "${params.type}" - block not added`,
-      details: { requestedType: params.type },
-    })
-    return
-  }
-
-  if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
-    logSkippedItem(skippedItems, {
-      type: 'block_not_allowed',
-      operationType: 'add',
-      blockId: block_id,
-      reason: `Block type "${params.type}" is unavailable in this deployment or blocked by access control - block not added`,
-      details: { requestedType: params.type },
-    })
-    return
-  }
-
-  if (
-    refuseSunsetPlacement(skippedItems, {
       blockType: params.type,
       operationType: 'add',
-      blockId: block_id,
       outcome: 'block not added',
-    })
-  ) {
-    return
-  }
-
-  const triggerIssue = TriggerUtils.getTriggerAdditionIssue(modifiedState.blocks, params.type)
-  if (triggerIssue) {
-    logSkippedItem(skippedItems, {
-      type: 'duplicate_trigger',
-      operationType: 'add',
-      blockId: block_id,
-      reason: `Cannot add ${triggerIssue.triggerName} - a workflow can only have one`,
-      details: { requestedType: params.type, issue: triggerIssue.issue },
-    })
-    return
-  }
-
-  const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(
-    modifiedState.blocks,
-    params.type
+      others: modifiedState.blocks,
+    },
+    { permissionConfig }
   )
-  if (singleInstanceIssue) {
-    logSkippedItem(skippedItems, {
-      type: 'duplicate_single_instance_block',
-      operationType: 'add',
-      blockId: block_id,
-      reason: `Cannot add ${singleInstanceIssue.blockName} - a workflow can only have one`,
-      details: { requestedType: params.type },
-    })
+  if (refusal) {
+    logSkippedItem(skippedItems, refusal)
     return
   }
 
@@ -1030,18 +943,15 @@ export function handleInsertIntoSubflowOperation(
           return
         }
 
-        let sanitizedValue = normalizeSubblockValue(key, value)
+        let sanitizedValue = normalizeSubblockValue(key, value, existingBlock.type)
 
         sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 
-        if (key === 'tools' && Array.isArray(value)) {
-          sanitizedValue = filterDisallowedTools(
-            normalizeTools(value),
-            permissionConfig,
-            block_id,
-            skippedItems
-          )
-        }
+        sanitizedValue = gateToolInputValue(
+          { blockId: block_id, blockType: existingBlock.type, key, value, sanitizedValue },
+          permissionConfig,
+          skippedItems
+        )
 
         if (key === 'responseFormat' && value) {
           sanitizedValue = normalizeResponseFormat(value)
@@ -1069,41 +979,19 @@ export function handleInsertIntoSubflowOperation(
       }
     }
   } else {
-    // Special container types (loop, parallel) are not in the block registry but are valid
-    const isContainerType = params.type === 'loop' || params.type === 'parallel'
-
-    const insertBlockConfig = getBlock(params.type)
-    if (!insertBlockConfig && !isContainerType) {
-      logSkippedItem(skippedItems, {
-        type: 'invalid_block_type',
-        operationType: 'insert_into_subflow',
+    const refusal = checkBlockPlacement(
+      {
         blockId: block_id,
-        reason: `Invalid block type "${params.type}" - block not inserted into subflow`,
-        details: { requestedType: params.type, subflowId },
-      })
-      return
-    }
-
-    if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
-      logSkippedItem(skippedItems, {
-        type: 'block_not_allowed',
-        operationType: 'insert_into_subflow',
-        blockId: block_id,
-        reason: `Block type "${params.type}" is unavailable in this deployment or blocked by access control - block not inserted`,
-        details: { requestedType: params.type, subflowId },
-      })
-      return
-    }
-
-    if (
-      refuseSunsetPlacement(skippedItems, {
         blockType: params.type,
         operationType: 'insert_into_subflow',
-        blockId: block_id,
         outcome: 'block not inserted into subflow',
         details: { subflowId },
-      })
-    ) {
+        others: modifiedState.blocks,
+      },
+      { permissionConfig }
+    )
+    if (refusal) {
+      logSkippedItem(skippedItems, refusal)
       return
     }
 

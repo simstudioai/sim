@@ -1,0 +1,50 @@
+{
+  "namespace": "jama",
+  "methods": {
+    "create_comment": "createComment",
+    "create_item": "createItem",
+    "create_relationship": "createRelationship",
+    "delete_item": "deleteItem",
+    "delete_relationship": "deleteRelationship",
+    "get_baseline": "getBaseline",
+    "get_current_user": "getCurrentUser",
+    "get_filter": "getFilter",
+    "get_item": "getItem",
+    "get_item_type": "getItemType",
+    "get_item_version": "getItemVersion",
+    "get_project": "getProject",
+    "get_relationship": "getRelationship",
+    "get_test_cycle": "getTestCycle",
+    "get_test_plan": "getTestPlan",
+    "get_test_run": "getTestRun",
+    "list_baseline_items": "listBaselineItems",
+    "list_baselines": "listBaselines",
+    "list_downstream_items": "listDownstreamItems",
+    "list_filter_results": "listFilterResults",
+    "list_filters": "listFilters",
+    "list_item_children": "listItemChildren",
+    "list_item_comments": "listItemComments",
+    "list_item_types": "listItemTypes",
+    "list_item_versions": "listItemVersions",
+    "list_items": "listItems",
+    "list_pick_list_options": "listPickListOptions",
+    "list_pick_lists": "listPickLists",
+    "list_projects": "listProjects",
+    "list_relationship_types": "listRelationshipTypes",
+    "list_relationships": "listRelationships",
+    "list_releases": "listReleases",
+    "list_tags": "listTags",
+    "list_test_cycles": "listTestCycles",
+    "list_test_plans": "listTestPlans",
+    "list_test_runs": "listTestRuns",
+    "list_upstream_items": "listUpstreamItems",
+    "search_items": "searchItems",
+    "update_item": "updateItem",
+    "update_test_run": "updateTestRun"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

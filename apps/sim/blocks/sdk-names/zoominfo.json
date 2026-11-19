@@ -1,0 +1,11 @@
+{
+  "namespace": "legacy.zoominfo",
+  "methods": {
+    "enrich_companies": "enrichCompanies",
+    "enrich_contacts": "enrichContacts",
+    "search_companies": "searchCompanies",
+    "search_contacts": "searchContacts",
+    "search_intent": "searchIntent",
+    "search_news": "searchNews"
+  }
+}

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { tableRowExecutions, tableRunDispatches, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapEachWithConcurrency } from '@sim/utils/concurrency'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
@@ -18,7 +19,6 @@ import {
   sql,
 } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { isExecCancelledAfter } from '@/lib/table/deps'
@@ -1102,7 +1102,7 @@ export async function cancelStaleDispatches(
    * over one table's dispatches, while this sweep can carry a whole tick's worth
    * across many tables, and each event is its own write.
    */
-  await mapWithConcurrency(dispatches, STALE_DISPATCH_EVENT_CONCURRENCY, (d) =>
+  await mapEachWithConcurrency(dispatches, STALE_DISPATCH_EVENT_CONCURRENCY, (d) =>
     appendTableEvent({
       kind: 'dispatch',
       tableId: d.tableId,

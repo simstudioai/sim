@@ -1022,6 +1022,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
           now,
           sourceState,
           sourceMeta: item.sourceMeta,
+          sourceMetaFromWorkflowId: item.sourceWorkflowId,
           workflowIdMap: plan.workflowIdMap,
           folderIdMap,
           transformSubBlocks: transform,

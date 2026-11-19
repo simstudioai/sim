@@ -1,0 +1,38 @@
+{
+  "namespace": "shopify",
+  "methods": {
+    "shopify_adjust_inventory": "adjustInventory",
+    "shopify_cancel_order": "cancelOrder",
+    "shopify_create_customer": "createCustomer",
+    "shopify_create_fulfillment": "createFulfillment",
+    "shopify_create_product": "createProduct",
+    "shopify_create_product_variants": "createProductVariants",
+    "shopify_delete_customer": "deleteCustomer",
+    "shopify_delete_product": "deleteProduct",
+    "shopify_get_collection": "getCollection",
+    "shopify_get_customer": "getCustomer",
+    "shopify_get_fulfillment": "getFulfillment",
+    "shopify_get_fulfillment_order": "getFulfillmentOrder",
+    "shopify_get_inventory_level": "getInventoryLevel",
+    "shopify_get_job": "getJob",
+    "shopify_get_order": "getOrder",
+    "shopify_get_product": "getProduct",
+    "shopify_list_collections": "listCollections",
+    "shopify_list_customers": "listCustomers",
+    "shopify_list_fulfillment_orders": "listFulfillmentOrders",
+    "shopify_list_inventory_items": "listInventoryItems",
+    "shopify_list_locations": "listLocations",
+    "shopify_list_orders": "listOrders",
+    "shopify_list_products": "listProducts",
+    "shopify_update_customer": "updateCustomer",
+    "shopify_update_fulfillment_tracking": "updateFulfillmentTracking",
+    "shopify_update_order": "updateOrder",
+    "shopify_update_product": "updateProduct",
+    "shopify_update_product_variants": "updateProductVariants"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

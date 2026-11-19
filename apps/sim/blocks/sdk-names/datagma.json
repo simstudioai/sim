@@ -1,0 +1,10 @@
+{
+  "namespace": "datagma",
+  "methods": {
+    "datagma_enrich_company": "enrichCompany",
+    "datagma_enrich_person": "enrichPerson",
+    "datagma_find_email": "findEmail",
+    "datagma_find_phone": "findPhone",
+    "datagma_get_credits": "getRemainingCredits"
+  }
+}

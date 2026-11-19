@@ -1,5 +1,6 @@
 import { TTSIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { parseOptionalNumberInput } from '@/blocks/utils'
 
 /** Voice picker id, which differs by provider — first available wins. */
 const VOICE_FIELD = ['voice', 'voiceId'] as const
@@ -114,7 +115,7 @@ export const TtsBlock: BlockConfig = {
       min: 0.25,
       max: 4.0,
       step: 0.25,
-      value: () => '1.0',
+      value: () => 1.0,
       dependsOn: ['provider'],
       required: false,
     },
@@ -216,7 +217,7 @@ export const TtsBlock: BlockConfig = {
       min: 0.0,
       max: 1.0,
       step: 0.05,
-      value: () => '0.5',
+      value: () => 0.5,
       dependsOn: ['provider'],
       required: false,
     },
@@ -229,7 +230,7 @@ export const TtsBlock: BlockConfig = {
       min: 0.0,
       max: 1.0,
       step: 0.05,
-      value: () => '0.8',
+      value: () => 0.8,
       dependsOn: ['provider'],
       required: false,
     },
@@ -242,7 +243,7 @@ export const TtsBlock: BlockConfig = {
       min: 0.0,
       max: 1.0,
       step: 0.05,
-      value: () => '0.0',
+      value: () => 0.0,
       dependsOn: ['provider'],
       required: false,
     },
@@ -282,7 +283,7 @@ export const TtsBlock: BlockConfig = {
       min: 0.5,
       max: 2.0,
       step: 0.1,
-      value: () => '1.0',
+      value: () => 1.0,
       dependsOn: ['provider'],
       required: false,
     },
@@ -316,7 +317,7 @@ export const TtsBlock: BlockConfig = {
       min: 0.25,
       max: 2.0,
       step: 0.25,
-      value: () => '1.0',
+      value: () => 1.0,
       dependsOn: ['provider'],
       required: false,
     },
@@ -329,7 +330,7 @@ export const TtsBlock: BlockConfig = {
       min: -20.0,
       max: 20.0,
       step: 1.0,
-      value: () => '0.0',
+      value: () => 0.0,
       dependsOn: ['provider'],
       required: false,
     },
@@ -423,7 +424,7 @@ export const TtsBlock: BlockConfig = {
       min: 0.5,
       max: 2.0,
       step: 0.1,
-      value: () => '1.0',
+      value: () => 1.0,
       dependsOn: ['provider'],
       required: false,
     },
@@ -499,9 +500,9 @@ export const TtsBlock: BlockConfig = {
             ...baseParams,
             voiceId: params.voiceId,
             modelId: params.modelId,
-            stability: params.stability ? Number(params.stability) : undefined,
-            similarityBoost: params.similarityBoost ? Number(params.similarityBoost) : undefined,
-            style: params.style ? Number(params.style) : undefined,
+            stability: parseOptionalNumberInput(params.stability, 'Stability'),
+            similarityBoost: parseOptionalNumberInput(params.similarityBoost, 'Similarity Boost'),
+            style: parseOptionalNumberInput(params.style, 'Style'),
           }
         }
 

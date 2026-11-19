@@ -35,6 +35,7 @@
         "!scripts/test-mcp-host-e2e.ts",
         "!scripts/test-mobile-e2e.ts",
         "!scripts/test-markdown-viewer-e2e.ts",
+        "!scripts/test-workflow-code-ui-e2e.ts",
         "!scripts/test-project-file*-e2e.ts",
         "!scripts/test-scim-e2e.ts",
         "!scripts/test-search-*-e2e.ts",
@@ -105,7 +106,11 @@
     },
     "ci:e2e-scim": {
       "dependsOn": ["ci:server"],
-      "inputs": ["scripts/test-scim-e2e.ts", "scripts/test-workflow-version-compare-e2e.ts"],
+      "inputs": [
+        "scripts/test-scim-e2e.ts",
+        "scripts/test-workflow-version-compare-e2e.ts",
+        "scripts/test-workspace-source-e2e.ts"
+      ],
       "cache": false
     },
     "ci:e2e-cli": {
@@ -160,6 +165,11 @@
       "inputs": ["scripts/test-markdown-viewer-e2e.ts"],
       "cache": false
     },
+    "ci:e2e-workflow-code-ui": {
+      "dependsOn": ["ci:server", "ci:ui", "@sim/realtime#ci:runtime"],
+      "inputs": ["scripts/test-workflow-code-ui-e2e.ts"],
+      "cache": false
+    },
     "ci:e2e-seo": {
       "dependsOn": ["ci:server", "ci:ui"],
       "inputs": [
@@ -194,6 +204,7 @@
         "!scripts/test-mcp-host-e2e.ts",
         "!scripts/test-mobile-e2e.ts",
         "!scripts/test-markdown-viewer-e2e.ts",
+        "!scripts/test-workflow-code-ui-e2e.ts",
         "!scripts/test-project-file*-e2e.ts",
         "!scripts/test-scim-e2e.ts",
         "!scripts/test-search-*-e2e.ts",

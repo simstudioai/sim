@@ -1,0 +1,29 @@
+{
+  "namespace": "legacy.gmail",
+  "methods": {
+    "add_label_gmail": "addLabel",
+    "archive_gmail": "archiveEmail",
+    "delete_gmail": "deleteEmail",
+    "draft_gmail": "draftEmail",
+    "edit_draft_gmail": "editDraft",
+    "mark_read_gmail": "markAsRead",
+    "mark_unread_gmail": "markAsUnread",
+    "move_gmail": "moveEmail",
+    "read_gmail": "readEmail",
+    "remove_label_gmail": "removeLabel",
+    "search_gmail": "searchEmail",
+    "send_gmail": "sendEmail",
+    "unarchive_gmail": "unarchiveEmail"
+  },
+  "triggers": {
+    "gmail_poller": "poller"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -733,6 +733,10 @@ jobs:
       - name: Migration safety (zero-downtime) audit
         run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"
 
+      # A builder name is public API once a workflow file uses it, so blocks/sdk-names is add-only.
+      - name: Frozen SDK names audit
+        run: bun run check:sdk-names-frozen "${{ steps.audit_base.outputs.ref }}"
+
       - name: Type-check ESM maintenance scripts
         run: bun run type-check:scripts:esm
 

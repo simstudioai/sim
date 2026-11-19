@@ -1,0 +1,25 @@
+{
+  "namespace": "temporal",
+  "methods": {
+    "cancel_workflow": "cancelWorkflow",
+    "count_workflows": "countWorkflows",
+    "create_schedule": "createSchedule",
+    "delete_schedule": "deleteSchedule",
+    "describe_schedule": "describeSchedule",
+    "describe_task_queue": "describeTaskQueue",
+    "describe_workflow": "describeWorkflow",
+    "get_workflow_history": "getWorkflowHistory",
+    "list_schedules": "listSchedules",
+    "list_workflows": "listWorkflows",
+    "pause_schedule": "pauseSchedule",
+    "query_workflow": "queryWorkflow",
+    "reset_workflow": "resetWorkflow",
+    "signal_with_start": "signalWithStart",
+    "signal_workflow": "signalWorkflow",
+    "start_workflow": "startWorkflow",
+    "terminate_workflow": "terminateWorkflow",
+    "trigger_schedule": "triggerSchedule",
+    "unpause_schedule": "unpauseSchedule",
+    "update_workflow": "updateWorkflow"
+  }
+}

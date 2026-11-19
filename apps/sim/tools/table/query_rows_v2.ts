@@ -110,6 +110,7 @@ export const tableQueryRowsV2Tool: InternalToolConfig<TableRowQueryV2Params, Tab
       limit: { type: 'number', description: 'Limit used in the query' },
       nextCursor: {
         type: 'string',
+        nullable: true,
         description: 'Cursor to fetch the next page, or null on the last page',
       },
     },

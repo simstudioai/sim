@@ -1,0 +1,57 @@
+{
+  "minimal-trigger": [],
+  "support-triage": [],
+  "string-escapes": [],
+  "templates-and-paths": [],
+  "unresolved-tokens": [
+    "W_UNRESOLVED_REF html: Reference <div> does not resolve in scope; printed as literal text.",
+    "W_UNRESOLVED_REF html: Reference <missing.field> does not resolve in scope; printed as literal text.",
+    "W_UNRESOLVED_REF html: Reference <variable.nope> does not resolve in scope; printed as literal text.",
+    "W_UNRESOLVED_REF html: Reference <loop.index> does not resolve in scope; printed as literal text."
+  ],
+  "ref-cycle-literalized": [
+    "W_FORWARD_REF_LITERALIZED self: Reference <self.content> would point at a block declared later; printed as literal text.",
+    "W_FORWARD_REF_LITERALIZED alpha: Reference <beta.content> would point at a block declared later; printed as literal text."
+  ],
+  "loop-foreach": [
+    "W_UNRESOLVED_REF summary: Reference <score.result> does not resolve in scope; printed as literal text."
+  ],
+  "nested-subflows": [
+    "W_UNRESOLVED_REF sibling: Reference <loop.index> does not resolve in scope; printed as literal text.",
+    "W_UNRESOLVED_REF insidesibling: Reference <work.content> does not resolve in scope; printed as literal text."
+  ],
+  "parallel-untyped": [],
+  "branches-null-rows": [],
+  "branch-titles-and-extra": [],
+  "router-routes": [],
+  "pair-modes": [],
+  "resource-nodes": [],
+  "vars-by-field": [],
+  "inactive-values": [],
+  "generic-block-unknown-type": [],
+  "generic-block-legacy-operation": [],
+  "block-meta": [],
+  "agent-tools": [],
+  "input-format-sugar": [],
+  "json-code-fields": [],
+  "response-body": [],
+  "stored-secrets": [
+    "W_LITERAL_SECRET pastedkey: apiKey holds a literal secret instead of an env reference; write apiKey: env.NAME."
+  ],
+  "function-languages": [],
+  "comments-at-anchors": [
+    "W_COMMENT_MOVED classify: A comment has no printed anchor; moved to its block declaration.",
+    "W_COMMENT_DROPPED deleted: A comment was dropped: its anchor no longer exists."
+  ],
+  "identifier-collisions": [],
+  "lock-order": [],
+  "raw-and-odd-edges": [
+    "W_RAW_HANDLE gate: Edge handle source has no SDK form; printed as edge().",
+    "W_RAW_HANDLE a: Edge handle right-legacy has no SDK form; printed as edge()."
+  ],
+  "fan-out-wrapping": [],
+  "legacy-dropdown-and-todo": [],
+  "layout-widths": [],
+  "trigger-mode-builders": [],
+  "note-markdown": []
+}

@@ -206,7 +206,7 @@ export const ClickHouseBlock: BlockConfig = {
       id: 'secure',
       title: 'Use HTTPS',
       type: 'switch',
-      value: () => 'true',
+      value: () => true,
     },
     {
       id: 'table',

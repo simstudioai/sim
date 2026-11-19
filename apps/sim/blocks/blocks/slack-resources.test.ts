@@ -1,5 +1,5 @@
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { describe, expect, it } from 'vitest'
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { getSlackV2ActionSubBlocks, SlackV2Block } from '@/blocks/blocks/slack'
 
 function visibleFields(operation: string, values: Record<string, unknown> = {}) {

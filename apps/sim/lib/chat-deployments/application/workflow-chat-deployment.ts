@@ -9,7 +9,6 @@ import { chatDeploymentDelegationPolicy } from '@/lib/chat-deployments/applicati
 import {
   requireWorkflowChatDeployment,
   resolveWorkflowChatDeploymentApplicationContext,
-  type WorkflowChatDeploymentApplicationContext,
 } from '@/lib/chat-deployments/application/context'
 import {
   ChatIdentifierInUseError,
@@ -22,6 +21,7 @@ import {
   toEffectiveChatDeploymentView,
 } from '@/lib/chat-deployments/application/read-chat-deployments'
 import {
+  type ChatDeploymentRow,
   getChatDeploymentIdOwningIdentifier,
   getLiveChatDeploymentForWorkflow,
 } from '@/lib/chat-deployments/queries'
@@ -52,8 +52,8 @@ import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-che
 type ChatAuthType = 'public' | 'password' | 'email' | 'sso'
 
 /** Platform defaults for the presentation fields a replace may omit. */
-const DEFAULT_PRIMARY_COLOR = 'var(--brand-hover)'
-const DEFAULT_WELCOME_MESSAGE = 'Hi there! How can I help you today?'
+export const DEFAULT_PRIMARY_COLOR = 'var(--brand-hover)'
+export const DEFAULT_WELCOME_MESSAGE = 'Hi there! How can I help you today?'
 
 export interface WorkflowChatDeploymentInput {
   workflowId: string
@@ -153,16 +153,52 @@ export const readWorkflowChatDeploymentStatus = defineAuthorizedWorkspaceUseCase
  * other field.
  */
 async function assertAuthModePermitted(
-  context: WorkflowChatDeploymentApplicationContext,
+  existing: ChatDeploymentRow | null,
   principal: Principal,
+  workspaceId: string,
   authType: ChatAuthType
 ): Promise<void> {
-  if (authType === context.chatDeployment?.authType) return
-  await validateChatDeployAuth(
-    requirePrincipalSubjectUserId(principal),
-    context.workspaceId,
-    authType
-  )
+  if (authType === existing?.authType) return
+  await validateChatDeployAuth(requirePrincipalSubjectUserId(principal), workspaceId, authType)
+}
+
+/** Whether a live chat other than `chatId` (any live chat, when there is none) holds `identifier`. */
+async function isChatIdentifierHeldByAnotherChat(
+  identifier: string,
+  chatId: string | undefined
+): Promise<boolean> {
+  const owner = await getChatDeploymentIdOwningIdentifier(identifier)
+  return Boolean(owner) && owner !== chatId
+}
+
+/**
+ * Whether a live chat other than workflow `workflowId`'s holds `identifier` (any live chat, for a
+ * workflow not created yet).
+ */
+export async function isChatIdentifierHeldElsewhere(
+  identifier: string,
+  workflowId: string | undefined
+): Promise<boolean> {
+  const existing = workflowId ? await getLiveChatDeploymentForWorkflow(workflowId) : null
+  return isChatIdentifierHeldByAnotherChat(identifier, existing?.id)
+}
+
+/**
+ * Refuses what a replace of workflow `workflowId`'s chat would refuse that the request alone
+ * predicts: an identifier another live chat holds ({@link ChatIdentifierInUseError}) and an auth
+ * mode the caller's permission group denies. A caller that commits another write before the
+ * replace (workspace source sets the public API flag first) checks this before that write, so a
+ * predictable refusal leaves nothing half-applied.
+ */
+export async function assertChatReplaceAllowed(
+  principal: Principal,
+  input: { workspaceId: string; workflowId: string; identifier: string; authType: ChatAuthType }
+): Promise<void> {
+  const existing = await getLiveChatDeploymentForWorkflow(input.workflowId)
+  if (await isChatIdentifierHeldByAnotherChat(input.identifier, existing?.id)) {
+    throw new ChatIdentifierInUseError()
+  }
+  await assertAuthModePermitted(existing, principal, input.workspaceId, input.authType)
 }
 
 /**
@@ -196,12 +232,11 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
      * write — is caught by {@link chatIdentifierUniquenessConflict} below and
      * answers the same conflict.
      */
-    const identifierOwnerId = await getChatDeploymentIdOwningIdentifier(input.identifier)
-    if (identifierOwnerId && identifierOwnerId !== existing?.id) {
+    if (await isChatIdentifierHeldByAnotherChat(input.identifier, existing?.id)) {
       throw new ChatIdentifierInUseError()
     }
 
-    await assertAuthModePermitted(context, principal, authType)
+    await assertAuthModePermitted(existing, principal, context.workspaceId, authType)
 
     /**
      * Replace semantics: a mode that owns no password stores none. Resolved

@@ -21,6 +21,7 @@ interface InventoryEntry {
   body?: string
   mothershipUnavailable?: true
   unpublished?: true
+  entitlement?: string
   pathAliases?: string[][]
   renamedFrom?: string[][]
 }
@@ -123,6 +124,32 @@ describe('CLI reference producer', () => {
     expect(shape('knowledge tags delete')).toContain('tagSlot:')
     expect(shape('knowledge tags cleanup')).toContain('unused:')
     expect(shape('workflows mv')).toContain('folderPath:')
+  })
+
+  it('gates every workflow and workspace source command on the workflow-code entitlement', () => {
+    const commands = inventory()
+    const source = commands.filter(
+      (entry) =>
+        (entry.path[0] === 'workflows' || entry.path[0] === 'workspaces') &&
+        entry.path[1] === 'source'
+    )
+    expect(source.map((entry) => entry.path.join(' '))).toEqual(
+      expect.arrayContaining([
+        'workflows source get',
+        'workflows source apply',
+        'workflows source create',
+        'workspaces source get',
+        'workspaces source apply',
+      ])
+    )
+    for (const entry of source)
+      expect([entry.path.join(' '), entry.entitlement]).toEqual([
+        entry.path.join(' '),
+        'workflow-code',
+      ])
+    expect(
+      commands.filter((entry) => entry.entitlement !== undefined && !source.includes(entry))
+    ).toEqual([])
   })
 
   it('marks every command that calls a route Mothership is refused', () => {

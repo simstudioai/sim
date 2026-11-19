@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { twilioAuthorization } from '@/tools/twilio/utils'
 import type { TwilioListCallsOutput, TwilioListCallsParams } from '@/tools/twilio_voice/types'

@@ -1,0 +1,19 @@
+{
+  "namespace": "legacy.crunchbase",
+  "methods": {
+    "autocomplete": "autocomplete",
+    "get_acquisition": "getAcquisition",
+    "get_entity": "getAnyEntity",
+    "get_entity_card": "getEntityCard",
+    "get_fields_metadata": "getFieldsMetadata",
+    "get_funding_round": "getFundingRound",
+    "get_organization": "getOrganization",
+    "get_person": "getPerson",
+    "list_deleted_entities": "listDeletedEntities",
+    "search_acquisitions": "searchAcquisitions",
+    "search_entities": "searchAnyCollection",
+    "search_funding_rounds": "searchFundingRounds",
+    "search_organizations": "searchOrganizations",
+    "search_people": "searchPeople"
+  }
+}

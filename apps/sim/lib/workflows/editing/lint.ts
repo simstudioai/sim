@@ -1,5 +1,7 @@
 import { toRecordOrNull } from '@sim/utils/object'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
+import { didYouMean } from '@sim/workflow-code'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import { MCP_STRUCTURED_CONTENT_OUTPUT } from '@/lib/mcp/output-schema'
 import {
   collectPredicateFieldNames,
@@ -12,7 +14,6 @@ import {
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/outputs'
 import { quotedBlockLabel } from '@/lib/workflows/labels'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import type { ManualRunEntryIssue } from '@/lib/workflows/triggers/manual-run'
 import { getBlock } from '@/blocks'
 import {
@@ -104,10 +105,17 @@ export interface WorkflowLintUnresolvedReference extends WorkflowLintBlockRef {
  * the block's error edge, because the field name is only checked at run time.
  */
 export interface WorkflowLintTableFieldIssue extends WorkflowLintBlockRef {
-  /** The filter or sort field that names no column. */
+  /** The filter or sort field, or row-write key, that names no column. */
   field: string
   /** Display name of the table the block is bound to. */
   tableName: string
+  /**
+   * The row write the key is in (`data` of an insert, upsert or update, `rows` of a batch insert);
+   * absent for a filter or sort field. A row write drops a key that names no column.
+   */
+  rowWrite?: 'data' | 'rows'
+  /** The nearest column name as a did-you-mean, else the table's columns. */
+  hint?: string
 }
 
 /**
@@ -339,6 +347,51 @@ const TABLE_ID_SUB_BLOCKS = ['manualTableId', 'tableSelector'] as const
 /** Fields every table row carries beyond its declared columns. */
 const IMPLICIT_TABLE_ROW_FIELDS = ['id', 'createdAt', 'updatedAt'] as const
 
+/** The sub-block holding the row data each row-writing operation writes. */
+const ROW_WRITE_SUB_BLOCKS: Readonly<Record<string, 'data' | 'rows'>> = {
+  insert_row: 'data',
+  upsert_row: 'data',
+  update_row: 'data',
+  update_rows_by_filter: 'data',
+  batch_insert_rows: 'rows',
+}
+
+/** Stands in for each reference token so row data with references in its values still parses. */
+const REFERENCE_STAND_IN = '1e999'
+
+/**
+ * The literal keys of a Table block's row write: the keys of `data`, or of each object in `rows`.
+ * Values may hold references (bare or quoted), which stand in as a number while parsing; a key
+ * holding one, and data that is a reference or not a JSON object, cannot be judged and is skipped.
+ */
+function rowWriteKeys(block: BlockState, site: 'data' | 'rows'): string[] {
+  const value = block.subBlocks?.[site]?.value
+  if (typeof value !== 'string') return value && typeof value === 'object' ? keysOf(value) : []
+  if (value.trim() === '') return []
+  let text = value
+  for (const token of findWorkflowReferenceTokens(value).reverse()) {
+    text = text.slice(0, token.start) + REFERENCE_STAND_IN + text.slice(token.end)
+  }
+  try {
+    return keysOf(JSON.parse(text))
+  } catch {
+    return []
+  }
+
+  function keysOf(parsed: unknown): string[] {
+    const rows = site === 'rows' ? (Array.isArray(parsed) ? parsed : []) : [parsed]
+    const keys = new Set<string>()
+    for (const row of rows) {
+      const record = toRecordOrNull(row)
+      if (!record) continue
+      for (const key of Object.keys(record)) {
+        if (!key.includes(REFERENCE_STAND_IN)) keys.add(key)
+      }
+    }
+    return [...keys]
+  }
+}
+
 /** What the table field check needs to know about one table. */
 export interface WorkflowLintTableSchema {
   name: string
@@ -383,11 +436,13 @@ const TABLE_FIELD_SUB_BLOCKS: ReadonlyArray<[id: string, collect: (root: unknown
 ]
 
 /**
- * Table-block `filter`/`order` fields that name no column of the bound table.
- * Resolved against the live schema the caller loaded (`tables`, keyed by table
- * id); a block whose table is not in the map — unset, a reference, or not
- * readable in this workspace — is skipped, as is a filter that holds a
- * reference or is not JSON, since neither can be judged at lint time.
+ * Table-block `filter`/`order` fields that name no column of the bound table,
+ * and keys of the block's row write (`data`, or `rows` for a batch insert) that
+ * are not exactly a column name, which the run drops. Resolved against the
+ * schema the caller loaded (`tables`, keyed by table id); a block whose table is
+ * not in the map — unset, a reference, or not readable in this workspace — is
+ * skipped, as is a filter that holds a reference or is not JSON, since neither
+ * can be judged at lint time.
  */
 export function collectTableBlockFieldIssues(
   blocks: WorkflowState['blocks'] | Record<string, unknown> | undefined,
@@ -419,6 +474,22 @@ export function collectTableBlockFieldIssues(
         reported.add(key)
         issues.push({ ...blockRef(blockId, block), field, tableName: table.name })
       }
+    }
+    const operation = literalSubBlockText(block, 'operation')
+    const rowWrite = operation ? ROW_WRITE_SUB_BLOCKS[operation] : undefined
+    if (!rowWrite) continue
+    const columns = new Set(table.columnNames)
+    for (const field of rowWriteKeys(block, rowWrite)) {
+      if (columns.has(field)) continue
+      issues.push({
+        ...blockRef(blockId, block),
+        field,
+        tableName: table.name,
+        rowWrite,
+        hint:
+          didYouMean(field, table.columnNames) ??
+          `The table's columns are ${table.columnNames.join(', ')}.`,
+      })
     }
   }
   return issues
@@ -521,9 +592,18 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
     ),
     lintSection(
       "Table filter/sort fields that are not columns of the referenced table (the run will fail in the block's error edge)",
-      (lint.tableFieldIssues ?? []).map(
-        (issue) => `${blockLabel(issue)}.${issue.field} (table "${issue.tableName}")`
-      )
+      (lint.tableFieldIssues ?? [])
+        .filter((issue) => !issue.rowWrite)
+        .map((issue) => `${blockLabel(issue)}.${issue.field} (table "${issue.tableName}")`)
+    ),
+    lintSection(
+      'Table row-write keys that are not columns of the referenced table (the run drops them)',
+      (lint.tableFieldIssues ?? [])
+        .filter((issue) => issue.rowWrite)
+        .map(
+          (issue) =>
+            `${blockLabel(issue)}.${issue.rowWrite}.${issue.field} (table "${issue.tableName}"; ${issue.hint})`
+        )
     ),
   ].filter((found) => found.count > 0)
 }

@@ -17,6 +17,7 @@ import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
+import { isWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { ApplicationLoading } from '@/app/_shell/application-loading'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { SimLinkOrganizationProvider } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
@@ -131,6 +132,7 @@ async function WorkspaceContent({
     organizationHref,
     dashboardsEnabled,
     workflowTestsEnabled,
+    workflowCodeEnabled,
     changelogEnabled,
     desktopExecutorRegistered,
     projectsEnabled,
@@ -150,6 +152,11 @@ async function WorkspaceContent({
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
     isWorkflowTestsEnabled(hostContext.hostOrganizationId),
+    isWorkflowCodeEnabled({
+      orgId: hostContext.hostOrganizationId,
+      workspaceId,
+      userId: session.user.id,
+    }),
     isChangelogEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),
     isProjectsEnabled(),
@@ -165,6 +172,7 @@ async function WorkspaceContent({
         flags={{
           dashboards: dashboardsEnabled,
           'workflow-tests': workflowTestsEnabled,
+          'workflow-code': workflowCodeEnabled,
           changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,

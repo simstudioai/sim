@@ -1,36 +1,29 @@
 import { createLogger } from '@sim/logger'
 import { generateId, isValidUuid } from '@sim/utils/id'
 import { sortObjectKeysDeep } from '@sim/utils/object'
+import { buildCanonicalIndex, isCanonicalPair } from '@sim/workflow-code/catalog/canonical-index'
 import {
   type BlockRetryConfig,
   normalizeBlockRetryTries,
   normalizeBlockRetryWaitMs,
+  wouldCreateCycle,
 } from '@sim/workflow-types/workflow'
-import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
-import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
-import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { createModelAccessGate } from '@/lib/permission-groups/model-access'
 import { resolveAvailableAgentDefaultModel } from '@/lib/permission-groups/model-access.server'
-import {
-  createToolAccessGate,
-  isOperationAllowed,
-  MODEL_SUBBLOCK_ID,
-  OPERATION_SUBBLOCK_ID,
-  type SeedValueGate,
-} from '@/lib/permission-groups/operation-access'
+import type { SeedValueGate } from '@/lib/permission-groups/operation-access'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
-import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
-  buildCanonicalIndex,
-  buildDefaultCanonicalModes,
-  isCanonicalPair,
-} from '@/lib/workflows/subblocks/visibility'
+  checkRetrySetting,
+  createFieldValueGate,
+  createSeededValueGate,
+  isToolInputField,
+  partitionToolEntries,
+} from '@/lib/workflows/editing/gates'
+import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { getBlock } from '@/blocks/registry'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import { overlayVisibility } from '@/blocks/visibility/context'
+import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
 import { logSkippedItem } from './types'
@@ -69,16 +62,15 @@ export function resolveBlockRetryUpdate(
 }
 
 /**
- * Applies a requested retry policy to a block, or records why it could not be.
- *
- * Eligibility is checked with the same predicate the executor uses, so a policy
- * the runtime would ignore (triggers, human-in-the-loop, sentinels) is reported
- * back instead of being written as dead configuration.
+ * Applies a requested retry policy to a block, or records why it could not be: the `retry` gates
+ * of `BLOCK_GATES` decide, so a policy the runtime would ignore is reported back instead of
+ * being written as dead configuration.
  */
 export function applyBlockRetry(
   block: any,
   requested: unknown,
-  context: { operationType: string; blockId: string; skippedItems?: SkippedItem[] }
+  context: { operationType: string; blockId: string; skippedItems?: SkippedItem[] },
+  permissionConfig: PermissionGroupConfig | null = null
 ): void {
   if (requested === null) {
     block.retry = undefined
@@ -86,21 +78,17 @@ export function applyBlockRetry(
   }
   if (typeof requested !== 'object' || Array.isArray(requested)) return
 
-  if (
-    !isRetryEligibleBlock({
+  const refusal = checkRetrySetting(
+    {
+      blockId: context.blockId,
       blockType: block.type,
-      category: getBlock(block.type)?.category,
       triggerMode: block.triggerMode,
-    })
-  ) {
-    if (context.skippedItems) {
-      logSkippedItem(context.skippedItems, {
-        type: 'retry_not_supported',
-        operationType: context.operationType,
-        blockId: context.blockId,
-        reason: `Block "${context.blockId}" (${block.type}) cannot retry - triggers, human-in-the-loop, and container blocks always run once`,
-      })
-    }
+      operationType: context.operationType,
+    },
+    { permissionConfig }
+  )
+  if (refusal) {
+    if (context.skippedItems) logSkippedItem(context.skippedItems, refusal)
     return
   }
 
@@ -120,8 +108,9 @@ export function applyBlockRetry(
  *
  * Hidden and read-only sub-blocks are left alone: a hidden thunk is computed
  * by the serializer at run time from the block's other fields, and a read-only
- * field is display-only. Hidden `defaultValue`s keep their compatibility
- * seeding. A seeded value the caller's permission group denies is withheld
+ * field is display-only. A viewer-scoped default (`valueScope: 'viewer'`) is the
+ * editor's alone: the server's environment is nobody's. Hidden `defaultValue`s
+ * keep their compatibility seeding. A seeded value the caller's permission group denies is withheld
  * silently, as the editor withholds it — it is a default nobody asked for, not
  * a refused operation, so it records no skip.
  */
@@ -130,7 +119,12 @@ function resolveSeededSubBlockValue(
   writtenValues: Record<string, unknown>,
   isSeededValueAllowed: SeedValueGate
 ): unknown {
-  if (typeof subBlock.value === 'function' && !subBlock.hidden && !subBlock.readOnly) {
+  if (
+    typeof subBlock.value === 'function' &&
+    !subBlock.hidden &&
+    !subBlock.readOnly &&
+    subBlock.valueScope !== 'viewer'
+  ) {
     try {
       const seeded: unknown = subBlock.value(writtenValues)
       if (
@@ -204,11 +198,12 @@ export function createBlockFromParams(
   // Block-level setting like `enabled`, not a subBlock input — the executor
   // reads it from block state when wrapping the run, never from the tool params.
   if (params.retry !== undefined) {
-    applyBlockRetry(blockState, params.retry, {
-      operationType: 'add',
-      blockId,
-      skippedItems,
-    })
+    applyBlockRetry(
+      blockState,
+      params.retry,
+      { operationType: 'add', blockId, skippedItems },
+      permissionConfig ?? null
+    )
   }
 
   // Add validated inputs as subBlocks
@@ -229,19 +224,15 @@ export function createBlockFromParams(
         return
       }
 
-      let sanitizedValue = normalizeSubblockValue(key, value)
+      let sanitizedValue = normalizeSubblockValue(key, value, params.type)
 
       sanitizedValue = normalizeConditionRouterIds(blockId, key, sanitizedValue)
 
-      // Special handling for tools - normalize and filter disallowed
-      if (key === 'tools' && Array.isArray(value)) {
-        sanitizedValue = filterDisallowedTools(
-          normalizeTools(value),
-          permissionConfig ?? null,
-          blockId,
-          skippedItems ?? []
-        )
-      }
+      sanitizedValue = gateToolInputValue(
+        { blockId, blockType: params.type, key, value, sanitizedValue },
+        permissionConfig ?? null,
+        skippedItems ?? []
+      )
 
       // Special handling for responseFormat - normalize to ensure consistent format
       if (key === 'responseFormat' && value) {
@@ -484,12 +475,26 @@ function shouldNormalizeArrayIds(key: string): boolean {
   return ARRAY_WITH_ID_SUBBLOCK_TYPES.has(key)
 }
 
+/** Subblock types whose value is a list of rows each carrying an `id`. */
+const ARRAY_WITH_ID_TYPES = new Set<SubBlockType>([
+  'input-format',
+  'table',
+  'variables-input',
+  'knowledge-tag-filters',
+  'document-tag-entry',
+  'eval-input',
+  'condition-input',
+  'router-input',
+])
+
 /**
  * Normalizes an array-with-id subblock value, re-serializing it to a JSON string for the
  * subblock keys whose UI components read a string rather than a raw array.
  *
  * Every write path that persists LLM-supplied subblock values must route through this so the
- * two concerns cannot drift apart; returns non-array-with-id values untouched.
+ * two concerns cannot drift apart; returns non-array-with-id values untouched. The key names a
+ * row list only where `blockType` declares it as one: another type can use the same id for a
+ * different kind of field (a JSON code field named `params`), whose value is not rows.
  *
  * @remarks
  * A nullish value passes through unchanged. `validateValueForSubBlockType` treats null as an
@@ -497,8 +502,12 @@ function shouldNormalizeArrayIds(key: string): boolean {
  * for none -- leaving `sanitizeForCopilot` to show the agent an empty filter rather than an
  * absent one, and callers that branch on the field's presence to see it as set.
  */
-export function normalizeSubblockValue(key: string, value: unknown): unknown {
+export function normalizeSubblockValue(key: string, value: unknown, blockType?: string): unknown {
   if (!shouldNormalizeArrayIds(key)) return value
+  const declared = blockType
+    ? getBlock(blockType)?.subBlocks.find((subBlock) => subBlock.id === key)
+    : undefined
+  if (declared && !ARRAY_WITH_ID_TYPES.has(declared.type)) return value
   if (value === null || value === undefined) return value
   const normalized = normalizeArrayWithIds(value)
   return JSON_STRING_SUBBLOCK_KEYS.has(key) ? JSON.stringify(normalized) : normalized
@@ -574,6 +583,12 @@ export function normalizeResponseFormat(value: any): string {
 /**
  * Creates a validated edge between two blocks.
  * Returns true if edge was created, false if skipped due to validation errors.
+ *
+ * `storedEdges` holds the edges the workflow stored before this apply (see
+ * {@link storedEdgeKeys}). Re-sending one is restating it, not adding it: it is
+ * kept even where the engine would refuse a new edge, so a stored error edge
+ * from a container or a stored cycle survives an edit that rewrites the block's
+ * connections.
  */
 export function createValidatedEdge(
   modifiedState: any,
@@ -583,7 +598,8 @@ export function createValidatedEdge(
   targetHandle: string,
   operationType: string,
   logger: ReturnType<typeof createLogger>,
-  skippedItems?: SkippedItem[]
+  skippedItems?: SkippedItem[],
+  storedEdges?: ReadonlySet<string>
 ): boolean {
   if (!modifiedState.blocks[targetBlockId]) {
     // The target doesn't exist yet. It may be created by a later operation in
@@ -655,7 +671,11 @@ export function createValidatedEdge(
   }
 
   const sourceValidation = validateSourceHandleForBlock(sourceHandle, sourceBlockType, sourceBlock)
-  if (!sourceValidation.valid) {
+  // An error edge the graph already stored is kept even where the engine no longer adds one
+  // (from a loop or parallel): re-sending a block's connections must not drop it.
+  const restatedErrorEdge =
+    sourceHandle === 'error' && storedEdges?.has(edgeKey(sourceBlockId, 'error', targetBlockId))
+  if (!sourceValidation.valid && !restatedErrorEdge) {
     logger.warn(`Invalid source handle. Edge skipped.`, {
       sourceBlockId,
       targetBlockId,
@@ -704,6 +724,29 @@ export function createValidatedEdge(
   )
   if (edgeExists) return true
 
+  // The canvas and realtime refuse a cycle with the same check, and the executor cannot run one.
+  if (
+    !storedEdges?.has(edgeKey(sourceBlockId, finalSourceHandle, targetBlockId)) &&
+    wouldCreateCycle(modifiedState.edges || [], sourceBlockId, targetBlockId)
+  ) {
+    logger.warn('Edge would close a cycle. Edge skipped.', {
+      sourceBlockId,
+      targetBlockId,
+      sourceHandle: finalSourceHandle,
+    })
+    skippedItems?.push({
+      type: 'edge_cycle',
+      operationType,
+      blockId: sourceBlockId,
+      reason:
+        sourceBlockId === targetBlockId
+          ? `Edge from "${sourceBlockId}" to itself skipped - a block wired to itself waits on its own output and never runs. To repeat work, put the block inside a loop container instead.`
+          : `Edge from "${sourceBlockId}" to "${targetBlockId}" skipped - "${targetBlockId}" already leads back to "${sourceBlockId}", so this edge would close a cycle and no block on it would run. Do not wire back to an earlier block; to repeat work, put the blocks inside a loop container (or a parallel one to fan out).`,
+      details: { sourceHandle: finalSourceHandle, targetHandle, targetId: targetBlockId },
+    })
+    return false
+  }
+
   modifiedState.edges.push({
     id: generateId(),
     source: sourceBlockId,
@@ -729,6 +772,18 @@ function asConnectionTarget(value: unknown): { block: string; handle?: string } 
 const CONNECTION_TARGET_SHAPES = 'a target block id, {block, handle?}, or an array of those'
 const CONNECTION_ARRAY_ENTRY_SHAPES = 'a target block id or {block, handle?}'
 
+/** The key of an edge in {@link storedEdgeKeys}. */
+function edgeKey(source: string, sourceHandle: string | null | undefined, target: string): string {
+  return `${source}\u0000${sourceHandle ?? 'source'}\u0000${target}`
+}
+
+/** The edges a graph stores, for {@link createValidatedEdge}'s `storedEdges`. */
+export function storedEdgeKeys(
+  edges: ReadonlyArray<{ source: string; target: string; sourceHandle?: string | null }>
+): Set<string> {
+  return new Set(edges.map((edge) => edgeKey(edge.source, edge.sourceHandle, edge.target)))
+}
+
 /**
  * Adds connections as edges for a block.
  * Supports multiple target formats:
@@ -749,7 +804,8 @@ export function addConnectionsAsEdges(
   connections: Record<string, any>,
   logger: ReturnType<typeof createLogger>,
   skippedItems?: SkippedItem[],
-  validationErrors?: ValidationError[]
+  validationErrors?: ValidationError[],
+  storedEdges?: ReadonlySet<string>
 ): void {
   const normalizeHandle = (handle: string): string => {
     if (handle === 'success') return 'source'
@@ -786,7 +842,8 @@ export function addConnectionsAsEdges(
         targetHandle || 'target',
         'add_edge',
         logger,
-        skippedItems
+        skippedItems,
+        storedEdges
       )
     }
 
@@ -867,8 +924,7 @@ export function applyTriggerConfigToBlockSubblocks(
 }
 
 /**
- * Filters out tools that are not allowed by the permission group config
- * Returns both the allowed tools and any skipped tool items for logging
+ * Drops the tool entries a `tool_entry` gate of `BLOCK_GATES` refuses, recording each refusal.
  */
 export function filterDisallowedTools(
   tools: any[],
@@ -876,76 +932,32 @@ export function filterDisallowedTools(
   blockId: string,
   skippedItems: SkippedItem[]
 ): any[] {
-  const deploymentAvailableTools: any[] = []
+  const { kept, refused } = partitionToolEntries(tools, blockId, { permissionConfig })
+  for (const item of refused) logSkippedItem(skippedItems, item)
+  return kept
+}
 
-  for (const tool of tools) {
-    if (
-      typeof tool?.type === 'string' &&
-      getBlock(tool.type) &&
-      !isIntegrationDeploymentAvailableForVisibility(tool.type, overlayVisibility())
-    ) {
-      logSkippedItem(skippedItems, {
-        type: 'tool_not_allowed',
-        operationType: 'add',
-        blockId,
-        reason: `Tool block type "${tool.type}" is unavailable in this deployment - tool not added`,
-        details: { toolType: tool.type },
-      })
-      continue
-    }
-    deploymentAvailableTools.push(tool)
-  }
-
-  if (!permissionConfig) return deploymentAvailableTools
-
-  const isToolAllowed = createToolAccessGate(permissionConfig.deniedTools)
-  const allowedTools: any[] = []
-  for (const tool of deploymentAvailableTools) {
-    if (tool.type === 'custom-tool' && capabilityDeniedBy('custom_tools.use', permissionConfig)) {
-      logSkippedItem(skippedItems, {
-        type: 'tool_not_allowed',
-        operationType: 'add',
-        blockId,
-        reason: `Custom tool "${tool.title || tool.customToolId || 'unknown'}" is not allowed by permission group - tool not added`,
-        details: { toolType: 'custom-tool', toolId: tool.customToolId },
-      })
-      continue
-    }
-    if (
-      (tool.type === 'mcp' || tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) &&
-      capabilityDeniedBy('mcp_tools.use', permissionConfig)
-    ) {
-      logSkippedItem(skippedItems, {
-        type: 'tool_not_allowed',
-        operationType: 'add',
-        blockId,
-        reason: `MCP tool "${tool.title || 'unknown'}" is not allowed by permission group - tool not added`,
-        details: { toolType: tool.type, serverId: tool.params?.serverId },
-      })
-      continue
-    }
-    /* An integration tool entry names a block and (when the block exposes more
-       than one) the operation to run, which is what the group's `deniedTools`
-       denylist is written against. Passing `''` for an absent operation is the
-       single-tool case, where the resolver returns the block's only tool
-       without consulting it. */
-    if (
-      typeof tool?.type === 'string' &&
-      !isOperationAllowed(getBlock(tool.type), tool.operation ?? '', isToolAllowed)
-    ) {
-      logSkippedItem(skippedItems, {
-        type: 'tool_not_allowed',
-        operationType: 'add',
-        blockId,
-        reason: `Tool "${tool.type}${tool.operation ? `.${tool.operation}` : ''}" is blocked by access control - tool not added`,
-        details: { toolType: tool.type, operation: tool.operation },
-      })
-      continue
-    }
-    allowedTools.push(tool)
-  }
-
-  return allowedTools
+/**
+ * The value a `tool-input` field is written with: an agent's `tools` normalized, and in every such
+ * field (a human in the loop's `notification` as well) the entries a tool-entry gate refuses
+ * dropped. Any other field keeps `sanitizedValue`.
+ */
+export function gateToolInputValue(
+  input: {
+    blockId: string
+    blockType: string
+    key: string
+    value: unknown
+    sanitizedValue: unknown
+  },
+  permissionConfig: PermissionGroupConfig | null,
+  skippedItems: SkippedItem[]
+): unknown {
+  const { blockId, blockType, key, value, sanitizedValue } = input
+  if (!Array.isArray(value) || !isToolInputField(blockType, key)) return sanitizedValue
+  const entries = key === 'tools' ? normalizeTools(value) : sanitizedValue
+  if (!Array.isArray(entries)) return sanitizedValue
+  return filterDisallowedTools(entries, permissionConfig, blockId, skippedItems)
 }
 
 /** Decides whether one subBlock input may be written. Records its own skips. */
@@ -963,81 +975,28 @@ export interface SubBlockInputGateContext {
 }
 
 /**
- * Builds the permission gate for one block's subBlock writes.
+ * Builds the gate for one block's subBlock writes from the `field` gates of `BLOCK_GATES`.
  *
- * Two fields are gated, because they are the two that name something the group
- * has a policy about: `operation` decides which concrete tool id the block runs,
- * and `model` names a model id. Every other input passes through untouched.
+ * A denied value is dropped from the write and reported rather than failing the whole operation,
+ * matching {@link filterDisallowedTools}: the block still lands, and the model reads the skip
+ * reason and picks a value it may use. An edit therefore leaves whatever the block already had,
+ * never clearing a value the caller is allowed to keep.
  *
- * A denied value is dropped from the write and reported rather than failing the
- * whole operation, matching {@link filterDisallowedTools}: the block still
- * lands, and the model reads the skip reason and picks a value it may use. An
- * edit therefore leaves whatever the block already had, never clearing a value
- * the caller is allowed to keep.
- *
- * Built once per block rather than per input so the denylist is indexed once,
- * and so every path that writes subBlocks — including the trigger-config
- * fan-out, which never passes through input validation — can share one gate.
+ * Built once per block rather than per input so a denylist is indexed once, and so every path that
+ * writes subBlocks, including the trigger-config fan-out that never passes through input
+ * validation, shares one gate.
  */
 export function createSubBlockInputGate(context: SubBlockInputGateContext): SubBlockInputGate {
   const { blockType, permissionConfig, blockId, operationType, skippedItems } = context
-  if (!permissionConfig) return ALLOW_ALL_INPUTS
-
-  const isValueAllowed = createSeededValueGate(blockType, permissionConfig)
-
+  const check = createFieldValueGate(
+    { blockId, blockType, operationType },
+    { permissionConfig: permissionConfig ?? null }
+  )
   return (key: string, value: unknown) => {
-    if (typeof value !== 'string') return true
-    if (isValueAllowed(key, value)) return true
-
-    if (key === OPERATION_SUBBLOCK_ID) {
-      logSkippedItem(skippedItems, {
-        type: 'tool_not_allowed',
-        operationType,
-        blockId,
-        reason: `Operation "${value}" on block type "${blockType}" is blocked by access control - operation not set`,
-        details: { blockType, operation: value },
-      })
-    } else {
-      logSkippedItem(skippedItems, {
-        type: 'model_not_allowed',
-        operationType,
-        blockId,
-        reason: `Model "${value}" is blocked by access control - model not set`,
-        details: { blockType, model: value },
-      })
-    }
+    const refusal = check(key, value)
+    if (!refusal) return true
+    logSkippedItem(skippedItems, refusal)
     return false
-  }
-}
-
-/** Shared allow-everything seed gate, so the unrestricted case allocates nothing. */
-const ALLOW_ALL_SEEDS: SeedValueGate = () => true
-
-/**
- * The silent form of the permission gate: whether a string may be written to
- * `operation` or `model`, with nothing recorded when it may not.
- *
- * {@link createSubBlockInputGate} answers the same question for values the
- * caller sent and reports a denial as a skip. A block's declared defaults go
- * through this one instead — the editor's `isSeededValueAllowed` — because a
- * default the group denies is simply not seeded; it is not an operation the
- * caller asked for, so a skip would charge them for it.
- */
-export function createSeededValueGate(
-  blockType: string,
-  permissionConfig: PermissionGroupConfig | null | undefined
-): SeedValueGate {
-  if (!permissionConfig) return ALLOW_ALL_SEEDS
-
-  const isToolAllowed = createToolAccessGate(permissionConfig.deniedTools)
-  const isModelUsable = createModelAccessGate(permissionConfig)
-
-  return (key: string, value: string) => {
-    if (key === OPERATION_SUBBLOCK_ID) {
-      return isOperationAllowed(getBlock(blockType), value, isToolAllowed)
-    }
-    if (key === MODEL_SUBBLOCK_ID) return isModelUsable(value)
-    return true
   }
 }
 

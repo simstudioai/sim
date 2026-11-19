@@ -1,0 +1,25 @@
+// @sim-sdk 1
+import { api, todo, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const archiveRawPayload = api('Archive raw payload', { url: 'https://x.test', method: todo() })
+  const enrichCompanyProfile = api('Enrich company profile', {
+    url: 'https://x.test',
+    method: todo(),
+  })
+  const enrichContactDetails = api('Enrich contact details', {
+    url: 'https://x.test',
+    method: todo(),
+  })
+  const notifySalesChannel = api('Notify sales channel', { url: 'https://x.test', method: todo() })
+  const scoreLeadQuality = api('Score lead quality', { url: 'https://x.test', method: todo() })
+
+  start.to(
+    archiveRawPayload,
+    enrichCompanyProfile,
+    enrichContactDetails,
+    notifySalesChannel,
+    scoreLeadQuality
+  )
+})

@@ -1,0 +1,12 @@
+// @sim-sdk 1
+import { block, t, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { input: 'string' } })
+  const mystery = block(
+    'custom_block_acme',
+    'Mystery',
+    { alpha: t`a ${start.input}`, zeta: 1 },
+    { triggerMode: true }
+  )
+})

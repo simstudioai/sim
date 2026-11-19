@@ -1,0 +1,25 @@
+{
+  "namespace": "cloudformation",
+  "methods": {
+    "cancel_update_stack": "cancelUpdateStack",
+    "create_change_set": "createChangeSet",
+    "create_stack": "createStack",
+    "delete_stack": "deleteStack",
+    "describe_change_set": "describeChangeSet",
+    "describe_stack_drift_detection_status": "driftDetectionStatus",
+    "describe_stack_events": "describeStackEvents",
+    "describe_stacks": "describeStacks",
+    "detect_stack_drift": "detectStackDrift",
+    "execute_change_set": "executeChangeSet",
+    "get_template": "getTemplate",
+    "get_template_summary": "getTemplateSummary",
+    "list_stack_resources": "listStackResources",
+    "update_stack": "updateStack",
+    "validate_template": "validateTemplate"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

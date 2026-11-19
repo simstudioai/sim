@@ -47,6 +47,7 @@ async function render(advanced: boolean) {
           flags={{
             dashboards: false,
             'workflow-tests': false,
+            'workflow-code': false,
             changelog: false,
             'mothership-model-selector': advanced,
             'mothership-plan-mode': true,

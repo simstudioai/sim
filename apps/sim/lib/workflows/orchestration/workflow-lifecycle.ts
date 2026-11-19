@@ -11,7 +11,7 @@ import {
 } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
-import { and, eq, isNull, ne } from 'drizzle-orm'
+import { and, count, eq, isNull, ne } from 'drizzle-orm'
 import {
   asOrchestrationError,
   OrchestrationError,
@@ -35,6 +35,17 @@ const WORKFLOW_NAME_UNIQUE_INDEX = 'workflow_workspace_folder_name_active_unique
 const WORKFLOW_PRIMARY_KEY = 'workflow_pkey'
 const WORKFLOW_NAME_DEDUPLICATION_ATTEMPTS = 8
 
+/**
+ * Whether `error` is the unique violation of two live workflows taking one name in one folder: a
+ * concurrent write claimed the name after the `SELECT` that checked it.
+ */
+export function isWorkflowNameUniqueViolation(error: unknown): boolean {
+  return (
+    getPostgresErrorCode(error) === '23505' &&
+    getPostgresConstraintName(error) === WORKFLOW_NAME_UNIQUE_INDEX
+  )
+}
+
 export interface PerformCreateWorkflowParams {
   userId: string
   workspaceId: string
@@ -45,12 +56,19 @@ export interface PerformCreateWorkflowParams {
   sortOrder?: number
   deduplicate?: boolean
   requestId?: string
+  /**
+   * Writes the new workflow's graph in the create transaction, after the row is inserted, in
+   * place of the starter graph. A throw rolls the whole create back.
+   */
+  writeGraph?: (tx: DbTransaction, workflowId: string) => Promise<void>
 }
 
 export interface PerformCreateWorkflowResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
+  /** On a `conflict`, what was taken: the name in the folder, or the caller-supplied id. */
+  conflict?: 'name' | 'id'
   workflow?: {
     id: string
     name: string
@@ -141,7 +159,8 @@ export interface PerformRestoreWorkflowResult {
   workflow?: Awaited<ReturnType<typeof restoreWorkflow>>['workflow']
 }
 
-async function workflowNameExistsInFolder(params: {
+/** Whether a live workflow in the folder (the workspace root for none) already has `name`. */
+export async function workflowNameExistsInFolder(params: {
   workspaceId: string
   name: string
   folderId?: string | null
@@ -301,6 +320,7 @@ export async function performCreateWorkflowTransition(
         success: false,
         error: `A workflow named "${name}" already exists in this folder`,
         errorCode: 'conflict',
+        conflict: 'name',
       }
     }
   }
@@ -334,6 +354,10 @@ export async function performCreateWorkflowTransition(
         })
         await tx.insert(workflow).values(row)
 
+        if (params.writeGraph) {
+          await params.writeGraph(tx, workflowId)
+          return
+        }
         await saveWorkflowToNormalizedTables(
           workflowId,
           workflowState,
@@ -365,6 +389,7 @@ export async function performCreateWorkflowTransition(
           success: false,
           error: 'A workflow with this ID already exists',
           errorCode: 'conflict',
+          conflict: 'id',
         }
       }
       if (conflictingConstraint !== WORKFLOW_NAME_UNIQUE_INDEX) {
@@ -376,6 +401,7 @@ export async function performCreateWorkflowTransition(
           success: false,
           error: `A workflow named "${name}" already exists in this folder`,
           errorCode: 'conflict',
+          conflict: 'name',
         }
       }
 
@@ -400,8 +426,7 @@ export async function performCreateWorkflowTransition(
       sortOrder,
       createdAt: now,
       updatedAt: now,
-      startBlockId,
-      subBlockValues,
+      ...(params.writeGraph ? { subBlockValues: {} } : { startBlockId, subBlockValues }),
     },
   }
 }
@@ -514,6 +539,18 @@ export async function updateWorkflowRecord(
   return { success: true, workflow: updatedWorkflow }
 }
 
+/** Why a delete is refused: a workspace always keeps at least one live workflow. */
+export const LAST_WORKFLOW_MESSAGE = 'Cannot delete the only workflow in the workspace'
+
+/** The workspace's live (not archived) workflows, as the last-workflow guard counts them. */
+export async function countLiveWorkflows(workspaceId: string): Promise<number> {
+  const [row] = await db
+    .select({ count: count() })
+    .from(workflow)
+    .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+  return row?.count ?? 0
+}
+
 export async function deleteWorkflowRecord(
   params: PerformDeleteWorkflowParams
 ): Promise<PerformDeleteWorkflowResult> {
@@ -531,17 +568,8 @@ export async function deleteWorkflowRecord(
   }
 
   if (!skipLastWorkflowGuard && workflowRecord.workspaceId) {
-    const totalWorkflows = await db
-      .select({ id: workflow.id })
-      .from(workflow)
-      .where(and(eq(workflow.workspaceId, workflowRecord.workspaceId), isNull(workflow.archivedAt)))
-
-    if (totalWorkflows.length <= 1) {
-      return {
-        success: false,
-        error: 'Cannot delete the only workflow in the workspace',
-        errorCode: 'validation',
-      }
+    if ((await countLiveWorkflows(workflowRecord.workspaceId)) <= 1) {
+      return { success: false, error: LAST_WORKFLOW_MESSAGE, errorCode: 'validation' }
     }
   }
 

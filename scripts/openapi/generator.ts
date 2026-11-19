@@ -688,6 +688,15 @@ function operationFor(
         ...(content ? { content } : {}),
       }
     }
+    const { notModified } = operation.success
+    if (notModified) {
+      responses['304'] = {
+        description: notModified.description,
+        ...(referencedHeaders(notModified.headers)
+          ? { headers: referencedHeaders(notModified.headers) }
+          : {}),
+      }
+    }
   }
   for (const errorId of operation.errors) {
     const error = definition.errorResponses[errorId]
@@ -755,6 +764,9 @@ function validateOperationMetadata(
     }
   } else {
     nonEmpty(operation.success.description, `${label} success description`)
+    if (operation.success.notModified) {
+      nonEmpty(operation.success.notModified.description, `${label} 304 description`)
+    }
   }
   invariant(operation.tags.length > 0, `${label} must declare at least one tag`)
   for (const tag of operation.tags) {
@@ -779,7 +791,10 @@ function validateOperationMetadata(
   const successResponses =
     'byStatus' in operation.success
       ? Object.values(operation.success.byStatus)
-      : [operation.success]
+      : [
+          operation.success,
+          ...(operation.success.notModified ? [operation.success.notModified] : []),
+        ]
   for (const success of successResponses) {
     for (const header of success.headers ?? []) {
       invariant(definition.headers[header], `${label} references unknown success header ${header}`)

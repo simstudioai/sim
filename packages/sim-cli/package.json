@@ -53,6 +53,7 @@
     "chalk": "5.6.2",
     "commander": "^11.1.0",
     "csv-parse": "7.0.3",
+    "diff": "9.0.0",
     "js-yaml": "4.3.2",
     "minisearch": "7.2.0",
     "proper-lockfile": "4.1.2"
@@ -60,6 +61,9 @@
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@sim/utils": "workspace:*",
+    "@sim/workflow-code": "workspace:*",
+    "@sim/workflow-sdk": "workspace:*",
+    "@sim/workspace-code": "workspace:*",
     "@types/js-yaml": "4.0.9",
     "@types/node": "24.19.2",
     "@types/proper-lockfile": "4.1.4",

@@ -1,0 +1,7 @@
+{
+  "namespace": "googleTranslate",
+  "methods": {
+    "detect": "detectLanguage",
+    "text": "translateText"
+  }
+}

@@ -32,6 +32,16 @@ export async function setTableTxTimeouts(trx: DbTransaction, opts?: TableTxTimeo
   await trx.execute(sql`select ${tableTxTimeoutSettings(opts)}`)
 }
 
+/**
+ * A caller's open transaction that table writes join instead of opening their own, so several of
+ * them commit or roll back together. Work that must only follow a commit (a live-list notify, the
+ * background reclaim of a dropped column's cells) is queued on it rather than run in place.
+ */
+export interface TableWriteTx {
+  trx: DbTransaction
+  afterCommit(task: () => unknown): void
+}
+
 /** Per-transaction timeouts, in milliseconds. See {@link setTableTxTimeouts}. */
 export interface TableTxTimeouts {
   statementMs?: number

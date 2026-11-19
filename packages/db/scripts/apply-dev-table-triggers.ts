@@ -2,24 +2,27 @@ import { createLogger } from '@sim/logger'
 import postgres from 'postgres'
 
 /**
- * Push-managed databases (local + dev use `db:push`) never receive the raw-SQL
- * row-count triggers that versioned migrations install on staging/prod — so every
- * table's `row_count` sat at 0 forever there (found live: the agent had to count rows
- * directly because the tables list lied). This applies the CURRENT trigger definitions
- * (verbatim from migrations 0224 and 0402: each statement logs to `user_table_row_changes`)
- * idempotently, then reconciles the stored counts so stored + unfolded log matches reality.
+ * Push-managed databases (local + dev use `db:push`, which runs this after every push) never
+ * receive the raw-SQL triggers that versioned migrations install on staging/prod, so every
+ * table's `row_count` and `rows_version` sat at 0 forever there. This applies the CURRENT
+ * definitions idempotently: the statement-level INSERT/DELETE row-count triggers (0224, bodies
+ * from 0402), the deferred UPDATE trigger that bumps `rows_version` once per transaction (0390,
+ * body from 0402) and the deferred `table_id` foreign key (0390). Each logs to
+ * `user_table_row_changes`. It then reconciles the stored counts so stored + unfolded log matches
+ * reality. On a migrated database every statement replaces an object with its identical self.
  */
 const logger = createLogger('DevTableTriggers')
 
-const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
+const url = process.env.DATABASE_URL
 if (!url) {
-  throw new Error('Missing MIGRATION_DATABASE_URL or DATABASE_URL')
+  throw new Error('Missing DATABASE_URL')
 }
 
 const sql = postgres(url, {
   max: 1,
   connect_timeout: 10,
   max_lifetime: null,
+  onnotice: () => undefined,
   connection: { application_name: 'sim-dev-table-triggers' },
 })
 
@@ -64,10 +67,51 @@ CREATE TRIGGER user_table_rows_delete_stmt_trigger
     REFERENCING OLD TABLE AS old_rows
     FOR EACH STATEMENT
     EXECUTE FUNCTION decrement_user_table_row_count_stmt();
+
+CREATE OR REPLACE FUNCTION bump_user_table_rows_version_at_commit()
+RETURNS TRIGGER AS $$
+DECLARE
+    bumped text := coalesce(current_setting('sim_rows_version.bumped', true), '');
+BEGIN
+    IF position(',' || NEW.table_id || ',' IN ',' || bumped || ',') = 0 THEN
+        PERFORM set_config(
+            'sim_rows_version.bumped',
+            CASE WHEN bumped = '' THEN NEW.table_id ELSE bumped || ',' || NEW.table_id END,
+            true
+        );
+        INSERT INTO user_table_row_changes (table_id, row_delta)
+        SELECT NEW.table_id, 0
+        WHERE EXISTS (SELECT 1 FROM user_table_definitions d WHERE d.id = NEW.table_id);
+    END IF;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS user_table_rows_version_update_trigger ON user_table_rows;
+CREATE CONSTRAINT TRIGGER user_table_rows_version_update_trigger
+    AFTER UPDATE OF data, order_key ON user_table_rows
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    WHEN (
+        OLD.data IS DISTINCT FROM NEW.data
+        OR OLD.order_key IS DISTINCT FROM NEW.order_key
+    )
+    EXECUTE FUNCTION bump_user_table_rows_version_at_commit();
+
+-- Pre-0402 statement-level version triggers: alongside the triggers above they double-bump.
+DROP TRIGGER IF EXISTS user_table_rows_version_insert_trigger ON user_table_rows;
+DROP TRIGGER IF EXISTS user_table_rows_version_delete_trigger ON user_table_rows;
+DROP FUNCTION IF EXISTS bump_user_table_rows_version();
+
+ALTER TABLE user_table_rows
+    ALTER CONSTRAINT user_table_rows_table_id_user_table_definitions_id_fk
+    DEFERRABLE INITIALLY DEFERRED;
 `
 
 try {
-  await sql.unsafe(TRIGGER_SQL)
+  // One transaction, so a concurrent row write never sees the triggers half swapped.
+  await sql.begin((tx) => tx.unsafe(TRIGGER_SQL))
   const reconciled = await sql.begin(async (tx) => {
     // Waits out any fold or row write in flight and holds off new ones, so the counts below are
     // read after the lock in one consistent snapshot rather than racing a fold's delete.

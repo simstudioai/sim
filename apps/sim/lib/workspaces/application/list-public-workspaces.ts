@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import type { ListSortOrder } from '@/lib/api/list-query'
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import {
@@ -6,7 +7,6 @@ import {
   requireAllowedWorkspacePrincipal,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { workspaceOperations } from '@/lib/workspaces/application/operations'

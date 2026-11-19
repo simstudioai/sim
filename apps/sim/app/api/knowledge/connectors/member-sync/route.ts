@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector, knowledgeConnectorMemberSyncLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, eq, inArray, isNull, lte, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -10,7 +11,6 @@ import {
   resolveSystemOrganizationBillingAttribution,
 } from '@/lib/billing/core/attribution'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { connectorIndexingCondition } from '@/lib/knowledge/connectors/indexing-policy'

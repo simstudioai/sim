@@ -33,6 +33,7 @@ import { createHash } from 'node:crypto'
 import { closeSync, openSync, writeSync } from 'node:fs'
 import { db, workflowDeploymentVersion } from '@sim/db'
 import { webhook as webhookTable, workflow as workflowTable } from '@sim/db/schema'
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import {
   loadWorkflowDeploymentSnapshot,
@@ -40,7 +41,6 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 import { resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 const SECRET_KEY_PATTERN = /(token|secret|password|apikey|api_key|credential)/i

@@ -1,0 +1,11 @@
+{
+  "namespace": "enrichment",
+  "methods": {
+    "company-domain": "companyDomain",
+    "company-info": "companyInfo",
+    "email-verification": "emailVerification",
+    "linkedin-profile": "linkedInProfile",
+    "phone-number": "phoneNumber",
+    "work-email": "workEmail"
+  }
+}

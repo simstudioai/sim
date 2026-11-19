@@ -1,0 +1,16 @@
+{
+  "namespace": "legacy.luma",
+  "methods": {
+    "add_guests": "addGuests",
+    "cancel_event": "cancelEvent",
+    "create_event": "createEvent",
+    "get_event": "getEvent",
+    "get_guest": "getGuest",
+    "get_guests": "getGuests",
+    "list_events": "listEvents",
+    "lookup_event": "lookupEvent",
+    "send_invites": "sendInvites",
+    "update_event": "updateEvent",
+    "update_guest_status": "updateGuestStatus"
+  }
+}

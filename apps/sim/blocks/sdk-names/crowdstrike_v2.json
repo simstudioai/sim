@@ -1,0 +1,33 @@
+{
+  "namespace": "crowdstrike",
+  "methods": {
+    "crowdstrike_create_indicators": "createIndicators",
+    "crowdstrike_delete_indicators": "deleteIndicators",
+    "crowdstrike_delete_rtr_session": "deleteRtrSession",
+    "crowdstrike_execute_rtr_command": "executeRtrCommand",
+    "crowdstrike_get_alert_details": "getAlertDetails",
+    "crowdstrike_get_case_details": "getCaseDetails",
+    "crowdstrike_get_host_group_details": "getHostGroupDetails",
+    "crowdstrike_get_indicator_details": "getIndicatorDetails",
+    "crowdstrike_get_rtr_command_status": "getRtrCommandStatus",
+    "crowdstrike_get_sensor_aggregates": "getSensorAggregates",
+    "crowdstrike_get_sensor_details": "getSensorDetails",
+    "crowdstrike_get_vulnerability_details": "getVulnerabilityDetails",
+    "crowdstrike_init_rtr_session": "initRtrSession",
+    "crowdstrike_perform_host_action": "performHostAction",
+    "crowdstrike_perform_host_group_action": "performHostGroupAction",
+    "crowdstrike_query_alerts": "queryAlerts",
+    "crowdstrike_query_cases": "queryCases",
+    "crowdstrike_query_host_groups": "queryHostGroups",
+    "crowdstrike_query_indicators": "queryIndicators",
+    "crowdstrike_query_sensors": "querySensors",
+    "crowdstrike_query_vulnerabilities": "queryVulnerabilities",
+    "crowdstrike_update_alerts": "updateAlerts",
+    "crowdstrike_update_indicators": "updateIndicators"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

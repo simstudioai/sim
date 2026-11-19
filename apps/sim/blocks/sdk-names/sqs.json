@@ -1,0 +1,26 @@
+{
+  "namespace": "legacy.sqs",
+  "methods": {
+    "cancel_message_move_task": "cancelMessageMoveTask",
+    "change_message_visibility": "changeMessageVisibility",
+    "change_message_visibility_batch": "changeMessageVisibilityBatch",
+    "create_queue": "createQueue",
+    "delete_message": "deleteMessage",
+    "delete_message_batch": "deleteMessageBatch",
+    "delete_queue": "deleteQueue",
+    "get_queue_attributes": "getQueueAttributes",
+    "get_queue_url": "getQueueUrl",
+    "list_dead_letter_source_queues": "listDeadLetterSourceQueues",
+    "list_message_move_tasks": "listMessageMoveTasks",
+    "list_queue_tags": "listQueueTags",
+    "list_queues": "listQueues",
+    "purge_queue": "purgeQueue",
+    "receive_message": "receiveMessage",
+    "send": "sendMessage",
+    "send_message_batch": "sendMessageBatch",
+    "set_queue_attributes": "setQueueAttributes",
+    "start_message_move_task": "startMessageMoveTask",
+    "tag_queue": "tagQueue",
+    "untag_queue": "untagQueue"
+  }
+}

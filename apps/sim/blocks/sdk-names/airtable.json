@@ -1,0 +1,26 @@
+{
+  "namespace": "airtable",
+  "methods": {
+    "create": "createRecords",
+    "delete": "deleteRecords",
+    "get": "getRecord",
+    "getSchema": "getBaseSchema",
+    "list": "listRecords",
+    "listBases": "listBases",
+    "listTables": "listTables",
+    "update": "updateRecord",
+    "updateMultiple": "updateMultipleRecords",
+    "upsert": "upsertRecords"
+  },
+  "triggers": {
+    "airtable_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "triggerCredentials": "credential"
+    }
+  }
+}

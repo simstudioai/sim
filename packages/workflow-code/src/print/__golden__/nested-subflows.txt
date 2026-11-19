@@ -1,0 +1,34 @@
+// @sim-sdk 1
+import { agent, js, loop, parallel, t, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { rows: 'array' } })
+  const outer = loop.for('Outer', { count: 3 }, (p) => {
+    const fan = parallel.collection('Fan', { collection: start.rows, batchSize: 5 }, (p2) => {
+      const work = agent('Work', {
+        messages: [
+          {
+            role: 'system',
+            content: t`loop ${p.index} parallel ${p2.currentItem} named ${outer.index} fan ${fan.index}`,
+          },
+        ],
+        model: 'm',
+      })
+
+      p2.to(work)
+    })
+
+    p.to(fan)
+  })
+  const sibling = loop.while('Sibling', { condition: js`<loop.index> < 3` }, (p) => {
+    const insideSibling = agent('Inside sibling', {
+      messages: [{ role: 'system', content: 'cannot see <work.content>' }],
+      model: 'm',
+    })
+
+    p.to(insideSibling)
+  })
+
+  start.to(outer)
+  outer.to(sibling)
+})

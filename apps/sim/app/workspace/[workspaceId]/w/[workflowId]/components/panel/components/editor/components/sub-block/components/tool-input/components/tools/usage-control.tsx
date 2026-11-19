@@ -1,6 +1,6 @@
 import { Combobox, cn, Label, Tooltip } from '@sim/emcn'
 import { ArrowLeftRight } from '@sim/emcn/icons'
-import type { CanonicalMode } from '@/lib/workflows/subblocks/visibility'
+import type { CanonicalMode } from '@sim/workflow-code/catalog/canonical-index'
 import type { StoredTool } from '@/lib/workflows/tool-input/types'
 import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input'
 import type { SubBlockConfig } from '@/blocks/types'

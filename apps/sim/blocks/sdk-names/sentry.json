@@ -1,0 +1,25 @@
+{
+  "namespace": "legacy.sentry",
+  "methods": {
+    "sentry_events_get": "getEvent",
+    "sentry_events_list": "listEvents",
+    "sentry_issues_get": "getIssue",
+    "sentry_issues_list": "listIssues",
+    "sentry_issues_update": "updateIssue",
+    "sentry_projects_create": "createProject",
+    "sentry_projects_get": "getProject",
+    "sentry_projects_list": "listProjects",
+    "sentry_projects_update": "updateProject",
+    "sentry_releases_create": "createRelease",
+    "sentry_releases_deploy": "createDeploy",
+    "sentry_releases_list": "listReleases",
+    "sentry_teams_list": "listTeams"
+  },
+  "triggers": {
+    "sentry_error_created": "errorCreated",
+    "sentry_issue_alert": "issueAlert",
+    "sentry_issue_created": "issueCreated",
+    "sentry_issue_resolved": "issueResolved",
+    "sentry_metric_alert": "metricAlert"
+  }
+}

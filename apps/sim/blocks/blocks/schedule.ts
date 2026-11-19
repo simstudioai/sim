@@ -1,4 +1,5 @@
 import { Clock } from '@sim/emcn/icons'
+import { getBrowserTimezone } from '@sim/utils/timezone'
 import type { BlockConfig } from '@/blocks/types'
 
 export const ScheduleBlock: BlockConfig = {
@@ -211,7 +212,8 @@ Return ONLY the cron expression, nothing else. No explanation, no backticks, no 
         { label: 'Melbourne (UTC+10)', id: 'Australia/Melbourne' },
         { label: 'Auckland (UTC+12)', id: 'Pacific/Auckland' },
       ],
-      value: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+      value: getBrowserTimezone,
+      valueScope: 'viewer',
       required: false,
       mode: 'trigger',
       condition: { field: 'scheduleType', value: ['minutes', 'hourly'], not: true },

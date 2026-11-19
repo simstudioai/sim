@@ -1,0 +1,28 @@
+{
+  "namespace": "pipedrive",
+  "methods": {
+    "create_activity": "createActivity",
+    "create_deal": "createDeal",
+    "create_lead": "createLead",
+    "create_project": "createProject",
+    "delete_lead": "deleteLead",
+    "get_activities": "getActivities",
+    "get_all_deals": "getAllDeals",
+    "get_deal": "getDeal",
+    "get_files": "getFiles",
+    "get_leads": "getLeads",
+    "get_mail_messages": "getMailThreads",
+    "get_mail_thread": "getMailThreadMessages",
+    "get_pipeline_deals": "getPipelineDeals",
+    "get_pipelines": "getPipelines",
+    "get_projects": "getProjects",
+    "update_activity": "updateActivity",
+    "update_deal": "updateDeal",
+    "update_lead": "updateLead"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

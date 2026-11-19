@@ -298,6 +298,18 @@ export interface TableMetadata {
    * data is retained and reappears intact when it is unhidden.
    */
   hiddenColumns?: string[]
+  /**
+   * Set while workspace source manages the table's rows (`rows: { mode: 'managed' }`), so reading
+   * the workspace as source prints them. Written only by the reshape that applies them.
+   */
+  sourceRows?: TableSourceRows
+}
+
+/** Rows workspace source manages: the whole table, each row matched by its key column. */
+export interface TableSourceRows {
+  mode: 'managed'
+  /** The id (`getColumnId`) of the unique column each row is matched by. */
+  keyColumnId: string
 }
 
 /**

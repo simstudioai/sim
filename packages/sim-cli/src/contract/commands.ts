@@ -639,6 +639,35 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows outline',
     describe: 'Show a workflow’s draft as a compact read-only outline',
   },
+  getWorkflowSource: {
+    command: 'workflows source get',
+    describe: 'Show a workflow’s draft as TypeScript source with its identity lock',
+  },
+  /** `workflows source apply --dir <dir>` reads and writes a source directory by hand. */
+  applyWorkflowSource: { hidden: true },
+  // The ETag revalidation header is for a client that caches the catalog, as `workflows source
+  // get --dir` does by hand; a one-off read has no cached hash to send.
+  getSourceCatalog: {
+    command: 'workflows source catalog',
+    describe: 'Show the block catalog workflow source is checked against',
+    profileWorkspacePath: true,
+    flags: { 'if-none-match': { omit: true } },
+  },
+  /** `workflows source create --dir <dir>` reads and writes a source directory by hand. */
+  createWorkflowFromSource: { hidden: true },
+  /** `workspaces source get|apply --dir <dir>` read and write a workspace directory by hand. */
+  getWorkspaceSource: { hidden: true },
+  applyWorkspaceSource: { hidden: true },
+  /** The staging `workspaces source apply` runs before its one apply. */
+  findMissingWorkspaceSourceBlobs: { hidden: true },
+  stageWorkspaceSourceBlobs: { hidden: true },
+  /** One document, not a page: a source get or create writes it as `workspace.d.ts`. */
+  getSourceResources: {
+    command: 'workflows source resources',
+    profileWorkspacePath: true,
+    describe:
+      'List the tables, knowledge bases, credentials, workflows, skills, custom tools, MCP servers and env names source can name',
+  },
   replaceWorkflowState: {
     command: 'workflows state replace',
     confirm: 'This replaces the entire draft graph and cannot be undone.',

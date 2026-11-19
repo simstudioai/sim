@@ -1,0 +1,17 @@
+{
+  "namespace": "legacy.codepipeline",
+  "methods": {
+    "disable_stage_transition": "disableStageTransition",
+    "enable_stage_transition": "enableStageTransition",
+    "get_pipeline": "getPipelineStructure",
+    "get_pipeline_execution": "getExecution",
+    "get_pipeline_state": "getPipelineState",
+    "list_action_executions": "listActionExecutions",
+    "list_pipeline_executions": "listExecutions",
+    "list_pipelines": "listPipelines",
+    "put_approval_result": "approveRejectApproval",
+    "retry_stage_execution": "retryStage",
+    "start_execution": "startExecution",
+    "stop_execution": "stopExecution"
+  }
+}

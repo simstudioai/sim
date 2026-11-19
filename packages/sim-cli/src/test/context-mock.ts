@@ -1,14 +1,19 @@
 import { vi } from 'vitest'
-import type { OutputFormat } from '../config/index'
+import type { OutputFormat, SettingSource } from '../config/index'
 
 /**
  * Per-test knobs read on every `clientFrom` call, so a test changes them
  * between invocations. They persist across tests: reset the ones a file
  * changes in its `beforeEach` (e.g. `contextMockState.output = 'json'`).
  */
-export const contextMockState: { output: OutputFormat; workspaceId: string } = {
+export const contextMockState: {
+  output: OutputFormat
+  workspaceId: string
+  workspaceSource: SettingSource
+} = {
   output: 'json',
   workspaceId: 'ws_local',
+  workspaceSource: 'config',
 }
 
 /**
@@ -35,8 +40,10 @@ export const contextMockFns = {
       workspaceId: contextMockState.workspaceId,
       output: contextMockState.output,
       name: 'default',
+      authProfile: 'default',
       apiKey: 'k',
       endpoint: 'https://sim.example',
+      sources: { workspaceId: contextMockState.workspaceSource },
     },
   })),
 }

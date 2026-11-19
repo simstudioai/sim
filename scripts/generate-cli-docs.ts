@@ -455,6 +455,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
     { title: 'Push and pull', prefixes: ['push-preview', 'push', 'pull-preview', 'pull'] },
     { title: 'Operation status', prefixes: ['operations'] },
     { title: 'Exclusions and recovery', prefixes: ['sync-exclusions', 'fork-rollback', 'unlink'] },
+    { title: 'Workspace as code', prefixes: ['source'] },
   ],
 }
 
@@ -1078,6 +1079,11 @@ function renderReferencePage(
     '',
     'API schema links describe HTTP payloads. See [CLI output formats](/cli/output)',
     'for resource unwrapping, pagination envelopes, and display formats.',
+    '',
+    'Every command exits 13 when it needs a login it does not have (`AUTH_REQUIRED`) and 9',
+    'when the API still answers `429` after the CLI resends it (every `GET` and the source',
+    'writes, up to 6 times, at most a minute apart); see',
+    '[Exit codes](/cli/scripting#exit-codes) for these and the command-specific codes.',
     ''
   )
 

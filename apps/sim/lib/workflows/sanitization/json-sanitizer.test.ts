@@ -125,6 +125,42 @@ describe('sanitizeForCopilot knowledge tag subblocks', () => {
   })
 })
 
+describe('sanitizeForCopilot condition rows', () => {
+  // A row key the agent never sees is a key its next edit cannot echo back, so every copilot
+  // edit of a condition would silently drop the named branches.
+  it('keeps the persisted branch key and strips UI state', () => {
+    const rows = [
+      { id: 'c-if', title: 'if', value: 'a', key: 'isVip', showTags: true, searchTerm: 'x' },
+      { id: 'c-else', title: 'else', value: '' },
+    ]
+    const state = {
+      blocks: {
+        'cond-1': {
+          id: 'cond-1',
+          type: 'condition',
+          name: 'Route',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          outputs: {},
+          subBlocks: {
+            conditions: { id: 'conditions', type: 'condition-input', value: JSON.stringify(rows) },
+          },
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    } as unknown as WorkflowState
+
+    const inputs = sanitizeForCopilot(state).blocks['cond-1'].inputs
+
+    expect(JSON.parse(String(inputs?.conditions))).toEqual([
+      { id: 'c-if', title: 'if', value: 'a', key: 'isVip' },
+      { id: 'c-else', title: 'else', value: '' },
+    ])
+  })
+})
+
 describe('sanitizeForCopilot server-only block inputs', () => {
   it('omits Sim Chat secret-mount policy while retaining model-visible inputs', () => {
     const result = sanitizeForCopilot(

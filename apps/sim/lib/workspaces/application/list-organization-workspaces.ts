@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   CAPABILITY_RULES,
   type StaticPermissionGroupCapability,

@@ -1,0 +1,21 @@
+{
+  "namespace": "legacy.algolia",
+  "methods": {
+    "add_record": "addRecord",
+    "batch_operations": "batchOperations",
+    "browse_records": "browseRecords",
+    "clear_records": "clearRecords",
+    "copy_move_index": "copyMoveIndex",
+    "delete_by_filter": "deleteByFilter",
+    "delete_index": "deleteIndex",
+    "delete_record": "deleteRecord",
+    "get_record": "getRecord",
+    "get_records": "getRecords",
+    "get_settings": "getSettings",
+    "get_task_status": "getTaskStatus",
+    "list_indices": "listIndices",
+    "partial_update_record": "partialUpdateRecord",
+    "search": "search",
+    "update_settings": "updateSettings"
+  }
+}

@@ -330,6 +330,7 @@ describe('CI task attribution through real Turborepo', () => {
       'mobile',
       'organization-search',
       'seo',
+      'workflow-code-ui',
     ])
     expect(plan.flags).toMatchObject({
       desktop_live: true,
@@ -510,6 +511,7 @@ describe('CI task attribution through real Turborepo', () => {
   it.each([
     ['test-mobile-e2e.ts', 'mobile'],
     ['test-markdown-viewer-e2e.ts', 'markdown-viewer'],
+    ['test-workflow-code-ui-e2e.ts', 'workflow-code-ui'],
     ['test-project-file-sharing-e2e.ts', 'project-files'],
     ['test-scim-e2e.ts', 'scim'],
     ['test-landing-seo-e2e.ts', 'seo'],
@@ -560,6 +562,7 @@ describe('CI task attribution through real Turborepo', () => {
       'scim',
       'seo',
       'stop-after',
+      'workflow-code-ui',
     ])
     expect(plan.typecheckPackages).toContain('@sim/app')
     expect(plan.typecheckPackages).toContain('@sim/realtime')

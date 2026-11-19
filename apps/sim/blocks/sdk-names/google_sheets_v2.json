@@ -1,0 +1,30 @@
+{
+  "namespace": "googleSheets",
+  "methods": {
+    "append": "appendData",
+    "batch_clear": "batchClear",
+    "batch_get": "batchRead",
+    "batch_update": "batchUpdate",
+    "clear": "clearData",
+    "copy_sheet": "copySheet",
+    "create": "createSpreadsheet",
+    "delete_rows": "deleteRows",
+    "delete_sheet": "deleteSheet",
+    "delete_spreadsheet": "deleteSpreadsheet",
+    "get_info": "getSpreadsheetInfo",
+    "read": "readData",
+    "update": "updateData",
+    "write": "writeData"
+  },
+  "triggers": {
+    "google_sheets_poller": "poller"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "oauthCredential": "credential"
+    }
+  }
+}

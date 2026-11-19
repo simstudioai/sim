@@ -68,6 +68,10 @@ correct its request.
 - **No file bytes.** Downloads, knowledge base exports, and multipart document
   uploads are not available over MCP; use the [CLI](/cli/files) or the API.
 
+## Edit a whole workflow [#workflow-source]
+
+`getWorkflowSource` returns a workflow as TypeScript source files with its `lock` and `base`. Edit the files and send them back, with the same `lock` and `base`, through `applyWorkflowSource`, first with `query: {"dryRun": true}`. One call replaces a batch of graph operations. Workflows as code is in preview; see [Workflows as code](/workflows/code).
+
 ## Code mode (beta)
 
 For a task that takes many calls, such as paging through a list, filtering, or

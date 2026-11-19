@@ -1,0 +1,52 @@
+{
+  "namespace": "linq",
+  "methods": {
+    "add_participant": "addParticipant",
+    "check_imessage": "checkIMessage",
+    "check_rcs": "checkRcs",
+    "create_attachment": "createAttachment",
+    "create_chat": "createChat",
+    "create_contact_card": "createContactCard",
+    "create_webhook_subscription": "createWebhookSubscription",
+    "delete_attachment": "deleteAttachment",
+    "delete_message": "deleteMessage",
+    "delete_webhook_subscription": "deleteWebhookSubscription",
+    "edit_message": "editMessage",
+    "get_attachment": "getAttachment",
+    "get_chat": "getChat",
+    "get_contact_card": "getContactCard",
+    "get_message": "getMessage",
+    "get_webhook_subscription": "getWebhookSubscription",
+    "leave_chat": "leaveChat",
+    "list_chats": "listChats",
+    "list_messages": "listMessages",
+    "list_phone_numbers": "listPhoneNumbers",
+    "list_thread": "listThread",
+    "list_webhook_events": "listWebhookEvents",
+    "list_webhook_subscriptions": "listWebhookSubscriptions",
+    "mark_chat_read": "markChatAsRead",
+    "react_to_message": "reactToMessage",
+    "remove_participant": "removeParticipant",
+    "send_message": "sendMessage",
+    "send_voice_memo": "sendVoiceMemo",
+    "share_contact_card": "shareContactCard",
+    "start_typing": "startTyping",
+    "stop_typing": "stopTyping",
+    "update_chat": "updateChat",
+    "update_contact_card": "updateContactCard",
+    "update_webhook_subscription": "updateWebhookSubscription"
+  },
+  "triggers": {
+    "linq_message_delivered": "messageDelivered",
+    "linq_message_failed": "messageFailed",
+    "linq_message_read": "messageRead",
+    "linq_message_received": "messageReceived",
+    "linq_reaction_added": "reactionAdded",
+    "linq_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
+import { isNonEmptyValue } from '@sim/workflow-code/catalog/canonical-index'
 import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   buildCanonicalIndexForSurface,
-  isNonEmptyValue,
   normalizeDependencyValue,
   parseDependsOn,
   resolveDependencyValue,

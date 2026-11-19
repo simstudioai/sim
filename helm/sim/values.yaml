@@ -1555,6 +1555,16 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Deletes workspace source blobs staged for an apply that never came (a day after last use).
+    cleanupSourceStaging:
+      enabled: true
+      name: cleanup-source-staging
+      schedule: "30 * * * *"
+      path: "/api/cron/cleanup-source-staging"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     # Deletes prebuilt sandbox images that no workspace sandbox references and that
     # have gone unused past the retention window, from the provider and locally.
     # A no-op on deployments whose sandbox provider installs at run time.

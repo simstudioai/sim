@@ -1,0 +1,8 @@
+{
+  "namespace": "extend",
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

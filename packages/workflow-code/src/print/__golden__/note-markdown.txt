@@ -1,0 +1,10 @@
+// @sim-sdk 1
+import { md, note, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const howThisWorks = note('How this works', {
+    content: md`Polls **INBOX**;
+appends to the \`finance\` sheet.`,
+  })
+})

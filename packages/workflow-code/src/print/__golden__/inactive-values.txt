@@ -1,0 +1,9 @@
+// @sim-sdk 1
+import { agent, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const remember = agent('Remember', { model: 'm', memoryType: 'none' })
+
+  start.to(remember)
+})

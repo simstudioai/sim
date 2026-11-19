@@ -1,0 +1,13 @@
+{
+  "namespace": "legacy.mailgun",
+  "methods": {
+    "add_list_member": "addListMember",
+    "create_mailing_list": "createMailingList",
+    "get_domain": "getDomain",
+    "get_mailing_list": "getMailingList",
+    "get_message": "getMessage",
+    "list_domains": "listDomains",
+    "list_messages": "listMessages",
+    "send_message": "sendMessage"
+  }
+}

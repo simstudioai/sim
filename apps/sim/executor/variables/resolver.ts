@@ -15,6 +15,7 @@ import {
   isSandboxFileMountRef,
 } from '@/lib/execution/payloads/sandbox-file-mount-ref'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
+import { getBlock } from '@/blocks/registry'
 import { BlockType, parseReferencePath, REFERENCE } from '@/executor/constants'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext, UserFile } from '@/executor/types'
@@ -22,6 +23,7 @@ import {
   escapeInertStringContent,
   formatInertStringLiteral,
 } from '@/executor/utils/code-formatting'
+import { isJSONString } from '@/executor/utils/json'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { BlockResolver } from '@/executor/variables/resolvers/block'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
@@ -114,7 +116,7 @@ async function replaceValidReferencesAsync(
 
 async function replaceEnvVarsAsync(
   template: string,
-  replacer: (match: string) => Promise<string>
+  replacer: (match: string, index: number) => Promise<string>
 ): Promise<string> {
   const pattern = createEnvVarPattern()
   let cursor = 0
@@ -123,10 +125,54 @@ async function replaceEnvVarsAsync(
     const fullMatch = match[0]
     const index = match.index ?? 0
     result += template.slice(cursor, index)
-    result += await replacer(fullMatch)
+    result += await replacer(fullMatch, index)
     cursor = index + fullMatch.length
   }
   return result + template.slice(cursor)
+}
+
+/**
+ * Whether `value` already reads as the content of a JSON string literal: no bare quote or control
+ * character, and every backslash starts a valid escape. Such a value cannot close the string, and
+ * workflows built before references were escaped (an env var holding a key with literal `\n`
+ * escapes, a value a Function block escaped) rely on it being spliced as written.
+ */
+function isJsonStringContent(value: string): boolean {
+  try {
+    JSON.parse(`"${value}"`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Splices placeholder values into `text`. When `text` is JSON, a value landing inside one of its
+ * string literals that would break the literal becomes escaped string content, so it cannot close
+ * the string; a value that is already valid string content is spliced as written. Placeholders
+ * must arrive in ascending offset order: the lexer resumes where the previous one stopped, then
+ * skips the placeholder itself, so characters inside its own text never toggle the state.
+ */
+function placeholderSplicer(
+  text: string,
+  jsonText: boolean | undefined
+): (value: string, start: number, end: number) => string {
+  if (!jsonText) return (value) => value
+  let position = 0
+  let inString = false
+  return (value, start, end) => {
+    while (position < start) {
+      const char = text[position]
+      if (inString && char === '\\') {
+        position += 2
+        continue
+      }
+      if (char === '"') inString = !inString
+      position++
+    }
+    position = Math.max(position, end)
+    return inString && !isJsonStringContent(value) ? JSON.stringify(value).slice(1, -1) : value
+  }
 }
 
 /**
@@ -244,6 +290,30 @@ const JAVASCRIPT_REGEX_ALLOWED_AFTER_KEYWORDS = new Set([
   'yield',
   'await',
 ])
+
+interface TemplateResolutionOptions {
+  allowLargeValueRefs?: boolean
+  inputPath?: readonly string[]
+  /**
+   * The template is JSON text, so a placeholder inside one of its string literals is spliced
+   * as escaped string content rather than raw text that could close the string.
+   */
+  jsonText?: boolean
+}
+
+/** Whether `key` is a block input the editor stores as JSON text (a JSON code field). */
+function isJsonCodeInput(block: SerializedBlock | undefined, key: string): boolean {
+  const blockType = block?.metadata?.id
+  if (!blockType) return false
+  return (
+    getBlock(blockType)?.subBlocks.some(
+      (subBlock) =>
+        subBlock.type === 'code' &&
+        subBlock.language === 'json' &&
+        (subBlock.id === key || subBlock.canonicalParamId === key)
+    ) ?? false
+  )
+}
 
 export class VariableResolver {
   private resolvers: Resolver[]
@@ -425,6 +495,7 @@ export class VariableResolver {
       resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block, {
         allowLargeValueRefs: this.canResolveInputToLargeValueRef(block, key),
         inputPath: [key],
+        jsonText: typeof value === 'string' && isJSONString(value) && isJsonCodeInput(block, key),
       })
     }
     return resolved
@@ -481,7 +552,7 @@ export class VariableResolver {
     value: any,
     loopScope?: LoopScope,
     block?: SerializedBlock,
-    options: { allowLargeValueRefs?: boolean; inputPath?: readonly string[] } = {}
+    options: TemplateResolutionOptions = {}
   ): Promise<any> {
     if (value === null || value === undefined) {
       return value
@@ -1746,7 +1817,7 @@ export class VariableResolver {
     template: string,
     loopScope?: LoopScope,
     block?: SerializedBlock,
-    options: { allowLargeValueRefs?: boolean; inputPath?: readonly string[] } = {}
+    options: TemplateResolutionOptions = {}
   ): Promise<string> {
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
@@ -1767,6 +1838,7 @@ export class VariableResolver {
             | undefined)
         : undefined
 
+    const spliceReference = placeholderSplicer(template, options.jsonText)
     let projectedReferenceResult = ''
     let projectedReferenceCursor = 0
     let result = await replaceValidReferencesAsync(template, async (match, index) => {
@@ -1799,7 +1871,8 @@ export class VariableResolver {
           return ''
         }
 
-        const formatted = this.blockResolver.formatValueForBlock(resolved, blockType, language)
+        const raw = this.blockResolver.formatValueForBlock(resolved, blockType, language)
+        const formatted = spliceReference(raw, index, index + match.length)
         projectedReferenceResult += containsResolvedSecret ? match : formatted
         return formatted
       } catch (error) {
@@ -1814,9 +1887,11 @@ export class VariableResolver {
       throw replacementError
     }
 
-    result = await replaceEnvVarsAsync(result, async (match) => {
+    const spliceEnvVar = placeholderSplicer(result, options.jsonText)
+    result = await replaceEnvVarsAsync(result, async (match, index) => {
       const resolved = await this.resolveReference(match, resolutionContext)
-      return typeof resolved === 'string' ? resolved : match
+      if (typeof resolved !== 'string') return match
+      return spliceEnvVar(resolved, index, index + match.length)
     })
     ctx.resolvedSecretTraceRegistry?.recordResolvedInputProjection(
       options.inputPath,

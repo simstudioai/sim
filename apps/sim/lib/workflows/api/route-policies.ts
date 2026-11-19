@@ -26,6 +26,11 @@ import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-al
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 import { WorkflowImportError } from '@/lib/workflows/application/import-error'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
+import {
+  WorkflowSourceNameTakenError,
+  WorkflowSourceRejectedError,
+  WorkflowSourceStaleError,
+} from '@/lib/workflows/application/source-error'
 import { WorkspaceOperationConflict } from '@/lib/workspaces/operations/receipts'
 import {
   v2CaughtOrchestrationError,
@@ -67,10 +72,14 @@ export const v2WorkflowErrorPolicies = {
   /**
    * Conceals cross-tenant reads exactly as
    * {@link v2WorkflowErrorPolicies.concealWorkflowAuthorization} does, and adds
-   * the one refusal an edit batch has structured detail for: an `atomic` batch
+   * the refusals a graph write has structured detail for: an `atomic` batch
    * that could not be applied whole answers `409` carrying the declined
-   * operations and the block inputs that would have been dropped, so a pipeline
-   * can act on both without a second request.
+   * operations and the block inputs that would have been dropped, refused
+   * workflow source answers `400` (`413` for a size limit) with its line-pinned
+   * diagnostics, stale
+   * source answers `409` with the current fingerprint, and a source rename onto
+   * a name taken meanwhile answers `409` with `SOURCE_NAME_TAKEN`, so a pipeline
+   * can act on each without a second request.
    */
   concealWorkflowGraphAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workflow not found',
@@ -80,6 +89,48 @@ export const v2WorkflowErrorPolicies = {
           code: 'OPERATIONS_NOT_APPLIED',
           skipped: error.skipped,
           droppedInputs: error.droppedInputs,
+        })
+      }
+      if (error instanceof WorkflowSourceRejectedError) {
+        return v2ErrorForOrchestration(error.code, error.message, {
+          code: 'SOURCE_REJECTED',
+          diagnostics: error.diagnostics,
+        })
+      }
+      if (error instanceof WorkflowSourceStaleError) {
+        return v2ErrorForOrchestration(error.code, error.message, {
+          code: 'SOURCE_STALE',
+          currentFingerprint: error.currentFingerprint,
+        })
+      }
+      if (error instanceof WorkflowSourceNameTakenError) {
+        return v2ErrorForOrchestration(error.code, error.message, {
+          code: 'SOURCE_NAME_TAKEN',
+          name: error.workflowName,
+        })
+      }
+      return v2CaughtOrchestrationError(error)
+    },
+  }),
+  /**
+   * Creating a workflow from source: an unreachable workspace is concealed as absent, refused
+   * source answers `400` (`413` for a size limit) with its line-pinned diagnostics, as an apply
+   * does, and a name already taken in the folder answers `409` with `details.code`
+   * `SOURCE_NAME_TAKEN`, which a client tells apart from a stale apply's `SOURCE_STALE`.
+   */
+  concealWorkspaceSourceCreate: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Workspace not found',
+    render(error) {
+      if (error instanceof WorkflowSourceRejectedError) {
+        return v2ErrorForOrchestration(error.code, error.message, {
+          code: 'SOURCE_REJECTED',
+          diagnostics: error.diagnostics,
+        })
+      }
+      if (error instanceof WorkflowSourceNameTakenError) {
+        return v2ErrorForOrchestration(error.code, error.message, {
+          code: 'SOURCE_NAME_TAKEN',
+          name: error.workflowName,
         })
       }
       return v2CaughtOrchestrationError(error)

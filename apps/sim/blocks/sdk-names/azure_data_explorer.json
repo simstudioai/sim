@@ -1,0 +1,19 @@
+{
+  "namespace": "legacy.azureDataExplorer",
+  "methods": {
+    "azure_data_explorer_create_table": "createTable",
+    "azure_data_explorer_drop_table": "dropTable",
+    "azure_data_explorer_ingest_from_query": "ingestFromQuery",
+    "azure_data_explorer_ingest_inline": "ingestRowsInline",
+    "azure_data_explorer_list_databases": "listDatabases",
+    "azure_data_explorer_list_functions": "listFunctions",
+    "azure_data_explorer_list_tables": "listTables",
+    "azure_data_explorer_management": "managementCommandAdvanced",
+    "azure_data_explorer_query": "runQuery",
+    "azure_data_explorer_show_database_schema": "showDatabaseSchema",
+    "azure_data_explorer_show_ingestion_failures": "showIngestionFailures",
+    "azure_data_explorer_show_operations": "showOperations",
+    "azure_data_explorer_show_table_details": "showTableDetails",
+    "azure_data_explorer_show_table_schema": "showTableSchema"
+  }
+}

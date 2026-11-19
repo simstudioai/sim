@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import {
   type DrivePermission,

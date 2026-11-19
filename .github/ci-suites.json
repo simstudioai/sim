@@ -47,6 +47,10 @@
     {
       "group": "markdown-viewer",
       "task": "ci:e2e-markdown-viewer"
+    },
+    {
+      "group": "workflow-code-ui",
+      "task": "ci:e2e-workflow-code-ui"
     }
   ],
   "production": [

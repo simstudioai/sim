@@ -5,12 +5,12 @@
  * Import hooks directly from '@/lib/table/hooks' in client components.
  */
 
+export * from '@sim/workspace-code/table-cells/currency'
+export * from '@sim/workspace-code/table-cells/dates'
 export * from '@/lib/table/billing'
 export * from '@/lib/table/column-keys'
 export * from '@/lib/table/columns/service'
 export * from '@/lib/table/constants'
-export * from '@/lib/table/currency'
-export * from '@/lib/table/dates'
 export * from '@/lib/table/errors'
 export * from '@/lib/table/ids'
 export * from '@/lib/table/import'

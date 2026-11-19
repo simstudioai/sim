@@ -1,5 +1,6 @@
 import { usageLog } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
+import { zonedWallClockToUtc } from '@sim/utils/timezone'
 import { eq, gte, lt, type SQL } from 'drizzle-orm'
 import { MAX_CUSTOM_RANGE_DAYS } from '@/lib/api/contracts/organization-usage'
 import {
@@ -7,7 +8,6 @@ import {
   resolveEnterpriseReportingPeriod,
 } from '@/lib/billing/core/reporting-period'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
-import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import { CHAT_RUN_DEADLINE_MS } from '@/lib/mothership/constants'
 
 /**

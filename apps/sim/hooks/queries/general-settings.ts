@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
+import { getBrowserTimezone, isValidTimezone } from '@sim/utils/timezone'
 import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { getUserSettingsContract, updateUserSettingsContract } from '@/lib/api/contracts/user'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
-import { getBrowserTimezone, isValidTimezone } from '@/lib/core/utils/timezone'
 import {
   GENERAL_SETTINGS_STALE_TIME,
   type GeneralSettings,

@@ -1,0 +1,9 @@
+{
+  "namespace": "wiza",
+  "methods": {
+    "company_enrichment": "companyEnrichment",
+    "get_credits": "getCredits",
+    "individual_reveal": "individualReveal",
+    "prospect_search": "prospectSearch"
+  }
+}

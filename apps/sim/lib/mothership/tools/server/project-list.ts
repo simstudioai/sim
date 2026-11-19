@@ -1,9 +1,9 @@
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import {
   type ListUserProjectsInput,
   listUserProjectsInputSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { executeCopilotProjectFileUseCase } from '@/lib/mothership/application/execute-project-file-use-case'
 import { executeCopilotProjectDiscovery } from '@/lib/mothership/application/execute-project-use-case'

@@ -9,6 +9,7 @@
  */
 
 import { generateId } from '@sim/utils/id'
+import { cellKeyOf } from '@sim/workspace-code/table-cells/rows'
 import type {
   ColumnDefinition,
   Filter,
@@ -28,7 +29,7 @@ import type {
  * which is exactly the key the column still uses, so the fallback is correct.
  */
 export function getColumnId(col: Pick<ColumnDefinition, 'id' | 'name'>): string {
-  return col.id ?? col.name
+  return cellKeyOf(col)
 }
 
 /**

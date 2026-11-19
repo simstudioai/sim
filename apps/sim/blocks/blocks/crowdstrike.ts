@@ -419,7 +419,7 @@ export const CrowdStrikeBlock: BlockConfig = {
       id: 'includeHidden',
       title: 'Include Hidden Alerts',
       type: 'switch',
-      value: () => 'true',
+      value: () => true,
       condition: {
         field: 'operation',
         value: [

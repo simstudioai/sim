@@ -419,8 +419,17 @@ export interface SubBlockConfig {
   /**
    * Default value. Returning `undefined` (for example when the default depends on an operation
    * the caller did not pass) defers to the field's own default, such as a dropdown's first option.
+   * The value is stored as returned, so it has the type the field stores: a boolean for a
+   * `switch`, a number for a `slider`, text otherwise.
    */
-  value?: (params: Record<string, any>) => string | undefined
+  value?: (params: Record<string, any>) => string | number | boolean | undefined
+  /**
+   * Where `value()` may run. `'viewer'` marks a default read from the viewer's own environment
+   * (the schedule timezone is the person's browser zone): only the editor evaluates it. Server-side
+   * creation, the serializer's null fallback and the source catalog leave the field unset rather
+   * than freeze the host's environment into a block, its run params or the catalog hash.
+   */
+  valueScope?: 'viewer'
   grouped?: boolean
   scrollable?: boolean
   maxHeight?: number

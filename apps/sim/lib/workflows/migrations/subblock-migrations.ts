@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
+import {
+  buildCanonicalIndex,
+  isCanonicalPair,
+  resolveCanonicalMode,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import {
   GREENHOUSE_SUBBLOCK_ID_MIGRATIONS,
@@ -7,12 +12,7 @@ import {
 } from '@/lib/workflows/migrations/greenhouse-agent-inputs'
 import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
-import {
-  buildCanonicalIndex,
-  buildSubBlockValues,
-  isCanonicalPair,
-  resolveCanonicalMode,
-} from '@/lib/workflows/subblocks/visibility'
+import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 

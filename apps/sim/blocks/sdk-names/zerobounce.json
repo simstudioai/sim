@@ -1,0 +1,7 @@
+{
+  "namespace": "zerobounce",
+  "methods": {
+    "zerobounce_get_credits": "getRemainingCredits",
+    "zerobounce_verify_email": "verifyEmail"
+  }
+}

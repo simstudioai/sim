@@ -472,6 +472,22 @@ export const workflow = pgTable(
   })
 )
 
+/**
+ * Source-form facts a workflow's graph does not hold (each block's TS binding, declaration order,
+ * and comments), keyed by block id so canvas edits never orphan them. Shape and validator:
+ * `WorkflowSourceMetaV1` / `parseSourceMeta` in `@sim/workflow-code/source-meta`. A side table rather
+ * than a `workflow` column, so the hot workflow row (and every `select()` of it) never carries it;
+ * only the source get/apply, copy and prune paths read it. Not part of the workflow state, so it
+ * never counts as a deploy change. No row until a source is applied; an empty value deletes it.
+ */
+export const workflowSourceMeta = pgTable('workflow_source_meta', {
+  workflowId: text('workflow_id')
+    .primaryKey()
+    .references(() => workflow.id, { onDelete: 'cascade' }),
+  meta: jsonb('meta').notNull(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 export const workflowBlocks = pgTable(
   'workflow_blocks',
   {
@@ -2846,6 +2862,121 @@ export const workspaceForkBlockMap = pgTable(
 )
 
 /**
+ * Resource kinds a workflow-source key can name: `ResourceKind` from `@sim/workflow-code`, which is
+ * `PortableResourceKind` from `@sim/workflow-types/resources` minus `env-var` (env names are their
+ * own keys). Kept as a literal list so `@sim/db` takes no dependency on the workflow packages; the
+ * binding service writes this column from a `ResourceKind`, so a kind missing here is a type error.
+ */
+export const workspaceResourceKindEnum = pgEnum('workspace_resource_kind', [
+  'credential',
+  'knowledge-base',
+  'knowledge-document',
+  'table',
+  'file',
+  'file-folder',
+  'mcp-server',
+  'custom-tool',
+  'custom-block',
+  'skill',
+  'sandbox',
+  'workflow',
+])
+
+/**
+ * Persisted resource keys for workflow source: `table('leads')` names the table bound to
+ * `(workspace, 'table', 'leads')` here, never one found by slugifying names. A key is allocated
+ * once, from the resource's name at that moment, and never changes: renaming the resource keeps
+ * it, and deleting the resource leaves the row pointing at the dead id so a later file reports the
+ * key as unresolved instead of silently binding another resource. Only the workspace cascades.
+ *
+ * `resource_id` is plain text with no FK: one column spans every kind's table, and the row must
+ * outlive the resource it names. `origin` records how the row came to exist: `allocated` (lazily,
+ * the first time source referenced the resource), `adopted` (a later sync bound an existing
+ * resource to a key), or `created` (a sync created the resource for the key).
+ */
+export const workspaceResourceKey = pgTable(
+  'workspace_resource_key',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    kind: workspaceResourceKindEnum('kind').notNull(),
+    key: text('key').notNull(),
+    resourceId: text('resource_id').notNull(),
+    origin: text('origin', { enum: ['allocated', 'adopted', 'created'] }).notNull(),
+    /** SET NULL: removing a user must not unbind the keys their source reads allocated. */
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    keyUnique: uniqueIndex('workspace_resource_key_ws_kind_key_unique').on(
+      table.workspaceId,
+      table.kind,
+      table.key
+    ),
+    resourceUnique: uniqueIndex('workspace_resource_key_ws_kind_resource_unique').on(
+      table.workspaceId,
+      table.kind,
+      table.resourceId
+    ),
+    keyFormat: check(
+      'workspace_resource_key_key_format',
+      sql`${table.key} ~ '^[a-z][a-z0-9_-]{0,63}$'`
+    ),
+    originCheck: check(
+      'workspace_resource_key_origin_check',
+      sql`${table.origin} IN ('allocated', 'adopted', 'created')`
+    ),
+  })
+)
+
+/**
+ * Binary files staged for a workspace source apply, content-addressed by SHA-256 and scoped to the
+ * workspace and the caller that staged them (`scope`: `user:<id>` or `workspace_api_key:<id>`).
+ * The bytes live in object storage at `storage_key`; an apply references them by hash, and a
+ * sweep deletes rows and objects past `expires_at`.
+ */
+export const workspaceSourceStagedBlob = pgTable(
+  'workspace_source_staged_blob',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    scope: text('scope').notNull(),
+    sha256: text('sha256').notNull(),
+    size: integer('size').notNull(),
+    storageKey: text('storage_key').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => ({
+    scopeHashUnique: uniqueIndex('workspace_source_staged_blob_scope_hash_unique').on(
+      table.workspaceId,
+      table.scope,
+      table.sha256
+    ),
+    expiresAtIdx: index('workspace_source_staged_blob_expires_at_idx').on(table.expiresAt),
+  })
+)
+
+/**
+ * The workspace source apply writing a workspace now, at most one per workspace: the apply holds
+ * the row (`token`) for its whole write phase and renews `expires_at` while it writes. A second
+ * apply finds it held and is refused; a lease past `expires_at` (its process died) is taken over.
+ */
+export const workspaceSourceApplyLease = pgTable('workspace_source_apply_lease', {
+  workspaceId: text('workspace_id')
+    .primaryKey()
+    .references(() => workspace.id, { onDelete: 'cascade' }),
+  token: text('token').notNull(),
+  acquiredAt: timestamp('acquired_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
+})
+
+/**
  * The user's stored dependent-field re-picks for an edge: a (target workflow, target block,
  * subblock) -> selected value mapping (a Gmail label, a KB document, a sheet tab). The sync
  * modal reads and writes this, and every promote applies it verbatim - it is the single
@@ -4468,6 +4599,12 @@ export const document = pgTable(
     storageKey: text('storage_key'),
     /** Size in bytes */
     fileSize: integer('file_size').notNull(),
+    /**
+     * SHA-256 (hex) of the original file's bytes, recorded when the server holds them: on upload,
+     * or on the first read of an older document's original. An original never changes in place,
+     * so it stays valid. NULL until then.
+     */
+    fileSha256: text('file_sha256'),
     /** e.g., 'application/pdf', 'text/plain' */
     mimeType: text('mime_type').notNull(),
 

@@ -1,0 +1,20 @@
+{
+  "namespace": "legacy.planetscale",
+  "methods": {
+    "close_deploy_request": "closeDeployRequestVitess",
+    "create_backup": "createBackup",
+    "create_branch": "createBranch",
+    "create_deploy_request": "createDeployRequestVitess",
+    "delete_branch": "deleteBranch",
+    "get_backup": "getBackup",
+    "get_branch": "getBranch",
+    "get_database": "getDatabase",
+    "get_deploy_request": "getDeployRequestVitess",
+    "list_backups": "listBackups",
+    "list_branches": "listBranches",
+    "list_databases": "listDatabases",
+    "list_deploy_requests": "listDeployRequestsVitess",
+    "queue_deploy_request": "queueDeployRequestVitess",
+    "review_deploy_request": "reviewDeployRequestVitess"
+  }
+}

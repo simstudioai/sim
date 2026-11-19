@@ -36,6 +36,7 @@ import {
   type TableScope,
   updateTableDescription,
 } from '@/lib/table/service'
+import type { TableWriteTx } from '@/lib/table/tx'
 import type { TableDefinition, TableSchema } from '@/lib/table/types'
 
 export interface ListTablesInput {
@@ -226,11 +227,120 @@ export const readTableDetailsUseCase = defineAuthorizedTableUseCase({
 
 export type AppliedTableUpdate = 'name' | 'description' | 'folderPath'
 
-export interface UpdateTableInput extends ReadTableInput {
+/** A table's own fields as an update sets them; an absent field is left alone. */
+export interface TableFieldsInput {
   name?: string
   description?: string | null
   folderPath?: string
 }
+
+/** How far {@link writeTableFields} got: the table as written so far and the fields it took. */
+export interface TableFieldsProgress {
+  current: TableDefinition
+  applied: AppliedTableUpdate[]
+  changed: AppliedTableUpdate[]
+}
+
+/** The folder a `folderPath` input names, refusing one the workspace does not hold. */
+export async function resolveFolderInput(workspaceId: string, folderPath: string | undefined) {
+  if (folderPath === undefined) return undefined
+  const resolution = await resolveTableFolderPath(workspaceId, folderPath)
+  if (!resolution) throw new OrchestrationError('not_found', 'Folder not found in this workspace')
+  return resolution
+}
+
+/**
+ * Writes a table's name, description and folder where `input` changes them, recording each step
+ * on `progress` as it lands. With `tx` the writes join that transaction; without, each commits on
+ * its own, and a failure leaves `progress` at what committed.
+ */
+export async function writeTableFields(
+  progress: TableFieldsProgress,
+  input: TableFieldsInput,
+  folderId: string | null | undefined,
+  tx?: TableWriteTx
+): Promise<void> {
+  const { workspaceId } = progress.current
+  if (input.name !== undefined) {
+    if (input.name !== progress.current.name) {
+      await renameTable(progress.current.id, input.name, generateRequestId(), {
+        expectedWorkspaceId: workspaceId,
+        tx,
+      })
+      progress.current = { ...progress.current, name: input.name }
+      progress.changed.push('name')
+    }
+    progress.applied.push('name')
+  }
+  if (input.description !== undefined) {
+    if (input.description !== (progress.current.description ?? null)) {
+      await updateTableDescription(
+        progress.current.id,
+        workspaceId,
+        input.description,
+        generateRequestId(),
+        { tx }
+      )
+      progress.current = { ...progress.current, description: input.description }
+      progress.changed.push('description')
+    }
+    progress.applied.push('description')
+  }
+  if (input.folderPath !== undefined) {
+    const next = folderId ?? null
+    if (next !== (progress.current.folderId ?? null)) {
+      await moveTableToFolder(progress.current.id, workspaceId, next, generateRequestId(), { tx })
+      progress.current = { ...progress.current, folderId: next }
+      progress.changed.push('folderPath')
+    }
+    progress.applied.push('folderPath')
+  }
+}
+
+/** The audit entries of the table fields an update changed, one per field. */
+export function tableFieldAudits(
+  table: TableDefinition,
+  input: TableFieldsInput,
+  changed: readonly AppliedTableUpdate[],
+  finalName: string | undefined
+) {
+  const name = finalName ?? table.name
+  return changed.map((field) => {
+    if (field === 'name') {
+      return {
+        action: AuditAction.TABLE_UPDATED,
+        resourceType: AuditResourceType.TABLE,
+        resourceId: table.id,
+        resourceName: input.name ?? table.name,
+        description: `Renamed table to "${input.name}"`,
+        metadata: { op: 'rename', previousName: table.name },
+      }
+    }
+    if (field === 'description') {
+      return {
+        action: AuditAction.TABLE_UPDATED,
+        resourceType: AuditResourceType.TABLE,
+        resourceId: table.id,
+        resourceName: name,
+        description: `Updated description for table "${name}"`,
+        metadata: { op: 'description' },
+      }
+    }
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: table.id,
+      resourceName: name,
+      description:
+        input.folderPath === '/'
+          ? `Moved table "${name}" to the workspace root`
+          : `Moved table "${name}" into a folder`,
+      metadata: { op: 'move', folderPath: input.folderPath },
+    }
+  })
+}
+
+export interface UpdateTableInput extends ReadTableInput, TableFieldsInput {}
 
 export interface UpdateTableResult {
   table: TableDefinition | null
@@ -248,54 +358,12 @@ export const updateTableUseCase = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ input, context }): Promise<UpdateTableResult> {
-    const applied: AppliedTableUpdate[] = []
-    const changed: AppliedTableUpdate[] = []
-    const resolution =
-      input.folderPath === undefined
-        ? undefined
-        : await resolveTableFolderPath(context.workspaceId, input.folderPath)
-    if (input.folderPath !== undefined && !resolution) {
-      throw new OrchestrationError('not_found', 'Folder not found in this workspace')
-    }
-
-    let current = context.table
+    const resolution = await resolveFolderInput(context.workspaceId, input.folderPath)
+    const progress: TableFieldsProgress = { current: context.table, applied: [], changed: [] }
     try {
-      if (input.name !== undefined) {
-        if (input.name !== current.name) {
-          await renameTable(current.id, input.name, generateRequestId(), {
-            expectedWorkspaceId: context.workspaceId,
-          })
-          current = { ...current, name: input.name }
-          changed.push('name')
-        }
-        applied.push('name')
-      }
-
-      if (input.description !== undefined) {
-        if (input.description !== (current.description ?? null)) {
-          await updateTableDescription(
-            current.id,
-            context.workspaceId,
-            input.description,
-            generateRequestId()
-          )
-          current = { ...current, description: input.description }
-          changed.push('description')
-        }
-        applied.push('description')
-      }
-
-      if (input.folderPath !== undefined) {
-        const folderId = resolution?.folderId ?? null
-        if (folderId !== (current.folderId ?? null)) {
-          await moveTableToFolder(current.id, context.workspaceId, folderId, generateRequestId())
-          current = { ...current, folderId }
-          changed.push('folderPath')
-        }
-        applied.push('folderPath')
-      }
-
-      const table = await getTableById(current.id)
+      await writeTableFields(progress, input, resolution?.folderId)
+      const { applied, changed } = progress
+      const table = await getTableById(progress.current.id)
       if (!table || table.workspaceId !== context.workspaceId) {
         throw new OrchestrationError(
           'not_found',
@@ -314,43 +382,12 @@ export const updateTableUseCase = defineAuthorizedTableUseCase({
         changed,
       }
     } catch (failure) {
+      const { current, applied, changed } = progress
       return { table: current, folderPath: null, applied, changed, failure }
     }
   },
   projectAudit({ input, context, result }) {
-    return result.changed.map((field) => {
-      if (field === 'name') {
-        return {
-          action: AuditAction.TABLE_UPDATED,
-          resourceType: AuditResourceType.TABLE,
-          resourceId: context.table.id,
-          resourceName: input.name ?? context.table.name,
-          description: `Renamed table to "${input.name}"`,
-          metadata: { op: 'rename', previousName: context.table.name },
-        }
-      }
-      if (field === 'description') {
-        return {
-          action: AuditAction.TABLE_UPDATED,
-          resourceType: AuditResourceType.TABLE,
-          resourceId: context.table.id,
-          resourceName: result.table?.name ?? context.table.name,
-          description: `Updated description for table "${result.table?.name ?? context.table.name}"`,
-          metadata: { op: 'description' },
-        }
-      }
-      return {
-        action: AuditAction.TABLE_UPDATED,
-        resourceType: AuditResourceType.TABLE,
-        resourceId: context.table.id,
-        resourceName: result.table?.name ?? context.table.name,
-        description:
-          input.folderPath === '/'
-            ? `Moved table "${result.table?.name ?? context.table.name}" to the workspace root`
-            : `Moved table "${result.table?.name ?? context.table.name}" into a folder`,
-        metadata: { op: 'move', folderPath: input.folderPath },
-      }
-    })
+    return tableFieldAudits(context.table, input, result.changed, result.table?.name)
   },
   afterSuccess({ context, result }) {
     if (result.changed.length > 0) signalTableSchemaChanged(context.table.id)

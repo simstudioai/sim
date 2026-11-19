@@ -91,3 +91,39 @@ export function isHiddenFromDisplay(def: unknown): boolean {
     def && typeof def === 'object' && 'hiddenFromDisplay' in def && def.hiddenFromDisplay
   )
 }
+
+/**
+ * Agent fields the serializer forwards even with no subBlock config, so the executor can migrate
+ * workflows saved before the agent block's messages input.
+ */
+export const LEGACY_AGENT_FIELDS: ReadonlySet<string> = new Set([
+  'systemPrompt',
+  'userPrompt',
+  'memories',
+])
+
+/**
+ * A custom block's params that carry its own wiring rather than a mapped Start input. Everything
+ * else on the block is collected into the child `inputMapping`, and a custom block declares inputs
+ * exactly when it has a subBlock outside this set.
+ */
+export const CUSTOM_BLOCK_RESERVED_PARAMS: ReadonlySet<string> = new Set([
+  'workflowId',
+  'inputMapping',
+  'triggerMode',
+  'advancedMode',
+])
+
+/**
+ * Trigger subBlocks that are UI infrastructure (credentials, instructions, the webhook URL, sample
+ * payloads, setup scripts, schedule status) rather than configuration: never aggregated into
+ * `triggerConfig`, copied into a webhook provider config, or validated as user fields.
+ */
+export const SYSTEM_SUBBLOCK_IDS: readonly string[] = [
+  'triggerCredentials',
+  'triggerInstructions',
+  'webhookUrlDisplay',
+  'samplePayload',
+  'setupScript',
+  'scheduleInfo',
+]

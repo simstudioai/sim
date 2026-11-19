@@ -1,0 +1,24 @@
+// @sim-sdk 1
+import { agent, raw, setVariables, t, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow(
+  'Fixture',
+  { variables: { count: { type: 'number', value: 0 } } },
+  ({ vars }) => {
+    const start = trigger.start('Start', { inputFormat: {} })
+    const setCount = setVariables('Set count', {
+      variables: [
+        { variableId: vars.count, value: t`${vars.count}` },
+        { variableId: vars.count, value: t`count is ${vars.count}` },
+      ],
+    })
+    const echo = agent(
+      'Echo',
+      { model: raw({ $sim: 'var', key: 'count' }), temperature: t`count is ${vars.count}` },
+      { extra: { systemPrompt: vars.count } }
+    )
+
+    start.to(setCount)
+    setCount.to(echo)
+  }
+)

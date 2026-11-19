@@ -1,0 +1,37 @@
+{
+  "namespace": "legacy.emailbison",
+  "methods": {
+    "attach_leads_to_campaign": "attachLeadsToCampaign",
+    "attach_tags_to_leads": "attachTagsToLeads",
+    "create_campaign": "createCampaign",
+    "create_lead": "createLead",
+    "create_tag": "createTag",
+    "get_lead": "getLead",
+    "list_campaigns": "listCampaigns",
+    "list_leads": "listLeads",
+    "list_replies": "listReplies",
+    "list_tags": "listTags",
+    "update_campaign": "updateCampaign",
+    "update_campaign_status": "updateCampaignStatus",
+    "update_lead": "updateLead"
+  },
+  "triggers": {
+    "emailbison_email_account_added": "emailAccountAdded",
+    "emailbison_email_account_disconnected": "emailAccountDisconnected",
+    "emailbison_email_account_reconnected": "emailAccountReconnected",
+    "emailbison_email_account_removed": "emailAccountRemoved",
+    "emailbison_email_bounced": "emailBounced",
+    "emailbison_email_opened": "emailOpened",
+    "emailbison_email_sent": "emailSent",
+    "emailbison_lead_first_contacted": "leadFirstContacted",
+    "emailbison_lead_interested": "leadInterested",
+    "emailbison_lead_replied": "leadReplied",
+    "emailbison_lead_unsubscribed": "leadUnsubscribed",
+    "emailbison_manual_email_sent": "manualEmailSent",
+    "emailbison_tag_attached": "tagAttached",
+    "emailbison_tag_removed": "tagRemoved",
+    "emailbison_untracked_reply_received": "untrackedReplyReceived",
+    "emailbison_warmup_disabled_causing_bounces": "warmupDisabledCausingBounces",
+    "emailbison_warmup_disabled_receiving_bounces": "warmupDisabledReceivingBounces"
+  }
+}

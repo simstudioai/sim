@@ -18,7 +18,15 @@ import { attachTableImport } from './tables-import'
 import { attachWorkflowRunFollow } from './workflow-run-follow'
 import { attachWorkflowRunGet } from './workflow-run-get'
 import { attachWorkflowRunWait } from './workflow-run-wait'
+import { attachWorkflowSourceApply, attachWorkflowSourceCreate } from './workflow-source-apply'
+import { attachWorkflowSourceCheck } from './workflow-source-check'
+import { attachWorkflowSourceGet } from './workflow-source-get'
+import { attachWorkflowSourceDiff, attachWorkflowSourceStatus } from './workflow-source-status'
 import { attachWorkspaceOperationWait } from './workspace-operation-wait'
+import { attachWorkspaceSourceApply } from './workspace-source-apply'
+import { attachWorkspaceSourceCheck } from './workspace-source-check'
+import { attachWorkspaceSourceGet } from './workspace-source-get'
+import { attachWorkspaceSourceDiff, attachWorkspaceSourceStatus } from './workspace-source-status'
 
 function group(program: Command, name: string): Command {
   const existing = program.commands.find((command) => command.name() === name)
@@ -74,15 +82,33 @@ export function attachProtocolCommands(program: Command): void {
     folders: 'listWorkflowFolders',
     createFolder: 'createWorkflowFolder',
   })
-  // All three augment commands the generated pass already built — `run` gains
-  // `--follow`, `runs get` gains block names, and `runs` gains `wait` — so they
+  // All four augment commands the generated pass already built — `run` gains `--follow`,
+  // `runs get` gains block names, `runs` gains `wait`, and `source get` gains `--dir` — so they
   // must attach after it, which is the order `buildProgram` calls them in.
   attachWorkflowRunFollow(workflows)
   const runs = group(workflows, 'runs')
   attachWorkflowRunGet(runs)
   attachWorkflowRunWait(runs)
+  const source = group(workflows, 'source').description(
+    'Read and apply a workflow as TypeScript source (preview)'
+  )
+  attachWorkflowSourceGet(source)
+  attachWorkflowSourceApply(source)
+  attachWorkflowSourceCreate(source)
+  attachWorkflowSourceCheck(source)
+  attachWorkflowSourceStatus(source)
+  attachWorkflowSourceDiff(source)
 
-  attachWorkspaceOperationWait(group(group(program, 'workspaces'), 'operations'))
+  const workspaces = group(program, 'workspaces')
+  attachWorkspaceOperationWait(group(workspaces, 'operations'))
+  const workspaceSource = group(workspaces, 'source').description(
+    'Read and apply a workspace as a code directory (preview)'
+  )
+  attachWorkspaceSourceGet(workspaceSource)
+  attachWorkspaceSourceApply(workspaceSource)
+  attachWorkspaceSourceCheck(workspaceSource)
+  attachWorkspaceSourceStatus(workspaceSource)
+  attachWorkspaceSourceDiff(workspaceSource)
 
   attachLogsFollow(group(program, 'logs'))
 

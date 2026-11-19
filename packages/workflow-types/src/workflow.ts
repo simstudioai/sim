@@ -8,6 +8,11 @@ export const SUBFLOW_TYPES = {
 
 export type SubflowType = (typeof SUBFLOW_TYPES)[keyof typeof SUBFLOW_TYPES]
 
+/** Whether a block type is a subflow container (`loop` or `parallel`). */
+export function isSubflowType(type: string): type is SubflowType {
+  return type === SUBFLOW_TYPES.LOOP || type === SUBFLOW_TYPES.PARALLEL
+}
+
 export interface LoopConfig {
   nodes: string[]
   iterations: number
@@ -427,6 +432,52 @@ export function getWorkflowSubflowHandleIds(kind: 'loop' | 'parallel'): {
   return { start: `${kind}-start-source`, end: `${kind}-end-source` }
 }
 
+/** The block kinds whose output handles are one per branch row. */
+export type WorkflowBranchKind = 'condition' | 'router'
+
+/** The persisted output handle of one branch row: `condition-<rowId>` / `router-<rowId>`. */
+export function getWorkflowBranchHandleId(kind: WorkflowBranchKind, rowId: string): string {
+  return `${kind}-${rowId}`
+}
+
+/** The row id a branch handle names, or `null` when `handle` is not a `kind` branch handle. */
+export function getWorkflowBranchHandleRowId(
+  kind: WorkflowBranchKind,
+  handle: string
+): string | null {
+  const prefix = `${kind}-`
+  return handle.startsWith(prefix) ? handle.slice(prefix.length) : null
+}
+
+/** A persisted source handle, decoded by the port it leaves through. */
+type WorkflowSourceHandle =
+  | { kind: 'out' }
+  | { kind: 'error' }
+  | { kind: 'subflowStart' }
+  | { kind: 'subflowEnd' }
+  | { kind: 'branch'; rowId: string; handle: string }
+  | { kind: 'raw'; handle: string }
+
+/**
+ * Decodes a normalized source handle ({@link normalizeWorkflowEdgeSourceHandle}). A subflow port
+ * needs a container source and a branch port a `branchKind`; anything else is `raw`.
+ */
+export function parseWorkflowSourceHandle(
+  handle: string | null,
+  sourceType: string | undefined,
+  branchKind: WorkflowBranchKind | undefined
+): WorkflowSourceHandle {
+  if (handle === null || handle === WORKFLOW_SOURCE_HANDLE_ID) return { kind: 'out' }
+  if (handle === WORKFLOW_ERROR_HANDLE_ID) return { kind: 'error' }
+  if (sourceType !== undefined && isSubflowType(sourceType)) {
+    const { start, end } = getWorkflowSubflowHandleIds(sourceType)
+    if (handle === start) return { kind: 'subflowStart' }
+    if (handle === end) return { kind: 'subflowEnd' }
+  }
+  const rowId = branchKind ? getWorkflowBranchHandleRowId(branchKind, handle) : null
+  return rowId === null ? { kind: 'raw', handle } : { kind: 'branch', rowId, handle }
+}
+
 /**
  * Side-anchored handle ids (`source-right`, `target-left`, …) briefly existed
  * as a second vocabulary for the ports these two ids already name. They are
@@ -653,6 +704,11 @@ export function isKnownWorkflowTriggerBlock(block: WorkflowTriggerCapableBlock):
  */
 export const RESERVED_WORKFLOW_BLOCK_NAMES = ['loop', 'parallel', 'variable'] as const
 
+/** Whether a normalized name is one of {@link RESERVED_WORKFLOW_BLOCK_NAMES}. */
+export function isReservedWorkflowBlockName(name: string): boolean {
+  return (RESERVED_WORKFLOW_BLOCK_NAMES as readonly string[]).includes(name)
+}
+
 /**
  * Normalizes a block name into its reference-safe form: lowercased, whitespace
  * stripped, dots stripped. Dots are stripped because `.` is the reference path
@@ -689,7 +745,7 @@ export function getWorkflowBlockNameConflict(
   )
   if (conflict) return { reason: 'duplicate', conflictingBlockId: conflict[0] }
 
-  if ((RESERVED_WORKFLOW_BLOCK_NAMES as readonly string[]).includes(normalized)) {
+  if (isReservedWorkflowBlockName(normalized)) {
     return { reason: 'reserved' }
   }
 
@@ -752,10 +808,21 @@ export interface Parallel {
   locked?: boolean
 }
 
+/** Every workflow variable type, in the order the editor lists them. */
+export const VARIABLE_TYPES = ['string', 'number', 'boolean', 'object', 'array', 'plain'] as const
+
+/** A workflow variable's type. */
+export type VariableType = (typeof VARIABLE_TYPES)[number]
+
+/** Whether `type` names a workflow variable type. */
+export function isVariableType(type: string): type is VariableType {
+  return (VARIABLE_TYPES as readonly string[]).includes(type)
+}
+
 export interface Variable {
   id: string
   name: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  type: VariableType
   value: unknown
 }
 

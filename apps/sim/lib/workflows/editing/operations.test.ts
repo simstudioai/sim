@@ -120,6 +120,33 @@ const MOCK_REGISTRY_BLOCKS: Record<string, any> = {
       },
     ],
   },
+  slack_v2: {
+    type: 'slack_v2',
+    name: 'Slack',
+    tools: {
+      access: ['slack_v2_message', 'slack_v2_canvas'],
+      config: {
+        tool: ({ operation }: { operation?: string }) =>
+          operation === 'canvas' ? 'slack_v2_canvas' : 'slack_v2_message',
+      },
+    },
+    subBlocks: [
+      {
+        id: 'operation',
+        type: 'dropdown',
+        options: [
+          { label: 'Send Message', id: 'send' },
+          { label: 'Create Canvas', id: 'canvas' },
+        ],
+      },
+    ],
+  },
+  api_trigger: { type: 'api_trigger', name: 'API', subBlocks: [] },
+  human_in_the_loop: {
+    type: 'human_in_the_loop',
+    name: 'Human in the Loop',
+    subBlocks: [{ id: 'notification', type: 'tool-input' }],
+  },
   table: {
     type: 'table',
     name: 'Table (Legacy)',
@@ -1008,6 +1035,79 @@ describe('sunset block types', () => {
   })
 })
 
+describe('nestedNodes placement', () => {
+  const loopId = '88888888-8888-4888-8888-888888888888'
+  const agentId = '99999999-9999-4999-8999-999999999999'
+  const slackId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const unknownId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  const agentOnly = { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: ['agent'] }
+  const children = {
+    [agentId]: { type: 'agent', name: 'Inner agent' },
+    [slackId]: { type: 'slack', name: 'Inner slack' },
+    [unknownId]: { type: 'not_a_block', name: 'Inner unknown' },
+  }
+
+  function expectOnlyAgentPlaced(result: ReturnType<typeof applyOperationsToWorkflowState>) {
+    expect(result.state.blocks[agentId]).toBeDefined()
+    expect(result.state.blocks[slackId]).toBeUndefined()
+    expect(result.state.blocks[unknownId]).toBeUndefined()
+    expect(result.skippedItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'block_not_allowed',
+          operationType: 'add_nested_node',
+          blockId: slackId,
+        }),
+        expect.objectContaining({
+          type: 'invalid_block_type',
+          operationType: 'add_nested_node',
+          blockId: unknownId,
+        }),
+      ])
+    )
+  }
+
+  it('holds a child of a new container to the gates of a top-level add', () => {
+    const result = applyOperationsToWorkflowState(
+      { blocks: {}, edges: [], loops: {}, parallels: {} },
+      [
+        {
+          operation_type: 'add',
+          block_id: loopId,
+          params: { type: 'loop', name: 'Each', nestedNodes: children },
+        },
+      ],
+      agentOnly
+    )
+    expectOnlyAgentPlaced(result)
+  })
+
+  it('holds a new child merged into a stored container to the gates of a top-level add', () => {
+    const result = applyOperationsToWorkflowState(
+      {
+        blocks: {
+          [loopId]: {
+            id: loopId,
+            type: 'loop',
+            name: 'Each',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            subBlocks: {},
+            outputs: {},
+            data: {},
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
+      [{ operation_type: 'edit', block_id: loopId, params: { nestedNodes: children } }],
+      agentOnly
+    )
+    expectOnlyAgentPlaced(result)
+  })
+})
+
 describe('permission-group tool access', () => {
   const denyCanvas = { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedTools: ['slack_canvas'] }
 
@@ -1043,6 +1143,62 @@ describe('permission-group tool access', () => {
         details: { blockType: 'slack', operation: 'canvas' },
       })
     )
+  })
+
+  it('drops a denied tool from a human in the loop notification, on add and on edit', () => {
+    const addedId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    const storedId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    const send = { type: 'slack', operation: 'send', title: 'Notify' }
+    const canvas = { type: 'slack', operation: 'canvas', title: 'Post' }
+    const workflow = {
+      ...emptyWorkflow(),
+      blocks: {
+        [storedId]: {
+          id: storedId,
+          type: 'human_in_the_loop',
+          name: 'Stored approval',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: { notification: { id: 'notification', type: 'tool-input', value: [] } },
+          outputs: {},
+          data: {},
+        },
+      },
+    }
+
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      workflow,
+      [
+        {
+          operation_type: 'add',
+          block_id: addedId,
+          params: {
+            type: 'human_in_the_loop',
+            name: 'Approval',
+            inputs: { notification: [send, canvas] },
+          },
+        },
+        {
+          operation_type: 'edit',
+          block_id: storedId,
+          params: { inputs: { notification: [send, canvas] } },
+        },
+      ],
+      denyCanvas
+    )
+
+    expect(state.blocks[addedId].subBlocks.notification.value).toEqual([send])
+    expect(state.blocks[storedId].subBlocks.notification.value).toEqual([send])
+    expect(skippedItems.filter((item) => item.type === 'tool_not_allowed')).toEqual([
+      expect.objectContaining({
+        blockId: addedId,
+        details: expect.objectContaining({ operation: 'canvas' }),
+      }),
+      expect.objectContaining({
+        blockId: storedId,
+        details: expect.objectContaining({ operation: 'canvas' }),
+      }),
+    ])
   })
 
   it('leaves an existing operation untouched when an edit names a denied one', () => {
@@ -1527,6 +1683,113 @@ describe('connection shape validation', () => {
   })
 })
 
+describe('edge cycles', () => {
+  const BLOCK_A = '5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a'
+  const BLOCK_B = '6b6b6b6b-6b6b-4b6b-8b6b-6b6b6b6b6b6b'
+
+  function functionBlock(id: string, name: string) {
+    return {
+      id,
+      type: 'function',
+      name,
+      position: { x: 0, y: 0 },
+      enabled: true,
+      subBlocks: { code: { id: 'code', type: 'code', value: 'return 1' } },
+      outputs: {},
+      data: {},
+    }
+  }
+
+  function edge(id: string, source: string, target: string) {
+    return { id, source, sourceHandle: 'source', target, targetHandle: 'target', type: 'default' }
+  }
+
+  function workflowWithStoredCycle() {
+    return {
+      blocks: {
+        [BLOCK_A]: functionBlock(BLOCK_A, 'Block A'),
+        [BLOCK_B]: functionBlock(BLOCK_B, 'Block B'),
+      },
+      edges: [edge('edge-ab', BLOCK_A, BLOCK_B), edge('edge-ba', BLOCK_B, BLOCK_A)],
+      loops: {},
+      parallels: {},
+    }
+  }
+
+  const endpoints = (edges: Array<{ source: string; target: string }>) =>
+    edges.map(({ source, target }) => `${source}->${target}`).sort()
+
+  it('refuses an edge that closes a cycle as an edge_cycle skip', () => {
+    const { state, skippedItems, declinedOperationCount } = applyOperationsToWorkflowState(
+      { blocks: {}, edges: [], loops: {}, parallels: {} },
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: { type: 'function', name: 'Block A', connections: { source: BLOCK_B } },
+        },
+        {
+          operation_type: 'add',
+          block_id: BLOCK_B,
+          params: { type: 'function', name: 'Block B', connections: { source: BLOCK_A } },
+        },
+      ]
+    )
+
+    expect(endpoints(state.edges)).toEqual([`${BLOCK_A}->${BLOCK_B}`])
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'edge_cycle',
+        blockId: BLOCK_B,
+        details: expect.objectContaining({ targetId: BLOCK_A }),
+      }),
+    ])
+    expect(declinedOperationCount).toBe(1)
+  })
+
+  it('keeps a stored cycle through an unrelated edit and a restated connection', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflowWithStoredCycle(), [
+      { operation_type: 'edit', block_id: BLOCK_A, params: { inputs: { code: 'return 2' } } },
+      { operation_type: 'edit', block_id: BLOCK_B, params: { connections: { source: BLOCK_A } } },
+    ])
+
+    expect(skippedItems).toEqual([])
+    expect(endpoints(state.edges)).toEqual([`${BLOCK_A}->${BLOCK_B}`, `${BLOCK_B}->${BLOCK_A}`])
+  })
+
+  it('accepts loop start and end handle edges around a container', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(makeLoopWorkflow(), [
+      {
+        operation_type: 'add',
+        block_id: BLOCK_A,
+        params: { type: 'function', name: 'Before Loop', connections: { source: 'loop-1' } },
+      },
+      {
+        operation_type: 'add',
+        block_id: BLOCK_B,
+        params: { type: 'function', name: 'After Loop' },
+      },
+      {
+        operation_type: 'edit',
+        block_id: 'loop-1',
+        params: {
+          connections: { 'loop-start-source': 'condition-1', 'loop-end-source': BLOCK_B },
+        },
+      },
+    ])
+
+    expect(skippedItems).toEqual([])
+    expect(endpoints(state.edges)).toEqual(
+      [
+        `${BLOCK_A}->loop-1`,
+        'condition-1->agent-1',
+        'loop-1->condition-1',
+        `loop-1->${BLOCK_B}`,
+      ].sort()
+    )
+  })
+})
+
 describe('conditional input validation through workflow operations', () => {
   const blockId = 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77'
 
@@ -1723,5 +1986,117 @@ describe('Mothership tool attachment writes', () => {
       true
     )
     expect(result.validationErrors[0]?.error).toContain('MCP tool or MCP server bindings only')
+  })
+})
+
+describe('engine type placement', () => {
+  const triggerId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const agentId = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+  const loopId = '12121212-1212-4121-8121-121212121212'
+  const insertedId = '13131313-1313-4131-8131-131313131313'
+  const slackId = '14141414-1414-4141-8141-141414141414'
+
+  function stored(id: string, type: string, name: string, subBlocks: Record<string, unknown> = {}) {
+    return {
+      id,
+      type,
+      name,
+      position: { x: 0, y: 0 },
+      enabled: true,
+      subBlocks,
+      outputs: {},
+      data: {},
+    }
+  }
+
+  it('refuses inserting a second trigger into a container', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      {
+        blocks: {
+          [triggerId]: stored(triggerId, 'api_trigger', 'API'),
+          [loopId]: stored(loopId, 'loop', 'Each'),
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
+      [
+        {
+          operation_type: 'insert_into_subflow',
+          block_id: insertedId,
+          params: { type: 'api_trigger', name: 'API 2', subflowId: loopId },
+        },
+      ]
+    )
+
+    expect(state.blocks[insertedId]).toBeUndefined()
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'duplicate_trigger',
+        operationType: 'insert_into_subflow',
+        blockId: insertedId,
+      }),
+    ])
+  })
+
+  it('refuses retyping a block into a second trigger, and lets a trigger keep its own type', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      {
+        blocks: {
+          [triggerId]: stored(triggerId, 'api_trigger', 'API'),
+          [agentId]: stored(agentId, 'agent', 'Agent'),
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
+      [
+        { operation_type: 'edit', block_id: agentId, params: { type: 'api_trigger' } },
+        { operation_type: 'edit', block_id: triggerId, params: { type: 'api_trigger' } },
+      ]
+    )
+
+    expect(state.blocks[agentId].type).toBe('agent')
+    expect(state.blocks[triggerId].type).toBe('api_trigger')
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'duplicate_trigger',
+        operationType: 'edit',
+        blockId: agentId,
+      }),
+    ])
+  })
+
+  it('judges the inputs of an edit that changes type against the new type', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      {
+        blocks: {
+          [slackId]: stored(slackId, 'slack_v2', 'Slack', {
+            operation: { id: 'operation', type: 'dropdown', value: 'send' },
+          }),
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
+      [
+        {
+          operation_type: 'edit',
+          block_id: slackId,
+          params: { type: 'slack', inputs: { operation: 'canvas' } },
+        },
+      ],
+      { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedTools: ['slack_canvas'] }
+    )
+
+    expect(state.blocks[slackId].type).toBe('slack')
+    expect(state.blocks[slackId].subBlocks.operation.value).toBe('send')
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'tool_not_allowed',
+        operationType: 'edit',
+        details: { blockType: 'slack', operation: 'canvas' },
+      }),
+    ])
   })
 })

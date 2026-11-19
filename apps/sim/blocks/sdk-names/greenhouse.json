@@ -1,0 +1,26 @@
+{
+  "namespace": "legacy.greenhouse",
+  "methods": {
+    "greenhouse_get_application": "getApplication",
+    "greenhouse_get_candidate": "getCandidate",
+    "greenhouse_get_job": "getJob",
+    "greenhouse_get_user": "getUser",
+    "greenhouse_list_applications": "listApplications",
+    "greenhouse_list_candidates": "listCandidates",
+    "greenhouse_list_departments": "listDepartments",
+    "greenhouse_list_job_stages": "listJobStages",
+    "greenhouse_list_jobs": "listJobs",
+    "greenhouse_list_offices": "listOffices",
+    "greenhouse_list_users": "listUsers"
+  },
+  "triggers": {
+    "greenhouse_candidate_hired": "candidateHired",
+    "greenhouse_candidate_rejected": "candidateRejected",
+    "greenhouse_candidate_stage_change": "candidateStageChange",
+    "greenhouse_job_created": "jobCreated",
+    "greenhouse_job_updated": "jobUpdated",
+    "greenhouse_new_application": "newApplication",
+    "greenhouse_offer_created": "offerCreated",
+    "greenhouse_webhook": "webhook"
+  }
+}

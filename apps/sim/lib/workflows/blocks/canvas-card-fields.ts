@@ -1,7 +1,9 @@
 import {
-  buildCanonicalIndexForSurface,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+} from '@sim/workflow-code/catalog/canonical-index'
+import {
+  buildCanonicalIndexForSurface,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,

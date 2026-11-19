@@ -1,0 +1,31 @@
+{
+  "namespace": "agentmail",
+  "methods": {
+    "create_draft": "createDraft",
+    "create_inbox": "createInbox",
+    "delete_draft": "deleteDraft",
+    "delete_inbox": "deleteInbox",
+    "delete_thread": "deleteThread",
+    "forward_message": "forwardMessage",
+    "get_draft": "getDraft",
+    "get_inbox": "getInbox",
+    "get_message": "getMessage",
+    "get_thread": "getThread",
+    "list_drafts": "listDrafts",
+    "list_inboxes": "listInboxes",
+    "list_messages": "listMessages",
+    "list_threads": "listThreads",
+    "reply_message": "replyToMessage",
+    "send_draft": "sendDraft",
+    "send_message": "sendMessage",
+    "update_draft": "updateDraft",
+    "update_inbox": "updateInbox",
+    "update_message": "updateMessageLabels",
+    "update_thread": "updateThreadLabels"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

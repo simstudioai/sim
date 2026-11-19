@@ -1,0 +1,30 @@
+{
+  "namespace": "legacy.apollo",
+  "methods": {
+    "account_bulk_create": "bulkCreateAccounts",
+    "account_bulk_update": "bulkUpdateAccounts",
+    "account_create": "createAccount",
+    "account_search": "searchAccounts",
+    "account_update": "updateAccount",
+    "contact_bulk_create": "bulkCreateContacts",
+    "contact_bulk_update": "bulkUpdateContacts",
+    "contact_create": "createContact",
+    "contact_search": "searchContacts",
+    "contact_update": "updateContact",
+    "email_accounts": "getEmailAccounts",
+    "opportunity_create": "createOpportunity",
+    "opportunity_get": "getOpportunity",
+    "opportunity_search": "searchOpportunities",
+    "opportunity_update": "updateOpportunity",
+    "organization_bulk_enrich": "bulkEnrichOrganizations",
+    "organization_enrich": "enrichOrganization",
+    "organization_search": "searchOrganizations",
+    "people_bulk_enrich": "bulkEnrichPeople",
+    "people_enrich": "enrichPerson",
+    "people_search": "searchPeople",
+    "sequence_add": "addToSequence",
+    "sequence_search": "searchSequences",
+    "task_create": "createTask",
+    "task_search": "searchTasks"
+  }
+}

@@ -17,6 +17,7 @@ import {
   workspaceSandbox,
 } from '@sim/db/schema'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import type { WorkflowResourceKind } from '@sim/workflow-types/resources'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { isCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
@@ -33,7 +34,6 @@ import {
   getCredentialProvidersByIds,
   getWorkspaceEnvKeys,
 } from '@/lib/workflows/references/resources'
-import type { WorkflowResourceKind } from '@/lib/workflows/references/types'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import { getBlock } from '@/blocks/registry'
 

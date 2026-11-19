@@ -17,13 +17,17 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { resolveCurrencyCode } from '@sim/workspace-code/table-cells/currency'
+import {
+  todayAtTtlOffset,
+  ttlValueFromPicker,
+  ttlValueToPickerParts,
+} from '@sim/workspace-code/table-cells/ttl'
 import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
-import { resolveCurrencyCode } from '@/lib/table/currency'
 import { isEmptyCellValue } from '@/lib/table/deps'
-import { todayAtTtlOffset, ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-values'
 import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import type { RowInsertTarget } from '@/app/workspace/[workspaceId]/tables/[tableId]/types'
 import { type TimezoneState, useTimezoneState } from '@/hooks/queries/general-settings'

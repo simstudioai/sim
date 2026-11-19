@@ -1,0 +1,24 @@
+{
+  "namespace": "contextDev",
+  "methods": {
+    "classify_naics": "classifyNaics",
+    "classify_sic": "classifySic",
+    "crawl": "crawlWebsite",
+    "extract": "extractStructuredData",
+    "extract_product": "extractProduct",
+    "extract_products": "extractProducts",
+    "get_brand": "getBrandByDomain",
+    "get_brand_by_email": "getBrandByEmail",
+    "get_brand_by_name": "getBrandByName",
+    "get_brand_by_ticker": "getBrandByTicker",
+    "identify_transaction": "identifyTransaction",
+    "map": "mapSitemap",
+    "scrape_fonts": "scrapeFonts",
+    "scrape_html": "scrapeHtml",
+    "scrape_images": "scrapeImages",
+    "scrape_markdown": "scrapeMarkdown",
+    "scrape_styleguide": "scrapeStyleguide",
+    "screenshot": "screenshot",
+    "search": "webSearch"
+  }
+}

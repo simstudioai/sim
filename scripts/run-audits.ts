@@ -23,6 +23,7 @@ import path from 'node:path'
 const EXCLUDED: Record<string, string> = {
   'check:audits': 'this runner',
   'check:migrations': 'diffs against a git base ref (origin/staging by default)',
+  'check:sdk-names-frozen': 'diffs against a git base ref (origin/staging by default)',
   'check:api-validation': 'superseded by the :strict variant, which this runner does run',
   'check:test-types': 'type-checks all of apps/sim with its tests; its own `test-types` CI job',
 }

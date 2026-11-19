@@ -1,6 +1,8 @@
 import type { db } from '@sim/db'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
-import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import { enqueueOutboxEvent, processOutboxEventById } from '@/lib/core/outbox/service'
 import {
   KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
@@ -9,6 +11,8 @@ import type { DocumentProcessingLane } from '@/lib/knowledge/documents/processin
 import type { DocumentProcessingSnapshot } from '@/lib/knowledge/documents/processing-recovery-queue'
 import type { ProcessingOptions } from '@/lib/knowledge/documents/service'
 import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
+
+const logger = createLogger('KnowledgeDocumentProcessingOutbox')
 
 export interface KnowledgeDocumentProcessingOutboxPayload {
   knowledgeBaseId: string
@@ -22,12 +26,47 @@ export interface KnowledgeDocumentProcessingOutboxPayload {
   processingLane: DocumentProcessingLane
 }
 
-/** Enqueues durable processing in the same transaction that creates the document. */
+/**
+ * Enqueues durable processing in the same transaction that creates the document, under `eventId`
+ * when the caller relays it once that transaction commits (see
+ * {@link relayKnowledgeDocumentProcessing}).
+ */
 export function enqueueKnowledgeDocumentProcessing(
   executor: Pick<typeof db, 'insert'>,
-  payload: KnowledgeDocumentProcessingOutboxPayload
+  payload: KnowledgeDocumentProcessingOutboxPayload,
+  eventId?: string
 ): Promise<string> {
-  return enqueueOutboxEvent(executor, KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT, payload)
+  return enqueueOutboxEvent(
+    executor,
+    KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
+    payload,
+    eventId ? { id: eventId } : {}
+  )
+}
+
+/**
+ * Delivers one enqueued processing event right after the transaction that wrote it commits, so the
+ * document reaches `processDocumentsWithQueue`, and the dispatch backend it picks (Trigger.dev or
+ * in-process), when it is uploaded instead of when the outbox is next drained. Callers do not
+ * await it: the in-process backend indexes the document before the dispatch resolves.
+ *
+ * The event stays the durable record. The relay claims it as the drain does (row lock, `pending`
+ * only), so the two never both run it; one the relay cannot claim, or whose run fails or dies
+ * mid-lease, is left to the drain, which retries it. Never throws.
+ */
+export async function relayKnowledgeDocumentProcessing(eventId: string): Promise<void> {
+  try {
+    // Loaded here: the handler module imports the document service, which imports this module.
+    const { knowledgeDocumentProcessingOutboxHandlers } = await import(
+      '@/lib/knowledge/documents/processing-outbox-handler'
+    )
+    await processOutboxEventById(eventId, knowledgeDocumentProcessingOutboxHandlers)
+  } catch (error) {
+    logger.warn('Knowledge document processing relay failed; the outbox drain retries it', {
+      eventId,
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 /** Thrown failures only: every wait in `checkDeferredDocumentRetry` defers without spending one. */

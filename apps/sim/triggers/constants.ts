@@ -1,19 +1,4 @@
 /**
- * System subblock IDs that are part of the trigger UI infrastructure
- * and should NOT be aggregated into triggerConfig or validated as user fields.
- *
- * These subblocks provide UI/UX functionality but aren't configuration data.
- */
-export const SYSTEM_SUBBLOCK_IDS: string[] = [
-  'triggerCredentials', // OAuth credentials subblock
-  'triggerInstructions', // Setup instructions text
-  'webhookUrlDisplay', // Webhook URL display
-  'samplePayload', // Example payload display
-  'setupScript', // Setup script code (e.g., Apps Script)
-  'scheduleInfo', // Schedule status display (next run, last run)
-]
-
-/**
  * Trigger-related subblock IDs that represent runtime metadata. They should remain
  * in the workflow state but must not be modified or cleared by diff operations.
  *

@@ -58,8 +58,8 @@ vi.mock('@/stores/providers/store', () => ({
 
 vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { S3Icon } from '@/components/icons'
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig } from '@/blocks/types'
 import {
   getApiKeyCondition,

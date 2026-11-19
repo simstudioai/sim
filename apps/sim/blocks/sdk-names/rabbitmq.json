@@ -1,0 +1,30 @@
+{
+  "namespace": "rabbitmq",
+  "methods": {
+    "rabbitmq_create_binding": "createBinding",
+    "rabbitmq_create_exchange": "createExchange",
+    "rabbitmq_create_policy": "createPolicy",
+    "rabbitmq_create_queue": "createQueue",
+    "rabbitmq_delete_binding": "deleteBinding",
+    "rabbitmq_delete_exchange": "deleteExchange",
+    "rabbitmq_delete_policy": "deletePolicy",
+    "rabbitmq_delete_queue": "deleteQueue",
+    "rabbitmq_get_exchange": "getExchange",
+    "rabbitmq_get_messages": "getMessages",
+    "rabbitmq_get_overview": "getOverview",
+    "rabbitmq_get_queue": "getQueue",
+    "rabbitmq_health_check": "healthCheck",
+    "rabbitmq_list_bindings": "listQueueBindings",
+    "rabbitmq_list_channels": "listChannels",
+    "rabbitmq_list_connections": "listConnections",
+    "rabbitmq_list_consumers": "listConsumers",
+    "rabbitmq_list_exchange_bindings": "listExchangeBindings",
+    "rabbitmq_list_exchanges": "listExchanges",
+    "rabbitmq_list_nodes": "listNodes",
+    "rabbitmq_list_policies": "listPolicies",
+    "rabbitmq_list_queues": "listQueues",
+    "rabbitmq_list_vhosts": "listVirtualHosts",
+    "rabbitmq_publish_message": "publishMessage",
+    "rabbitmq_purge_queue": "purgeQueue"
+  }
+}

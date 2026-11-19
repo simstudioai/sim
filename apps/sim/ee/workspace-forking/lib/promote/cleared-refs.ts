@@ -1,5 +1,6 @@
 import { mcpServers, workflow } from '@sim/db/schema'
 import { isRecordLike } from '@sim/utils/object'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import { and, eq, inArray } from 'drizzle-orm'
 import type {
   ForkClearedRef,
@@ -25,10 +26,7 @@ import {
   filterExistingForkTargets,
   loadForkCopyableResourceLabels,
 } from '@/lib/workflows/references/resources'
-import {
-  buildSubBlockValues,
-  type CanonicalModeOverrides,
-} from '@/lib/workflows/subblocks/visibility'
+import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import { isForkCopyableKind } from '@/ee/workspace-forking/lib/promote/promote-plan'
 import {

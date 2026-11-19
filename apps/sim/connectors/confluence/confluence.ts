@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import * as cheerio from 'cheerio'
@@ -6,7 +7,6 @@ import {
   AtlassianSiteNotAccessibleError,
   AtlassianSiteNotMatchedError,
 } from '@/lib/atlassian/discovery'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   type ConfluenceRestriction,
   confluencePageAcl,
