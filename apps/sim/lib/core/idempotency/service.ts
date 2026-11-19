@@ -6,7 +6,10 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, lt, or, sql } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
+import {
+  isRetryableSetupError,
+  RetryableSetupError,
+} from '@/lib/core/errors/retryable-infrastructure'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
 import { extractProviderIdentifierFromBody, isDeliveryIdOptional } from '@/lib/webhooks/providers'
@@ -101,10 +104,16 @@ const REDIS_KEY_PREFIX = 'idempotency:'
 const MAX_WAIT_TIME_MS = getMaxExecutionTimeout()
 const POLL_INTERVAL_MS = 1000
 
+/**
+ * The claim value carries a fresh `claimToken`, so finding exactly `ARGV[1]` means this same
+ * call already applied: ioredis replays a command whose reply a dropped connection lost, and
+ * that replay must claim rather than report its own lease as another holder's.
+ */
 const CLAIM_REDIS_LEASE_SCRIPT = `
 local claimed = redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[2]), 'NX')
 if claimed then return {1, ''} end
 local current = redis.call('GET', KEYS[1])
+if current == ARGV[1] then return {1, ''} end
 if current then return {0, current} end
 claimed = redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[2]), 'NX')
 if claimed then return {1, ''} end
@@ -295,13 +304,19 @@ export class IdempotencyService {
       1,
       Math.ceil(((inProgressResult.inProgressExpiresAt ?? Date.now()) - Date.now()) / 1000)
     )
-    const claimResponse = await redis.eval(
-      CLAIM_REDIS_LEASE_SCRIPT,
-      1,
-      redisKey,
-      JSON.stringify(inProgressResult),
-      inProgressTtlSeconds
-    )
+    let claimResponse: unknown
+    try {
+      claimResponse = await redis.eval(
+        CLAIM_REDIS_LEASE_SCRIPT,
+        1,
+        redisKey,
+        JSON.stringify(inProgressResult),
+        inProgressTtlSeconds
+      )
+    } catch (error) {
+      if (!inProgressResult.claimToken) throw error
+      return this.releaseAmbiguousRedisClaim(normalizedKey, inProgressResult.claimToken, error)
+    }
     if (!Array.isArray(claimResponse) || claimResponse.length < 2) {
       throw new Error(`Redis idempotency claim returned an invalid result: ${normalizedKey}`)
     }
@@ -330,6 +345,37 @@ export class IdempotencyService {
       storageMethod: 'redis',
       observedValue: existingData,
     }
+  }
+
+  /**
+   * A claim that errors (a timed-out reply, a connection that dropped after the script ran) may
+   * still hold the key, and nothing else would release it before the lease ends: every
+   * redelivery in that window would be skipped as a duplicate. Release this call's own claim by
+   * its token, then throw a `RetryableSetupError` so the caller re-attempts. If the release fails
+   * too, the claim may still be held, so the original error is rethrown unchanged.
+   */
+  private async releaseAmbiguousRedisClaim(
+    normalizedKey: string,
+    claimToken: string,
+    error: unknown
+  ): Promise<never> {
+    try {
+      await this.deleteKey(normalizedKey, 'redis', { claimToken })
+    } catch (releaseError) {
+      logger.error(`Failed to release an idempotency claim with an unknown outcome`, {
+        normalizedKey,
+        error: getErrorMessage(error),
+        releaseError: getErrorMessage(releaseError),
+      })
+      throw error
+    }
+    logger.warn(`Released an idempotency claim with an unknown outcome`, {
+      normalizedKey,
+      error: getErrorMessage(error),
+    })
+    throw new RetryableSetupError(`Idempotency claim failed: ${getErrorMessage(error)}`, {
+      cause: error,
+    })
   }
 
   private async atomicallyClaimDb(
