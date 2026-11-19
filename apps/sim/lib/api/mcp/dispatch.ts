@@ -51,6 +51,8 @@ export interface McpDispatchContext {
   credential: V2CredentialHeaders
   audience: OAuthAccessTokenOptions
   signal: AbortSignal
+  /** Extra fields for the per-call log line, such as the code-mode run a call belongs to. */
+  logMetadata?: Record<string, unknown>
 }
 
 function isRouteHandler(value: unknown): value is V2RouteHandler {
@@ -105,33 +107,47 @@ function buildHeaders(
   return headers
 }
 
-/** Returns the route's JSON answer as tool content; a v2 error envelope becomes a tool error. */
-async function toToolResult(
+/**
+ * What a call came to: rejected before it reached the route (a malformed call),
+ * the route's JSON answer, or an answer the route gave that cannot be returned
+ * (not JSON, or too large). An unreadable answer still means the operation ran.
+ */
+type McpDispatchOutcome =
+  | { rejected: string }
+  | { status: number; ok: boolean; text: string }
+  | { status: number; unreadable: string }
+
+/** Reads the route's JSON answer, bounded by {@link MAX_RESULT_BYTES}. */
+async function readJsonAnswer(
   operation: V2McpOperationName,
   response: Response
-): Promise<CallToolResult> {
+): Promise<McpDispatchOutcome> {
   const contentType = response.headers.get('content-type') ?? ''
   if (!/[/+]json\b/i.test(contentType)) {
     await consumeOrCancelBody(response)
-    return toolError(
-      `${operation} answered with ${contentType || 'an empty body'} (HTTP ${response.status}). Only JSON responses can be returned over MCP.`
-    )
+    return {
+      unreadable: `${operation} answered with ${contentType || 'an empty body'} (HTTP ${response.status}). Only JSON responses can be returned over MCP.`,
+      status: response.status,
+    }
   }
-  let text: string
   try {
-    text = await readResponseTextWithLimit(response, {
+    const text = await readResponseTextWithLimit(response, {
       maxBytes: MAX_RESULT_BYTES,
       label: `${operation} result`,
     })
+    return { status: response.status, ok: response.ok, text }
   } catch (error) {
     if (!isPayloadSizeLimitError(error)) throw error
-    return toolError('Result is too large. Request a smaller page with limit or cursor.')
+    return {
+      unreadable: 'Result is too large. Request a smaller page with limit or cursor.',
+      status: response.status,
+    }
   }
-  return response.ok ? { content: [{ type: 'text', text }] } : toolError(text)
 }
 
 /**
- * Serves a tool call through the v2 route that owns the operation.
+ * Serves one operation call, from a call tool or `sim.api`, through the v2
+ * route that owns the operation.
  *
  * The call becomes the HTTP request the route would receive — same path, query,
  * body, and credential — and the route handles it end to end: authentication,
@@ -139,15 +155,15 @@ async function toToolResult(
  * envelope. MCP adds no authorization of its own, so no operation can be looser
  * here than over HTTP.
  */
-export async function dispatchMcpOperation(
+export async function dispatchMcpRequest(
   call: McpOperationCall,
   context: McpDispatchContext
-): Promise<CallToolResult> {
+): Promise<McpDispatchOutcome> {
   const startedAt = performance.now()
   const { contract, handler } = getMcpOperation(call.operation)
 
   const resolved = resolvePath(contract.path, call.params ?? {})
-  if ('error' in resolved) return toolError(resolved.error)
+  if ('error' in resolved) return { rejected: resolved.error }
 
   const url = new URL(resolved.path, getBaseUrl())
   for (const [name, value] of Object.entries(call.query ?? {})) {
@@ -156,15 +172,16 @@ export async function dispatchMcpOperation(
 
   const hasBody = contract.method !== 'GET' && contract.body !== undefined
   if (!hasBody && call.body !== undefined) {
-    return toolError(`${call.operation} takes no request body. Use params and query instead.`)
+    return { rejected: `${call.operation} takes no request body. Use params and query instead.` }
   }
   if (isPlainRecord(call.body) && call.body.stream === true) {
-    return toolError(
-      'Streaming is not supported over MCP. Omit stream to wait for the result, or set async: true and poll getWorkflowRun.'
-    )
+    return {
+      rejected:
+        'Streaming is not supported over MCP. Omit stream to wait for the result, or set async: true and poll getWorkflowRun.',
+    }
   }
   const headers = buildHeaders(call, context, hasBody)
-  if ('error' in headers) return toolError(headers.error)
+  if ('error' in headers) return { rejected: headers.error }
 
   const route = await handler()
   if (!isRouteHandler(route)) {
@@ -184,6 +201,18 @@ export async function dispatchMcpOperation(
     operation: call.operation,
     status: response.status,
     durationMs: Math.round(performance.now() - startedAt),
+    ...context.logMetadata,
   })
-  return toToolResult(call.operation, response)
+  return readJsonAnswer(call.operation, response)
+}
+
+/** {@link dispatchMcpRequest} as a tool result; a v2 error envelope becomes a tool error. */
+export async function dispatchMcpOperation(
+  call: McpOperationCall,
+  context: McpDispatchContext
+): Promise<CallToolResult> {
+  const outcome = await dispatchMcpRequest(call, context)
+  if ('rejected' in outcome) return toolError(outcome.rejected)
+  if ('unreadable' in outcome) return toolError(outcome.unreadable)
+  return outcome.ok ? { content: [{ type: 'text', text: outcome.text }] } : toolError(outcome.text)
 }

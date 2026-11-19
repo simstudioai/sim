@@ -27,6 +27,9 @@ export interface RunSandboxTaskOptions {
   filePrincipal?: SandboxBrokerContext['filePrincipal']
   /** Run id that brokers see as `ctx.requestId`, for callers that keep per-run broker state. */
   requestId?: string
+  callSimApi?: SandboxBrokerContext['callSimApi']
+  /** A shorter budget than the task's own `timeoutMs`, which stays the ceiling. */
+  timeoutMs?: number
 }
 
 /**
@@ -66,6 +69,7 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
     resolvePreparedFile: options.resolvePreparedFile,
     onWorkspaceFileAccess: options.onWorkspaceFileAccess,
     filePrincipal: options.filePrincipal,
+    callSimApi: options.callSimApi,
   }
   const brokers: Record<string, IsolatedVMBrokerHandler> = {}
   const runInCallerContext = AsyncLocalStorage.snapshot()
@@ -89,7 +93,7 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
     params: {},
     envVars: {},
     contextVariables: {},
-    timeoutMs: task.timeoutMs,
+    timeoutMs: Math.min(options.timeoutMs ?? task.timeoutMs, task.timeoutMs),
     requestId,
     ownerKey: options.ownerKey,
     ownerWeight: 1,
