@@ -59,7 +59,7 @@ export class ResourceChangedError extends OrchestrationError {
  * files (`expectedRevision`) and workflows (re-checked under the row lock) close that gap.
  */
 export function assertUnchanged(change: PlannedChange, current: string): void {
-  if (change.serverFingerprint !== undefined && current !== change.serverFingerprint) {
+  if (change.storedFingerprint !== undefined && current !== change.storedFingerprint) {
     throw new ResourceChangedError(change)
   }
 }

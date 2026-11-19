@@ -11,8 +11,8 @@ import type { VariableEntry } from './context'
 
 interface BlockKeys {
   keyById: Map<string, BlockKey>
-  /** Normalized name → the key of the block references resolve to. */
-  referenceKeyByName: Map<string, BlockKey>
+  /** The normalized names references resolve by: each is its winning block's key. */
+  referenceableKeys: Set<BlockKey>
 }
 
 function smallestFreeSuffix(base: string, taken: ReadonlySet<string>): string {
@@ -69,9 +69,7 @@ export function assignBlockKeys(
     })
   }
 
-  const referenceKeyByName = new Map<string, BlockKey>()
-  for (const name of winnerByName.keys()) referenceKeyByName.set(name, name)
-  return { keyById, referenceKeyByName }
+  return { keyById, referenceableKeys: new Set(winnerByName.keys()) }
 }
 
 /**

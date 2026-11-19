@@ -1,5 +1,5 @@
 /**
- * Equality and digests over the CWM. All three ignore `annotations`, the
+ * Equality and digests over the CWM. Each ignores `annotations`, the
  * key order of every object (jsonb does not keep it) and the order of `edges`.
  */
 

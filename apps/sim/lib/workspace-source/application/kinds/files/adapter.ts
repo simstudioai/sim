@@ -98,7 +98,7 @@ type StoredFile = StoredResource<StoredFileState>
  * What a write carries out: for an update or delete, the content revision the plan saw (the
  * write refuses a file that moved past it); for a create, the resource key it claims.
  */
-interface FilePlan {
+export interface FilePlan {
   rev?: string
   /**
    * The key a workflow names the created file by (`file('report-pdf')`), as a get would first
@@ -108,7 +108,7 @@ interface FilePlan {
   resourceKey?: string
 }
 
-type FileChange = PlannedChange<FileDecl, FilePlan>
+type FileChange = PlannedChange<'file'>
 
 /**
  * A stored file's path under `files/` (its folder names, then its name), and why no directory can
@@ -159,7 +159,7 @@ function serverSha(file: StoredFile, base?: BaseResource): string | null {
  * The fingerprint the server holds for a file: of its hash (its own, or the base's), or of its
  * revision when no hash is known, which matches nothing a directory declares.
  */
-function serverFingerprint(file: StoredFile, base?: BaseResource): string {
+function storedFingerprint(file: StoredFile, base?: BaseResource): string {
   const sha = serverSha(file, base)
   return sha === null ? `unknown:${file.state.rev}` : fileFingerprint(sha)
 }
@@ -291,7 +291,7 @@ function planFile(
     local: fileFingerprint(decl.sha256),
     stored: existing,
     base,
-    fingerprint: serverFingerprint,
+    fingerprint: storedFingerprint,
     holds: (id) => byId.has(id),
   })
   const planned = settle(resolution, change, (file) =>
@@ -356,11 +356,11 @@ function planDeletes(
     bound: new Map([...stored.bound].filter(([, file]) => !file.state.unmanaged)),
     unbound: [],
   }
-  return planUndeclared<StoredFileState, FileDecl, FilePlan>('file', desired, managed, ctx, {
+  return planUndeclared('file', desired, managed, ctx, {
     declared,
     fingerprint: (file, base) =>
       baseRev(file.key, base) === file.state.rev
-        ? serverFingerprint(file, base)
+        ? storedFingerprint(file, base)
         : `rev:${file.state.rev}`,
     counts: (file) => ({ bytes: file.state.size }),
     detail: (file) => ({ rev: file.state.rev }),
@@ -482,7 +482,7 @@ async function written(
   return { id: fileId, base: fileBase(key, fileId, state.rev, state.sha256 ?? sha256), text: {} }
 }
 
-export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
+export const fileAdapter: KindAdapter<'file', StoredFileState> = {
   codec: fileCodec,
 
   async load(ctx) {

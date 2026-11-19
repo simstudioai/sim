@@ -7,7 +7,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import { implicitIds, unliftedBranchIds } from '../canonicalize/branches'
 import { parseModeMap } from '../canonicalize/modes'
-import { declarationFor, isExcludedSubBlockId } from '../canonicalize/params'
+import { isExcludedSubBlockId, surfaceDeclaration } from '../canonicalize/params'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { mintsFreshValue } from '../catalog/defaults'
 import { catalogBlock } from '../catalog/view'
@@ -155,7 +155,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
       if (existing) setOwn(subBlocks, paramId, { ...existing, value: null })
       continue
     }
-    const declaration = declarationFor(catalog, paramId, target.triggerMode)
+    const declaration = surfaceDeclaration(catalog, paramId, target.triggerMode)
     const value = encodeParam(
       next,
       {
@@ -185,7 +185,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
       ) {
         continue
       }
-      const declaration = declarationFor(catalog, subBlockId, target.triggerMode)
+      const declaration = surfaceDeclaration(catalog, subBlockId, target.triggerMode)
       if (declaration && mintsFreshValue(declaration)) continue
       setOwn(subBlocks, subBlockId, { ...subBlock, value: null })
     }
@@ -211,7 +211,8 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
         setOwn(subBlocks, subBlockId, {
           ...(existing ?? {
             id: subBlockId,
-            type: declarationFor(catalog, subBlockId, target.triggerMode)?.type ?? 'short-input',
+            type:
+              surfaceDeclaration(catalog, subBlockId, target.triggerMode)?.type ?? 'short-input',
           }),
           value: write.value,
         })
@@ -310,7 +311,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
   const items: Record<SubBlockId, LockItem[]> = {}
   for (const [paramId, param] of Object.entries(target.params)) {
     if (param.kind !== 'value') continue
-    const declaration = declarationFor(catalog, paramId, target.triggerMode)
+    const declaration = surfaceDeclaration(catalog, paramId, target.triggerMode)
     const found = structuredCodec(declaration)?.lockItems(getOwn(subBlocks, paramId)?.value) ?? []
     if (found.length > 0) setOwn(items, paramId, found)
   }

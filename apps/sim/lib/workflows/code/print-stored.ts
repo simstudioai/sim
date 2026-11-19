@@ -69,7 +69,7 @@ const digestsByModel = new WeakMap<
  * The `sf1:` fingerprint of a lockless canonical model: what {@link printStoredSource} reports
  * and what every apply compares `base.fingerprint` against. Computed once per model.
  */
-export function storedFingerprint(lockless: CanonicalizeResult): SourceFingerprint {
+export function storedSourceFingerprint(lockless: CanonicalizeResult): SourceFingerprint {
   const cached = digestsByModel.get(lockless)
   if (cached) return cached.fingerprint
   const fingerprint = sourceFingerprint(lockless.workflow, lockless.identity)
@@ -119,7 +119,7 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
   return {
     files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),
     lock: buildLockFromState(sourceMeta, canonical, printed.hints),
-    fingerprint: storedFingerprint(lockless),
+    fingerprint: storedSourceFingerprint(lockless),
     diagnostics: printed.diagnostics,
     entryDepth: printed.entryDepth,
   }

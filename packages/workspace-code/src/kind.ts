@@ -115,8 +115,8 @@ export interface KindLayout {
   /** The blob path a base entry's blob `name` stands for: the inverse of `baseBlobName`. */
   baseBlobPath?(key: string, name: string): string
   /**
-   * Whether `path`, one of the kind's, holds bytes rather than text: a blob travels by hash, and
-   * its content only in the rounds the server asks for it. A kind without it holds only text.
+   * Whether `path`, one of the kind's, holds bytes rather than text: an apply names a blob by its
+   * hash and stages its bytes apart. A kind without it holds only text.
    */
   isBlob?(path: string): boolean
   /**

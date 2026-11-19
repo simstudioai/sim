@@ -17,8 +17,8 @@ export interface CanonContext {
   diagnostics: Diagnostic<CanonicalizeDiagnosticCode>[]
   /** Block id → key, every stored block. */
   keyById: Map<string, BlockKey>
-  /** Normalized name → key of the block references resolve to (the dot-free winner). */
-  referenceKeyByName: Map<string, BlockKey>
+  /** The normalized names references resolve by, each its block's key (the dot-free winner). */
+  referenceableKeys: ReadonlySet<BlockKey>
   /** Stored variables in declaration order. */
   variables: VariableEntry[]
   /** Variable id → key. */

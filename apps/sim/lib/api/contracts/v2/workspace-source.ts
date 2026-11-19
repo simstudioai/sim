@@ -17,9 +17,7 @@ const kindSchema = z
   .enum(APPLY_ORDER, {
     error: `kind: expected one of ${APPLY_ORDER.map((kind) => `"${kind}"`).join(' | ')}`,
   })
-  .describe(
-    'A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`.'
-  )
+  .describe(`A resource kind: ${APPLY_ORDER.map((kind) => `\`${kind}\``).join(', ')}.`)
 
 const paramsSchema = z
   .object({ workspaceId: workspaceIdSchema.describe('Workspace to read or apply.') })

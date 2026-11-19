@@ -204,6 +204,7 @@ export function attachWorkflowSourceStatus(source: Command): void {
           server,
           errors: plan?.errors ?? 0,
           deletes: (plan?.blocksRemoved ?? 0) > 0,
+          scope: '',
         }),
       }
       printStatusReport(output, `Workflow ${workflowId} in ${options.dir}`, report, planLine)

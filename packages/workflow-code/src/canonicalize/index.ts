@@ -106,14 +106,14 @@ export function canonicalize(
 ): CanonicalizeResult {
   const diagnostics: Diagnostic<CanonicalizeDiagnosticCode>[] = []
   const blocks: Record<string, BlockState> = state.blocks ?? {}
-  const { keyById, referenceKeyByName } = assignBlockKeys(blocks, diagnostics)
+  const { keyById, referenceableKeys } = assignBlockKeys(blocks, diagnostics)
   const variableEntries = assignVariableKeys(state.variables ?? {}, diagnostics)
   const context: CanonContext = {
     catalog: options.catalog,
     resources: options.resources,
     diagnostics,
     keyById,
-    referenceKeyByName,
+    referenceableKeys,
     variables: variableEntries,
     variableKeyById: new Map(variableEntries.map((entry) => [entry.id, entry.key])),
   }
