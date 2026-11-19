@@ -199,7 +199,11 @@ async function planKnowledgeBase(
   let converged: string | undefined
   if (bound && based) {
     if (knowledgeView(bound.state, boundDocs, hashes).fingerprint !== based.fingerprint) {
-      await hashDocs(ctx, bound.id, hashableDocs(boundDocs), hashes)
+      // A document named in neither the base nor the directory never moved toward it, whatever
+      // its bytes, so only the others are downloaded.
+      const named = (doc: StoredDoc) =>
+        Object.hasOwn(decl.docs, doc.filename) || Object.hasOwn(based.blobs ?? {}, doc.filename)
+      await hashDocs(ctx, bound.id, hashableDocs(boundDocs).filter(named), hashes)
       if (movedTowardDecl({ decl, state: bound.state, docs: boundDocs, hashes, base: based })) {
         converged = based.fingerprint
       }

@@ -1440,4 +1440,38 @@ describe('knowledge bases as workspace source', () => {
       expect(codes(read.diagnostics, 'info')).toContain('I_KB_DOCS_UNHASHED')
     }
   )
+
+  check(
+    'a plan never downloads a document named in neither the base nor the directory',
+    async () => {
+      const { workspaceId, read, dir } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      const extra = Buffer.from('Uploaded in the UI.\n')
+      await uploadKnowledgeDocument.execute({
+        principal: owner,
+        input: {
+          knowledgeBaseId: stored.id,
+          file: {
+            buffer: extra,
+            filename: 'extra.txt',
+            fileSize: extra.byteLength,
+            mimeType: 'text/plain',
+          },
+        },
+      })
+      await indexed(workspaceId)
+      const added = (await docs(stored.id)).find((doc) => doc.filename === 'extra.txt')
+      if (!added) throw new Error('No extra document')
+      await forgetFileHash(added.id)
+      const reads = vi.spyOn(readOriginalKnowledgeDocument, 'execute')
+
+      let readIds: string[] = []
+      await apply(workspaceId, dir, { base: read.base, dryRun: true }).finally(() => {
+        readIds = reads.mock.calls.map(([args]) => args.input.documentId)
+        reads.mockRestore()
+      })
+
+      expect(readIds).not.toContain(added.id)
+    }
+  )
 })
