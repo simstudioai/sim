@@ -2,6 +2,7 @@ import type { SandboxTask } from '@/lib/execution/sandbox/types'
 import { docxGenerateTask } from '@/sandboxes/docx-generate'
 import { pdfGenerateTask } from '@/sandboxes/pdf-generate'
 import { pptxGenerateTask } from '@/sandboxes/pptx-generate'
+import { simApiCodeTask } from '@/sandboxes/sim-api-code'
 import { workflowTestCollectTask, workflowTestRunTask } from '@/sandboxes/workflow-test'
 
 /**
@@ -13,6 +14,7 @@ export const SANDBOX_TASKS = {
   'pptx-generate': pptxGenerateTask,
   'docx-generate': docxGenerateTask,
   'pdf-generate': pdfGenerateTask,
+  'sim-api-code': simApiCodeTask,
   'workflow-test-run': workflowTestRunTask,
   'workflow-test-collect': workflowTestCollectTask,
 } as const satisfies Record<string, SandboxTask>

@@ -14,6 +14,8 @@
  *     - `pdf-generate`   → `apps/sim/sandboxes/pdf-generate.ts`
  *     - `workflow-test-run`, `workflow-test-collect` → `apps/sim/sandboxes/workflow-test.ts`
  *       (user code is an ES module importing only `vitest` and `sim:test`)
+ *     - `sim-api-code`   → `apps/sim/sandboxes/sim-api-code.ts`
+ *       (Sim MCP code mode: an async function body calling the v2 API via `sim.api`)
  *
  * Tier 2 — Raw isolated-vm consumers.
  *   Value-producing executions where the user supplies arbitrary JS and the

@@ -118,7 +118,7 @@ export type AbortProjectFileUploadParams = {
   uploadId: string
 }
 
-export type AbortProjectFileUploadQuery = Record<string, unknown>
+export type AbortProjectFileUploadQuery = Record<string, never>
 
 export type AbortProjectFileUploadHeaders = {
   'upload-token': string
@@ -171,9 +171,9 @@ export type ActivateWorkflowVersionParams = {
   workflowId: string
 }
 
-export type ActivateWorkflowVersionQuery = Record<string, unknown>
+export type ActivateWorkflowVersionQuery = Record<string, never>
 
-export type ActivateWorkflowVersionBody = Record<string, unknown>
+export type ActivateWorkflowVersionBody = Record<string, never>
 
 type ActivateWorkflowVersionResponseRef0 = {
   deploymentVersionId: string
@@ -227,7 +227,7 @@ export type AddOrganizationDomainParams = {
   organizationId: string
 }
 
-export type AddOrganizationDomainQuery = Record<string, unknown>
+export type AddOrganizationDomainQuery = Record<string, never>
 
 export type AddOrganizationDomainBody = {
   domain: string
@@ -250,7 +250,7 @@ export type AddPermissionGroupMemberParams = {
   groupId: string
 }
 
-export type AddPermissionGroupMemberQuery = Record<string, unknown>
+export type AddPermissionGroupMemberQuery = Record<string, never>
 
 export type AddPermissionGroupMemberBody = {
   userId: string
@@ -274,7 +274,7 @@ export type AddTableColumnParams = {
   tableId: string
 }
 
-export type AddTableColumnQuery = Record<string, unknown>
+export type AddTableColumnQuery = Record<string, never>
 
 export type AddTableColumnBody = {
   workspaceId: string
@@ -320,7 +320,7 @@ export type AddWorkflowGroupParams = {
   tableId: string
 }
 
-export type AddWorkflowGroupQuery = Record<string, unknown>
+export type AddWorkflowGroupQuery = Record<string, never>
 
 export type AddWorkflowGroupBody = {
   workspaceId: string
@@ -405,7 +405,7 @@ export type AddWorkspaceFilesToKnowledgeBaseParams = {
   knowledgeBaseId: string
 }
 
-export type AddWorkspaceFilesToKnowledgeBaseQuery = Record<string, unknown>
+export type AddWorkspaceFilesToKnowledgeBaseQuery = Record<string, never>
 
 export type AddWorkspaceFilesToKnowledgeBaseBody = {
   workspaceId: string
@@ -447,7 +447,9 @@ type ApplyWorkflowOperationsBodyRef0 =
         name: string
         inputs?: {
           tools?: ApplyWorkflowOperationsBodyRef1
+          [key: string]: unknown
         } & Record<string, unknown>
+        [key: string]: unknown
       }
     }
   | {
@@ -456,7 +458,9 @@ type ApplyWorkflowOperationsBodyRef0 =
       params: {
         inputs?: {
           tools?: ApplyWorkflowOperationsBodyRef1
+          [key: string]: unknown
         } & Record<string, unknown>
+        [key: string]: unknown
       } & Record<string, unknown>
     }
   | {
@@ -472,7 +476,9 @@ type ApplyWorkflowOperationsBodyRef0 =
         name: string
         inputs?: {
           tools?: ApplyWorkflowOperationsBodyRef1
+          [key: string]: unknown
         } & Record<string, unknown>
+        [key: string]: unknown
       }
     }
   | {
@@ -480,6 +486,7 @@ type ApplyWorkflowOperationsBodyRef0 =
       block_id: string
       params: {
         subflowId: string
+        [key: string]: unknown
       }
     }
 
@@ -497,6 +504,7 @@ type ApplyWorkflowOperationsBodyRef3 = {
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
   params?: Record<string, unknown>
+  [key: string]: unknown
 }
 
 type ApplyWorkflowOperationsBodyRef4 =
@@ -505,6 +513,7 @@ type ApplyWorkflowOperationsBodyRef4 =
       customToolId: string
       usageControl?: 'auto' | 'force' | 'none'
       usageControlExpression?: string
+      [key: string]: unknown
     }
   | {
       type: 'custom-tool'
@@ -514,11 +523,14 @@ type ApplyWorkflowOperationsBodyRef4 =
           name: string
           description?: string
           parameters: Record<string, unknown>
+          [key: string]: unknown
         }
+        [key: string]: unknown
       }
       code: string
       usageControl?: 'auto' | 'force' | 'none'
       usageControlExpression?: string
+      [key: string]: unknown
     }
 
 type ApplyWorkflowOperationsBodyRef5 = {
@@ -526,9 +538,11 @@ type ApplyWorkflowOperationsBodyRef5 = {
   params: {
     serverId: string
     toolName: string
+    [key: string]: unknown
   } & Record<string, unknown>
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
+  [key: string]: unknown
 }
 
 type ApplyWorkflowOperationsBodyRef6 = {
@@ -550,6 +564,7 @@ type ApplyWorkflowOperationsBodyRef6 = {
   }
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
+  [key: string]: unknown
 }
 
 export type ApplyWorkflowOperationsBody = {
@@ -728,11 +743,14 @@ export type ApplyWorkflowSourceBody = {
           h?: number
           height?: number
           horizontalHandles?: boolean
+          [key: string]: unknown
         }
         codeFile?: string
+        [key: string]: unknown
       }
     >
     variables: Record<string, string>
+    [key: string]: unknown
   }
   base: {
     version?: 1
@@ -740,6 +758,7 @@ export type ApplyWorkflowSourceBody = {
     workspaceId: string
     fingerprint: string
     catalogHash: string
+    [key: string]: unknown
   }
   provenance?: {
     client: 'cli' | 'copilot' | 'canvas' | 'api'
@@ -976,11 +995,14 @@ export type ApplyWorkflowSourceResponse = {
             h?: number
             height?: number
             horizontalHandles?: boolean
+            [key: string]: unknown
           }
           codeFile?: string
+          [key: string]: unknown
         }
       >
       variables: Record<string, string>
+      [key: string]: unknown
     }
     base: {
       version: 1
@@ -988,6 +1010,7 @@ export type ApplyWorkflowSourceResponse = {
       workspaceId: string
       fingerprint: string
       catalogHash: string
+      [key: string]: unknown
     }
     mintedIds: Record<string, string>
     notes: Array<string>
@@ -1000,7 +1023,7 @@ export type ApplyWorkflowVariablesParams = {
   workflowId: string
 }
 
-export type ApplyWorkflowVariablesQuery = Record<string, unknown>
+export type ApplyWorkflowVariablesQuery = Record<string, never>
 
 export type ApplyWorkflowVariablesBody = {
   operations: Array<
@@ -1075,9 +1098,12 @@ export type ApplyWorkspaceSourceBody = {
         rows?: {
           fingerprint: string
           version: number
+          [key: string]: unknown
         }
+        [key: string]: unknown
       }
     >
+    [key: string]: unknown
   }
   kinds: Array<
     | 'secret'
@@ -1443,9 +1469,12 @@ export type ApplyWorkspaceSourceResponse = {
           rows?: {
             fingerprint: string
             version: number
+            [key: string]: unknown
           }
+          [key: string]: unknown
         }
       >
+      [key: string]: unknown
     }
     diagnostics: Array<{
       code:
@@ -1710,7 +1739,7 @@ export type ArchiveProjectFileItemsParams = {
   projectId: string
 }
 
-export type ArchiveProjectFileItemsQuery = Record<string, unknown>
+export type ArchiveProjectFileItemsQuery = Record<string, never>
 
 export type ArchiveProjectFileItemsBody = {
   fileIds?: Array<string>
@@ -1736,7 +1765,7 @@ export type BulkAddPermissionGroupMembersParams = {
   groupId: string
 }
 
-export type BulkAddPermissionGroupMembersQuery = Record<string, unknown>
+export type BulkAddPermissionGroupMembersQuery = Record<string, never>
 
 export type BulkAddPermissionGroupMembersBody = {
   userIds?: Array<string>
@@ -1753,7 +1782,7 @@ export type BulkAddPermissionGroupMembersResponse = {
 }
 
 /** `POST /api/v2/files/bulk-delete` */
-export type BulkDeleteFilesQuery = Record<string, unknown>
+export type BulkDeleteFilesQuery = Record<string, never>
 
 export type BulkDeleteFilesBody = {
   workspaceId: string
@@ -1771,7 +1800,7 @@ export type BulkDeleteFilesResponse = {
 }
 
 /** `POST /api/v2/tables/bulk-delete` */
-export type BulkDeleteTablesQuery = Record<string, unknown>
+export type BulkDeleteTablesQuery = Record<string, never>
 
 type BulkDeleteTablesBodyRef0 = string
 
@@ -1827,7 +1856,7 @@ export type BulkSaveKnowledgeTagDefinitionsParams = {
   knowledgeBaseId: string
 }
 
-export type BulkSaveKnowledgeTagDefinitionsQuery = Record<string, unknown>
+export type BulkSaveKnowledgeTagDefinitionsQuery = Record<string, never>
 
 type BulkSaveKnowledgeTagDefinitionsBodyRef0 = {
   tagSlot:
@@ -1881,7 +1910,7 @@ export type BulkUpdateKnowledgeChunksParams = {
   knowledgeBaseId: string
 }
 
-export type BulkUpdateKnowledgeChunksQuery = Record<string, unknown>
+export type BulkUpdateKnowledgeChunksQuery = Record<string, never>
 
 export type BulkUpdateKnowledgeChunksBody = {
   workspaceId: string
@@ -1904,7 +1933,7 @@ export type BulkUpdateKnowledgeDocumentsParams = {
   knowledgeBaseId: string
 }
 
-export type BulkUpdateKnowledgeDocumentsQuery = Record<string, unknown>
+export type BulkUpdateKnowledgeDocumentsQuery = Record<string, never>
 
 export type BulkUpdateKnowledgeDocumentsBody = {
   workspaceId: string
@@ -1929,7 +1958,7 @@ export type BulkUpdateTableRowsParams = {
   tableId: string
 }
 
-export type BulkUpdateTableRowsQuery = Record<string, unknown>
+export type BulkUpdateTableRowsQuery = Record<string, never>
 
 type BulkUpdateTableRowsBodyRef0 = Record<string, unknown>
 
@@ -1994,7 +2023,7 @@ export type CancelOrganizationAccessRequestParams = {
   requestId: string
 }
 
-export type CancelOrganizationAccessRequestQuery = Record<string, unknown>
+export type CancelOrganizationAccessRequestQuery = Record<string, never>
 
 type CancelOrganizationAccessRequestResponseRef0 = {
   id: string
@@ -2224,7 +2253,7 @@ export type CancelTableRunsParams = {
   tableId: string
 }
 
-export type CancelTableRunsQuery = Record<string, unknown>
+export type CancelTableRunsQuery = Record<string, never>
 
 type CancelTableRunsBodyRef0 =
   | {
@@ -2335,7 +2364,7 @@ export type CancelWorkflowRunParams = {
   runId: string
 }
 
-export type CancelWorkflowRunQuery = Record<string, unknown>
+export type CancelWorkflowRunQuery = Record<string, never>
 
 type CancelWorkflowRunResponseRef0 = {
   success: boolean
@@ -2368,7 +2397,7 @@ export type CancelWorkspaceAccessRequestParams = {
   requestId: string
 }
 
-export type CancelWorkspaceAccessRequestQuery = Record<string, unknown>
+export type CancelWorkspaceAccessRequestQuery = Record<string, never>
 
 type CancelWorkspaceAccessRequestResponseRef0 = {
   id: string
@@ -2466,7 +2495,7 @@ export type CancelWorkspaceAccessRequestResponse = {
 }
 
 /** `POST /api/v2/chat` */
-export type ChatQuery = Record<string, unknown>
+export type ChatQuery = Record<string, never>
 
 export type ChatBody = {
   workspaceId: string
@@ -2770,7 +2799,7 @@ export type CompleteProjectFileUploadParams = {
   uploadId: string
 }
 
-export type CompleteProjectFileUploadQuery = Record<string, unknown>
+export type CompleteProjectFileUploadQuery = Record<string, never>
 
 export type CompleteProjectFileUploadHeaders = {
   'upload-token': string
@@ -2824,9 +2853,9 @@ export type CompleteSourcePermissionImportParams = {
   importId: string
 }
 
-export type CompleteSourcePermissionImportQuery = Record<string, unknown>
+export type CompleteSourcePermissionImportQuery = Record<string, never>
 
-export type CompleteSourcePermissionImportBody = Record<string, unknown>
+export type CompleteSourcePermissionImportBody = Record<string, never>
 
 export type CompleteSourcePermissionImportResponse = {
   data: {
@@ -2899,7 +2928,7 @@ export type CompleteTableImportResponse = {
 }
 
 /** `POST /api/v2/files/copy` */
-export type CopyFileItemsQuery = Record<string, unknown>
+export type CopyFileItemsQuery = Record<string, never>
 
 export type CopyFileItemsBody = {
   source: {
@@ -2960,7 +2989,7 @@ export type CopyFileItemsResponse = {
 }
 
 /** `POST /api/v2/credentials/connections` */
-export type CreateCredentialConnectionQuery = Record<string, unknown>
+export type CreateCredentialConnectionQuery = Record<string, never>
 
 export type CreateCredentialConnectionBody =
   | {
@@ -3065,7 +3094,7 @@ export type CreateCredentialConnectionResponse = {
 }
 
 /** `POST /api/v2/credentials/workload-identity/subjects` */
-export type CreateCredentialWorkloadIdentitySubjectQuery = Record<string, unknown>
+export type CreateCredentialWorkloadIdentitySubjectQuery = Record<string, never>
 
 export type CreateCredentialWorkloadIdentitySubjectBody = {
   workspaceId: string
@@ -3100,7 +3129,7 @@ export type CreateCredentialWorkloadIdentitySubjectResponse = {
 }
 
 /** `POST /api/v2/custom-tools` */
-export type CreateCustomToolQuery = Record<string, unknown>
+export type CreateCustomToolQuery = Record<string, never>
 
 export type CreateCustomToolBody = {
   workspaceId: string
@@ -3114,8 +3143,11 @@ export type CreateCustomToolBody = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
 }
@@ -3132,8 +3164,11 @@ type CreateCustomToolResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -3145,7 +3180,7 @@ export type CreateCustomToolResponse = {
 }
 
 /** `POST /api/v2/files` */
-export type CreateFileQuery = Record<string, unknown>
+export type CreateFileQuery = Record<string, never>
 
 type CreateFileBodyRef0 = string
 
@@ -3178,7 +3213,7 @@ export type CreateFileResponse = {
 }
 
 /** `POST /api/v2/files/folders` */
-export type CreateFileFolderQuery = Record<string, unknown>
+export type CreateFileFolderQuery = Record<string, never>
 
 type CreateFileFolderBodyRef0 = string
 
@@ -3200,7 +3235,7 @@ export type CreateFileFolderResponse = {
 }
 
 /** `POST /api/v2/files/uploads` */
-export type CreateFileUploadQuery = Record<string, unknown>
+export type CreateFileUploadQuery = Record<string, never>
 
 type CreateFileUploadBodyRef0 = string
 
@@ -3301,7 +3336,7 @@ export type CreateFileUploadPartUrlsResponse = {
 }
 
 /** `POST /api/v2/knowledge` */
-export type CreateKnowledgeBaseQuery = Record<string, unknown>
+export type CreateKnowledgeBaseQuery = Record<string, never>
 
 type CreateKnowledgeBaseBodyRef0 = {
   maxSize?: number
@@ -3337,6 +3372,7 @@ type CreateKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type CreateKnowledgeBaseResponseRef1 = {
@@ -3367,7 +3403,7 @@ export type CreateKnowledgeChunkParams = {
   knowledgeBaseId: string
 }
 
-export type CreateKnowledgeChunkQuery = Record<string, unknown>
+export type CreateKnowledgeChunkQuery = Record<string, never>
 
 export type CreateKnowledgeChunkBody = {
   workspaceId: string
@@ -3404,7 +3440,7 @@ export type CreateKnowledgeConnectorParams = {
   knowledgeBaseId: string
 }
 
-export type CreateKnowledgeConnectorQuery = Record<string, unknown>
+export type CreateKnowledgeConnectorQuery = Record<string, never>
 
 export type CreateKnowledgeConnectorBody = {
   workspaceId: string
@@ -3442,7 +3478,7 @@ export type CreateKnowledgeDocumentUploadParams = {
   knowledgeBaseId: string
 }
 
-export type CreateKnowledgeDocumentUploadQuery = Record<string, unknown>
+export type CreateKnowledgeDocumentUploadQuery = Record<string, never>
 
 export type CreateKnowledgeDocumentUploadBody = {
   workspaceId: string
@@ -3557,7 +3593,7 @@ export type CreateKnowledgeDocumentUploadPartUrlsResponse = {
 }
 
 /** `POST /api/v2/knowledge/folders` */
-export type CreateKnowledgeFolderQuery = Record<string, unknown>
+export type CreateKnowledgeFolderQuery = Record<string, never>
 
 type CreateKnowledgeFolderBodyRef0 = string
 
@@ -3579,7 +3615,7 @@ export type CreateKnowledgeFolderResponse = {
 }
 
 /** `POST /api/v2/knowledge/imports` */
-export type CreateKnowledgeImportQuery = Record<string, unknown>
+export type CreateKnowledgeImportQuery = Record<string, never>
 
 type CreateKnowledgeImportBodyRef0 = {
   type: 'upload'
@@ -3675,7 +3711,7 @@ export type CreateKnowledgeTagParams = {
   knowledgeBaseId: string
 }
 
-export type CreateKnowledgeTagQuery = Record<string, unknown>
+export type CreateKnowledgeTagQuery = Record<string, never>
 
 export type CreateKnowledgeTagBody = {
   workspaceId: string
@@ -3713,7 +3749,7 @@ export type CreateKnowledgeTagResponse = {
 }
 
 /** `POST /api/v2/mcp-servers` */
-export type CreateMcpServerQuery = Record<string, unknown>
+export type CreateMcpServerQuery = Record<string, never>
 
 export type CreateMcpServerBody = {
   workspaceId: string
@@ -3762,7 +3798,7 @@ export type CreateOrganizationAccessRequestParams = {
   organizationId: string
 }
 
-export type CreateOrganizationAccessRequestQuery = Record<string, unknown>
+export type CreateOrganizationAccessRequestQuery = Record<string, never>
 
 export type CreateOrganizationAccessRequestBody = {
   target:
@@ -3941,7 +3977,7 @@ export type CreateOrganizationInvitationParams = {
   organizationId: string
 }
 
-export type CreateOrganizationInvitationQuery = Record<string, unknown>
+export type CreateOrganizationInvitationQuery = Record<string, never>
 
 export type CreateOrganizationInvitationBody = {
   email: string
@@ -3969,7 +4005,7 @@ export type CreatePermissionGroupParams = {
   organizationId: string
 }
 
-export type CreatePermissionGroupQuery = Record<string, unknown>
+export type CreatePermissionGroupQuery = Record<string, never>
 
 export type CreatePermissionGroupBody = {
   name: string
@@ -4096,7 +4132,7 @@ export type CreateProjectFileParams = {
   projectId: string
 }
 
-export type CreateProjectFileQuery = Record<string, unknown>
+export type CreateProjectFileQuery = Record<string, never>
 
 type CreateProjectFileBodyRef0 = string
 
@@ -4135,7 +4171,7 @@ export type CreateProjectFileFolderParams = {
   projectId: string
 }
 
-export type CreateProjectFileFolderQuery = Record<string, unknown>
+export type CreateProjectFileFolderQuery = Record<string, never>
 
 export type CreateProjectFileFolderBody = {
   name: string
@@ -4165,7 +4201,7 @@ export type CreateProjectFileUploadParams = {
   projectId: string
 }
 
-export type CreateProjectFileUploadQuery = Record<string, unknown>
+export type CreateProjectFileUploadQuery = Record<string, never>
 
 type CreateProjectFileUploadBodyRef0 = string
 
@@ -4238,7 +4274,7 @@ export type CreateProjectFileUploadResponse = {
 }
 
 /** `POST /api/v2/sandboxes` */
-export type CreateSandboxQuery = Record<string, unknown>
+export type CreateSandboxQuery = Record<string, never>
 
 export type CreateSandboxBody = {
   workspaceId: string
@@ -4324,7 +4360,7 @@ export type CreateSearchSourceParams = {
   organizationId: string
 }
 
-export type CreateSearchSourceQuery = Record<string, unknown>
+export type CreateSearchSourceQuery = Record<string, never>
 
 export type CreateSearchSourceBody = {
   connectorType: string
@@ -4377,7 +4413,7 @@ export type CreateSearchSourceResponse = {
 }
 
 /** `POST /api/v2/credentials` */
-export type CreateServiceAccountCredentialQuery = Record<string, unknown>
+export type CreateServiceAccountCredentialQuery = Record<string, never>
 
 export type CreateServiceAccountCredentialBody = {
   workspaceId: string
@@ -4407,7 +4443,7 @@ export type CreateServiceAccountCredentialResponse = {
 }
 
 /** `POST /api/v2/skills` */
-export type CreateSkillQuery = Record<string, unknown>
+export type CreateSkillQuery = Record<string, never>
 
 export type CreateSkillBody = {
   workspaceId: string
@@ -4436,7 +4472,7 @@ export type CreateSourcePermissionImportParams = {
   sourceId: string
 }
 
-export type CreateSourcePermissionImportQuery = Record<string, unknown>
+export type CreateSourcePermissionImportQuery = Record<string, never>
 
 export type CreateSourcePermissionImportBody = {
   provider: 'gitlab'
@@ -4461,7 +4497,7 @@ export type CreateSourcePermissionImportResponse = {
 }
 
 /** `POST /api/v2/tables` */
-export type CreateTableQuery = Record<string, unknown>
+export type CreateTableQuery = Record<string, never>
 
 type CreateTableBodyRef0 = string
 
@@ -4540,7 +4576,7 @@ export type CreateTableDispatchParams = {
   tableId: string
 }
 
-export type CreateTableDispatchQuery = Record<string, unknown>
+export type CreateTableDispatchQuery = Record<string, never>
 
 type CreateTableDispatchBodyRef0 =
   | {
@@ -4655,7 +4691,7 @@ export type CreateTableExportParams = {
   tableId: string
 }
 
-export type CreateTableExportQuery = Record<string, unknown>
+export type CreateTableExportQuery = Record<string, never>
 
 export type CreateTableExportBody = {
   workspaceId: string
@@ -4680,7 +4716,7 @@ export type CreateTableExportResponse = {
 }
 
 /** `POST /api/v2/tables/folders` */
-export type CreateTableFolderQuery = Record<string, unknown>
+export type CreateTableFolderQuery = Record<string, never>
 
 type CreateTableFolderBodyRef0 = string
 
@@ -4702,7 +4738,7 @@ export type CreateTableFolderResponse = {
 }
 
 /** `POST /api/v2/tables/imports` */
-export type CreateTableImportQuery = Record<string, unknown>
+export type CreateTableImportQuery = Record<string, never>
 
 type CreateTableImportBodyRef0 = {
   type: 'upload'
@@ -4877,7 +4913,7 @@ export type CreateTableRowsParams = {
   tableId: string
 }
 
-export type CreateTableRowsQuery = Record<string, unknown>
+export type CreateTableRowsQuery = Record<string, never>
 
 type CreateTableRowsBodyRef0 = Record<string, unknown>
 
@@ -4933,7 +4969,7 @@ export type CreateTableViewParams = {
   tableId: string
 }
 
-export type CreateTableViewQuery = Record<string, unknown>
+export type CreateTableViewQuery = Record<string, never>
 
 type CreateTableViewBodyRef0 =
   | {
@@ -5066,7 +5102,7 @@ export type CreateTableViewResponse = {
 }
 
 /** `POST /api/v2/workflows` */
-export type CreateWorkflowQuery = Record<string, unknown>
+export type CreateWorkflowQuery = Record<string, never>
 
 type CreateWorkflowBodyRef0 = string
 
@@ -5104,7 +5140,7 @@ export type CreateWorkflowResponse = {
 }
 
 /** `POST /api/v2/workflows/folders` */
-export type CreateWorkflowFolderQuery = Record<string, unknown>
+export type CreateWorkflowFolderQuery = Record<string, never>
 
 type CreateWorkflowFolderBodyRef0 = string
 
@@ -5378,11 +5414,14 @@ export type CreateWorkflowFromSourceResponse = {
             h?: number
             height?: number
             horizontalHandles?: boolean
+            [key: string]: unknown
           }
           codeFile?: string
+          [key: string]: unknown
         }
       >
       variables: Record<string, string>
+      [key: string]: unknown
     }
     base: {
       version: 1
@@ -5390,6 +5429,7 @@ export type CreateWorkflowFromSourceResponse = {
       workspaceId: string
       fingerprint: string
       catalogHash: string
+      [key: string]: unknown
     }
     mintedIds: Record<string, string>
     notes: Array<string>
@@ -5398,7 +5438,7 @@ export type CreateWorkflowFromSourceResponse = {
 }
 
 /** `POST /api/v2/workflow-mcp-servers` */
-export type CreateWorkflowMcpServerQuery = Record<string, unknown>
+export type CreateWorkflowMcpServerQuery = Record<string, never>
 
 export type CreateWorkflowMcpServerBody = {
   workspaceId: string
@@ -5427,7 +5467,7 @@ export type CreateWorkspaceAccessRequestParams = {
   workspaceId: string
 }
 
-export type CreateWorkspaceAccessRequestQuery = Record<string, unknown>
+export type CreateWorkspaceAccessRequestQuery = Record<string, never>
 
 export type CreateWorkspaceAccessRequestBody = {
   target:
@@ -5606,7 +5646,7 @@ export type CreateWorkspaceInvitationsParams = {
   workspaceId: string
 }
 
-export type CreateWorkspaceInvitationsQuery = Record<string, unknown>
+export type CreateWorkspaceInvitationsQuery = Record<string, never>
 
 export type CreateWorkspaceInvitationsBody = {
   emails: Array<string>
@@ -5922,7 +5962,7 @@ export type DeletePermissionGroupParams = {
   groupId: string
 }
 
-export type DeletePermissionGroupQuery = Record<string, unknown>
+export type DeletePermissionGroupQuery = Record<string, never>
 
 type DeletePermissionGroupResponseRef0 = {
   id: string
@@ -5940,7 +5980,7 @@ export type DeleteProjectFileVersionParams = {
   version: number
 }
 
-export type DeleteProjectFileVersionQuery = Record<string, unknown>
+export type DeleteProjectFileVersionQuery = Record<string, never>
 
 export type DeleteProjectFileVersionResponse = {
   data: {
@@ -5974,7 +6014,7 @@ export type DeleteSearchSourceParams = {
   sourceId: string
 }
 
-export type DeleteSearchSourceQuery = Record<string, unknown>
+export type DeleteSearchSourceQuery = Record<string, never>
 
 export type DeleteSearchSourceResponse = {
   data: {
@@ -6027,7 +6067,7 @@ export type DeleteSsoProviderParams = {
   providerId: string
 }
 
-export type DeleteSsoProviderQuery = Record<string, unknown>
+export type DeleteSsoProviderQuery = Record<string, never>
 
 export type DeleteSsoProviderResponse = {
   data: {
@@ -6059,7 +6099,7 @@ export type DeleteTableColumnParams = {
   tableId: string
 }
 
-export type DeleteTableColumnQuery = Record<string, unknown>
+export type DeleteTableColumnQuery = Record<string, never>
 
 export type DeleteTableColumnBody = {
   workspaceId: string
@@ -6145,7 +6185,7 @@ export type DeleteTableRowsParams = {
   tableId: string
 }
 
-export type DeleteTableRowsQuery = Record<string, unknown>
+export type DeleteTableRowsQuery = Record<string, never>
 
 type DeleteTableRowsBodyRef0 =
   | {
@@ -6276,7 +6316,7 @@ export type DeleteWorkflowParams = {
   workflowId: string
 }
 
-export type DeleteWorkflowQuery = Record<string, unknown>
+export type DeleteWorkflowQuery = Record<string, never>
 
 type DeleteWorkflowResponseRef0 = {
   id: string
@@ -6293,7 +6333,7 @@ export type DeleteWorkflowChatDeploymentParams = {
   workflowId: string
 }
 
-export type DeleteWorkflowChatDeploymentQuery = Record<string, unknown>
+export type DeleteWorkflowChatDeploymentQuery = Record<string, never>
 
 type DeleteWorkflowChatDeploymentResponseRef0 = {
   id: string
@@ -6343,7 +6383,7 @@ export type DeleteWorkflowGroupParams = {
   tableId: string
 }
 
-export type DeleteWorkflowGroupQuery = Record<string, unknown>
+export type DeleteWorkflowGroupQuery = Record<string, never>
 
 export type DeleteWorkflowGroupBody = {
   workspaceId: string
@@ -6378,7 +6418,7 @@ export type DeleteWorkflowMcpServerParams = {
   serverId: string
 }
 
-export type DeleteWorkflowMcpServerQuery = Record<string, unknown>
+export type DeleteWorkflowMcpServerQuery = Record<string, never>
 
 type DeleteWorkflowMcpServerResponseRef0 = {
   id: string
@@ -6394,7 +6434,7 @@ export type DeployWorkflowParams = {
   workflowId: string
 }
 
-export type DeployWorkflowQuery = Record<string, unknown>
+export type DeployWorkflowQuery = Record<string, never>
 
 export type DeployWorkflowBody = {
   name?: string
@@ -6527,7 +6567,7 @@ export type DeployWorkflowMcpToolParams = {
   serverId: string
 }
 
-export type DeployWorkflowMcpToolQuery = Record<string, unknown>
+export type DeployWorkflowMcpToolQuery = Record<string, never>
 
 export type DeployWorkflowMcpToolBody = {
   workflowId: string
@@ -6832,7 +6872,7 @@ export type DownloadRunFileParams = {
   fileId: string
 }
 
-export type DownloadRunFileQuery = Record<string, unknown>
+export type DownloadRunFileQuery = Record<string, never>
 
 /** Non-JSON response (`binary`). */
 export type DownloadRunFileResponse = never
@@ -6842,7 +6882,7 @@ export type DuplicateWorkflowParams = {
   workflowId: string
 }
 
-export type DuplicateWorkflowQuery = Record<string, unknown>
+export type DuplicateWorkflowQuery = Record<string, never>
 
 type DuplicateWorkflowBodyRef0 = string
 
@@ -6875,7 +6915,7 @@ export type EditFileContentParams = {
   fileId: string
 }
 
-export type EditFileContentQuery = Record<string, unknown>
+export type EditFileContentQuery = Record<string, never>
 
 export type EditFileContentBody = {
   workspaceId: string
@@ -6937,7 +6977,7 @@ export type ExecuteToolParams = {
   toolId: string
 }
 
-export type ExecuteToolQuery = Record<string, unknown>
+export type ExecuteToolQuery = Record<string, never>
 
 export type ExecuteToolBody = {
   workspaceId: string
@@ -6964,7 +7004,7 @@ export type ExecuteWorkflowParams = {
   workflowId: string
 }
 
-export type ExecuteWorkflowQuery = Record<string, unknown>
+export type ExecuteWorkflowQuery = Record<string, never>
 
 export type ExecuteWorkflowBody = {
   input?: Record<string, unknown>
@@ -7065,7 +7105,7 @@ export type ExportProjectFileSnapshotParams = {
   fileId: string
 }
 
-export type ExportProjectFileSnapshotQuery = Record<string, unknown>
+export type ExportProjectFileSnapshotQuery = Record<string, never>
 
 export type ExportProjectFileSnapshotBody = {
   content: string
@@ -7134,7 +7174,7 @@ export type FindMissingWorkspaceSourceBlobsParams = {
   workspaceId: string
 }
 
-export type FindMissingWorkspaceSourceBlobsQuery = Record<string, unknown>
+export type FindMissingWorkspaceSourceBlobsQuery = Record<string, never>
 
 export type FindMissingWorkspaceSourceBlobsBody = {
   blobs: Array<{
@@ -7155,7 +7195,7 @@ export type ForkWorkspaceParams = {
   workspaceId: string
 }
 
-export type ForkWorkspaceQuery = Record<string, unknown>
+export type ForkWorkspaceQuery = Record<string, never>
 
 export type ForkWorkspaceBody = {
   name?: string
@@ -7516,8 +7556,11 @@ type GetCustomToolResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -7697,6 +7740,7 @@ type GetKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type GetKnowledgeBaseResponseRef1 = {
@@ -7933,8 +7977,10 @@ type GetLogResponseRef1 = {
     startTime?: string
     endTime?: string
     duration?: number
+    [key: string]: unknown
   }>
   children?: Array<GetLogResponseRef1>
+  [key: string]: unknown
 }
 
 type GetLogResponseRef2 = {
@@ -8079,7 +8125,7 @@ export type GetMcpServerResponse = {
 }
 
 /** `GET /api/v2/meta` */
-export type GetMetaQuery = Record<string, unknown>
+export type GetMetaQuery = Record<string, never>
 
 type GetMetaResponseRef0 = {
   v2Enabled: boolean
@@ -8127,7 +8173,7 @@ export type GetOrganizationParams = {
   organizationId: string
 }
 
-export type GetOrganizationQuery = Record<string, unknown>
+export type GetOrganizationQuery = Record<string, never>
 
 type GetOrganizationResponseRef0 = {
   id: string
@@ -8147,7 +8193,7 @@ export type GetOrganizationAccessRequestSettingsParams = {
   organizationId: string
 }
 
-export type GetOrganizationAccessRequestSettingsQuery = Record<string, unknown>
+export type GetOrganizationAccessRequestSettingsQuery = Record<string, never>
 
 type GetOrganizationAccessRequestSettingsResponseRef0 = {
   allowRequests: boolean
@@ -8163,7 +8209,7 @@ export type GetOrganizationInvitationParams = {
   invitationId: string
 }
 
-export type GetOrganizationInvitationQuery = Record<string, unknown>
+export type GetOrganizationInvitationQuery = Record<string, never>
 
 type GetOrganizationInvitationResponseRef0 = {
   id: string
@@ -8187,7 +8233,7 @@ export type GetOrganizationMemberUsageLimitParams = {
   userId: string
 }
 
-export type GetOrganizationMemberUsageLimitQuery = Record<string, unknown>
+export type GetOrganizationMemberUsageLimitQuery = Record<string, never>
 
 type GetOrganizationMemberUsageLimitResponseRef0 = {
   creditsUsed: number
@@ -8281,7 +8327,7 @@ export type GetPermissionGroupParams = {
   groupId: string
 }
 
-export type GetPermissionGroupQuery = Record<string, unknown>
+export type GetPermissionGroupQuery = Record<string, never>
 
 type GetPermissionGroupResponseRef0 = {
   id: string
@@ -8354,7 +8400,7 @@ export type GetProjectFileMetadataParams = {
   fileId: string
 }
 
-export type GetProjectFileMetadataQuery = Record<string, unknown>
+export type GetProjectFileMetadataQuery = Record<string, never>
 
 type GetProjectFileMetadataResponseRef0 = {
   id: string
@@ -8384,7 +8430,7 @@ export type GetProjectFileShareParams = {
   fileId: string
 }
 
-export type GetProjectFileShareQuery = Record<string, unknown>
+export type GetProjectFileShareQuery = Record<string, never>
 
 type GetProjectFileShareResponseRef0 = {
   id: string
@@ -8408,7 +8454,7 @@ export type GetProjectFileUploadParams = {
   uploadId: string
 }
 
-export type GetProjectFileUploadQuery = Record<string, unknown>
+export type GetProjectFileUploadQuery = Record<string, never>
 
 export type GetProjectFileUploadHeaders = {
   'upload-token': string
@@ -8461,7 +8507,7 @@ export type GetProjectFileUploadPartUrlsParams = {
   uploadId: string
 }
 
-export type GetProjectFileUploadPartUrlsQuery = Record<string, unknown>
+export type GetProjectFileUploadPartUrlsQuery = Record<string, never>
 
 export type GetProjectFileUploadPartUrlsBody = {
   partNumbers: Array<number>
@@ -8493,7 +8539,7 @@ export type GetProjectFileVersionParams = {
   version: number
 }
 
-export type GetProjectFileVersionQuery = Record<string, unknown>
+export type GetProjectFileVersionQuery = Record<string, never>
 
 type GetProjectFileVersionResponseRef0 = GetProjectFileVersionResponseRef1
 
@@ -8632,7 +8678,7 @@ export type GetSearchSourceParams = {
   sourceId: string
 }
 
-export type GetSearchSourceQuery = Record<string, unknown>
+export type GetSearchSourceQuery = Record<string, never>
 
 export type GetSearchSourceResponse = {
   data: {
@@ -8669,7 +8715,7 @@ export type GetSearchSourcePermissionsParams = {
   sourceId: string
 }
 
-export type GetSearchSourcePermissionsQuery = Record<string, unknown>
+export type GetSearchSourcePermissionsQuery = Record<string, never>
 
 type GetSearchSourcePermissionsResponseRef0 = {
   revision: number
@@ -8680,7 +8726,7 @@ export type GetSearchSourcePermissionsResponse = {
 }
 
 /** `POST /api/v2/selectors/get` */
-export type GetSelectorQuery = Record<string, unknown>
+export type GetSelectorQuery = Record<string, never>
 
 export type GetSelectorBody = {
   workspaceId: string
@@ -9500,7 +9546,7 @@ export type GetSourceResourcesParams = {
   workspaceId: string
 }
 
-export type GetSourceResourcesQuery = Record<string, unknown>
+export type GetSourceResourcesQuery = Record<string, never>
 
 export type GetSourceResourcesResponse = {
   data: {
@@ -9563,7 +9609,7 @@ export type GetSsoPolicyParams = {
   organizationId: string
 }
 
-export type GetSsoPolicyQuery = Record<string, unknown>
+export type GetSsoPolicyQuery = Record<string, never>
 
 export type GetSsoPolicyResponse = {
   data: {
@@ -9579,7 +9625,7 @@ export type GetSsoProviderParams = {
   providerId: string
 }
 
-export type GetSsoProviderQuery = Record<string, unknown>
+export type GetSsoProviderQuery = Record<string, never>
 
 export type GetSsoProviderResponse = {
   data: {
@@ -9913,7 +9959,7 @@ export type GetWorkflowParams = {
   workflowId: string
 }
 
-export type GetWorkflowQuery = Record<string, unknown>
+export type GetWorkflowQuery = Record<string, never>
 
 type GetWorkflowResponseRef0 = {
   name: string
@@ -9925,6 +9971,7 @@ type GetWorkflowResponseRef1 = {
   type: string
   properties?: Record<string, unknown>
   required?: Array<string>
+  [key: string]: unknown
 }
 
 type GetWorkflowResponseRef2 = {
@@ -9954,7 +10001,7 @@ export type GetWorkflowChatDeploymentParams = {
   workflowId: string
 }
 
-export type GetWorkflowChatDeploymentQuery = Record<string, unknown>
+export type GetWorkflowChatDeploymentQuery = Record<string, never>
 
 type GetWorkflowChatDeploymentResponseRef0 = {
   primaryColor?: string
@@ -9997,7 +10044,7 @@ export type GetWorkflowDeploymentParams = {
   workflowId: string
 }
 
-export type GetWorkflowDeploymentQuery = Record<string, unknown>
+export type GetWorkflowDeploymentQuery = Record<string, never>
 
 type GetWorkflowDeploymentResponseRef0 = {
   deploymentVersionId: string
@@ -10057,7 +10104,7 @@ export type GetWorkflowMcpServerParams = {
   serverId: string
 }
 
-export type GetWorkflowMcpServerQuery = Record<string, unknown>
+export type GetWorkflowMcpServerQuery = Record<string, never>
 
 type GetWorkflowMcpServerResponseRef0 = {
   id: string
@@ -10078,7 +10125,7 @@ export type GetWorkflowOutlineParams = {
   workflowId: string
 }
 
-export type GetWorkflowOutlineQuery = Record<string, unknown>
+export type GetWorkflowOutlineQuery = Record<string, never>
 
 type GetWorkflowOutlineResponseRef0 = {
   type: string
@@ -10253,11 +10300,14 @@ export type GetWorkflowSourceResponse = {
             h?: number
             height?: number
             horizontalHandles?: boolean
+            [key: string]: unknown
           }
           codeFile?: string
+          [key: string]: unknown
         }
       >
       variables: Record<string, string>
+      [key: string]: unknown
     }
     base: {
       version: 1
@@ -10265,6 +10315,7 @@ export type GetWorkflowSourceResponse = {
       workspaceId: string
       fingerprint: string
       catalogHash: string
+      [key: string]: unknown
     }
     canonicalHash: string
     sdkMajor: number
@@ -10432,7 +10483,7 @@ export type GetWorkflowStateParams = {
   workflowId: string
 }
 
-export type GetWorkflowStateQuery = Record<string, unknown>
+export type GetWorkflowStateQuery = Record<string, never>
 
 type GetWorkflowStateResponseRef0 = {
   id: string
@@ -10537,7 +10588,7 @@ export type GetWorkflowVersionParams = {
   workflowId: string
 }
 
-export type GetWorkflowVersionQuery = Record<string, unknown>
+export type GetWorkflowVersionQuery = Record<string, never>
 
 type GetWorkflowVersionResponseRef0 = Record<string, unknown>
 
@@ -10560,7 +10611,7 @@ export type GetWorkspaceParams = {
   workspaceId: string
 }
 
-export type GetWorkspaceQuery = Record<string, unknown>
+export type GetWorkspaceQuery = Record<string, never>
 
 type GetWorkspaceResponseRef0 = {
   id: string
@@ -10581,7 +10632,7 @@ export type GetWorkspaceForkAvailabilityParams = {
   workspaceId: string
 }
 
-export type GetWorkspaceForkAvailabilityQuery = Record<string, unknown>
+export type GetWorkspaceForkAvailabilityQuery = Record<string, never>
 
 type GetWorkspaceForkAvailabilityResponseRef0 = {
   available: boolean
@@ -10596,7 +10647,7 @@ export type GetWorkspaceForkLineageParams = {
   workspaceId: string
 }
 
-export type GetWorkspaceForkLineageQuery = Record<string, unknown>
+export type GetWorkspaceForkLineageQuery = Record<string, never>
 
 type GetWorkspaceForkLineageResponseRef0 = {
   current: {
@@ -10659,7 +10710,7 @@ export type GetWorkspaceOperationParams = {
   operationId: string
 }
 
-export type GetWorkspaceOperationQuery = Record<string, unknown>
+export type GetWorkspaceOperationQuery = Record<string, never>
 
 type GetWorkspaceOperationResponseRef0 = {
   operationId: string
@@ -10712,7 +10763,7 @@ export type GetWorkspacePermissionConfigParams = {
   workspaceId: string
 }
 
-export type GetWorkspacePermissionConfigQuery = Record<string, unknown>
+export type GetWorkspacePermissionConfigQuery = Record<string, never>
 
 type GetWorkspacePermissionConfigResponseRef0 = {
   permissionGroupId: string | null
@@ -10833,9 +10884,12 @@ export type GetWorkspaceSourceResponse = {
           rows?: {
             fingerprint: string
             version: number
+            [key: string]: unknown
           }
+          [key: string]: unknown
         }
       >
+      [key: string]: unknown
     }
     skipped: Array<{
       kind:
@@ -11115,7 +11169,7 @@ export type GrantSkillEditorParams = {
   skillId: string
 }
 
-export type GrantSkillEditorQuery = Record<string, unknown>
+export type GrantSkillEditorQuery = Record<string, never>
 
 export type GrantSkillEditorBody = {
   workspaceId: string
@@ -11134,7 +11188,7 @@ export type GrantSkillEditorResponse = {
 }
 
 /** `POST /api/v2/workflows/import` */
-export type ImportWorkflowQuery = Record<string, unknown>
+export type ImportWorkflowQuery = Record<string, never>
 
 type ImportWorkflowBodyRef0 = string
 
@@ -11649,8 +11703,11 @@ type ListCustomToolsResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -11825,6 +11882,7 @@ type ListKnowledgeBasesResponseRef1 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 export type ListKnowledgeBasesResponse = {
@@ -12150,8 +12208,10 @@ type ListLogsResponseRef2 = {
     startTime?: string
     endTime?: string
     duration?: number
+    [key: string]: unknown
   }>
   children?: Array<ListLogsResponseRef2>
+  [key: string]: unknown
 }
 
 export type ListLogsResponse = {
@@ -12214,11 +12274,13 @@ type ListMcpServerToolsResponseRef0 = {
     type: 'object'
     properties?: Record<string, unknown>
     required?: Array<string>
+    [key: string]: unknown
   }
   outputSchema?: {
     type: 'object'
     properties?: Record<string, unknown>
     required?: Array<string>
+    [key: string]: unknown
   }
   serverId: string
   serverName: string
@@ -13167,7 +13229,7 @@ export type ListSecretsResponse = {
 }
 
 /** `POST /api/v2/selectors/list` */
-export type ListSelectorQuery = Record<string, unknown>
+export type ListSelectorQuery = Record<string, never>
 
 export type ListSelectorBody = {
   workspaceId: string
@@ -13719,7 +13781,7 @@ export type ListWorkflowMcpToolsParams = {
   serverId: string
 }
 
-export type ListWorkflowMcpToolsQuery = Record<string, unknown>
+export type ListWorkflowMcpToolsQuery = Record<string, never>
 
 type ListWorkflowMcpToolsResponseRef0 = {
   id: string
@@ -13813,7 +13875,7 @@ export type ListWorkflowTriggersParams = {
   workflowId: string
 }
 
-export type ListWorkflowTriggersQuery = Record<string, unknown>
+export type ListWorkflowTriggersQuery = Record<string, never>
 
 type ListWorkflowTriggersResponseRef0 = {
   blockId: string
@@ -14052,7 +14114,7 @@ export type ListWorkspaceSchedulesResponse = {
 }
 
 /** `POST /api/v2/files/move` */
-export type MoveFileItemsQuery = Record<string, unknown>
+export type MoveFileItemsQuery = Record<string, never>
 
 type MoveFileItemsBodyRef0 = string
 
@@ -14077,7 +14139,7 @@ export type MoveProjectFileItemsParams = {
   projectId: string
 }
 
-export type MoveProjectFileItemsQuery = Record<string, unknown>
+export type MoveProjectFileItemsQuery = Record<string, never>
 
 type MoveProjectFileItemsBodyRef0 = string
 
@@ -14097,7 +14159,7 @@ export type MoveProjectFileItemsResponse = {
 }
 
 /** `POST /api/v2/tables/move` */
-export type MoveTablesQuery = Record<string, unknown>
+export type MoveTablesQuery = Record<string, never>
 
 type MoveTablesBodyRef0 = string
 
@@ -14136,7 +14198,7 @@ export type MoveTablesResponse = {
 }
 
 /** `POST /api/v2/workflows/move` */
-export type MoveWorkflowsQuery = Record<string, unknown>
+export type MoveWorkflowsQuery = Record<string, never>
 
 type MoveWorkflowsBodyRef0 = string
 
@@ -14161,7 +14223,7 @@ export type PrepareSearchSourcesParams = {
   organizationId: string
 }
 
-export type PrepareSearchSourcesQuery = Record<string, unknown>
+export type PrepareSearchSourcesQuery = Record<string, never>
 
 export type PrepareSearchSourcesBody = {
   connectorType: string
@@ -14180,7 +14242,7 @@ export type PreviewOrganizationAccessRequestParams = {
   requestId: string
 }
 
-export type PreviewOrganizationAccessRequestQuery = Record<string, unknown>
+export type PreviewOrganizationAccessRequestQuery = Record<string, never>
 
 type PreviewOrganizationAccessRequestResponseRef0 = {
   newLimitCredits: number | null
@@ -14502,7 +14564,7 @@ export type PreviewOrganizationAccessRequestResponse = {
 }
 
 /** `POST /api/v2/workflows/import/preview` */
-export type PreviewWorkflowImportQuery = Record<string, unknown>
+export type PreviewWorkflowImportQuery = Record<string, never>
 
 type PreviewWorkflowImportBodyRef0 = string
 
@@ -14652,7 +14714,7 @@ export type PreviewWorkspaceForkParams = {
   workspaceId: string
 }
 
-export type PreviewWorkspaceForkQuery = Record<string, unknown>
+export type PreviewWorkspaceForkQuery = Record<string, never>
 
 export type PreviewWorkspaceForkBody = {
   name?: string
@@ -14687,7 +14749,7 @@ export type PreviewWorkspacePullParams = {
   workspaceId: string
 }
 
-export type PreviewWorkspacePullQuery = Record<string, unknown>
+export type PreviewWorkspacePullQuery = Record<string, never>
 
 export type PreviewWorkspacePullBody = {
   otherWorkspaceId: string
@@ -14837,7 +14899,7 @@ export type PreviewWorkspacePushParams = {
   workspaceId: string
 }
 
-export type PreviewWorkspacePushQuery = Record<string, unknown>
+export type PreviewWorkspacePushQuery = Record<string, never>
 
 export type PreviewWorkspacePushBody = {
   otherWorkspaceId: string
@@ -14987,7 +15049,7 @@ export type PullWorkspaceParams = {
   workspaceId: string
 }
 
-export type PullWorkspaceQuery = Record<string, unknown>
+export type PullWorkspaceQuery = Record<string, never>
 
 export type PullWorkspaceBody = {
   otherWorkspaceId: string
@@ -15099,7 +15161,7 @@ export type PushWorkspaceParams = {
   workspaceId: string
 }
 
-export type PushWorkspaceQuery = Record<string, unknown>
+export type PushWorkspaceQuery = Record<string, never>
 
 export type PushWorkspaceBody = {
   otherWorkspaceId: string
@@ -15214,7 +15276,7 @@ export type PutSourcePermissionImportPartParams = {
   partNumber: number
 }
 
-export type PutSourcePermissionImportPartQuery = Record<string, unknown>
+export type PutSourcePermissionImportPartQuery = Record<string, never>
 
 export type PutSourcePermissionImportPartBody = {
   field: 'userMapping' | 'projectPermissions'
@@ -15232,7 +15294,7 @@ export type QueryRowsParams = {
   tableId: string
 }
 
-export type QueryRowsQuery = Record<string, unknown>
+export type QueryRowsQuery = Record<string, never>
 
 type QueryRowsBodyRef0 =
   | {
@@ -15363,7 +15425,7 @@ export type QueryRowsCountParams = {
   tableId: string
 }
 
-export type QueryRowsCountQuery = Record<string, unknown>
+export type QueryRowsCountQuery = Record<string, never>
 
 type QueryRowsCountBodyRef0 =
   | {
@@ -15543,7 +15605,7 @@ export type ReadProjectFileContentParams = {
   fileId: string
 }
 
-export type ReadProjectFileContentQuery = Record<string, unknown>
+export type ReadProjectFileContentQuery = Record<string, never>
 
 /** Non-JSON response (`binary`). */
 export type ReadProjectFileContentResponse = never
@@ -15555,13 +15617,13 @@ export type ReadProjectFileVersionContentParams = {
   version: number
 }
 
-export type ReadProjectFileVersionContentQuery = Record<string, unknown>
+export type ReadProjectFileVersionContentQuery = Record<string, never>
 
 /** Non-JSON response (`binary`). */
 export type ReadProjectFileVersionContentResponse = never
 
 /** `PATCH /api/v2/files/folders` */
-export type RelocateFileFolderQuery = Record<string, unknown>
+export type RelocateFileFolderQuery = Record<string, never>
 
 type RelocateFileFolderBodyRef0 = string
 
@@ -15586,7 +15648,7 @@ export type RelocateFileFolderResponse = {
 }
 
 /** `PATCH /api/v2/knowledge/folders` */
-export type RelocateKnowledgeFolderQuery = Record<string, unknown>
+export type RelocateKnowledgeFolderQuery = Record<string, never>
 
 type RelocateKnowledgeFolderBodyRef0 = string
 
@@ -15611,7 +15673,7 @@ export type RelocateKnowledgeFolderResponse = {
 }
 
 /** `PATCH /api/v2/tables/folders` */
-export type RelocateTableFolderQuery = Record<string, unknown>
+export type RelocateTableFolderQuery = Record<string, never>
 
 type RelocateTableFolderBodyRef0 = string
 
@@ -15636,7 +15698,7 @@ export type RelocateTableFolderResponse = {
 }
 
 /** `PATCH /api/v2/workflows/folders` */
-export type RelocateWorkflowFolderQuery = Record<string, unknown>
+export type RelocateWorkflowFolderQuery = Record<string, never>
 
 type RelocateWorkflowFolderBodyRef0 = string
 
@@ -15684,7 +15746,7 @@ export type RemoveOrganizationDomainParams = {
   domainId: string
 }
 
-export type RemoveOrganizationDomainQuery = Record<string, unknown>
+export type RemoveOrganizationDomainQuery = Record<string, never>
 
 export type RemoveOrganizationDomainResponse = {
   data: {
@@ -15699,7 +15761,7 @@ export type RemoveOrganizationMemberParams = {
   userId: string
 }
 
-export type RemoveOrganizationMemberQuery = Record<string, unknown>
+export type RemoveOrganizationMemberQuery = Record<string, never>
 
 type RemoveOrganizationMemberResponseRef0 = {
   userId: string
@@ -15717,7 +15779,7 @@ export type RemovePermissionGroupMemberParams = {
   userId: string
 }
 
-export type RemovePermissionGroupMemberQuery = Record<string, unknown>
+export type RemovePermissionGroupMemberQuery = Record<string, never>
 
 type RemovePermissionGroupMemberResponseRef0 = {
   userId: string
@@ -15734,7 +15796,7 @@ export type RemoveWorkspaceMemberParams = {
   userId: string
 }
 
-export type RemoveWorkspaceMemberQuery = Record<string, unknown>
+export type RemoveWorkspaceMemberQuery = Record<string, never>
 
 type RemoveWorkspaceMemberResponseRef0 = {
   userId: string
@@ -15751,7 +15813,7 @@ export type RenameFileParams = {
   fileId: string
 }
 
-export type RenameFileQuery = Record<string, unknown>
+export type RenameFileQuery = Record<string, never>
 
 export type RenameFileBody = {
   workspaceId: string
@@ -15782,7 +15844,7 @@ export type RenameProjectFileParams = {
   fileId: string
 }
 
-export type RenameProjectFileQuery = Record<string, unknown>
+export type RenameProjectFileQuery = Record<string, never>
 
 export type RenameProjectFileBody = {
   name: string
@@ -15816,7 +15878,7 @@ export type ReplaceSearchSourcePermissionsParams = {
   sourceId: string
 }
 
-export type ReplaceSearchSourcePermissionsQuery = Record<string, unknown>
+export type ReplaceSearchSourcePermissionsQuery = Record<string, never>
 
 export type ReplaceSearchSourcePermissionsBody = {
   expectedRevision: number
@@ -15846,7 +15908,7 @@ export type ReplaceWorkflowChatDeploymentParams = {
   workflowId: string
 }
 
-export type ReplaceWorkflowChatDeploymentQuery = Record<string, unknown>
+export type ReplaceWorkflowChatDeploymentQuery = Record<string, never>
 
 type ReplaceWorkflowChatDeploymentBodyRef0 = {
   primaryColor?: string
@@ -16104,9 +16166,9 @@ export type ResendOrganizationInvitationParams = {
   invitationId: string
 }
 
-export type ResendOrganizationInvitationQuery = Record<string, unknown>
+export type ResendOrganizationInvitationQuery = Record<string, never>
 
-export type ResendOrganizationInvitationBody = Record<string, unknown>
+export type ResendOrganizationInvitationBody = Record<string, never>
 
 type ResendOrganizationInvitationResponseRef0 = {
   id: string
@@ -16130,7 +16192,7 @@ export type ResolveOrganizationAccessRequestParams = {
   requestId: string
 }
 
-export type ResolveOrganizationAccessRequestQuery = Record<string, unknown>
+export type ResolveOrganizationAccessRequestQuery = Record<string, never>
 
 export type ResolveOrganizationAccessRequestBody =
   | {
@@ -16243,7 +16305,7 @@ export type RestoreFileParams = {
   fileId: string
 }
 
-export type RestoreFileQuery = Record<string, unknown>
+export type RestoreFileQuery = Record<string, never>
 
 export type RestoreFileBody = {
   workspaceId: string
@@ -16268,7 +16330,7 @@ export type RestoreFileResponse = {
 }
 
 /** `POST /api/v2/files/folders/restore` */
-export type RestoreFileFolderQuery = Record<string, unknown>
+export type RestoreFileFolderQuery = Record<string, never>
 
 type RestoreFileFolderBodyRef0 = string
 
@@ -16302,7 +16364,7 @@ export type RestoreKnowledgeBaseParams = {
   knowledgeBaseId: string
 }
 
-export type RestoreKnowledgeBaseQuery = Record<string, unknown>
+export type RestoreKnowledgeBaseQuery = Record<string, never>
 
 export type RestoreKnowledgeBaseBody = {
   workspaceId: string
@@ -16319,6 +16381,7 @@ type RestoreKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type RestoreKnowledgeBaseResponseRef1 = {
@@ -16349,9 +16412,9 @@ export type RestoreProjectFileParams = {
   fileId: string
 }
 
-export type RestoreProjectFileQuery = Record<string, unknown>
+export type RestoreProjectFileQuery = Record<string, never>
 
-export type RestoreProjectFileBody = Record<string, unknown>
+export type RestoreProjectFileBody = Record<string, never>
 
 type RestoreProjectFileResponseRef0 = {
   id: string
@@ -16381,9 +16444,9 @@ export type RestoreProjectFileFolderParams = {
   folderId: string
 }
 
-export type RestoreProjectFileFolderQuery = Record<string, unknown>
+export type RestoreProjectFileFolderQuery = Record<string, never>
 
-export type RestoreProjectFileFolderBody = Record<string, unknown>
+export type RestoreProjectFileFolderBody = Record<string, never>
 
 export type RestoreProjectFileFolderResponse = {
   data: {
@@ -16414,7 +16477,7 @@ export type RestoreTableParams = {
   tableId: string
 }
 
-export type RestoreTableQuery = Record<string, unknown>
+export type RestoreTableQuery = Record<string, never>
 
 export type RestoreTableBody = {
   workspaceId: string
@@ -16469,7 +16532,7 @@ export type RestoreTableResponse = {
 }
 
 /** `POST /api/v2/tables/folders/restore` */
-export type RestoreTableFolderQuery = Record<string, unknown>
+export type RestoreTableFolderQuery = Record<string, never>
 
 type RestoreTableFolderBodyRef0 = string
 
@@ -16503,7 +16566,7 @@ export type RestoreWorkflowParams = {
   workflowId: string
 }
 
-export type RestoreWorkflowQuery = Record<string, unknown>
+export type RestoreWorkflowQuery = Record<string, never>
 
 type RestoreWorkflowResponseRef0 = {
   id: string
@@ -16530,7 +16593,7 @@ export type ResumeWorkflowParams = {
   runId: string
 }
 
-export type ResumeWorkflowQuery = Record<string, unknown>
+export type ResumeWorkflowQuery = Record<string, never>
 
 export type ResumeWorkflowBody = {
   contextId: string
@@ -16584,7 +16647,7 @@ export type RevertFileVersionParams = {
   version: number
 }
 
-export type RevertFileVersionQuery = Record<string, unknown>
+export type RevertFileVersionQuery = Record<string, never>
 
 export type RevertFileVersionBody = {
   workspaceId: string
@@ -16641,7 +16704,7 @@ export type RevertProjectFileVersionParams = {
   version: number
 }
 
-export type RevertProjectFileVersionQuery = Record<string, unknown>
+export type RevertProjectFileVersionQuery = Record<string, never>
 
 export type RevertProjectFileVersionBody = {
   expectedCurrentVersion?: number
@@ -16700,9 +16763,9 @@ export type RevertWorkflowVersionParams = {
   workflowId: string
 }
 
-export type RevertWorkflowVersionQuery = Record<string, unknown>
+export type RevertWorkflowVersionQuery = Record<string, never>
 
-export type RevertWorkflowVersionBody = Record<string, unknown>
+export type RevertWorkflowVersionBody = Record<string, never>
 
 type RevertWorkflowVersionResponseRef0 = {
   id: string
@@ -16720,7 +16783,7 @@ export type RevokeOrganizationInvitationParams = {
   invitationId: string
 }
 
-export type RevokeOrganizationInvitationQuery = Record<string, unknown>
+export type RevokeOrganizationInvitationQuery = Record<string, never>
 
 type RevokeOrganizationInvitationResponseRef0 = {
   id: string
@@ -16755,7 +16818,7 @@ export type RollbackWorkflowParams = {
   workflowId: string
 }
 
-export type RollbackWorkflowQuery = Record<string, unknown>
+export type RollbackWorkflowQuery = Record<string, never>
 
 export type RollbackWorkflowBody = {
   version?: number
@@ -16811,7 +16874,7 @@ export type RollbackWorkspaceForkParams = {
   workspaceId: string
 }
 
-export type RollbackWorkspaceForkQuery = Record<string, unknown>
+export type RollbackWorkspaceForkQuery = Record<string, never>
 
 export type RollbackWorkspaceForkBody = {
   otherWorkspaceId: string
@@ -16836,7 +16899,7 @@ export type RunRowEnrichmentParams = {
   groupId: string
 }
 
-export type RunRowEnrichmentQuery = Record<string, unknown>
+export type RunRowEnrichmentQuery = Record<string, never>
 
 export type RunRowEnrichmentBody = {
   workspaceId: string
@@ -16855,7 +16918,7 @@ export type SaveSsoProviderParams = {
   organizationId: string
 }
 
-export type SaveSsoProviderQuery = Record<string, unknown>
+export type SaveSsoProviderQuery = Record<string, never>
 
 export type SaveSsoProviderBody =
   | {
@@ -16956,7 +17019,7 @@ export type SearchFileContentResponse = {
 }
 
 /** `POST /api/v2/knowledge/search` */
-export type SearchKnowledgeQuery = Record<string, unknown>
+export type SearchKnowledgeQuery = Record<string, never>
 
 type SearchKnowledgeBodyRef0 = {
   tagName: string
@@ -17068,7 +17131,7 @@ export type SearchTableRowsParams = {
   tableId: string
 }
 
-export type SearchTableRowsQuery = Record<string, unknown>
+export type SearchTableRowsQuery = Record<string, never>
 
 type SearchTableRowsBodyRef0 =
   | {
@@ -17188,9 +17251,9 @@ export type SetPrimarySsoProviderParams = {
   providerId: string
 }
 
-export type SetPrimarySsoProviderQuery = Record<string, unknown>
+export type SetPrimarySsoProviderQuery = Record<string, never>
 
-export type SetPrimarySsoProviderBody = Record<string, unknown>
+export type SetPrimarySsoProviderBody = Record<string, never>
 
 export type SetPrimarySsoProviderResponse = {
   data: {
@@ -17204,7 +17267,7 @@ export type SetSecretParams = {
   name: string
 }
 
-export type SetSecretQuery = Record<string, unknown>
+export type SetSecretQuery = Record<string, never>
 
 export type SetSecretBody = {
   workspaceId: string
@@ -17233,7 +17296,7 @@ export type StageWorkspaceSourceBlobsParams = {
   workspaceId: string
 }
 
-export type StageWorkspaceSourceBlobsQuery = Record<string, unknown>
+export type StageWorkspaceSourceBlobsQuery = Record<string, never>
 
 export type StageWorkspaceSourceBlobsResponse = {
   data: {
@@ -17251,7 +17314,7 @@ export type SyncKnowledgeConnectorParams = {
   knowledgeBaseId: string
 }
 
-export type SyncKnowledgeConnectorQuery = Record<string, unknown>
+export type SyncKnowledgeConnectorQuery = Record<string, never>
 
 export type SyncKnowledgeConnectorBody = {
   workspaceId: string
@@ -17292,7 +17355,7 @@ export type UndeployWorkflowParams = {
   workflowId: string
 }
 
-export type UndeployWorkflowQuery = Record<string, unknown>
+export type UndeployWorkflowQuery = Record<string, never>
 
 type UndeployWorkflowResponseRef0 = {
   deploymentVersionId: string
@@ -17350,7 +17413,7 @@ export type UndeployWorkflowMcpToolParams = {
   workflowId: string
 }
 
-export type UndeployWorkflowMcpToolQuery = Record<string, unknown>
+export type UndeployWorkflowMcpToolQuery = Record<string, never>
 
 type UndeployWorkflowMcpToolResponseRef0 = {
   id: string
@@ -17368,7 +17431,7 @@ export type UnlinkWorkspaceForkParams = {
   workspaceId: string
 }
 
-export type UnlinkWorkspaceForkQuery = Record<string, unknown>
+export type UnlinkWorkspaceForkQuery = Record<string, never>
 
 export type UnlinkWorkspaceForkBody = {
   otherWorkspaceId: string
@@ -17387,7 +17450,7 @@ export type UnzipFileParams = {
   fileId: string
 }
 
-export type UnzipFileQuery = Record<string, unknown>
+export type UnzipFileQuery = Record<string, never>
 
 export type UnzipFileBody = {
   workspaceId: string
@@ -17409,7 +17472,7 @@ export type UnzipProjectFileParams = {
   fileId: string
 }
 
-export type UnzipProjectFileQuery = Record<string, unknown>
+export type UnzipProjectFileQuery = Record<string, never>
 
 type UnzipProjectFileResponseRef0 = UnzipProjectFileResponseRef1
 
@@ -17480,7 +17543,7 @@ export type UpdateCustomToolParams = {
   customToolId: string
 }
 
-export type UpdateCustomToolQuery = Record<string, unknown>
+export type UpdateCustomToolQuery = Record<string, never>
 
 export type UpdateCustomToolBody = {
   workspaceId: string
@@ -17494,8 +17557,11 @@ export type UpdateCustomToolBody = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code?: string
 }
@@ -17512,8 +17578,11 @@ type UpdateCustomToolResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -17529,7 +17598,7 @@ export type UpdateFileContentParams = {
   fileId: string
 }
 
-export type UpdateFileContentQuery = Record<string, unknown>
+export type UpdateFileContentQuery = Record<string, never>
 
 export type UpdateFileContentBody = {
   workspaceId: string
@@ -17562,7 +17631,7 @@ export type UpdateKnowledgeBaseParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeBaseQuery = Record<string, unknown>
+export type UpdateKnowledgeBaseQuery = Record<string, never>
 
 type UpdateKnowledgeBaseBodyRef0 = {
   maxSize?: number
@@ -17598,6 +17667,7 @@ type UpdateKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type UpdateKnowledgeBaseResponseRef1 = {
@@ -17629,7 +17699,7 @@ export type UpdateKnowledgeChunkParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeChunkQuery = Record<string, unknown>
+export type UpdateKnowledgeChunkQuery = Record<string, never>
 
 export type UpdateKnowledgeChunkBody = {
   workspaceId: string
@@ -17667,7 +17737,7 @@ export type UpdateKnowledgeConnectorParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeConnectorQuery = Record<string, unknown>
+export type UpdateKnowledgeConnectorQuery = Record<string, never>
 
 export type UpdateKnowledgeConnectorBody = {
   workspaceId: string
@@ -17704,7 +17774,7 @@ export type UpdateKnowledgeConnectorDocumentsParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeConnectorDocumentsQuery = Record<string, unknown>
+export type UpdateKnowledgeConnectorDocumentsQuery = Record<string, never>
 
 export type UpdateKnowledgeConnectorDocumentsBody = {
   workspaceId: string
@@ -17728,7 +17798,7 @@ export type UpdateKnowledgeDocumentParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeDocumentQuery = Record<string, unknown>
+export type UpdateKnowledgeDocumentQuery = Record<string, never>
 
 export type UpdateKnowledgeDocumentBody = {
   workspaceId: string
@@ -17786,7 +17856,7 @@ export type UpdateKnowledgeTagParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeTagQuery = Record<string, unknown>
+export type UpdateKnowledgeTagQuery = Record<string, never>
 
 export type UpdateKnowledgeTagBody = {
   workspaceId: string
@@ -17810,7 +17880,7 @@ export type UpdateMcpServerParams = {
   mcpServerId: string
 }
 
-export type UpdateMcpServerQuery = Record<string, unknown>
+export type UpdateMcpServerQuery = Record<string, never>
 
 export type UpdateMcpServerBody = {
   workspaceId: string
@@ -17859,7 +17929,7 @@ export type UpdateOrganizationAccessRequestSettingsParams = {
   organizationId: string
 }
 
-export type UpdateOrganizationAccessRequestSettingsQuery = Record<string, unknown>
+export type UpdateOrganizationAccessRequestSettingsQuery = Record<string, never>
 
 export type UpdateOrganizationAccessRequestSettingsBody = {
   allowRequests: boolean
@@ -17879,7 +17949,7 @@ export type UpdateOrganizationMemberParams = {
   userId: string
 }
 
-export type UpdateOrganizationMemberQuery = Record<string, unknown>
+export type UpdateOrganizationMemberQuery = Record<string, never>
 
 export type UpdateOrganizationMemberBody = {
   role: 'member' | 'admin'
@@ -17903,7 +17973,7 @@ export type UpdateOrganizationMemberUsageLimitParams = {
   userId: string
 }
 
-export type UpdateOrganizationMemberUsageLimitQuery = Record<string, unknown>
+export type UpdateOrganizationMemberUsageLimitQuery = Record<string, never>
 
 export type UpdateOrganizationMemberUsageLimitBody = {
   creditLimit: number | null
@@ -17923,7 +17993,7 @@ export type UpdatePermissionGroupParams = {
   groupId: string
 }
 
-export type UpdatePermissionGroupQuery = Record<string, unknown>
+export type UpdatePermissionGroupQuery = Record<string, never>
 
 export type UpdatePermissionGroupBody = {
   name?: string
@@ -18051,7 +18121,7 @@ export type UpdateProjectFileContentParams = {
   fileId: string
 }
 
-export type UpdateProjectFileContentQuery = Record<string, unknown>
+export type UpdateProjectFileContentQuery = Record<string, never>
 
 export type UpdateProjectFileContentBody = {
   content: string
@@ -18087,7 +18157,7 @@ export type UpdateProjectFileFolderParams = {
   folderId: string
 }
 
-export type UpdateProjectFileFolderQuery = Record<string, unknown>
+export type UpdateProjectFileFolderQuery = Record<string, never>
 
 export type UpdateProjectFileFolderBody = {
   name?: string
@@ -18119,7 +18189,7 @@ export type UpdateProjectFileShareParams = {
   fileId: string
 }
 
-export type UpdateProjectFileShareQuery = Record<string, unknown>
+export type UpdateProjectFileShareQuery = Record<string, never>
 
 export type UpdateProjectFileShareBody = {
   isActive: boolean
@@ -18149,7 +18219,7 @@ export type UpdateRowsByFilterParams = {
   tableId: string
 }
 
-export type UpdateRowsByFilterQuery = Record<string, unknown>
+export type UpdateRowsByFilterQuery = Record<string, never>
 
 type UpdateRowsByFilterBodyRef0 =
   | {
@@ -18261,7 +18331,7 @@ export type UpdateSandboxParams = {
   sandboxId: string
 }
 
-export type UpdateSandboxQuery = Record<string, unknown>
+export type UpdateSandboxQuery = Record<string, never>
 
 export type UpdateSandboxBody = {
   workspaceId: string
@@ -18348,7 +18418,7 @@ export type UpdateSearchSourceParams = {
   sourceId: string
 }
 
-export type UpdateSearchSourceQuery = Record<string, unknown>
+export type UpdateSearchSourceQuery = Record<string, never>
 
 export type UpdateSearchSourceBody = {
   apiKey?: string
@@ -18403,7 +18473,7 @@ export type UpdateSkillParams = {
   skillId: string
 }
 
-export type UpdateSkillQuery = Record<string, unknown>
+export type UpdateSkillQuery = Record<string, never>
 
 export type UpdateSkillBody = {
   workspaceId: string
@@ -18431,7 +18501,7 @@ export type UpdateSsoPolicyParams = {
   organizationId: string
 }
 
-export type UpdateSsoPolicyQuery = Record<string, unknown>
+export type UpdateSsoPolicyQuery = Record<string, never>
 
 export type UpdateSsoPolicyBody = {
   requireSso: boolean
@@ -18450,7 +18520,7 @@ export type UpdateTableParams = {
   tableId: string
 }
 
-export type UpdateTableQuery = Record<string, unknown>
+export type UpdateTableQuery = Record<string, never>
 
 type UpdateTableBodyRef0 = string
 
@@ -18514,7 +18584,7 @@ export type UpdateTableColumnParams = {
   tableId: string
 }
 
-export type UpdateTableColumnQuery = Record<string, unknown>
+export type UpdateTableColumnQuery = Record<string, never>
 
 export type UpdateTableColumnBody = {
   workspaceId: string
@@ -18569,7 +18639,7 @@ export type UpdateTableRowParams = {
   rowId: string
 }
 
-export type UpdateTableRowQuery = Record<string, unknown>
+export type UpdateTableRowQuery = Record<string, never>
 
 type UpdateTableRowBodyRef0 = Record<string, unknown>
 
@@ -18608,7 +18678,7 @@ export type UpdateTableViewParams = {
   viewId: string
 }
 
-export type UpdateTableViewQuery = Record<string, unknown>
+export type UpdateTableViewQuery = Record<string, never>
 
 type UpdateTableViewBodyRef0 =
   | {
@@ -18757,7 +18827,7 @@ export type UpdateWorkflowParams = {
   workflowId: string
 }
 
-export type UpdateWorkflowQuery = Record<string, unknown>
+export type UpdateWorkflowQuery = Record<string, never>
 
 type UpdateWorkflowBodyRef0 = string
 
@@ -18791,7 +18861,7 @@ export type UpdateWorkflowGroupParams = {
   tableId: string
 }
 
-export type UpdateWorkflowGroupQuery = Record<string, unknown>
+export type UpdateWorkflowGroupQuery = Record<string, never>
 
 export type UpdateWorkflowGroupBody = {
   workspaceId: string
@@ -18877,7 +18947,7 @@ export type UpdateWorkflowMcpServerParams = {
   serverId: string
 }
 
-export type UpdateWorkflowMcpServerQuery = Record<string, unknown>
+export type UpdateWorkflowMcpServerQuery = Record<string, never>
 
 export type UpdateWorkflowMcpServerBody = {
   name?: string
@@ -18904,7 +18974,7 @@ export type UpdateWorkflowPublicApiParams = {
   workflowId: string
 }
 
-export type UpdateWorkflowPublicApiQuery = Record<string, unknown>
+export type UpdateWorkflowPublicApiQuery = Record<string, never>
 
 export type UpdateWorkflowPublicApiBody = {
   isPublicApi: boolean
@@ -18925,7 +18995,7 @@ export type UpdateWorkflowTriggerParams = {
   blockId: string
 }
 
-export type UpdateWorkflowTriggerQuery = Record<string, unknown>
+export type UpdateWorkflowTriggerQuery = Record<string, never>
 
 export type UpdateWorkflowTriggerBody = {
   enabled: boolean
@@ -18956,7 +19026,7 @@ export type UpdateWorkflowVersionParams = {
   workflowId: string
 }
 
-export type UpdateWorkflowVersionQuery = Record<string, unknown>
+export type UpdateWorkflowVersionQuery = Record<string, never>
 
 export type UpdateWorkflowVersionBody = {
   name?: string
@@ -18978,7 +19048,7 @@ export type UpdateWorkspaceParams = {
   workspaceId: string
 }
 
-export type UpdateWorkspaceQuery = Record<string, unknown>
+export type UpdateWorkspaceQuery = Record<string, never>
 
 export type UpdateWorkspaceBody = {
   name?: string
@@ -19004,7 +19074,7 @@ export type UpdateWorkspaceForkExclusionsParams = {
   workspaceId: string
 }
 
-export type UpdateWorkspaceForkExclusionsQuery = Record<string, unknown>
+export type UpdateWorkspaceForkExclusionsQuery = Record<string, never>
 
 export type UpdateWorkspaceForkExclusionsBody = {
   workflowIds: Array<string>
@@ -19024,7 +19094,7 @@ export type UpdateWorkspaceForkMappingsParams = {
   workspaceId: string
 }
 
-export type UpdateWorkspaceForkMappingsQuery = Record<string, unknown>
+export type UpdateWorkspaceForkMappingsQuery = Record<string, never>
 
 export type UpdateWorkspaceForkMappingsBody = {
   otherWorkspaceId: string
@@ -19062,7 +19132,7 @@ export type UpdateWorkspaceMemberParams = {
   userId: string
 }
 
-export type UpdateWorkspaceMemberQuery = Record<string, unknown>
+export type UpdateWorkspaceMemberQuery = Record<string, never>
 
 export type UpdateWorkspaceMemberBody = {
   role: 'admin' | 'write' | 'read'
@@ -19136,7 +19206,7 @@ export type UpsertFileShareParams = {
   fileId: string
 }
 
-export type UpsertFileShareQuery = Record<string, unknown>
+export type UpsertFileShareQuery = Record<string, never>
 
 export type UpsertFileShareBody = {
   workspaceId: string
@@ -19167,7 +19237,7 @@ export type UpsertTableRowParams = {
   tableId: string
 }
 
-export type UpsertTableRowQuery = Record<string, unknown>
+export type UpsertTableRowQuery = Record<string, never>
 
 type UpsertTableRowBodyRef0 = Record<string, unknown>
 
@@ -19212,9 +19282,9 @@ export type VerifyOrganizationDomainParams = {
   domainId: string
 }
 
-export type VerifyOrganizationDomainQuery = Record<string, unknown>
+export type VerifyOrganizationDomainQuery = Record<string, never>
 
-export type VerifyOrganizationDomainBody = Record<string, unknown>
+export type VerifyOrganizationDomainBody = Record<string, never>
 
 export type VerifyOrganizationDomainResponse = {
   data: {

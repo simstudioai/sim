@@ -100,6 +100,7 @@ import type {
   SandboxSessionRequest,
 } from '@/lib/execution/remote-sandbox/types'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import { loadTypeScript } from '@/lib/execution/typescript'
 import { MAX_FUNCTION_REFERENCES } from '@/lib/function-execution/limits'
 import type { SandboxExportedFile } from '@/lib/function-execution/output'
 import { planUserFileMounts, resolveUserFileMounts } from '@/lib/function-execution/sandbox-mounts'
@@ -385,24 +386,6 @@ const JS_RESERVED_WORDS = new Set([
   'public',
 ])
 
-type TypeScriptModule = typeof import('@typescript/typescript6')
-
-let typescriptModulePromise: Promise<TypeScriptModule> | null = null
-
-async function loadTypeScriptModule(): Promise<TypeScriptModule> {
-  if (!typescriptModulePromise) {
-    typescriptModulePromise = import('@typescript/typescript6').then(
-      (mod) => (mod?.default ?? mod) as TypeScriptModule,
-      (error) => {
-        typescriptModulePromise = null
-        throw error
-      }
-    )
-  }
-
-  return typescriptModulePromise
-}
-
 async function extractJavaScriptImports(code: string): Promise<{
   imports: string
   remainingCode: string
@@ -410,7 +393,7 @@ async function extractJavaScriptImports(code: string): Promise<{
   identifierNames: ReadonlySet<string>
 }> {
   try {
-    const tsModule = await loadTypeScriptModule()
+    const tsModule = await loadTypeScript()
 
     const sourceFile = tsModule.createSourceFile(
       'user-code.js',

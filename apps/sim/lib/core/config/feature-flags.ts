@@ -76,6 +76,11 @@ const FEATURE_FLAGS = {
       'Enable the organization People directory, org chart, profile imports, and directory sync. Supports organization rollout; disabled by default.',
     fallback: 'PEOPLE',
   },
+  'mcp-code-mode': {
+    description:
+      'Add the code-mode tools (execute_read_code, execute_write_code) to the Sim MCP server. Supports user and workspace rollout; disabled by default.',
+    fallback: 'MCP_CODE_MODE',
+  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +

@@ -31,6 +31,7 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
+import { pascal, schemaToTypeScript } from '../apps/sim/lib/api/contracts/typescript'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts/v2')
@@ -232,10 +233,6 @@ function operationName(exportName: string): string {
   return stripped.charAt(0).toLowerCase() + stripped.slice(1)
 }
 
-function pascal(name: string): string {
-  return name.charAt(0).toUpperCase() + name.slice(1)
-}
-
 /** Every v2 route contract, sorted by operation name. */
 export async function collectOperations(): Promise<Operation[]> {
   const operations: Operation[] = []
@@ -254,116 +251,6 @@ export async function collectOperations(): Promise<Operation[]> {
 }
 
 type JsonSchema = Record<string, any>
-
-/**
- * Emits a TypeScript type for the subset of JSON Schema that `z.toJSONSchema`
- * produces from these contracts.
- *
- * Hand-rolled rather than pulled from `json-schema-to-typescript`: the input is
- * a known, narrow subset (no `patternProperties`, no draft-04 quirks), and the
- * output is committed and read by humans, so controlling the formatting is
- * worth more here than covering spec corners that never appear. An unhandled
- * construct throws rather than degrading to `any` — silence is how a generated
- * client drifts from its server.
- *
- * `refs` maps a `$defs` key to the TypeScript alias hoisted for it. Zod factors
- * a schema out into `$defs` when it is recursive, which the table view's filter
- * grammar is — a predicate holds predicates — so it cannot be inlined.
- */
-function toTypeScript(schema: JsonSchema, indent = 0, refs?: Map<string, string>): string {
-  if (typeof schema.$ref === 'string') {
-    const key = schema.$ref.replace('#/$defs/', '')
-    const name = refs?.get(key)
-    if (!name) throw new Error(`Unresolved $ref: ${schema.$ref}`)
-    return name
-  }
-
-  const pad = '  '.repeat(indent + 1)
-  const closePad = '  '.repeat(indent)
-
-  if (schema.const !== undefined) return JSON.stringify(schema.const)
-  if (schema.enum) return schema.enum.map((v: unknown) => JSON.stringify(v)).join(' | ')
-
-  const variants = schema.anyOf ?? schema.oneOf
-  if (variants) {
-    return variants.map((v: JsonSchema) => toTypeScript(v, indent, refs)).join(' | ')
-  }
-
-  if (schema.allOf) {
-    return schema.allOf.map((v: JsonSchema) => toTypeScript(v, indent, refs)).join(' & ')
-  }
-
-  switch (schema.type) {
-    case 'string':
-      return 'string'
-    case 'number':
-    case 'integer':
-      return 'number'
-    case 'boolean':
-      return 'boolean'
-    case 'null':
-      return 'null'
-    case 'array':
-      return schema.items ? `Array<${toTypeScript(schema.items, indent, refs)}>` : 'unknown[]'
-    case 'object': {
-      const properties: Record<string, JsonSchema> = schema.properties ?? {}
-      const required: string[] = schema.required ?? []
-      const keys = Object.keys(properties)
-
-      if (keys.length === 0) {
-        // A bare object with only `additionalProperties` is a record.
-        const value =
-          schema.additionalProperties && typeof schema.additionalProperties === 'object'
-            ? toTypeScript(schema.additionalProperties, indent, refs)
-            : 'unknown'
-        return `Record<string, ${value}>`
-      }
-
-      const lines = keys.map((key) => {
-        const optional = required.includes(key) ? '' : '?'
-        const safeKey = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? key : JSON.stringify(key)
-        return `${pad}${safeKey}${optional}: ${toTypeScript(properties[key], indent + 1, refs)}`
-      })
-      return `{\n${lines.join('\n')}\n${closePad}}`
-    }
-  }
-
-  // `z.unknown()` / `z.any()` render as a schema carrying no constraints. A
-  // `.describe()` on one adds annotation keys without narrowing the type, so
-  // those are not constraints either.
-  const ANNOTATION_KEYS = new Set(['$schema', 'description', 'title', 'default', 'examples'])
-  if (Object.keys(schema).every((k) => ANNOTATION_KEYS.has(k))) return 'unknown'
-
-  throw new Error(`Unhandled JSON Schema construct: ${JSON.stringify(schema).slice(0, 200)}`)
-}
-
-/**
- * A type plus any aliases that must be declared before it.
- *
- * A recursive schema cannot be written inline, so Zod lifts it into `$defs` and
- * points at it; those become real named types, which TypeScript resolves
- * recursively without complaint.
- */
-interface GeneratedType {
-  type: string
-  declarations: string[]
-}
-
-function schemaToType(schema: z.ZodType, io: 'input' | 'output', name: string): GeneratedType {
-  const json = z.toJSONSchema(schema, { io, unrepresentable: 'any' }) as JsonSchema
-  const defs = json.$defs as Record<string, JsonSchema> | undefined
-  if (!defs) return { type: toTypeScript(json), declarations: [] }
-
-  // Named after the type that owns them, so two operations lifting their own
-  // `__schema0` cannot collide in the single generated module.
-  const refs = new Map(Object.keys(defs).map((key, index) => [key, `${name}Ref${index}`]))
-  const declarations = Object.entries(defs).map(
-    ([key, def]) => `type ${refs.get(key)} = ${toTypeScript(def, 0, refs)}\n`
-  )
-
-  const { $defs, ...root } = json
-  return { type: toTypeScript(root, 0, refs), declarations }
-}
 
 /** Path params the CLI must substitute, e.g. `/api/v2/workflows/[id]` → `['id']`. */
 function pathParams(routePath: string): string[] {
@@ -673,14 +560,14 @@ export function render(operations: Operation[], docs: Map<string, OperationDoc>)
       const schema = contract[slot]
       if (!schema) continue
       const slotName = `${Name}${pascal(slot)}`
-      const generated = schemaToType(schema, 'input', slotName)
+      const generated = schemaToTypeScript(schema, 'input', slotName)
       out.push(...generated.declarations)
       out.push(`export type ${slotName} = ${generated.type}`)
       out.push('')
     }
 
     if (contract.response.mode === 'json' && contract.response.schema) {
-      const generated = schemaToType(contract.response.schema, 'output', `${Name}Response`)
+      const generated = schemaToTypeScript(contract.response.schema, 'output', `${Name}Response`)
       out.push(...generated.declarations)
       out.push(`export type ${Name}Response = ${generated.type}`)
     } else {

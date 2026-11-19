@@ -1,8 +1,14 @@
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { isPlainRecord } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { v2McpOperations } from '@/lib/api/application/operations'
 import { simMcpContract } from '@/lib/api/contracts/sim-mcp'
-import { getMcpOperation, resolveOperation, TOOL_NAMES } from '@/lib/api/mcp/catalog'
+import {
+  CODE_TOOL_NAMES,
+  getMcpOperation,
+  resolveOperation,
+  TOOL_NAMES,
+} from '@/lib/api/mcp/catalog'
 import { withSimMcpAuthChallenge } from '@/lib/api/mcp/oauth-metadata'
 import { createSimMcpServer } from '@/lib/api/mcp/server'
 import { getSimMcpUrl } from '@/lib/api/mcp/urls'
@@ -20,6 +26,7 @@ import {
 } from '@/lib/api/server/routes/v2-json-route'
 import type { OAuthAccessTokenOptions } from '@/lib/auth/oauth-access-token'
 import { type ApplicationOperation, requireOAuthOperationScope } from '@/lib/core/application'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
@@ -49,13 +56,16 @@ function admit(request: NextRequest) {
  * tool with a known operation. Its OAuth scope is checked before the SDK runs,
  * so a token without it gets the protocol's `insufficient_scope` step-up
  * challenge rather than a tool error. Raw routes declare no operation and all
- * change something, so they need `api:write`.
+ * change something, so they need `api:write`, as does the write code tool,
+ * whose programs may run any operation. The read code tool needs only the
+ * `api:read` every connection already holds.
  */
 async function toolCallOperation(
   message: Record<string, unknown>
 ): Promise<ApplicationOperation | null> {
   if (message.method !== 'tools/call' || !isPlainRecord(message.params)) return null
   const { name, arguments: args } = message.params
+  if (name === CODE_TOOL_NAMES.write) return v2McpOperations.rawRoute
   if (name !== TOOL_NAMES.read && name !== TOOL_NAMES.write) return null
   if (!isPlainRecord(args) || typeof args.operation !== 'string') return null
   const resolved = await resolveOperation(
@@ -65,6 +75,30 @@ async function toolCallOperation(
   if ('error' in resolved) return null
   const route = await getMcpOperation(resolved.operation).handler()
   return v2RouteOperation(route) ?? v2McpOperations.rawRoute
+}
+
+/**
+ * Whether a message's answer depends on the code-mode flag: the instructions
+ * and tool list mention the code tools, and a call may run one.
+ */
+function readsCodeMode(message: Record<string, unknown>): boolean {
+  if (message.method === 'initialize' || message.method === 'tools/list') return true
+  if (message.method !== 'tools/call' || !isPlainRecord(message.params)) return false
+  const { name } = message.params
+  return name === CODE_TOOL_NAMES.read || name === CODE_TOOL_NAMES.write
+}
+
+/**
+ * The code tools when the flag is on for this caller, keyed for the sandbox
+ * pool's per-caller fairness by the person or workspace calling.
+ */
+async function codeModeFor(principal: Principal): Promise<{ ownerKey: string } | null> {
+  const userId = resolvePrincipalSubjectUserId(principal)
+  const workspaceId = principal.kind === 'workspace_api_key' ? principal.workspaceId : undefined
+  if (!(await isFeatureEnabled('mcp-code-mode', { userId, workspaceId }))) return null
+  if (userId) return { ownerKey: `user:${userId}` }
+  if (workspaceId) return { ownerKey: `workspace:${workspaceId}` }
+  return null
 }
 
 /** Browsers may only reach the server from Sim's own origins (DNS-rebinding protection). */
@@ -90,11 +124,18 @@ export function createSimMcpHandlers() {
       if (!parsed.success) return parsed.response
       const operation = await toolCallOperation(parsed.data.body)
       if (operation) requireOAuthOperationScope(admission.auth.principal, operation)
-      const server = createSimMcpServer({
-        inbound: request,
-        credential: readMcpCredentialHeaders(request.headers),
-        audience: simMcpAudience(),
-      })
+      const server = createSimMcpServer(
+        {
+          inbound: request,
+          credential: readMcpCredentialHeaders(request.headers),
+          audience: simMcpAudience(),
+        },
+        {
+          codeMode: readsCodeMode(parsed.data.body)
+            ? await codeModeFor(admission.auth.principal)
+            : null,
+        }
+      )
       return await serveStatelessMcp(server, request, parsed.data.body)
     } catch (error) {
       const response = v2CaughtOrchestrationError(error)

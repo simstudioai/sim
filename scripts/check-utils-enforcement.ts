@@ -42,6 +42,8 @@ const ALLOWLISTED_FILES = new Set([
   'apps/sim/lib/execution/isolated-vm-worker.cjs',
   // Emits the sandbox-side event filter as plain JS source, which cannot import @sim/utils
   'apps/sim/executor/handlers/pi/cloud/event-filter-source.ts',
+  // Emits the code-mode isolate bootstrap as plain JS source, which cannot import @sim/utils
+  'apps/sim/sandboxes/sim-api-code.ts',
 ])
 
 /** `s.slice(0, n)` plus a suffix, by `+` or in a template literal; `\1` is `s` and `\2` is `n`. */
