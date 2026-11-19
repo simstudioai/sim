@@ -68,6 +68,52 @@ correct its request.
 - **No file bytes.** Downloads, knowledge base exports, and multipart document
   uploads are not available over MCP; use the [CLI](/cli/files) or the API.
 
+## Code mode (beta)
+
+For a task that takes many calls, such as paging through a list, filtering, or
+updating every item that matches, the agent can write one program instead of
+making each call itself. Only the program's return value comes back, so
+intermediate results stay out of the model's context. Code mode is in beta and
+appears only for accounts where it is enabled.
+
+| Tool | Does |
+| --- | --- |
+| `execute_read_code` | Runs a program that may call only operations `call_read_operation` could run. Anything that needs write access is refused. |
+| `execute_write_code` | Runs a program that may call any operation. Changes apply as each call runs. |
+
+`describe_operation` returns each operation's `signature`, a TypeScript
+declaration of its input and response. The program is the body of an async
+function. It calls operations through `sim.api` with the same `params`, `query`,
+`body`, and `headers` a call tool takes, and returns a JSON value. TypeScript
+is accepted; types are stripped, not checked.
+
+```ts
+const stale: string[] = []
+let cursor: string | undefined
+do {
+  const page = await sim.api.listTables({
+    query: { workspaceId: 'ws_91ab', limit: 100, ...(cursor ? { cursor } : {}) },
+  })
+  for (const table of page.data) {
+    if (table.rowCount === 0) stale.push(table.name)
+  }
+  cursor = page.nextCursor ?? undefined
+} while (cursor)
+return stale
+```
+
+The result holds `result` (the returned value), `calls` (each operation the
+program called, with its HTTP status and duration), and `logs` (console output).
+A failed API call throws a `SimApiError` with `status`, `code`, `message`, and
+`details`, which the program can catch. If the program fails, the error comes
+back with the calls it already made, so the agent can tell which changes
+happened.
+
+Each call runs through the API exactly as a call tool's would, with the same
+credential, permissions, and rate limits. The program has no network access and
+never sees your credential. A program runs for at most 60 seconds by default (up
+to 120 with `timeoutMs`), makes at most 200 calls, and returns at most 1 MiB.
+
 ## Related docs
 
 - [Authentication](/mcp/authentication) for scopes and credential access
