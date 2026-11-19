@@ -12,6 +12,7 @@ import { compileJsonField, compileValue, objectEntries, type ValueSite } from '.
 import type { CanonicalBlock, CanonicalParam, SubBlockId, Value } from '../model'
 import { getOwn, setOwn } from '../records'
 import { RESPONSE_BLOCK_TYPE, RESPONSE_BODY_KEYS } from '../sdk'
+import { holdsSecret } from '../secrets'
 
 /** The stored params the form carries: the editor's JSON mode and its three fields. */
 const FORM_PARAMS: ReadonlySet<string> = new Set(['dataMode', 'data', 'status', 'headers'])
@@ -29,7 +30,9 @@ export interface ResponseForm {
 /**
  * The form a response block prints as, or `null` to keep its own params: a block in the editor's
  * JSON mode whose printed params (`paramKeys`, with nothing under `meta.extra`) the form carries
- * exactly, with distinct header names in `{ cells: { Key, Value } }` rows.
+ * exactly, with distinct header names in `{ cells: { Key, Value } }` rows. The form writes its
+ * fields' values as they are, so a block holding a detected credential in any of them keeps its
+ * own params, where that param prints as `stored()`.
  */
 export function readResponseForm(
   block: CanonicalBlock,
@@ -45,6 +48,8 @@ export function readResponseForm(
   const status = value('status')
   const headers = value('headers')
   if (value('dataMode') !== 'json' || typeof data !== 'string') return null
+  if ([data, status, headers].some((field) => field !== undefined && holdsSecret(undefined, field)))
+    return null
   if (status !== undefined && typeof status !== 'string') return null
   const rows = headers === undefined ? [] : headers
   if (!Array.isArray(rows)) return null

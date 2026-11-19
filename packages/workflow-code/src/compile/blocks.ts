@@ -49,7 +49,7 @@ import {
   type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { BLOCK_META_KEYS } from '../sdk'
+import { BLOCK_META_KEYS, RESPONSE_BODY_KEYS } from '../sdk'
 import { holdsSecret, literalSecretFinding } from '../secrets'
 import { structuredCodec } from '../structured'
 import { checkStorableText } from './characters'
@@ -959,6 +959,12 @@ function compileWrittenParams(
     }
     if (written.responseBody) {
       compileResponseParam(ctx, site, params, key, property)
+      const formParam = RESPONSE_BODY_KEYS.some((formKey) => formKey === key)
+        ? getOwn(params, key === 'body' ? 'data' : key)
+        : undefined
+      if (formParam?.kind === 'value' && holdsSecret(undefined, formParam.value)) {
+        reportLiteralSecret(ctx, decl.key, { property, param: key }, {})
+      }
       continue
     }
     if (conditionForm && !field && !pinned.has(key)) {

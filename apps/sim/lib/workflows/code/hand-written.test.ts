@@ -165,6 +165,26 @@ export default workflow('Notify', {}, () => {
     expect(run.readBack).not.toContain('modes:')
   }, 120_000)
 
+  it('keeps a credential in a response body form out of the file, warning where source writes it', () => {
+    const bearer = ['Bearer ', 'abcdefghij', 'klmnopqrstuvwxyz0123456789'].join('')
+    const text = `${HEADER}import { response, trigger, workflow } from '@sim/workflow-sdk'
+export default workflow('Reply', {}, () => {
+  const start = trigger.start('Start', {})
+  const reply = response('Reply', { body: { ok: true }, headers: { Authorization: '${bearer}' } })
+  start.to(reply)
+})
+`
+    const run = applyTwice(text)
+    expect(
+      run.first.diagnostics.filter((d) => d.code === 'W_LITERAL_SECRET').map((d) => d.param)
+    ).toEqual(['headers'])
+    expect(run.readBack).not.toContain(bearer)
+    expect(run.readBack).toContain('headers: stored()')
+    const again = compile(run.readBack, run.canonical)
+    expect(again.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    expect(again.workflow?.blocks.reply).toEqual(run.canonical.blocks.reply)
+  }, 120_000)
+
   it("types and compiles a Slack trigger's streamed outputs, which the runtime reads", () => {
     const text = `${HEADER}import { agent, credential, env, trigger, workflow } from '@sim/workflow-sdk'
 export default workflow('Stream', {}, () => {
