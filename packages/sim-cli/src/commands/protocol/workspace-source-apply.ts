@@ -148,7 +148,7 @@ function printPlan(plan: Change[]): void {
 }
 
 /** The changes that delete something (a resource, rows, documents, columns, a deployment). */
-function destructiveChanges(changes: readonly Change[]): number {
+export function destructiveChanges(changes: readonly Change[]): number {
   return changes.filter((change) => change.action === 'delete' || change.destructive !== undefined)
     .length
 }
