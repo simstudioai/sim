@@ -17,6 +17,7 @@ import {
   materialize,
   printWorkflow,
   type SourceHints,
+  setOwn,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
@@ -56,7 +57,7 @@ export function getSource(state: WorkflowState, catalog: BlockCatalog): GotSourc
 export function hintsOfLock(lock: WorkflowLockV1): SourceHints {
   const hints: SourceHints = { blocks: {} }
   for (const [key, entry] of Object.entries(lock.blocks)) {
-    hints.blocks[key] = { ident: entry.ident, order: entry.order }
+    setOwn(hints.blocks, key, { ident: entry.ident, order: entry.order })
   }
   return hints
 }

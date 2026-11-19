@@ -293,6 +293,13 @@ function randomCodeEdit(
     const parent = block.parent ? base.blocks[block.parent] : undefined
     return !block.subflow && !block.locked && !parent?.locked
   })
+  // By design (DESIGN.md "Identity"): a legacy collision key (`name~2`) compiles only while its
+  // base key is taken, so source never introduces one. Deleting or renaming the block holding the
+  // base leaves the other's `meta.key` naming nothing (E_KEY_OVERRIDE) until the author drops it.
+  const collisionBases = new Set(
+    keys.flatMap((key) => (key.includes('~') ? [key.split('~')[0]] : []))
+  )
+  const removable = editable.filter((key) => !collisionBases.has(key))
   const kind = rng.pick(CODE_EDIT_KINDS)
   switch (kind) {
     case 'set-param': {
@@ -319,11 +326,11 @@ function randomCodeEdit(
       return { kind, target, allowed: (p) => p === at, required: [at] }
     }
     case 'rename': {
-      if (editable.length === 0) return null
-      return renameEdit(got, rng.pick(editable), `Renamed In Code ${n}`)
+      if (removable.length === 0) return null
+      return renameEdit(got, rng.pick(removable), `Renamed In Code ${n}`)
     }
     case 'delete-block': {
-      const leaves = editable.filter((key) => !keys.some((k) => base.blocks[k].parent === key))
+      const leaves = removable.filter((key) => !keys.some((k) => base.blocks[k].parent === key))
       if (leaves.length === 0) return null
       const key = rng.pick(leaves)
       delete target.blocks[key]
@@ -376,7 +383,11 @@ function randomCodeEdit(
 /** Why applying `edit` through source did not change the stored graph by exactly that edit. */
 function codeEditFailure(state: WorkflowState, got: GotSource, edit: CodeEdit): string | null {
   const hints = hintsOfLock(got.lock)
-  if (edit.renamed) hints.blocks[edit.renamed.to] = hints.blocks[edit.renamed.from]
+  const renamedHint =
+    edit.renamed && Object.hasOwn(hints.blocks, edit.renamed.from)
+      ? hints.blocks[edit.renamed.from]
+      : undefined
+  if (edit.renamed && renamedHint) setOwn(hints.blocks, edit.renamed.to, renamedHint)
   const files = printFiles(edit.target, catalog, hints)
   const applied = applySource(state, got, files, catalog)
   if (!applied.materialized) return `compile: ${compileErrors(applied)}`
@@ -782,6 +793,39 @@ describe('an advanced field whose empty value is an option', () => {
   })
 })
 
+describe('an advanced JSON field that runs under an operation that hides it', () => {
+  it('keeps its stored text through an unchanged apply', () => {
+    const text = JSON.stringify(
+      { input: '<start.input>', quoted: "'<start.name>'", key: '{{API_KEY}}', text: 'a\nb' },
+      null,
+      2
+    )
+    const state = replay(EMPTY, [
+      engineOp({
+        operation_type: 'add',
+        block_id: START,
+        params: { type: 'start_trigger', name: 'Start' },
+      }),
+      engineOp({
+        operation_type: 'add',
+        block_id: PARSER,
+        params: {
+          type: 'crunchbase_v2',
+          name: 'Cards',
+          inputs: { operation: 'get_entity_card', cardFieldIds: text },
+        },
+      }),
+      engineOp({
+        operation_type: 'edit',
+        block_id: PARSER,
+        params: { inputs: { operation: 'search_people' } },
+      }),
+    ])
+    expect(state.blocks[PARSER]?.subBlocks.cardFieldIds?.value).toBe(text)
+    expect(noopFailure(state)).toBeNull()
+  })
+})
+
 describe('renaming a block in source keeps the stored block it continues', () => {
   it.each<[string, () => WorkflowState, string]>([
     [
@@ -856,6 +900,15 @@ describe('renaming a block in source keeps the stored block it continues', () =>
           ),
         ]),
       'start',
+    ],
+    [
+      'a note named __proto__',
+      () => {
+        const subject = subjects.find((s) => s.id === 'fuzz:12')
+        if (!subject) throw new Error('the fuzz:12 corpus subject is gone')
+        return subject.state
+      },
+      '__proto__',
     ],
     [
       'a note stored before notes had a color',
