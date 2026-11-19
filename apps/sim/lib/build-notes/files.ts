@@ -29,6 +29,18 @@ class StaleBaselineError extends OrchestrationError {
 /** A baseline is a whole graph; anything larger is not one this feature keeps. */
 const MAX_BASELINE_BYTES = 16 * 1024 * 1024
 
+/** The baseline file's text, refused when the graph is larger than a baseline can be. */
+function baselineContent(baseline: BaselineSnapshot): string {
+  const content = serializeBaseline(baseline)
+  if (Buffer.byteLength(content, 'utf-8') > MAX_BASELINE_BYTES) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `This workflow is too large for build notes to keep a baseline of (over ${MAX_BASELINE_BYTES / 1024 / 1024}MB)`
+    )
+  }
+  return content
+}
+
 /** Creates the notes file with its owner row, then the baseline file of the current graph. */
 export async function createBuildNotesFiles(params: {
   workspaceId: string
@@ -38,6 +50,8 @@ export async function createBuildNotesFiles(params: {
   baseline: BaselineSnapshot
 }): Promise<BuildNotesRow> {
   const { workspaceId, workflowId, userId } = params
+  // Refused before the notes exist, so a workflow too large to baseline never gets notes it cannot use.
+  baselineContent(params.baseline)
   let notes: BuildNotesRow
   try {
     ;({ owner: notes } = await createOwnedWorkspaceFile({
@@ -79,13 +93,7 @@ export async function writeBaseline(
   baseline: BaselineSnapshot,
   author: { userId: string; source: WorkspaceFileVersionSource }
 ): Promise<BuildNotesRow> {
-  const content = serializeBaseline(baseline)
-  if (Buffer.byteLength(content, 'utf-8') > MAX_BASELINE_BYTES) {
-    throw new OrchestrationError(
-      'payload_too_large',
-      `This workflow is too large for build notes to keep a baseline of (over ${MAX_BASELINE_BYTES / 1024 / 1024}MB)`
-    )
-  }
+  const content = baselineContent(baseline)
   if (!notes.baselineFileId) {
     try {
       const { fileId } = await createOwnedWorkspaceFile({

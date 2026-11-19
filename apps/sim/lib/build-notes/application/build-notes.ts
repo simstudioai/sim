@@ -146,7 +146,7 @@ export interface EvaluateBuildNotesResult {
 }
 
 interface BatchReading {
-  batch: Pick<ApplyWorkflowOperationsInput, 'operations' | 'blockEnabledChanges'> | null
+  batch: Pick<ApplyWorkflowOperationsInput, 'operations' | 'blockEnabledChanges' | 'layout'> | null
   problems: string[]
 }
 
@@ -169,6 +169,8 @@ function parseBatch(reading: ReturnType<typeof readBuildNotes>): BatchReading {
         blockId: change.block_id,
         enabled: change.enabled,
       })),
+      // Placement only, so it is not part of what evaluation approves.
+      layout: parsed.data.layout,
     },
     problems: [],
   }
