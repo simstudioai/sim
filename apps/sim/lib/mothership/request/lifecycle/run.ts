@@ -26,6 +26,7 @@ import {
   updateRunStatus,
 } from '@/lib/mothership/async-runs/repository'
 import type { CopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
+import { runGrantHeaders } from '@/lib/mothership/auth/run-grant'
 import {
   CLIENT_TOOL_RESULT_TIMEOUT_MS,
   TOOL_WATCHDOG_RESUME_GRACE_MS,
@@ -985,7 +986,10 @@ async function runResumeLegWithRetry(
         url,
         {
           method: 'POST',
-          headers: mothershipRequestHeaders(hostedBillingRequest, options.simRequestId),
+          headers: {
+            ...mothershipRequestHeaders(hostedBillingRequest, options.simRequestId),
+            ...runGrantHeaders(execContext),
+          },
           body: JSON.stringify(body),
         },
         leg,
@@ -1330,7 +1334,10 @@ async function runCheckpointLoop(
         `${mothershipBaseURL}${route}`,
         {
           method: 'POST',
-          headers: mothershipRequestHeaders(hostedBillingRequest, mothershipRequestId),
+          headers: {
+            ...mothershipRequestHeaders(hostedBillingRequest, mothershipRequestId),
+            ...runGrantHeaders(execContext),
+          },
           body: JSON.stringify({
             ...payload,
             ...(route === '/api/mothership' ||

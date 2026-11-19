@@ -73,6 +73,7 @@ const {
   mockCheckAttributedUsageLimits: vi.fn(),
   mockEnv: {
     INTERNAL_API_SECRET: 'transport-test-secret-000000000000000000',
+    BETTER_AUTH_SECRET: 'run-grant-test-auth-secret-0000000000000',
     COPILOT_API_KEY: undefined as string | undefined,
     MSHIP_SYSPROMPT_OVERRIDE: undefined as string | undefined,
     MOTHERSHIP_BENCHMARK_URL: 'https://benchmark.test',
@@ -231,12 +232,14 @@ vi.mock('@/lib/mothership/request/enterprise-byok', () => ({
 }))
 
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
+import { checkRunGrant } from '@/lib/mothership/auth/run-grant'
 import { buildPersistedAssistantMessage } from '@/lib/mothership/chat/persisted-message'
 import { CLIENT_TOOL_RESULT_TIMEOUT_MS } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { RUN_GRANT_HEADER } from '@/lib/mothership/generated/sim-transport'
 import {
   BillingLimitError,
   CopilotBackendError,
@@ -2323,92 +2326,103 @@ describe('runCopilotLifecycle', () => {
   it.each([
     { workspaceId: 'ws-1', organizationId: undefined },
     { workspaceId: undefined, organizationId: 'org-1' },
-  ])('uses immutable attribution on initial and resume legs for %j', async (owner) => {
-    const billingAttribution = {
-      actorUserId: 'user-1',
-      workspaceId: owner.workspaceId ?? null,
-      billedAccountUserId: 'owner-1',
-      organizationId: 'org-1',
-      billingEntity: { type: 'organization' as const, id: 'org-1' },
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: '2026-08-01T00:00:00.000Z',
-      },
-      payerSubscription: null,
-    }
-    setEnvFlags({ isHosted: true, isBillingEnabled: true })
-    mockEnv.COPILOT_API_KEY = 'sim-agent-key'
-    mockRunStreamLoop.mockImplementationOnce(
-      async (
-        _fetchUrl: string,
-        _fetchOptions: RequestInit,
-        context: StreamingContext
-      ): Promise<void> => {
-        context.toolCalls.set('tool-1', {
-          id: 'tool-1',
-          name: 'read',
-          status: MothershipStreamV1ToolOutcome.success,
-          result: { success: true, output: { content: 'file contents' } },
-        })
-        context.awaitingAsyncContinuation = {
-          checkpointId: 'ckpt-1',
-          pendingToolCallIds: ['tool-1'],
+  ])(
+    'sends immutable attribution and a run grant for the turn on initial and resume legs for %j',
+    async (owner) => {
+      const billingAttribution = {
+        actorUserId: 'user-1',
+        workspaceId: owner.workspaceId ?? null,
+        billedAccountUserId: 'owner-1',
+        organizationId: 'org-1',
+        billingEntity: { type: 'organization' as const, id: 'org-1' },
+        billingPeriod: {
+          start: '2026-07-01T00:00:00.000Z',
+          end: '2026-08-01T00:00:00.000Z',
+        },
+        payerSubscription: null,
+      }
+      setEnvFlags({ isHosted: true, isBillingEnabled: true })
+      mockEnv.COPILOT_API_KEY = 'sim-agent-key'
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          _fetchUrl: string,
+          _fetchOptions: RequestInit,
+          context: StreamingContext
+        ): Promise<void> => {
+          context.toolCalls.set('tool-1', {
+            id: 'tool-1',
+            name: 'read',
+            status: MothershipStreamV1ToolOutcome.success,
+            result: { success: true, output: { content: 'file contents' } },
+          })
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: ['tool-1'],
+          }
         }
-      }
-    )
-    mockRunStreamLoop.mockResolvedValueOnce(undefined)
-
-    await runCopilotLifecycle(
-      {
-        message: 'hello',
-        ...(owner.organizationId ? { mode: 'assistant' } : {}),
-        messageId: 'message-1',
-        billingRequestId: 'caller-controlled',
-      },
-      {
-        userId: 'user-1',
-        ...owner,
-        chatId: 'chat-1',
-        executionId: 'execution-1',
-        runId: 'run-1',
-        simRequestId: 'request-1',
-        billingAttribution,
-      }
-    )
-
-    const firstHeaders = mockRunStreamLoop.mock.calls[0]?.[1].headers as Record<string, string>
-    const billingRequestId = firstHeaders['x-sim-billing-request-id']
-    expect(billingRequestId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    )
-    expect(billingRequestId).not.toBe('caller-controlled')
-
-    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
-    expect(mockLoadCopilotSearchIntegrations).not.toHaveBeenCalled()
-    for (const call of mockRunStreamLoop.mock.calls) {
-      const body = JSON.parse(String(call[1].body))
-      if (call === mockRunStreamLoop.mock.calls[0]) {
-        expect(body).toMatchObject(
-          owner.organizationId
-            ? { organizationId: owner.organizationId }
-            : { workspaceId: owner.workspaceId }
-        )
-      } else {
-        expect(body).not.toHaveProperty('workspaceId')
-        expect(body).not.toHaveProperty('organizationId')
-        expect(body).not.toHaveProperty('checkpointId')
-      }
-      const headers = call[1].headers as Record<string, string>
-      expect(headers).toMatchObject({
-        'x-api-key': 'sim-agent-key',
-        'x-sim-billing-protocol': 'attribution-v1',
-        'x-sim-billing-request-id': billingRequestId,
-      })
-      expect(JSON.parse(decodeURIComponent(headers['x-sim-billing-attribution']))).toEqual(
-        billingAttribution
       )
+      mockRunStreamLoop.mockResolvedValueOnce(undefined)
+
+      await runCopilotLifecycle(
+        {
+          message: 'hello',
+          ...(owner.organizationId ? { mode: 'assistant' } : {}),
+          messageId: 'message-1',
+          billingRequestId: 'caller-controlled',
+        },
+        {
+          userId: 'user-1',
+          ...owner,
+          chatId: 'chat-1',
+          executionId: 'execution-1',
+          runId: 'run-1',
+          simRequestId: 'request-1',
+          billingAttribution,
+        }
+      )
+
+      const firstHeaders = mockRunStreamLoop.mock.calls[0]?.[1].headers as Record<string, string>
+      const billingRequestId = firstHeaders['x-sim-billing-request-id']
+      expect(billingRequestId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      )
+      expect(billingRequestId).not.toBe('caller-controlled')
+
+      expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
+      expect(mockLoadCopilotSearchIntegrations).not.toHaveBeenCalled()
+      for (const call of mockRunStreamLoop.mock.calls) {
+        const body = JSON.parse(String(call[1].body))
+        if (call === mockRunStreamLoop.mock.calls[0]) {
+          expect(body).toMatchObject(
+            owner.organizationId
+              ? { organizationId: owner.organizationId }
+              : { workspaceId: owner.workspaceId }
+          )
+        } else {
+          expect(body).not.toHaveProperty('workspaceId')
+          expect(body).not.toHaveProperty('organizationId')
+          expect(body).not.toHaveProperty('checkpointId')
+        }
+        const headers = call[1].headers as Record<string, string>
+        expect(headers).toMatchObject({
+          'x-api-key': 'sim-agent-key',
+          'x-sim-billing-protocol': 'attribution-v1',
+          'x-sim-billing-request-id': billingRequestId,
+        })
+        expect(JSON.parse(decodeURIComponent(headers['x-sim-billing-attribution']))).toEqual(
+          billingAttribution
+        )
+        expect(
+          await checkRunGrant(headers[RUN_GRANT_HEADER], {
+            userId: 'user-1',
+            chatId: 'chat-1',
+            ...(owner.workspaceId ? { workspaceId: owner.workspaceId } : {}),
+            ...(owner.organizationId ? { organizationId: owner.organizationId } : {}),
+          })
+        ).toMatchObject({ ok: true })
+      }
     }
-  })
+  )
 
   it('cold recovery reads spend only against the original billing identity', async () => {
     const attribution = {

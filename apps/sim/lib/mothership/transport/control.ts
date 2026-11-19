@@ -6,6 +6,7 @@ import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
+import { acceptsRunGrant, checkRunGrant, rememberRunGrant } from '@/lib/mothership/auth/run-grant'
 import {
   RECALL_CHATS_AUDIENCE,
   readRecallChats,
@@ -44,6 +45,8 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
     return { status: 403, body: '{"error":"Invalid owner scope"}' }
   if ('chatId' in operation.input && operation.input.chatId !== scope.chatId)
     return { status: 403, body: '{"error":"Chat scope mismatch"}' }
+  const grant = await checkRunGrant(request.grant, scope)
+  if (!acceptsRunGrant(grant)) return { status: 401, body: '{"error":"Run grant refused"}' }
   const principal = scope.organizationId
     ? createTrustedOrganizationCopilotPrincipal(
         {
@@ -90,6 +93,7 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
           ttlMs: 60_000,
         }
       )
+  rememberRunGrant(principal, grant)
   try {
     switch (operation.kind) {
       case 'memory_notes_access':

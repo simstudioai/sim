@@ -14,6 +14,7 @@ import { OrganizationDelegationAuthorizationError } from '@/lib/core/application
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { getLatestRunForStream, isRunStopRequested } from '@/lib/mothership/async-runs/repository'
+import { renewedRunGrant } from '@/lib/mothership/auth/run-grant'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import type { RunControlRequest, RunControlState } from '@/lib/mothership/generated/run-control'
@@ -125,7 +126,12 @@ export const readRunControl: AuthorizingUseCase<
   async execute(args) {
     requireRunControlCaller(args.principal, args.input)
     try {
-      return await readLiveRunControl.execute(args)
+      const state = await readLiveRunControl.execute(args)
+      if (state.stopped) return state
+      // The chat and the user's access were just rechecked, so a run that keeps checking its
+      // control keeps a valid grant however long it runs.
+      const grant = renewedRunGrant(args.principal)
+      return grant ? { ...state, grant } : state
     } catch (error) {
       const refusal = asOrchestrationError(error)
       if (

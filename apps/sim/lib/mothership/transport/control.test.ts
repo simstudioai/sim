@@ -43,6 +43,7 @@ vi.mock('@/lib/mothership/tasks/application/context', () => ({ TASK_DELEGATION_A
 vi.mock('@/lib/mothership/tasks/wake', () => ({ runWakeTurn: handlers.wake }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { issueRunGrant } from '@/lib/mothership/auth/run-grant'
 import type {
   SimControlOperation,
   SimControlRequest,
@@ -281,4 +282,21 @@ it("routes a chat's other chats through the same use case for both delivery scop
       )
     ).status
   ).toBe(403)
+})
+
+it("serves a control request whose run grant names its scope, and refuses another chat's grant", async () => {
+  handlers.memory.mockResolvedValue({
+    userId: 'user',
+    organizationId: null,
+    workspaceId: 'workspace',
+  })
+  const grant = (chatId: string) =>
+    issueRunGrant({ userId: 'user', chatId, workspaceId: 'workspace', organizationId: null })
+  const operation = { kind: 'memory_scope', input: { chatId: 'chat' } } as const
+  expect(
+    (await executeSimControl({ ...request(operation), grant: await grant('chat') })).status
+  ).toBe(200)
+  expect(
+    await executeSimControl({ ...request(operation), grant: await grant('another-chat') })
+  ).toEqual({ status: 401, body: '{"error":"Run grant refused"}' })
 })

@@ -6,7 +6,7 @@ import { RecallChatsRequest } from "./chat-recall";
 import { IntegrationCatalogRequest } from "./integration-catalog";
 import { MemoryNotesAccessInput } from "./memory-notes-access";
 import { MemoryScopeRequest } from "./memory-scope";
-import { RunControlRequest } from "./run-control";
+import { RunControlRequest, RunGrant } from "./run-control";
 import { TaskWakeRequest, WorkflowWatchRequest } from "./tasks";
 
 const SimChannelId = z.string().regex(/^[a-f0-9]{64}$/);
@@ -16,6 +16,14 @@ export const SimConnection = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("checkpoint"), channelId: SimChannelId }),
 ]);
 export type SimConnection = z.infer<typeof SimConnection>;
+
+/**
+ * Sim's run grant: its signature over the user, chat and owner of a turn, sent with every turn
+ * it starts. The worker cannot mint one; it returns the latest grant for the chat on each call
+ * it makes to Sim (this header over HTTP, `grant` on a control request), and Sim serves the call
+ * only for the identity the grant names.
+ */
+export const RUN_GRANT_HEADER = "x-sim-run-grant";
 
 export const SimScope = z
   .object({
@@ -47,6 +55,8 @@ export const SimControlRequest = z.object({
   scope: SimScope,
   operation: SimControlOperation,
   expiresAt: z.number().int().positive(),
+  /** The chat's run grant (`RUN_GRANT_HEADER`); absent from a worker that predates grants. */
+  grant: RunGrant.optional(),
 });
 export type SimControlRequest = z.infer<typeof SimControlRequest>;
 

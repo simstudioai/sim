@@ -162,6 +162,7 @@ export const env = createEnv({
     /** Enables the organization benchmark UI and its authenticated endpoints. */
     MOTHERSHIP_BENCHMARK_ENABLED:          z.boolean().optional(),
     MOTHERSHIP_BENCHMARK_URL:              z.string().url().optional(),
+    MOTHERSHIP_REQUIRE_RUN_GRANT:          z.boolean().optional(),                 // Worker calls must carry a run grant naming their user and chat; unset, a call without one is still served
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
     MSHIP_SYSPROMPT_OVERRIDE:              z.string().min(1).optional(),           // Enterprise-only highest-priority Mothership system prompt override forwarded by Sim
     COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
