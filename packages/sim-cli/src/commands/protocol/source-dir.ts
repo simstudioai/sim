@@ -735,6 +735,9 @@ export const SOURCE_DIR_BUSY_HELP = `
 Exit 10 (busy, retry): another sim workspaces source command is using this directory
 (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.`
 
+/** The file-system codes of a directory the user may not write: its lock cannot be taken. */
+const UNWRITABLE_CODES: ReadonlySet<string> = new Set(['EACCES', 'EPERM', 'EROFS'])
+
 /** A lock whose owner never recorded itself is stale after this long (it died while taking it). */
 const UNRECORDED_LOCK_STALE_MS = 60_000
 
@@ -817,7 +820,11 @@ export async function takeOverStaleLock(lock: string, seen: LockSighting): Promi
  * other source path, `.sim` and the lock are never followed through a symbolic link
  * (`SOURCE_SYMLINK`). An embedded run has no local directory to lock.
  */
-export async function withSourceDirLock<T>(dir: string, run: () => Promise<T>): Promise<T> {
+export async function withSourceDirLock<T>(
+  dir: string,
+  run: () => Promise<T>,
+  options: { readOnly?: boolean } = {}
+): Promise<T> {
   if (embedStore.getStore()) return run()
   const absent = async (path: string) =>
     lstat(path).then(
@@ -825,25 +832,41 @@ export async function withSourceDirLock<T>(dir: string, run: () => Promise<T>): 
       () => true
     )
   const createdDir = await absent(dir)
-  await mkdir(dir, { recursive: true })
-  const root = await realpath(dir)
-  const records = await checkedPath(root, '.sim', new Set())
-  const createdRecords = createdDir || (await absent(records))
-  await mkdir(records).catch((error: unknown) => {
-    if (errorCode(error) !== 'EEXIST') throw error
-  })
-  const lock = await checkedPath(root, SOURCE_DIR_LOCK, new Set())
+  let root: string
+  let records: string
+  let createdRecords: boolean
+  let lock: string
   let held = false
-  for (let attempt = 0; attempt < 2 && !held; attempt += 1) {
-    try {
-      await mkdir(lock)
-      held = true
-    } catch (error) {
+  try {
+    await mkdir(dir, { recursive: true })
+    root = await realpath(dir)
+    records = await checkedPath(root, '.sim', new Set())
+    createdRecords = createdDir || (await absent(records))
+    await mkdir(records).catch((error: unknown) => {
       if (errorCode(error) !== 'EEXIST') throw error
-      await checkedPath(root, SOURCE_DIR_LOCK, new Set())
-      const seen = attempt === 0 ? await stat(lock).catch(() => null) : null
-      if (seen && (await isStaleLock(lock, seen))) await takeOverStaleLock(lock, seen)
+    })
+    lock = await checkedPath(root, SOURCE_DIR_LOCK, new Set())
+    for (let attempt = 0; attempt < 2 && !held; attempt += 1) {
+      try {
+        await mkdir(lock)
+        held = true
+      } catch (error) {
+        if (errorCode(error) !== 'EEXIST') throw error
+        await checkedPath(root, SOURCE_DIR_LOCK, new Set())
+        const seen = attempt === 0 ? await stat(lock).catch(() => null) : null
+        if (seen && (await isStaleLock(lock, seen))) await takeOverStaleLock(lock, seen)
+      }
     }
+  } catch (error) {
+    if (!UNWRITABLE_CODES.has(errorCode(error) ?? '')) throw error
+    // Nothing can rewrite a directory no one may write, so a command that only reads it needs
+    // no lock; one that writes it is refused with the reason instead of a stack trace.
+    if (options.readOnly) return run()
+    throw new SimApiError(
+      `${dir} cannot be written (${errorCode(error)}), and this command writes it; nothing was read or written. Make it writable, or run the command on a writable copy.`,
+      0,
+      'SOURCE_DIR_UNWRITABLE'
+    )
   }
   if (!held) {
     throw new SimApiError(

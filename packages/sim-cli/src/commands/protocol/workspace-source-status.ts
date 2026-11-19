@@ -71,6 +71,9 @@ type ServerSource = GetWorkspaceSourceResponse['data']
 
 const PREFIX = 'sim workspaces source'
 
+/** A status or diff only reads: in a directory no one may write, it runs without the lock. */
+const READ_ONLY = { readOnly: true }
+
 /** The workspace directory as a status reads it, once. */
 interface LocalWorkspace {
   submission: WorkspaceSubmission
@@ -243,93 +246,97 @@ export function attachWorkspaceSourceStatus(source: Command): void {
       const output = options.json ? 'json' : profileFrom(invoked).output
       // A status or diff only reads, but holds the directory's lock so it never reports a
       // directory an apply or get is halfway through rewriting (exit 10 while one runs).
-      await withSourceDirLock(options.dir, async () => {
-        const local = await readLocalWorkspace(options.dir, only)
-        const locals = localResourceChanges(local.changed)
-        let server: ServerCheck = options.offline ? 'offline' : 'checked'
-        let note: string | undefined = options.offline ? 'Skipped with --offline.' : undefined
-        let data: ApplyData | null = null
-        let workspaceId = local.readFrom
-        // The scope every recommended command carries, so it acts on what this status showed.
-        const onlyScope = only ? ` --only ${only.map((kind) => KIND_DIRS[kind]).join(',')}` : ''
-        let workspaceScope = ''
-        if (!options.offline) {
-          const connection = connect()
-          const target = targetWorkspace(connection, local.readFrom)
-          workspaceId = target
-          const { profile } = connection
-          if (profile.sources.workspaceId === 'flag' || profile.workspaceId !== target) {
-            workspaceScope = ` --workspace ${target}`
-          }
-          let submission = local.submission
-          if (!fitsWhole(submission.files)) {
-            submission = withUnchangedWorkflowsPruned(submission, local.written, target)
-            note = `More workflow folders than one dry run compares: an unchanged folder's server edits are not checked (\`${PREFIX} get\` shows them).`
-          }
-          const body: ApplyWorkspaceSourceBody = {
-            files: submission.files,
-            kinds: submission.kinds,
-            blobs: submission.blobs,
-            ...(submission.base ? { base: submission.base } : {}),
-            options: { allowDelete: true, ...(only ? { only } : {}) },
-            provenance: { client: 'cli' },
-          }
-          try {
-            const response = await connection.client.request<ApplyWorkspaceSourceResponse>(
-              'applyWorkspaceSource',
-              {
-                params: { workspaceId: target },
-                query: { dryRun: true },
-                body,
-                retryRateLimited: true,
-              }
-            )
-            data = response.data
-          } catch (error) {
-            const reason = unreachableReason(error)
-            if (reason === null) throw withSourceExitCode(error)
-            server = 'unreachable'
-            note = `${reason} Showing local changes only.`
-          }
-        }
-        const skipped = data ? await skippedResources(options.dir) : new Set<string>()
-        const status = sourceStatus(
-          locals,
-          data
-            ? serverResourceChanges(data.diagnostics).filter(
-                (change) =>
-                  !(change.server === 'added' && skipped.has(`${change.kind}:${change.key}`))
+      await withSourceDirLock(
+        options.dir,
+        async () => {
+          const local = await readLocalWorkspace(options.dir, only)
+          const locals = localResourceChanges(local.changed)
+          let server: ServerCheck = options.offline ? 'offline' : 'checked'
+          let note: string | undefined = options.offline ? 'Skipped with --offline.' : undefined
+          let data: ApplyData | null = null
+          let workspaceId = local.readFrom
+          // The scope every recommended command carries, so it acts on what this status showed.
+          const onlyScope = only ? ` --only ${only.map((kind) => KIND_DIRS[kind]).join(',')}` : ''
+          let workspaceScope = ''
+          if (!options.offline) {
+            const connection = connect()
+            const target = targetWorkspace(connection, local.readFrom)
+            workspaceId = target
+            const { profile } = connection
+            if (profile.sources.workspaceId === 'flag' || profile.workspaceId !== target) {
+              workspaceScope = ` --workspace ${target}`
+            }
+            let submission = local.submission
+            if (!fitsWhole(submission.files)) {
+              submission = withUnchangedWorkflowsPruned(submission, local.written, target)
+              note = `More workflow folders than one dry run compares: an unchanged folder's server edits are not checked (\`${PREFIX} get\` shows them).`
+            }
+            const body: ApplyWorkspaceSourceBody = {
+              files: submission.files,
+              kinds: submission.kinds,
+              blobs: submission.blobs,
+              ...(submission.base ? { base: submission.base } : {}),
+              options: { allowDelete: true, ...(only ? { only } : {}) },
+              provenance: { client: 'cli' },
+            }
+            try {
+              const response = await connection.client.request<ApplyWorkspaceSourceResponse>(
+                'applyWorkspaceSource',
+                {
+                  params: { workspaceId: target },
+                  query: { dryRun: true },
+                  body,
+                  retryRateLimited: true,
+                }
               )
-            : []
-        )
-        const plan = data ? planSummary(data) : null
-        const report: StatusReport<WorkspacePlanSummary> & { workspaceId: string | null } = {
-          workspaceId,
-          dir: options.dir,
-          server,
-          ...(note ? { note } : {}),
-          ...status,
-          plan,
-          next:
-            unmanagedNext(status, local.submission.kinds, options.dir, workspaceScope) ??
-            nextStep(status, {
-              prefix: PREFIX,
-              dir: options.dir,
-              getArgs: '',
-              server,
-              errors: plan?.errors ?? 0,
-              deletes: data !== null && destructiveChanges(data.plan) > 0,
-              scope: `${onlyScope}${workspaceScope}`,
-            }),
-        }
-        printStatusReport(
-          output,
-          `Workspace ${workspaceId ?? '(no base)'} in ${options.dir}`,
-          report,
-          planLine
-        )
-        setSoftExitCode(statusExitCode(status.state))
-      })
+              data = response.data
+            } catch (error) {
+              const reason = unreachableReason(error)
+              if (reason === null) throw withSourceExitCode(error)
+              server = 'unreachable'
+              note = `${reason} Showing local changes only.`
+            }
+          }
+          const skipped = data ? await skippedResources(options.dir) : new Set<string>()
+          const status = sourceStatus(
+            locals,
+            data
+              ? serverResourceChanges(data.diagnostics).filter(
+                  (change) =>
+                    !(change.server === 'added' && skipped.has(`${change.kind}:${change.key}`))
+                )
+              : []
+          )
+          const plan = data ? planSummary(data) : null
+          const report: StatusReport<WorkspacePlanSummary> & { workspaceId: string | null } = {
+            workspaceId,
+            dir: options.dir,
+            server,
+            ...(note ? { note } : {}),
+            ...status,
+            plan,
+            next:
+              unmanagedNext(status, local.submission.kinds, options.dir, workspaceScope) ??
+              nextStep(status, {
+                prefix: PREFIX,
+                dir: options.dir,
+                getArgs: '',
+                server,
+                errors: plan?.errors ?? 0,
+                deletes: data !== null && destructiveChanges(data.plan) > 0,
+                scope: `${onlyScope}${workspaceScope}`,
+              }),
+          }
+          printStatusReport(
+            output,
+            `Workspace ${workspaceId ?? '(no base)'} in ${options.dir}`,
+            report,
+            planLine
+          )
+          setSoftExitCode(statusExitCode(status.state))
+        },
+        READ_ONLY
+      )
     })
 }
 
@@ -469,70 +476,74 @@ export function attachWorkspaceSourceDiff(source: Command): void {
       const output = options.json ? 'json' : profileFrom(invoked).output
       // A status or diff only reads, but holds the directory's lock so it never reports a
       // directory an apply or get is halfway through rewriting (exit 10 while one runs).
-      await withSourceDirLock(options.dir, async () => {
-        const local = await readLocalWorkspace(options.dir, undefined)
-        const filter = pathFilter(filters, options.dir, resourceOf)
-        const selects = filter.selects
-        const read = async (kinds: readonly WorkspaceKind[]) => {
-          const connection = connect()
-          const workspaceId = targetWorkspace(connection, local.readFrom)
-          try {
-            const response = await connection.client.request<GetWorkspaceSourceResponse>(
-              'getWorkspaceSource',
-              { params: { workspaceId }, query: { kinds: kinds.join(',') } }
-            )
-            return response.data
-          } catch (error) {
-            throw withSourceExitCode(error)
+      await withSourceDirLock(
+        options.dir,
+        async () => {
+          const local = await readLocalWorkspace(options.dir, undefined)
+          const filter = pathFilter(filters, options.dir, resourceOf)
+          const selects = filter.selects
+          const read = async (kinds: readonly WorkspaceKind[]) => {
+            const connection = connect()
+            const workspaceId = targetWorkspace(connection, local.readFrom)
+            try {
+              const response = await connection.client.request<GetWorkspaceSourceResponse>(
+                'getWorkspaceSource',
+                { params: { workspaceId }, query: { kinds: kinds.join(',') } }
+              )
+              return response.data
+            } catch (error) {
+              throw withSourceExitCode(error)
+            }
           }
-        }
-        if (options.server) {
-          const kinds = filteredKinds(filters) ?? local.submission.kinds
-          const source = kinds.length > 0 ? await read(kinds) : null
-          filter.assertEachMatches([
-            ...localPaths(local),
-            ...(source
-              ? [...Object.keys(source.files), ...source.blobs.map((blob) => blob.path)]
-              : []),
-          ])
+          if (options.server) {
+            const kinds = filteredKinds(filters) ?? local.submission.kinds
+            const source = kinds.length > 0 ? await read(kinds) : null
+            filter.assertEachMatches([
+              ...localPaths(local),
+              ...(source
+                ? [...Object.keys(source.files), ...source.blobs.map((blob) => blob.path)]
+                : []),
+            ])
+            const report: DiffReport = {
+              dir: options.dir,
+              against: 'server',
+              files: source ? serverDiffs(local, source, selects) : [],
+            }
+            printDiffReport(output, report)
+            return
+          }
+          filter.assertEachMatches(localPaths(local))
+          const selected = local.changed.filter((file) => selects(file.path))
+          const needed = [
+            ...new Set(
+              selected
+                .filter(
+                  (file) =>
+                    file.change !== 'created' &&
+                    (!isBlobPath(file.path) || local.written.stats[file.path] === undefined)
+                )
+                .flatMap((file) => kindOfPath(file.path) ?? [])
+            ),
+          ]
+          let source: ServerSource | null = null
+          let unreachable: string | null = null
+          if (needed.length > 0) {
+            try {
+              source = await read(needed)
+            } catch (error) {
+              unreachable = unreachableReason(error)
+              if (unreachable === null) throw error
+            }
+          }
           const report: DiffReport = {
             dir: options.dir,
-            against: 'server',
-            files: source ? serverDiffs(local, source, selects) : [],
+            against: 'base',
+            ...(unreachable !== null ? { unreachable } : {}),
+            files: baseDiffs(local, selected, source, unreachable),
           }
           printDiffReport(output, report)
-          return
-        }
-        filter.assertEachMatches(localPaths(local))
-        const selected = local.changed.filter((file) => selects(file.path))
-        const needed = [
-          ...new Set(
-            selected
-              .filter(
-                (file) =>
-                  file.change !== 'created' &&
-                  (!isBlobPath(file.path) || local.written.stats[file.path] === undefined)
-              )
-              .flatMap((file) => kindOfPath(file.path) ?? [])
-          ),
-        ]
-        let source: ServerSource | null = null
-        let unreachable: string | null = null
-        if (needed.length > 0) {
-          try {
-            source = await read(needed)
-          } catch (error) {
-            unreachable = unreachableReason(error)
-            if (unreachable === null) throw error
-          }
-        }
-        const report: DiffReport = {
-          dir: options.dir,
-          against: 'base',
-          ...(unreachable !== null ? { unreachable } : {}),
-          files: baseDiffs(local, selected, source, unreachable),
-        }
-        printDiffReport(output, report)
-      })
+        },
+        READ_ONLY
+      )
     })
 }

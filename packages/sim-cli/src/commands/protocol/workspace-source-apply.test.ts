@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -387,6 +388,29 @@ describe('workspaces source apply', () => {
 
     expect(request).toHaveBeenCalled()
     expect(existsSync(join(dir, '.sim/command.lock'))).toBe(false)
+  })
+
+  it('dry-runs a directory no one may write, and refuses to apply it with the reason, not a crash', async () => {
+    request.mockResolvedValue(answer({ dryRun: true }))
+    for (const path of ['', '.sim', 'tables', 'workflows', 'workflows/ingest']) {
+      chmodSync(join(dir, path), 0o555)
+    }
+    try {
+      await apply('--dry-run')
+      expect(request).toHaveBeenCalledTimes(1)
+
+      const refused = await apply('--yes').then(
+        () => null,
+        (error: unknown) => error
+      )
+      expect(refused).toBeInstanceOf(SimApiError)
+      expect(refused).toMatchObject({ code: 'SOURCE_DIR_UNWRITABLE' })
+      expect(request).toHaveBeenCalledTimes(1)
+    } finally {
+      for (const path of ['', '.sim', 'tables', 'workflows', 'workflows/ingest']) {
+        chmodSync(join(dir, path), 0o755)
+      }
+    }
   })
 
   it('removes the code file of a tool the apply reprinted as stored(), from disk and the record', async () => {

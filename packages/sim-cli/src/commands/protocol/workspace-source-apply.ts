@@ -493,77 +493,81 @@ export function attachWorkspaceSourceApply(source: Command): void {
         )
       }
 
-      await withSourceDirLock(options.dir, async () => {
-        const written = await readWritten(options.dir)
-        const read = await readWorkspaceDir(options.dir, only, workspaceId, written)
-        // The read already walked the kind folders: only a read that found none, or a workflow
-        // directory's base, needs the full check (which refuses with the reason).
-        if (read.kinds.length === 0 || baseWorkflowOf(read.base) !== null) {
-          await assertWorkspaceDir(options.dir)
-        }
-        if (!options.to) {
-          assertBaseWorkspace(
-            options.dir,
-            read.base,
-            workspaceId,
-            profile.sources.workspaceId === 'flag'
-          )
-        }
-        assertBlobsFetched(options.dir, read, written.digests)
-        const submission = options.to
-          ? await promoted(client, options.dir, read, options.to, options.allowDelete === true)
-          : read
-        if (submission.ignored.length > 0) {
-          printError(
-            `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
-          )
-        }
-        // The apply repeats findings the preview already showed.
-        const printed = new Set<string>()
-        let preview: ApplyData | null = null
-        if (options.dryRun || !options.yes) {
-          preview = await send(submission, true)
-          printPlan(preview.plan)
-          printNewDiagnostics(preview.diagnostics, printed)
-          const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
-          if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
-          if (options.dryRun || refusesApply(preview)) {
-            printProtocolResult(profile.output, {
-              ...summarize(preview),
-              ...resultDiagnostics(profile.output, preview.diagnostics),
-            })
-            return
+      await withSourceDirLock(
+        options.dir,
+        async () => {
+          const written = await readWritten(options.dir)
+          const read = await readWorkspaceDir(options.dir, only, workspaceId, written)
+          // The read already walked the kind folders: only a read that found none, or a workflow
+          // directory's base, needs the full check (which refuses with the reason).
+          if (read.kinds.length === 0 || baseWorkflowOf(read.base) !== null) {
+            await assertWorkspaceDir(options.dir)
           }
-          if (
-            !options.yes &&
-            !(await confirm(`Apply these changes to workspace ${workspaceId}?`))
-          ) {
-            throw new SimApiError('Nothing was applied.', 0, 'CANCELLED')
+          if (!options.to) {
+            assertBaseWorkspace(
+              options.dir,
+              read.base,
+              workspaceId,
+              profile.sources.workspaceId === 'flag'
+            )
           }
-        }
+          assertBlobsFetched(options.dir, read, written.digests)
+          const submission = options.to
+            ? await promoted(client, options.dir, read, options.to, options.allowDelete === true)
+            : read
+          if (submission.ignored.length > 0) {
+            printError(
+              `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
+            )
+          }
+          // The apply repeats findings the preview already showed.
+          const printed = new Set<string>()
+          let preview: ApplyData | null = null
+          if (options.dryRun || !options.yes) {
+            preview = await send(submission, true)
+            printPlan(preview.plan)
+            printNewDiagnostics(preview.diagnostics, printed)
+            const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
+            if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
+            if (options.dryRun || refusesApply(preview)) {
+              printProtocolResult(profile.output, {
+                ...summarize(preview),
+                ...resultDiagnostics(profile.output, preview.diagnostics),
+              })
+              return
+            }
+            if (
+              !options.yes &&
+              !(await confirm(`Apply these changes to workspace ${workspaceId}?`))
+            ) {
+              throw new SimApiError('Nothing was applied.', 0, 'CANCELLED')
+            }
+          }
 
-        // Without a preview, stage the blobs the base does not hold as they are.
-        await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
-        const data = await send(submission, false)
-        printNewDiagnostics(data.diagnostics, printed)
-        // A promotion leaves the directory bound to the workspace it was read from.
-        if (!options.to) await saveApplied(options.dir, data, submission, written)
-        const held = data.plan.filter((change) => change.held)
-        if (held.length > 0) {
-          printError(
-            `Held back, not written: ${held.map((change) => `${change.kind} ${change.key}`).join(', ')}. Fix what each one's error names, then apply again.`
-          )
-          setSoftExitCode(1)
-        }
-        if (data.failed) {
-          printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
-          setSoftExitCode(failedExitCode(data.failed))
-        }
-        printProtocolResult(profile.output, {
-          ...summarize(data),
-          ...resultDiagnostics(profile.output, data.diagnostics),
-        })
-      })
+          // Without a preview, stage the blobs the base does not hold as they are.
+          await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
+          const data = await send(submission, false)
+          printNewDiagnostics(data.diagnostics, printed)
+          // A promotion leaves the directory bound to the workspace it was read from.
+          if (!options.to) await saveApplied(options.dir, data, submission, written)
+          const held = data.plan.filter((change) => change.held)
+          if (held.length > 0) {
+            printError(
+              `Held back, not written: ${held.map((change) => `${change.kind} ${change.key}`).join(', ')}. Fix what each one's error names, then apply again.`
+            )
+            setSoftExitCode(1)
+          }
+          if (data.failed) {
+            printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
+            setSoftExitCode(failedExitCode(data.failed))
+          }
+          printProtocolResult(profile.output, {
+            ...summarize(data),
+            ...resultDiagnostics(profile.output, data.diagnostics),
+          })
+        },
+        { readOnly: options.dryRun === true }
+      )
     })
 }
 

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Command } from 'commander'
@@ -178,6 +178,21 @@ describe('workspaces source status', () => {
     })
     dir = workspace
     expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('reads a directory no one may write without its lock, rather than crashing on it', async () => {
+    write('tables/leads.ts', `${LEADS}// edited\n`)
+    mockRequest.mockResolvedValue(dryRun([{ kind: 'table', key: 'leads', action: 'update' }]))
+    const folders = ['', '.sim', 'tables', 'workflows', 'workflows/ingest']
+    for (const path of folders) chmodSync(join(dir, path), 0o555)
+    try {
+      await run('status')
+      expect(printed()).toMatchObject({ state: 'local', local: [{ kind: 'table', key: 'leads' }] })
+      await run('diff')
+      expect(printed()).toMatchObject({ files: [{ path: 'tables/leads.ts', change: 'edited' }] })
+    } finally {
+      for (const path of folders) chmodSync(join(dir, path), 0o755)
+    }
   })
 
   it('reports an edit, a delete and a new file by resource, exit 11, and names the apply', async () => {
