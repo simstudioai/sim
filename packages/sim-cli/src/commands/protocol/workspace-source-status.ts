@@ -149,9 +149,36 @@ interface WorkspacePlanSummary {
   warnings: number
 }
 
-function planSummary(data: ApplyData): WorkspacePlanSummary {
+type PlannedChange = ApplyData['plan'][number]
+
+/**
+ * The dry run's plan as an apply to `target` would make it. The status sends every workflow folder
+ * whole, so the server plans an update for one changed only on the server, but an apply sends a
+ * folder without local edits by its base alone, which the server leaves unchanged.
+ */
+function planAsApplied(
+  plan: readonly PlannedChange[],
+  local: LocalWorkspace,
+  target: string
+): PlannedChange[] {
+  const sent = withUnchangedWorkflowsPruned(local.submission, local.written, target).files
+  const workflowPaths = Object.keys(local.submission.files).filter(
+    (path) => kindOfPath(path) === 'workflow'
+  )
+  const byBase = new Set<string>()
+  for (const [key, paths] of KIND_LAYOUTS.workflow.group(workflowPaths).groups) {
+    if (paths.some((path) => !Object.hasOwn(sent, path))) byBase.add(key)
+  }
+  return plan.map((change) =>
+    change.kind === 'workflow' && byBase.has(change.key) && change.action !== 'noop'
+      ? { kind: change.kind, key: change.key, action: 'noop' }
+      : change
+  )
+}
+
+function planSummary(data: ApplyData, plan: readonly PlannedChange[]): WorkspacePlanSummary {
   const count = (...actions: string[]) =>
-    data.plan.filter((change) => actions.includes(change.action)).length
+    plan.filter((change) => actions.includes(change.action)).length
   const findings = (severity: string) =>
     data.diagnostics.filter(
       (finding) => finding.severity === severity && !isServerChangeFinding(finding.code)
@@ -161,7 +188,7 @@ function planSummary(data: ApplyData): WorkspacePlanSummary {
     update: count('update', 'adopt'),
     delete: count('delete'),
     unchanged: count('noop'),
-    held: data.plan.filter((change) => change.held).length,
+    held: plan.filter((change) => change.held).length,
     errors: findings('error'),
     warnings: findings('warning'),
   }
@@ -219,6 +246,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
         let server: ServerCheck = options.offline ? 'offline' : 'checked'
         let note: string | undefined = options.offline ? 'Skipped with --offline.' : undefined
         let data: ApplyData | null = null
+        let applyPlan: PlannedChange[] = []
         let workspaceId = local.readFrom
         // The scope every recommended command carries, so it acts on what this status showed.
         let scope = only ? ` --only ${only.map((kind) => KIND_DIRS[kind]).join(',')}` : ''
@@ -254,6 +282,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
               }
             )
             data = response.data
+            applyPlan = planAsApplied(data.plan, local, target)
           } catch (error) {
             const reason = unreachableReason(error)
             if (reason === null) throw withSourceExitCode(error)
@@ -271,7 +300,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
               )
             : []
         )
-        const plan = data ? planSummary(data) : null
+        const plan = data ? planSummary(data, applyPlan) : null
         const report: StatusReport<WorkspacePlanSummary> & { workspaceId: string | null } = {
           workspaceId,
           dir: options.dir,
@@ -285,7 +314,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             getArgs: '',
             server,
             errors: plan?.errors ?? 0,
-            deletes: data !== null && destructiveChanges(data.plan) > 0,
+            deletes: destructiveChanges(applyPlan) > 0,
             scope,
           }),
         }
