@@ -639,7 +639,7 @@ function pairMode(field: Extract<CatalogField, { kind: 'pair' }>, value: Compile
  */
 function keepStored(
   ctx: CompileContext,
-  state: BlockState,
+  state: Pick<BlockState, 'decl' | 'params' | 'modes' | 'unset'>,
   members: ReadonlyArray<{ id: SubBlockId; password?: boolean }>,
   property: ObjectProperty,
   field: CatalogField | null
@@ -648,7 +648,11 @@ function keepStored(
   const stored = ctx.stored ? getOwn(ctx.stored.blocks, decl.key) : undefined
   const name = field?.name ?? members[0]?.id ?? ''
   const type =
-    decl.builder.kind === 'container' || decl.builder.kind === 'unknown' ? null : decl.builder.type
+    decl.builder.kind === 'container'
+      ? decl.builder.container
+      : decl.builder.kind === 'unknown'
+        ? null
+        : decl.builder.type
   if (!stored || stored.type !== type || !members.some(({ id }) => getOwn(stored.params, id))) {
     ctx.reporter.report(
       'E_STORED_VALUE_MISSING',
@@ -1678,7 +1682,14 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
   }
 
   const params: Record<SubBlockId, CanonicalParam> = {}
-  compileExtraParams(ctx, meta.extra, { params, site, unset: new Set() }, () => false)
+  const state = { decl, site, params, modes: {}, unset: new Set<SubBlockId>() }
+  compileExtraParams(
+    ctx,
+    meta.extra,
+    state,
+    () => false,
+    (id, property) => keepStored(ctx, state, [{ id }], property, null)
+  )
 
   const block: CanonicalBlock = {
     key: decl.key,
