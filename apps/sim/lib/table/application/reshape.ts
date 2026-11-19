@@ -64,8 +64,10 @@ export interface ReshapeTableInput {
    * Rows to write once the columns are reshaped, in the same transaction, keyed by column name as
    * the reshape leaves the columns: workspace source's rows. `managed` makes the table's rows equal
    * to `rows`, matched by `keyColumn` and writing only what differs (`writeKeyedRowsWithTx`);
-   * `seed` inserts `rows`. A column added `required` is added optional and made required once the
-   * rows are written, so the rows can fill it.
+   * `seed` inserts `rows` into a table that holds none, checked under the table's lock (a row
+   * written since the caller saw it empty refuses the reshape, `TableRowsChangedError`). A column
+   * added `required` is added optional and made required once the rows are written, so the rows
+   * can fill it.
    */
   rows?: ReshapeRows
   /**
@@ -312,6 +314,9 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
           (await readCurrentRowsVersion(locked.id, workspaceId, tx.trx)) !==
             input.expectedRowsVersion
         ) {
+          throw new TableRowsChangedError(locked.name)
+        }
+        if (input.rows?.mode === 'seed' && locked.rowCount > 0) {
           throw new TableRowsChangedError(locked.name)
         }
         const options = { expectedWorkspaceId: workspaceId, tx }

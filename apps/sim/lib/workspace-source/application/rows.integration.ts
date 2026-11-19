@@ -552,6 +552,34 @@ describe('table rows as workspace source', () => {
     expect(await storedRows(workspaceId)).toHaveLength(2)
   })
 
+  check('refuses seeding a table that gained a row after the plan saw it empty', async () => {
+    const workspaceId = await newWorkspace()
+    const bare = PLANS('undefined').replace('  rows: undefined,\n', '')
+    expect((await apply(workspaceId, { 'tables/plans.ts': bare })).failed).toBeUndefined()
+    const write = tableAdapter.apply.bind(tableAdapter)
+    vi.spyOn(tableAdapter, 'apply').mockImplementationOnce(async (change, ctx) => {
+      // A row added in the UI between this apply's plan and its write.
+      const table = await storedTable(workspaceId)
+      const codeId = table.schema.columns.find((column) => column.name === 'code')?.id ?? ''
+      await db.insert(userTableRows).values({
+        id: generateId(),
+        tableId: table.id,
+        workspaceId,
+        data: { [codeId]: 'ui' },
+        position: 0,
+      })
+      return write(change, ctx)
+    })
+
+    const result = await apply(workspaceId, {
+      'tables/plans.ts': SEED,
+      'tables/plans.rows.jsonl': ROWS,
+    })
+
+    expect(result.failed).toMatchObject({ kind: 'table', key: 'plans', code: 'E_APPLY_STALE' })
+    expect(await storedRows(workspaceId)).toEqual([{ code: 'ui' }])
+  })
+
   check('stops managing rows when the declaration drops them, keeping every row', async () => {
     const workspaceId = await newWorkspace()
     const read = await managedPlans(workspaceId)
