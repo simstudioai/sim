@@ -5,9 +5,12 @@
  */
 import { db } from '@sim/db'
 import { customTools, skill, user, workspaceSourceApplyLease } from '@sim/db/schema'
-import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
-import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
@@ -17,6 +20,7 @@ vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
+import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import { skillAdapter } from '@/lib/workspace-source/application/kinds/skills/adapter'
 import { toolAdapter } from '@/lib/workspace-source/application/kinds/tools/adapter'
 import {
@@ -34,6 +38,11 @@ const { check, writeReport } = sourceChecks(
 )
 const workspaces = sourceWorkspaces()
 const runner = sourceRunner(['custom-tool', 'skill'], owner)
+/** The owner through a personal API key: analytics attributes a key's applies, not a session's. */
+const keyRunner = sourceRunner(
+  ['custom-tool', 'skill'],
+  createPersonalApiKeyPrincipal({ userId: ownerId, keyId: generateId() })
+)
 
 function tool(title: string, name: string): string {
   return `// @sim-sdk 1
@@ -82,6 +91,15 @@ async function leases(workspaceId: string) {
     .select({ token: workspaceSourceApplyLease.token })
     .from(workspaceSourceApplyLease)
     .where(eq(workspaceSourceApplyLease.workspaceId, workspaceId))
+}
+
+/** Each `workspace_source_applied` recorded for `workspaceId`: its outcome and error kind. */
+function appliedEvents(workspaceId: string) {
+  return posthogServerMockFns.mockCaptureServerEvent.mock.calls.flatMap(([, event, properties]) =>
+    event === 'workspace_source_applied' && properties.workspace_id === workspaceId
+      ? [{ outcome: properties.outcome, error_kind: properties.error_kind }]
+      : []
+  )
 }
 
 /** What `promise` rejects with, or `null` when it resolves. */
@@ -140,14 +158,14 @@ describe('workspace source: one apply at a time', () => {
         .mockImplementation(write)
 
       // The first apply has written its tool and is part-way through.
-      const first = runner.apply(workspaceId, { files: FIRST })
+      const first = keyRunner.apply(workspaceId, { files: FIRST })
       await inside
       expect(await stored(workspaceId)).toEqual({ tools: ['Lookup order'], skills: [] })
 
-      const second = await rejection(runner.apply(workspaceId, { files: SECOND }))
+      const second = await rejection(keyRunner.apply(workspaceId, { files: SECOND }))
       expect(second).toBeInstanceOf(WorkspaceSourceBusyError)
       // A dry run never waits on, or is refused by, an apply in progress.
-      const dryRun = await runner.apply(workspaceId, { files: SECOND, dryRun: true })
+      const dryRun = await keyRunner.apply(workspaceId, { files: SECOND, dryRun: true })
       expect(dryRun.dryRun).toBe(true)
 
       open()
@@ -155,6 +173,25 @@ describe('workspace source: one apply at a time', () => {
       expect(result.failed).toBeUndefined()
       expect(await stored(workspaceId)).toEqual({ tools: ['Lookup order'], skills: ['tone'] })
       expect(await leases(workspaceId)).toEqual([])
+      // One event per apply: the refused one, then the committed one; the dry run records none.
+      expect(appliedEvents(workspaceId)).toEqual([
+        { outcome: 'refused', error_kind: 'busy' },
+        { outcome: 'committed', error_kind: undefined },
+      ])
+    }
+  )
+
+  check(
+    'an apply refused for its errors records one refused event and takes no lease',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Refused apply', ownerId })
+
+      const refused = await rejection(
+        keyRunner.apply(workspaceId, { files: { 'tools/broken.ts': 'export default 1\n' } })
+      )
+      expect(refused).toBeInstanceOf(WorkspaceSourceRejectedError)
+      expect(await leases(workspaceId)).toEqual([])
+      expect(appliedEvents(workspaceId)).toEqual([{ outcome: 'refused', error_kind: 'rejected' }])
     }
   )
 
@@ -162,13 +199,17 @@ describe('workspace source: one apply at a time', () => {
     const workspaceId = await workspaces.create({ name: 'Failing apply', ownerId })
     vi.spyOn(skillAdapter, 'apply').mockRejectedValueOnce(new Error('storage went away'))
 
-    const failed = await runner.apply(workspaceId, { files: FIRST })
+    const failed = await keyRunner.apply(workspaceId, { files: FIRST })
     expect(failed.failed).toMatchObject({ kind: 'skill', key: 'tone', code: 'E_APPLY_FAILED' })
     expect(await leases(workspaceId)).toEqual([])
 
-    const retried = await runner.apply(workspaceId, { files: FIRST, base: failed.base })
+    const retried = await keyRunner.apply(workspaceId, { files: FIRST, base: failed.base })
     expect(retried.failed).toBeUndefined()
     expect(await stored(workspaceId)).toEqual({ tools: ['Lookup order'], skills: ['tone'] })
+    expect(appliedEvents(workspaceId)).toEqual([
+      { outcome: 'partial', error_kind: 'E_APPLY_FAILED' },
+      { outcome: 'committed', error_kind: undefined },
+    ])
   })
 
   check(
