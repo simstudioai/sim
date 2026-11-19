@@ -1238,6 +1238,7 @@ async function dispatchToolExecution(
       logger.error(`Client-executable ${scopeLabel}tool wait failed`, {
         toolCallId,
         toolName,
+        durationMs: Date.now() - waitStartedAt,
         error: toError(err).message,
       })
       return errorCompletion('Tool wait failed')
