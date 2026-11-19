@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { UserFailure } from '@/lib/core/errors/user-failure'
-import { higgsfieldGenerateTool } from '@/tools/higgsfield/generate'
+import { higgsfieldHeaders } from '@/tools/higgsfield/utils'
 
-describe('higgsfield_generate request', () => {
+describe('higgsfieldHeaders', () => {
   it('asks for a credential instead of crashing when none was resolved', () => {
-    const params = { model: 'higgsfield-ai/soul/standard', input: '{}' } as never
-    expect(() => higgsfieldGenerateTool.request.url(params)).toThrow(UserFailure)
-    expect(() => higgsfieldGenerateTool.request.url(params)).toThrow(/Higgsfield credential/)
+    expect(() => higgsfieldHeaders(undefined, true)).toThrow(UserFailure)
+    expect(() => higgsfieldHeaders(undefined, true)).toThrow(/Higgsfield credential/)
   })
 })
