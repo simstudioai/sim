@@ -26,6 +26,14 @@ export function isSuspiciousCharacter(code: number): boolean {
   )
 }
 
+/** Whether `text` holds a character {@link isSuspiciousCharacter} names. */
+export function hasSuspiciousCharacter(text: string): boolean {
+  for (let index = 0; index < text.length; index += 1) {
+    if (isSuspiciousCharacter(text.charCodeAt(index))) return true
+  }
+  return false
+}
+
 function hex4(code: number): string {
   return `\\u${code.toString(16).toUpperCase().padStart(4, '0')}`
 }

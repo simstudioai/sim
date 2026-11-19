@@ -135,6 +135,8 @@ export interface CompileContext {
   comments: CommentCollector
   decls: BlockDecl[]
   declsByKey: Map<BlockKey, BlockDecl>
+  /** The first block declaration by its NFC-normalized key, for `E_LOOKALIKE_NAME`. */
+  declsByLookalike: Map<string, BlockDecl>
   /** Every block declaration by ident, across scopes, for `E_OUT_OF_SCOPE`. */
   declsByIdent: Map<string, BlockDecl[]>
   variables: Map<VarKey, CanonicalVariable>
