@@ -113,12 +113,18 @@ export class EdgeCollector {
         'E_TARGET_TRIGGER',
         `${to.name} is a trigger; nothing can connect into it.`,
         node,
-        { blockKey: from.key }
+        {
+          hint: `Remove this edge: a trigger starts a run. To run ${to.name}'s targets after ${from.name}, wire ${from.name} to them.`,
+          blockKey: from.key,
+        }
       )
       return false
     }
     if (port.kind === 'error' && sourceCatalog && !sourceCatalog.graph.errorPort) {
       this.error('E_ERROR_PORT_UNSUPPORTED', `${from.name} has no error port.`, node, {
+        hint: containerKindOf(from)
+          ? `Remove this onError, and wire onError from the blocks inside ${from.name} that can fail.`
+          : 'Remove this onError; this block never fails into an error port.',
         blockKey: from.key,
       })
       return false

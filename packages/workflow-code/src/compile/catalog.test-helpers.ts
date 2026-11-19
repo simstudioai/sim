@@ -278,8 +278,18 @@ export const TEST_CATALOG: BlockCatalog = {
       { id: TEXT },
       { category: 'tools', paramAliases: { action: { oauthCredential: 'credential' } } }
     ),
-    loop: block('loop', [], { results: ANY }, { graph: graph({ container: 'loop' }) }),
-    parallel: block('parallel', [], { results: ANY }, { graph: graph({ container: 'parallel' }) }),
+    loop: block(
+      'loop',
+      [],
+      { results: ANY },
+      { graph: graph({ container: 'loop', errorPort: false }) }
+    ),
+    parallel: block(
+      'parallel',
+      [],
+      { results: ANY },
+      { graph: graph({ container: 'parallel', errorPort: false }) }
+    ),
   },
   triggers: {},
 }

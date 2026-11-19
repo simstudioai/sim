@@ -1486,6 +1486,59 @@ describe('table filters the runtime refuses', () => {
   })
 })
 
+describe('a finding names its fix', () => {
+  it.each([
+    [
+      'an edge into a trigger',
+      `${START}\nconst a = api('A', { url: 'x' })\na.to(start)`,
+      'E_TARGET_TRIGGER',
+      "Remove this edge: a trigger starts a run. To run Start's targets after A, wire A to them.",
+    ],
+    [
+      'onError on a trigger',
+      `${START}\nconst a = api('A', { url: 'x' })\nstart.onError(a)`,
+      'E_ERROR_PORT_UNSUPPORTED',
+      'Remove this onError; this block never fails into an error port.',
+    ],
+    [
+      'onError on a loop',
+      "const l = loop.for('L', { count: 2 }, (p) => api('In', { url: 'x' }))\nconst a = api('A', { url: 'x' })\nl.onError(a)",
+      'E_ERROR_PORT_UNSUPPORTED',
+      'Remove this onError, and wire onError from the blocks inside L that can fail.',
+    ],
+    [
+      'meta naming no branch',
+      "const c = condition('C', { yes: js`1 > 0`, else: true }, { branches: { no: { title: 'No' } } })",
+      'E_UNKNOWN_BRANCH',
+      'Branches: yes, else.',
+    ],
+    [
+      'undefined as a value',
+      "const a = agent('A', { model: undefined })",
+      'E_UNKNOWN_IDENTIFIER',
+      'Write null to store the param absent, or leave the param out.',
+    ],
+    [
+      'NaN as a value',
+      "const a = agent('A', { model: 'm', temperature: NaN })",
+      'E_UNKNOWN_IDENTIFIER',
+      'A workflow stores JSON, which has no NaN or Infinity: write a finite number or a string.',
+    ],
+    [
+      'a number written as text',
+      "const a = agent('A', { model: 'm', temperature: '0.5' })",
+      'W_VALUE_KIND',
+      "Write a number literal (3, not '3'), or a reference.",
+    ],
+  ])('%s', (_label, body, code, hint) => {
+    expect(
+      run(source(body))
+        .diagnostics.filter((d) => d.code === code)
+        .map((d) => d.hint)
+    ).toEqual([hint])
+  })
+})
+
 describe('a loop or parallel config', () => {
   it.each([
     [

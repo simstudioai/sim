@@ -49,7 +49,7 @@ import {
   type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { BLOCK_META_KEYS, RESPONSE_BODY_KEYS } from '../sdk'
+import { BLOCK_META_KEYS, RESPONSE_BODY_KEYS, SDK_RESOURCE_CALLS } from '../sdk'
 import { holdsSecret, literalSecretFinding } from '../secrets'
 import { structuredCodec } from '../structured'
 import { checkStorableText } from './characters'
@@ -529,7 +529,13 @@ function applyBranchMeta(
         'E_UNKNOWN_BRANCH',
         `There is no branch ${key} to annotate.`,
         rangeOf(ctx, property),
-        { blockKey: site.decl.key }
+        {
+          hint:
+            rows && rows.length > 0
+              ? `Branches: ${rows.map((candidate) => candidate.key).join(', ')}.`
+              : 'Write the branch in params; meta.branches only annotates written branches.',
+          blockKey: site.decl.key,
+        }
       )
       continue
     }
@@ -1457,6 +1463,29 @@ function sliderRangeProblem(
   return null
 }
 
+/** The fix for `W_VALUE_KIND`: the literal form the field's value kind takes. */
+function valueKindHint(sub: CatalogSubBlock): string {
+  const call = sub.resourceKind ? getOwn(SDK_RESOURCE_CALLS, sub.resourceKind) : undefined
+  switch (sub.valueKind) {
+    case 'resource':
+      return call ? `Write ${call}('<key>').` : 'Write the resource by its key.'
+    case 'string':
+    case 'code':
+    case 'picked':
+      return 'Write text: a string, a t`` template or a reference.'
+    case 'number':
+      return "Write a number literal (3, not '3'), or a reference."
+    case 'boolean':
+      return 'Write true or false, or a reference.'
+    case 'array':
+      return 'Write an array literal [ ... ], or a reference.'
+    case 'object':
+      return 'Write an object literal { ... }, or a reference.'
+    default:
+      return 'Write a value of that kind, or a reference.'
+  }
+}
+
 /** Catalog warnings: visibility, required fields, value kinds, slider ranges. */
 function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState): void {
   const { decl, params } = state
@@ -1495,7 +1524,7 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
         'W_VALUE_KIND',
         `${entry.param} expects a ${sub.valueKind} value; the value is kept as written.`,
         rangeOf(ctx, entry.property),
-        { blockKey: decl.key, param: entry.param }
+        { hint: valueKindHint(sub), blockKey: decl.key, param: entry.param }
       )
     }
     const outOfRange = entry.checked ? sliderRangeProblem(sub, entry.value) : null
