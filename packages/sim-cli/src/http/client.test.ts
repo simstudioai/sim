@@ -443,6 +443,28 @@ describe('rate limiting', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
+  it('resends a GET answered 429 even when that response body is lost', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const lostBody = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(new Error('Connection closed'))
+        },
+      }),
+      { status: 429, headers: { 'retry-after': '0' } }
+    )
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(lostBody)
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+    vi.stubGlobal('fetch', fetch)
+
+    const outcome = await settle(client().request('/api/v2/tables'))
+
+    expect(outcome).toEqual({ status: 'fulfilled', value: { data: [] } })
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
   it('waits at least the Retry-After the server named before resending', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const fetch = vi

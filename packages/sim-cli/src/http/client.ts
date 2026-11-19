@@ -764,7 +764,7 @@ export class SimClient {
       rateLimitResends < RATE_LIMIT_RETRIES &&
       resendsRateLimited(method, options)
     ) {
-      await response.body?.cancel()
+      await response.body?.cancel().catch(() => undefined)
       const retryAfterMs = parseRetryAfter(
         response.headers.get('retry-after'),
         RATE_LIMIT_RETRY_AFTER_MAX_MS
