@@ -4,6 +4,8 @@
 -- activity-rollup-maintenance and organization-activity-rollup-reads flags are turned on, so the
 -- deployed app is unaffected. The tables are new, so their indexes build on empty tables inside
 -- this migration's transaction.
+-- 0461 ends the batch transaction with a concurrent index build; keep these tables and their journal row atomic.
+BEGIN;--> statement-breakpoint
 CREATE TABLE "activity_rollup_dirty" (
 	"workspace_id" text NOT NULL,
 	"bucket_start" timestamp NOT NULL,

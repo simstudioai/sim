@@ -31,6 +31,7 @@ import {
   processDirtyMarks,
 } from '@/lib/billing/activity-rollup/marks'
 import {
+  ACTIVITY_ROLLUP_SETTLE_MS,
   floorHour,
   HOUR_MS,
   type InstantRange,
@@ -55,14 +56,6 @@ import {
 import type { DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('ActivityRollupPass')
-
-/**
- * How long after an hour ends before it is computed. A run that ends within two hours of its start
- * (the predicate of `workflow_execution_logs_late_end_idx`) has ended, and its write committed, by
- * then; one that ends later is found by its late end. The hour of margin covers commit and replica
- * lag, so this must stay at least an hour above that threshold.
- */
-const ACTIVITY_ROLLUP_SETTLE_MS = 3 * HOUR_MS
 
 /** The lease a heavy-hour retry adds on top of its own budget, for the statements around it. */
 const LEASE_MARGIN_MS = 60 * 1000
@@ -479,6 +472,7 @@ export function markStaleHours(workspaceId: string, range: InstantRange): Promis
         SELECT 1 FROM ${activityRollupInflight} q
         WHERE q.workspace_id = ${workspaceId} AND q.bucket_start = d.hour
       )
+      ORDER BY d.hour
       ON CONFLICT (workspace_id, bucket_start) DO NOTHING
     `)
     return marked.count
