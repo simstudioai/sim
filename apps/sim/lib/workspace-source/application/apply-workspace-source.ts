@@ -55,7 +55,7 @@ export interface ApplyWorkspaceSourceInput extends WorkspaceSourceSubmission {
 }
 
 /** One planned or applied change, as the result reports it. */
-export interface WorkspaceSourceChange {
+interface WorkspaceSourceChange {
   kind: WorkspaceKind
   key: string
   action: ChangeAction
