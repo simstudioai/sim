@@ -162,6 +162,24 @@ describe('hostile sources produce diagnostics only', () => {
     expect(codes(detected)).toContain('W_LITERAL_SECRET')
   })
 
+  it('never frames a literal secret, alone or as the warning past the cap', () => {
+    const segment = 'A'.repeat(12)
+    const jwt = ['eyJ' + segment, 'eyJ' + segment, segment].join('.')
+    const detected = run(wrap(`const a = api('A', { url: 'https://x', body: 'token ${jwt}' })`))
+    const finding = detected.diagnostics.find((d) => d.code === 'W_LITERAL_SECRET')
+    expect(finding?.span.line).toBe(5)
+    expect(finding?.frame).toBeUndefined()
+
+    const reporter = new Reporter()
+    reporter.addFile('w.ts', `body: '${jwt}'`)
+    const at = { file: 'w.ts', start: 7, end: 7 + jwt.length }
+    for (let i = 0; i < MAX_WARNINGS; i++) reporter.report('W_SUBFLOW_COUNT', 'x', at)
+    reporter.report('W_LITERAL_SECRET', 'body holds a literal secret', at)
+    const capped = reporter.diagnostics.at(-1)
+    expect(capped?.code).toBe('W_TOO_MANY_WARNINGS')
+    expect(capped?.frame).toBeUndefined()
+  })
+
   it('checks the precision of a 100 KB numeric literal in linear time', () => {
     const started = Date.now()
     const result = run(
@@ -176,7 +194,7 @@ describe('hostile sources produce diagnostics only', () => {
     expect(result.workflow).toBeNull()
     expect(result.diagnostics).toHaveLength(MAX_ERRORS + 1)
     expect(result.diagnostics.at(-1)?.code).toBe('E_TOO_MANY_ERRORS')
-    const frameChars = result.diagnostics.reduce((sum, d) => sum + d.frame.length, 0)
+    const frameChars = result.diagnostics.reduce((sum, d) => sum + (d.frame ?? '').length, 0)
     expect(frameChars).toBeLessThan(result.diagnostics.length * 1_000)
   })
 
