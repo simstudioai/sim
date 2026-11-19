@@ -82,7 +82,16 @@ export const ONLY_KINDS_HELP = `comma-separated folders: ${APPLY_ORDER.map((kind
 /** `--only tables,workflows` (folders) or `--only table,workflow` (kinds) as kinds. */
 export function parseKinds(value: string | undefined): WorkspaceKind[] | undefined {
   if (value === undefined) return undefined
-  const names = value.split(',').map((name) => name.trim())
+  const names = value
+    .split(',')
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0)
+  if (names.length === 0) {
+    throw new SimApiError(
+      `--only names no kind; name a folder (${[...KIND_BY_DIR.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`,
+      0
+    )
+  }
   const kinds = names.map((name) => (isWorkspaceKind(name) ? name : KIND_BY_DIR.get(name)))
   const unknown = names.filter((_, index) => kinds[index] === undefined)
   if (unknown.length > 0) {
