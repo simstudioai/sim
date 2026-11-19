@@ -103,7 +103,8 @@ interface SourceSubmission {
   /**
    * Evaluate and stop, for a caller that commits later through `evaluated`: a dry run without the
    * deployment check or the re-print of what a write would store, so the result's `files` echo
-   * the submission and `needsRedeployment` is false. A create still checks its name is free.
+   * the submission and `needsRedeployment` is false. A create still checks its name is free. It
+   * records no analytics: the caller's own commit (or its dry run) is the outcome.
    */
   planOnly?: boolean
   /**
@@ -265,7 +266,7 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
       if (facts.dryRun) recordSourceDryRun({ ...facts, workflowId: context.workflowId }, result)
       return result
     } catch (error) {
-      recordSourceRefused({ ...facts, workflowId: context.workflowId }, error)
+      if (!input.planOnly) recordSourceRefused({ ...facts, workflowId: context.workflowId }, error)
       throw error
     }
   },
@@ -334,7 +335,7 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
       if (facts.dryRun) recordSourceDryRun({ ...facts, workflowId: '' }, result)
       return result
     } catch (error) {
-      recordSourceRefused({ ...facts, workflowId: '' }, error)
+      if (!input.planOnly) recordSourceRefused({ ...facts, workflowId: '' }, error)
       throw error
     }
   },

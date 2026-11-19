@@ -38,6 +38,7 @@ import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/re
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer/dimensions'
@@ -1256,6 +1257,41 @@ describe('apply edges: identity, row lock, live triggers', () => {
       { groups: { workspace: workspaceId } }
     )
   })
+  check(
+    'a plan (a workspace plan or dry run) of a locked workflow records nothing; its commit records the refusal',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      await db.update(workflow).set({ locked: true }).where(eq(workflow.id, seeded.workflowId))
+      const run = (extra: Partial<ApplyWorkflowSourceInput>) =>
+        withPermissionGroupScope(() =>
+          applyWorkflowSource.execute({
+            principal: createPersonalApiKeyPrincipal({ userId: ownerId, keyId: generateId() }),
+            input: {
+              workflowId: seeded.workflowId,
+              files: edit(source.files, SCORE_CODE, 'return 24'),
+              lock: source.lock,
+              base: source.base,
+              provenance: { client: 'cli' },
+              ...extra,
+            },
+          })
+        )
+      const recorded = () =>
+        posthogServerMockFns.mockCaptureServerEvent.mock.calls.filter(
+          ([, , properties]) =>
+            isRecordLike(properties) && properties.workflow_id === seeded.workflowId
+        )
+
+      await expect(run({ planOnly: true })).rejects.toMatchObject({ code: 'locked' })
+      expect(recorded()).toEqual([])
+
+      await expect(run({})).rejects.toMatchObject({ code: 'locked' })
+      expect(recorded().map(([, event, properties]) => [event, properties])).toEqual([
+        ['workflow_source_applied', expect.objectContaining({ ok: false, error_kind: 'locked' })],
+      ])
+    }
+  )
 })
 
 /**
