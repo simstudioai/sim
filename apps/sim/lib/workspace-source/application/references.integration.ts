@@ -395,6 +395,28 @@ describe('workspace source: secrets and credentials', () => {
     }
   )
 
+  check(
+    'a secret declared without a description, then with one, is never stale on its own description',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await setSecret(workspaceId, 'prod')
+      const bare = SECRETS().replace("{ description: 'Model access' }", '{}')
+
+      const first = await apply(workspaceId, { 'secrets.ts': bare })
+      expect(actions(first.applied)).toEqual([])
+      const again = await apply(workspaceId, { 'secrets.ts': bare }, { base: first.base })
+      expect(codes(again.diagnostics, 'info')).toEqual([])
+
+      const described = await apply(
+        workspaceId,
+        { 'secrets.ts': SECRETS('new') },
+        { base: again.base }
+      )
+      expect(actions(described.applied)).toEqual(['update secret:OPENAI_API_KEY'])
+      expect((await get(workspaceId)).files['secrets.ts']).toBe(SECRETS('new'))
+    }
+  )
+
   check('a credential key adopts the provider’s only credential', async () => {
     const workspaceId = await newWorkspace()
     const slackId = await addSlackCredential(workspaceId, 'Acme Slack')

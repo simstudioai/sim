@@ -139,8 +139,14 @@ function planSecret(
     ) {
       return update
     }
-    const recorded = entry.description === undefined ? local : storedFingerprint(secret)
-    return { ...change, storedId: secret.id, base: { id: secret.id, fingerprint: recorded } }
+    // An undeclared description records no base entry: recording `{}` would read as a description
+    // removed since the base, and recording the server's would clear it on the next apply.
+    if (entry.description === undefined) return { ...change, storedId: secret.id }
+    return {
+      ...change,
+      storedId: secret.id,
+      base: { id: secret.id, fingerprint: storedFingerprint(secret) },
+    }
   }
   const resolution = resolveDeclared({
     local,
