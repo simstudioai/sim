@@ -456,11 +456,47 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
       ),
   },
   {
+    pattern: '/api/v2/organizations/{organizationId}/search/sources',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/search/sources/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/search/sources/{sourceId}',
+    load: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/route'),
+  },
+  {
     pattern: '/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions',
     load: () =>
       import(
         '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/route'
       ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions/imports',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/route'
+      ),
+  },
+  {
+    pattern:
+      '/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions/imports/{importId}/complete',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/complete/route'
+      ),
+  },
+  {
+    pattern:
+      '/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions/imports/{importId}/parts/{partNumber}',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/parts/[partNumber]/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/search/sources/prepare',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/search/sources/prepare/route'),
   },
   {
     pattern: '/api/v2/organizations/{organizationId}/sso/policy',

@@ -2791,6 +2791,23 @@ export type CompleteProjectFileUploadResponse = {
   data: CompleteProjectFileUploadResponseRef1
 }
 
+/** `POST /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/complete` */
+export type CompleteSourcePermissionImportParams = {
+  organizationId: string
+  sourceId: string
+  importId: string
+}
+
+export type CompleteSourcePermissionImportQuery = Record<string, unknown>
+
+export type CompleteSourcePermissionImportBody = Record<string, unknown>
+
+export type CompleteSourcePermissionImportResponse = {
+  data: {
+    revision: number
+  }
+}
+
 /** `POST /api/v2/tables/imports/[importId]/complete` */
 export type CompleteTableImportParams = {
   importId: string
@@ -4276,6 +4293,63 @@ export type CreateSandboxResponse = {
   data: CreateSandboxResponseRef0
 }
 
+/** `POST /api/v2/organizations/[organizationId]/search/sources` */
+export type CreateSearchSourceParams = {
+  organizationId: string
+}
+
+export type CreateSearchSourceQuery = Record<string, unknown>
+
+export type CreateSearchSourceBody = {
+  connectorType: string
+  credentialId?: string
+  apiKey?: string
+  sourceConfig: Record<string, unknown>
+  accessMode?: 'admin' | 'members'
+  permissionConfig?: {
+    provider: 'gitlab'
+    mode: 'administrator' | 'csv'
+    expectedRevision?: number
+    userMapping?: {
+      filename: string
+      content: string
+    }
+    projectPermissions?: {
+      filename: string
+      content: string
+    }
+  }
+}
+
+export type CreateSearchSourceResponse = {
+  data: {
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }
+}
+
 /** `POST /api/v2/credentials` */
 export type CreateServiceAccountCredentialQuery = Record<string, unknown>
 
@@ -4328,6 +4402,36 @@ type CreateSkillResponseRef0 = {
 
 export type CreateSkillResponse = {
   data: CreateSkillResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports` */
+export type CreateSourcePermissionImportParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type CreateSourcePermissionImportQuery = Record<string, unknown>
+
+export type CreateSourcePermissionImportBody = {
+  provider: 'gitlab'
+  expectedRevision: number
+  userMapping: {
+    filename: string
+    parts: number
+    rowCount: number
+  }
+  projectPermissions: {
+    filename: string
+    parts: number
+    rowCount: number
+  }
+}
+
+export type CreateSourcePermissionImportResponse = {
+  data: {
+    id: string
+    expiresAt: string
+  }
 }
 
 /** `POST /api/v2/tables` */
@@ -5829,6 +5933,21 @@ type DeleteSandboxResponseRef0 = {
 
 export type DeleteSandboxResponse = {
   data: DeleteSandboxResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/search/sources/[sourceId]` */
+export type DeleteSearchSourceParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type DeleteSearchSourceQuery = Record<string, unknown>
+
+export type DeleteSearchSourceResponse = {
+  data: {
+    id: string
+    deleted: true
+  }
 }
 
 /** `DELETE /api/v2/secrets/[name]` */
@@ -8472,6 +8591,43 @@ type GetSandboxResponseRef0 = {
 
 export type GetSandboxResponse = {
   data: GetSandboxResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/search/sources/[sourceId]` */
+export type GetSearchSourceParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type GetSearchSourceQuery = Record<string, unknown>
+
+export type GetSearchSourceResponse = {
+  data: {
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }
 }
 
 /** `GET /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions` */
@@ -12892,6 +13048,48 @@ export type ListSandboxesResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/organizations/[organizationId]/search/sources` */
+export type ListSearchSourcesParams = {
+  organizationId: string
+}
+
+export type ListSearchSourcesQuery = {
+  sortBy?: 'connectorType' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+export type ListSearchSourcesResponse = {
+  data: Array<{
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/secrets` */
 export type ListSecretsQuery = {
   workspaceId: string
@@ -13907,6 +14105,24 @@ type MoveWorkflowsResponseRef0 = {
 
 export type MoveWorkflowsResponse = {
   data: MoveWorkflowsResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/search/sources/prepare` */
+export type PrepareSearchSourcesParams = {
+  organizationId: string
+}
+
+export type PrepareSearchSourcesQuery = Record<string, unknown>
+
+export type PrepareSearchSourcesBody = {
+  connectorType: string
+  accessMode?: 'admin' | 'members'
+}
+
+export type PrepareSearchSourcesResponse = {
+  data: {
+    ready: true
+  }
 }
 
 /** `GET /api/v2/organizations/[organizationId]/access-requests/[requestId]/preview` */
@@ -14939,6 +15155,27 @@ type PushWorkspaceResponseRef0 = {
 
 export type PushWorkspaceResponse = {
   data: PushWorkspaceResponseRef0
+}
+
+/** `PUT /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/parts/[partNumber]` */
+export type PutSourcePermissionImportPartParams = {
+  organizationId: string
+  sourceId: string
+  importId: string
+  partNumber: number
+}
+
+export type PutSourcePermissionImportPartQuery = Record<string, unknown>
+
+export type PutSourcePermissionImportPartBody = {
+  field: 'userMapping' | 'projectPermissions'
+  content: string
+}
+
+export type PutSourcePermissionImportPartResponse = {
+  data: {
+    nextPart: number
+  }
 }
 
 /** `POST /api/v2/tables/[tableId]/query` */
@@ -18056,6 +18293,62 @@ export type UpdateSandboxResponse = {
   data: UpdateSandboxResponseRef0
 }
 
+/** `PATCH /api/v2/organizations/[organizationId]/search/sources/[sourceId]` */
+export type UpdateSearchSourceParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type UpdateSearchSourceQuery = Record<string, unknown>
+
+export type UpdateSearchSourceBody = {
+  apiKey?: string
+  sourceConfig?: Record<string, unknown>
+  permissionConfig?: {
+    provider: 'gitlab'
+    mode: 'administrator' | 'csv'
+    expectedRevision?: number
+    userMapping?: {
+      filename: string
+      content: string
+    }
+    projectPermissions?: {
+      filename: string
+      content: string
+    }
+  }
+  status?: 'active' | 'paused'
+}
+
+export type UpdateSearchSourceResponse = {
+  data: {
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }
+}
+
 /** `PATCH /api/v2/skills/[skillId]` */
 export type UpdateSkillParams = {
   skillId: string
@@ -19675,6 +19968,19 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  completeSourcePermissionImport: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/complete',
+    pathParams: ['organizationId', 'sourceId', 'importId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier.',
+      importId: 'Permission import identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Complete source permission import',
+    body: {},
+  },
   completeTableImport: {
     method: 'POST',
     path: '/api/v2/tables/imports/[importId]/complete',
@@ -20432,6 +20738,44 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createSearchSource: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/search/sources',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Create Search source',
+    body: {
+      connectorType: { kind: 'string', required: true, describe: 'Registered connector type.' },
+      credentialId: {
+        kind: 'string',
+        describe:
+          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.',
+      },
+      apiKey: {
+        kind: 'string',
+        describe:
+          'Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.',
+      },
+      sourceConfig: {
+        kind: 'object',
+        required: true,
+        describe: 'Connector-specific source selection and filtering configuration.',
+      },
+      accessMode: {
+        kind: 'enum',
+        values: ['admin', 'members'] as const,
+        default: 'admin',
+        describe:
+          'Source-managed permissions (admin), or individually connected member accounts (members).',
+      },
+      permissionConfig: {
+        kind: 'object',
+        describe:
+          'Provider-specific permissions for initial setup. Large CSV snapshots use permission imports after creation.',
+      },
+    },
+  },
   createServiceAccountCredential: {
     method: 'POST',
     path: '/api/v2/credentials',
@@ -20501,6 +20845,32 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Skill body containing the instructions given to the agent.',
+      },
+    },
+  },
+  createSourcePermissionImport: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Create source permission import',
+    body: {
+      provider: { kind: 'string', required: true, describe: 'Provider of the configured source.' },
+      expectedRevision: {
+        kind: 'integer',
+        required: true,
+        maximum: 2147483646,
+        describe: 'Permission revision pinned before exporting the CSVs.',
+      },
+      userMapping: { kind: 'object', required: true, describe: 'Complete user identity mapping.' },
+      projectPermissions: {
+        kind: 'object',
+        required: true,
+        describe: 'Complete project membership snapshot.',
       },
     },
   },
@@ -21099,6 +21469,17 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
     },
+  },
+  deleteSearchSource: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier, also used by permission uploads.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Search source',
   },
   deleteSecret: {
     method: 'DELETE',
@@ -22415,6 +22796,17 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
     },
+  },
+  getSearchSource: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier, also used by permission uploads.',
+    },
+    responseMode: 'json',
+    summary: 'Get Search source',
   },
   getSearchSourcePermissions: {
     method: 'GET',
@@ -24872,6 +25264,40 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listSearchSources: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/search/sources',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Search sources',
+    query: {
+      sortBy: {
+        kind: 'enum',
+        values: ['connectorType', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        maximum: 100,
+        describe:
+          'Maximum connectors to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listSecrets: {
     method: 'GET',
     path: '/api/v2/secrets',
@@ -25916,6 +26342,24 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  prepareSearchSources: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/search/sources/prepare',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Prepare Search sources',
+    body: {
+      connectorType: { kind: 'string', required: true, describe: 'Registered connector type.' },
+      accessMode: {
+        kind: 'enum',
+        values: ['admin', 'members'] as const,
+        default: 'admin',
+        describe:
+          'Source-managed permissions (admin), or individually connected member accounts (members).',
+      },
+    },
+  },
   previewOrganizationAccessRequest: {
     method: 'GET',
     path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/preview',
@@ -26177,6 +26621,33 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'Confirm replacement of mapped target drafts and archival of mapped targets whose sources were deleted or archived.',
+      },
+    },
+  },
+  putSourcePermissionImportPart: {
+    method: 'PUT',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/parts/[partNumber]',
+    pathParams: ['organizationId', 'sourceId', 'importId', 'partNumber'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier.',
+      importId: 'Permission import identifier.',
+      partNumber: 'Zero-based part number across both files; user mapping comes first.',
+    },
+    responseMode: 'json',
+    summary: 'Upload source permission import part',
+    body: {
+      field: {
+        kind: 'enum',
+        required: true,
+        values: ['userMapping', 'projectPermissions'] as const,
+        describe: 'CSV file this part belongs to.',
+      },
+      content: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Complete CSV records, at most 5,000 rows and 1 MiB of UTF-8; an optional header may appear in each part.',
       },
     },
   },
@@ -28164,6 +28635,39 @@ export const V2_OPERATIONS = {
       systemPackages: {
         kind: 'array',
         describe: 'Replacement Debian package list; replaces the whole list.',
+      },
+    },
+  },
+  updateSearchSource: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier, also used by permission uploads.',
+    },
+    responseMode: 'json',
+    summary: 'Update Search source',
+    body: {
+      apiKey: {
+        kind: 'string',
+        describe:
+          'Replacement token for providers supporting credential updates (currently GitLab). For GitLab, supply permissionConfig with the current expectedRevision; omitted CSVs retain grants. Omit to keep the saved token.',
+      },
+      sourceConfig: {
+        kind: 'object',
+        describe:
+          'Complete replacement source configuration. Read the existing configuration before editing it.',
+      },
+      permissionConfig: {
+        kind: 'object',
+        describe:
+          'Provider-specific permission update, using the current expectedRevision. Omit to retain permissions.',
+      },
+      status: {
+        kind: 'enum',
+        values: ['active', 'paused'] as const,
+        describe: 'Pause or resume this source without changing its ID or stored permissions.',
       },
     },
   },

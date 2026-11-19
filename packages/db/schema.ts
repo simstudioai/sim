@@ -7711,6 +7711,68 @@ export const knowledgeConnectorPermissionGrant = pgTable(
   })
 )
 
+/** Bounded permission uploads remain private until a snapshot activates their immutable generation. */
+export const knowledgeConnectorPermissionImport = pgTable(
+  'knowledge_connector_permission_import',
+  {
+    id: text('id').primaryKey(),
+    connectorId: text('connector_id')
+      .notNull()
+      .references(() => knowledgeConnector.id, { onDelete: 'cascade' }),
+    credentialBinding: text('credential_binding').notNull(),
+    expectedRevision: integer('expected_revision').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull(),
+    manifest: jsonb('manifest').$type<Record<string, unknown>>().notNull(),
+    partDigests: jsonb('part_digests').$type<string[]>().notNull().default([]),
+    userRows: integer('user_rows').notNull().default(0),
+    projectRows: integer('project_rows').notNull().default(0),
+    bytes: integer('bytes').notNull().default(0),
+    completedRevision: integer('completed_revision'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    connectorIdx: index('kcpi_connector_idx').on(table.connectorId),
+    expiresIdx: index('kcpi_expires_idx').on(table.expiresAt, table.id),
+    revisionCheck: check('kcpi_revision_check', sql`${table.expectedRevision} > 0`),
+  })
+)
+
+/** One canonical identity per provider user and subject within an uploaded generation. */
+export const knowledgeConnectorPermissionImportIdentity = pgTable(
+  'knowledge_connector_permission_import_identity',
+  {
+    importId: text('import_id')
+      .notNull()
+      .references(() => knowledgeConnectorPermissionImport.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    subjectToken: text('subject_token').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ name: 'kcpii_pk', columns: [table.importId, table.userId] }),
+    subjectIdx: uniqueIndex('kcpii_subject_idx').on(table.importId, table.subjectToken),
+  })
+)
+
+/** Unmapped provider users stay in the snapshot but gain no access through the identity join. */
+export const knowledgeConnectorPermissionImportGrant = pgTable(
+  'knowledge_connector_permission_import_grant',
+  {
+    importId: text('import_id')
+      .notNull()
+      .references(() => knowledgeConnectorPermissionImport.id, { onDelete: 'cascade' }),
+    projectPath: text('project_path').notNull(),
+    userId: text('user_id').notNull(),
+    groupKey: text('group_key'),
+  },
+  (table) => ({
+    pk: primaryKey({
+      name: 'kcpig_pk',
+      columns: [table.importId, table.projectPath, table.userId],
+    }),
+    subjectIdx: index('kcpig_subject_idx').on(table.importId, table.userId, table.groupKey),
+  })
+)
+
 /**
  * One row per (members-mode connector, member credential). Membership is
  * derived from the credential-group option on every run: `active` while the

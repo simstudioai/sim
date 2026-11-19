@@ -8,6 +8,7 @@ export interface ActiveKnowledgeConnectorReference {
   knowledgeBaseId: string
   connectorType: string
   status: string
+  accessMode: string
 }
 
 /** Resolves a connector's canonical active parent without trusting a caller-supplied KB ID. */
@@ -20,6 +21,7 @@ export async function getActiveKnowledgeConnectorReference(
       knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
       connectorType: knowledgeConnector.connectorType,
       status: knowledgeConnector.status,
+      accessMode: knowledgeConnector.accessMode,
     })
     .from(knowledgeConnector)
     .where(and(eq(knowledgeConnector.id, connectorId), connectorIsLive()))

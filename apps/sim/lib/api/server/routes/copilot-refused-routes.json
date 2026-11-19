@@ -181,6 +181,31 @@
   },
   {
     "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/search/sources",
+    "operation": "knowledge.search.sources.manage.list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/search/sources",
+    "operation": "knowledge.search.sources.manage.create"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]",
+    "operation": "knowledge.search.sources.manage.read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]",
+    "operation": "knowledge.search.sources.manage.update"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]",
+    "operation": "knowledge.search.sources.manage.delete"
+  },
+  {
+    "method": "GET",
     "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions",
     "operation": "knowledge.search.source_permissions.read"
   },
@@ -188,6 +213,26 @@
     "method": "PUT",
     "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions",
     "operation": "knowledge.search.source_permissions.replace"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports",
+    "operation": "knowledge.search.source_permissions.replace"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/complete",
+    "operation": "knowledge.search.source_permissions.replace"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/parts/[partNumber]",
+    "operation": "knowledge.search.source_permissions.replace"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/prepare",
+    "operation": "knowledge.search.sources.prepare"
   },
   {
     "method": "GET",

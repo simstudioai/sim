@@ -852,10 +852,11 @@ export const knowledgeOperations = {
   prepareSearchSource: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.sources.prepare',
+      oauthScope: 'api:write',
       minimumRole: 'admin',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',
-      principalKinds: ['session'],
+      principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
     }),
     { organizationDelegation: 'allow' }
   ),
@@ -1030,6 +1031,44 @@ function defineKnowledgeSessionOperation<const Id extends string>(
   assertOperationCapability(operation)
   return Object.freeze(operation)
 }
+
+export const searchSourceOperations = {
+  create: defineOrganizationOperation({
+    id: 'knowledge.search.sources.manage.create',
+    oauthScope: 'api:write',
+    minimumRole: 'admin',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    capability: 'knowledge.use',
+  }),
+  update: defineOrganizationOperation({
+    id: 'knowledge.search.sources.manage.update',
+    oauthScope: 'api:write',
+    minimumRole: 'admin',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    capability: 'knowledge.use',
+  }),
+  delete: defineOrganizationOperation({
+    id: 'knowledge.search.sources.manage.delete',
+    oauthScope: 'api:write',
+    minimumRole: 'admin',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    capability: 'knowledge.use',
+  }),
+  list: defineOrganizationOperation({
+    id: 'knowledge.search.sources.manage.list',
+    oauthScope: 'api:read',
+    minimumRole: 'admin',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    capability: 'knowledge.use',
+  }),
+  read: defineOrganizationOperation({
+    id: 'knowledge.search.sources.manage.read',
+    oauthScope: 'api:read',
+    minimumRole: 'admin',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    capability: 'knowledge.use',
+  }),
+} as const
 
 export const searchSourcePermissionOperations = {
   read: defineOrganizationOperation({

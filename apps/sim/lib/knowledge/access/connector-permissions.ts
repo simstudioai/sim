@@ -1,12 +1,9 @@
 import { db } from '@sim/db'
-import {
-  knowledgeBase,
-  knowledgeConnector,
-  knowledgeConnectorPermissionGrant,
-} from '@sim/db/schema'
+import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { activeConnectorPermissionGrants } from '@/lib/knowledge/connectors/permission-store'
 import { connectorPermissionGroupToken } from '@/lib/knowledge/connectors/permission-tokens'
 
 /** The caller has already verified this email and current membership in the canonical owner. */
@@ -14,7 +11,7 @@ export async function loadConnectorPermissionGroupTokens(
   subjectToken: string,
   scope: ResourceScope
 ): Promise<string[]> {
-  const grant = knowledgeConnectorPermissionGrant
+  const grant = activeConnectorPermissionGrants()
   const rows = await db
     .select({ connectorId: grant.connectorId, groupKey: grant.groupKey })
     .from(grant)

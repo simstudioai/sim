@@ -26,6 +26,15 @@ export class GitLabCsvValidationError extends Error {
 
 /** Strict, bounded parsing. Diagnostics never include uploaded cell contents. */
 export function parseGitLabCsv(upload: GitLabCsvUpload, kind: GitLabCsvKind): [string, string][] {
+  return parseGitLabCsvPart(upload, kind).rows
+}
+
+/** Keeps physical record counts separate from deduplicated identities and grants. */
+export function parseGitLabCsvPart(
+  upload: GitLabCsvUpload,
+  kind: GitLabCsvKind,
+  limits = { bytes: GITLAB_CSV_MAX_BYTES, rows: GITLAB_CSV_MAX_ROWS }
+): { rows: [string, string][]; recordCount: number } {
   const reject = (message: string): never => {
     throw new GitLabCsvValidationError(kind, message)
   }
@@ -36,8 +45,8 @@ export function parseGitLabCsv(upload: GitLabCsvUpload, kind: GitLabCsvKind): [s
   ) {
     reject('Use a filename of 1–255 characters without path separators.')
   }
-  if (new TextEncoder().encode(upload.content).byteLength > GITLAB_CSV_MAX_BYTES) {
-    reject('The file must be 8 MiB or smaller.')
+  if (new TextEncoder().encode(upload.content).byteLength > limits.bytes) {
+    reject(`The file must be ${limits.bytes / (1024 * 1024)} MiB or smaller.`)
   }
   const rows: [string, string][] = []
   const seen = new Set<string>()
@@ -60,7 +69,8 @@ export function parseGitLabCsv(upload: GitLabCsvUpload, kind: GitLabCsvKind): [s
           if (record[0] === HEADERS[kind][0] && record[1] === HEADERS[kind][1]) return null
         }
         recordCount++
-        if (recordCount > GITLAB_CSV_MAX_ROWS) reject('The file must contain at most 500,000 rows.')
+        if (recordCount > limits.rows)
+          reject(`The file must contain at most ${limits.rows.toLocaleString('en-US')} rows.`)
         const id = kind === 'userMapping' ? record[0] : record[1]
         if (!USER_ID.test(id) || !Number.isSafeInteger(Number(id))) {
           reject(`Row ending at line ${line} has an invalid user_id; use a positive integer.`)
@@ -103,5 +113,5 @@ export function parseGitLabCsv(upload: GitLabCsvUpload, kind: GitLabCsvKind): [s
     reject('Malformed CSV. Check quoting, column counts, and field lengths.')
   }
   if (rows.length === 0) reject('The file must contain at least one data row.')
-  return rows
+  return { rows, recordCount }
 }

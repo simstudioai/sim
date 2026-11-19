@@ -104,6 +104,32 @@ describe('redirects', () => {
 })
 
 describe('non-JSON responses', () => {
+  it.each([200, 429, 503])(
+    'retains Retry-After when the HTTP %i response body is lost',
+    async (status) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new Error('Connection closed'))
+              },
+            }),
+            { status, headers: { 'retry-after': '10' } }
+          )
+        )
+      )
+      await expect(
+        client().request('/api/v2/workflows', { method: 'POST', body: {} })
+      ).rejects.toMatchObject({
+        code: 'RESPONSE_READ_FAILED',
+        status,
+        retryAfterMs: 10_000,
+      })
+    }
+  )
+
   it('turns a 200 that is not JSON into an explained error, not a SyntaxError', async () => {
     vi.stubGlobal(
       'fetch',
@@ -443,6 +469,14 @@ describe('rate limiting', () => {
     expect(fetch).toHaveBeenCalledOnce()
   })
 
+  it('keeps the Retry-After on the rate-limit refusal so a command loop can honor it', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(limited('30')))
+
+    await expect(
+      client().request('/api/v2/tables', { method: 'POST', body: { name: 'leads' } })
+    ).rejects.toMatchObject({ status: 429, retryAfterMs: 30_000 })
+  })
+
   it('resends a write that declared itself safe to resend after a 429', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const fetch = vi
@@ -578,8 +612,10 @@ describe('destructive operations are gated', () => {
     'bulkDeleteFiles',
     'bulkDeleteTables',
     'bulkUpdateKnowledgeChunks',
+    'completeSourcePermissionImport',
     'replaceWorkflowChatDeployment',
     'replaceSearchSourcePermissions',
+    'updateSearchSource',
     'replaceWorkflowState',
     'revertWorkflowVersion',
     'updateRowsByFilter',
@@ -670,6 +706,9 @@ describe('destructive operations are gated', () => {
     'createSandbox',
     'createServiceAccountCredential',
     'createSkill',
+    'createSourcePermissionImport',
+    'createSearchSource',
+    'prepareSearchSources',
     'createTable',
     'createTableExport',
     'createTableFolder',
@@ -699,6 +738,7 @@ describe('destructive operations are gated', () => {
     'moveTables',
     'moveWorkflows',
     'queryRows',
+    'putSourcePermissionImportPart',
     'queryRowsCount',
     'relocateFileFolder',
     'relocateKnowledgeFolder',

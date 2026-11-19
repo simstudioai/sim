@@ -15,6 +15,7 @@ import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment
  * request.
  */
 export class SimApiError extends Error {
+  retryAfterMs: number | null = null
   constructor(
     message: string,
     readonly status: number,
@@ -259,7 +260,7 @@ async function readResponseText(response: Response): Promise<string> {
   try {
     return await response.text()
   } catch (error) {
-    throw new SimApiError(
+    const failure = new SimApiError(
       `Unable to read the response: ${transportErrorMessage(error)}`,
       response.status,
       'RESPONSE_READ_FAILED',
@@ -267,6 +268,8 @@ async function readResponseText(response: Response): Promise<string> {
       1,
       responseRequestId(response)
     )
+    failure.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), 300_000)
+    throw failure
   }
 }
 
@@ -381,7 +384,7 @@ function resendsRateLimited(method: string, options: RequestOptions): boolean {
 /** The rate-limit refusal a command exits with, saying what to do about it. */
 function rateLimitedError(error: SimApiError, resends: number): SimApiError {
   const tried = resends > 0 ? ` (still limited after ${resends} retries)` : ''
-  return new SimApiError(
+  const refusal = new SimApiError(
     `${error.message}${tried}. Nothing more was sent; wait a minute, then run the command again.`,
     error.status,
     error.code,
@@ -389,6 +392,8 @@ function rateLimitedError(error: SimApiError, resends: number): SimApiError {
     RATE_LIMITED_EXIT_CODE,
     error.requestId
   )
+  refusal.retryAfterMs = error.retryAfterMs
+  return refusal
 }
 
 /** The one instruction that resolves an elapsed request bound, wherever it surfaces. */
@@ -439,7 +444,7 @@ function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
  * on the earliest 20.x releases calling it would throw a bare `TypeError`
  * before the request was ever made — turning a supported runtime into a crash.
  */
-function combineSignals(
+export function combineSignals(
   caller: AbortSignal | undefined,
   timeout: AbortSignal | undefined
 ): AbortSignal | undefined {
@@ -773,6 +778,7 @@ export class SimClient {
     if (!response.ok) {
       const raw = await readResponseText(response)
       const error = toApiError(url, response, raw)
+      error.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), 300_000)
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
       }

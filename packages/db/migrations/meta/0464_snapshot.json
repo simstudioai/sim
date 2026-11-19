@@ -1,6 +1,6 @@
 {
-  "id": "4d09573e-e35b-4aa1-a9ca-8deb8acc1257",
-  "prevId": "175eee31-3ea2-4395-8c5e-cd2e3e1e911f",
+  "id": "a344acfb-320c-4407-9fb2-60a6af38ef0f",
+  "prevId": "bf34d561-db2d-4d42-b4e5-264397af7bf1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -12262,6 +12262,295 @@
           "value": "\"knowledge_connector_permission_grant\".\"subject_token\" ~ '^u:[^[:space:]A-Z]+@[^[:space:]A-Z]+$'"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.knowledge_connector_permission_import": {
+      "name": "knowledge_connector_permission_import",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "connector_id": {
+          "name": "connector_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "credential_binding": {
+          "name": "credential_binding",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_revision": {
+          "name": "expected_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "manifest": {
+          "name": "manifest",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "part_digests": {
+          "name": "part_digests",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "user_rows": {
+          "name": "user_rows",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "project_rows": {
+          "name": "project_rows",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "bytes": {
+          "name": "bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "completed_revision": {
+          "name": "completed_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "kcpi_connector_idx": {
+          "name": "kcpi_connector_idx",
+          "columns": [
+            {
+              "expression": "connector_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "kcpi_expires_idx": {
+          "name": "kcpi_expires_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "knowledge_connector_permission_import_connector_id_knowledge_connector_id_fk": {
+          "name": "knowledge_connector_permission_import_connector_id_knowledge_connector_id_fk",
+          "tableFrom": "knowledge_connector_permission_import",
+          "tableTo": "knowledge_connector",
+          "columnsFrom": ["connector_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "kcpi_revision_check": {
+          "name": "kcpi_revision_check",
+          "value": "\"knowledge_connector_permission_import\".\"expected_revision\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.knowledge_connector_permission_import_grant": {
+      "name": "knowledge_connector_permission_import_grant",
+      "schema": "",
+      "columns": {
+        "import_id": {
+          "name": "import_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_path": {
+          "name": "project_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_key": {
+          "name": "group_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "kcpig_subject_idx": {
+          "name": "kcpig_subject_idx",
+          "columns": [
+            {
+              "expression": "import_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "group_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "knowledge_connector_permission_import_grant_import_id_knowledge_connector_permission_import_id_fk": {
+          "name": "knowledge_connector_permission_import_grant_import_id_knowledge_connector_permission_import_id_fk",
+          "tableFrom": "knowledge_connector_permission_import_grant",
+          "tableTo": "knowledge_connector_permission_import",
+          "columnsFrom": ["import_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "kcpig_pk": {
+          "name": "kcpig_pk",
+          "columns": ["import_id", "project_path", "user_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.knowledge_connector_permission_import_identity": {
+      "name": "knowledge_connector_permission_import_identity",
+      "schema": "",
+      "columns": {
+        "import_id": {
+          "name": "import_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject_token": {
+          "name": "subject_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "kcpii_subject_idx": {
+          "name": "kcpii_subject_idx",
+          "columns": [
+            {
+              "expression": "import_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "subject_token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "knowledge_connector_permission_import_identity_import_id_knowledge_connector_permission_import_id_fk": {
+          "name": "knowledge_connector_permission_import_identity_import_id_knowledge_connector_permission_import_id_fk",
+          "tableFrom": "knowledge_connector_permission_import_identity",
+          "tableTo": "knowledge_connector_permission_import",
+          "columnsFrom": ["import_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "kcpii_pk": {
+          "name": "kcpii_pk",
+          "columns": ["import_id", "user_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.knowledge_connector_permission_snapshot": {
@@ -33012,54 +33301,6 @@
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.workspace_source_apply_lease": {
-      "name": "workspace_source_apply_lease",
-      "schema": "",
-      "columns": {
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "token": {
-          "name": "token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "acquired_at": {
-          "name": "acquired_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "workspace_source_apply_lease_workspace_id_workspace_id_fk": {
-          "name": "workspace_source_apply_lease_workspace_id_workspace_id_fk",
-          "tableFrom": "workspace_source_apply_lease",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

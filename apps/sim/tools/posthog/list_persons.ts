@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogListPersonsParams {
@@ -94,7 +94,9 @@ export const listPersonsTool: ToolConfig<PostHogListPersonsParams, PostHogListPe
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      const url = new URL(`${baseUrl}/api/projects/${params.projectId}/persons/`)
+      const url = new URL(
+        `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/persons/`
+      )
 
       if (params.limit) url.searchParams.append('limit', params.limit.toString())
       if (params.offset) url.searchParams.append('offset', params.offset.toString())
