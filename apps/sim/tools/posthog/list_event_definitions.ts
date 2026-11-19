@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface PostHogListEventDefinitionsParams {
@@ -102,7 +102,7 @@ export const listEventDefinitionsTool: ToolConfig<
       if (params.search) queryParams.append('search', params.search)
 
       const query = queryParams.toString()
-      return `${baseUrl}/api/projects/${params.projectId}/event_definitions/${query ? `?${query}` : ''}`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/event_definitions/${query ? `?${query}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

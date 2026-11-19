@@ -1,8 +1,8 @@
 import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ZepResponse } from '@/tools/zep/types'
 import { THREAD_OUTPUT_PROPERTIES } from '@/tools/zep/types'
+import { zepPathSegment } from '@/tools/zep/utils'
 
 interface ZepAddMessagesParams {
   threadId: string
@@ -102,11 +102,7 @@ export const zepAddMessagesTool: ToolConfig<ZepAddMessagesParams, ZepResponse> =
       },
     },
     url: (params) =>
-      `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(params.threadId, 'threadId', {
-        allowSeparators: true,
-        preserveWhitespace: true,
-        stripTabsAndNewlines: true,
-      })}/messages`,
+      `https://api.getzep.com/api/v2/threads/${zepPathSegment(params.threadId, 'threadId')}/messages`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Api-Key ${params.apiKey}`,

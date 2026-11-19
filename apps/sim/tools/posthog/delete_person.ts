@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogDeletePersonParams {
@@ -65,7 +65,7 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
       // via the bulk_delete endpoint, called here with a single ID.
       url: (params) => {
         const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-        return `${baseUrl}/api/projects/${params.projectId}/persons/bulk_delete/`
+        return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/persons/bulk_delete/`
       },
       method: 'POST',
       headers: (params) => ({

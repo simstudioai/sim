@@ -69,7 +69,8 @@ func performAXAction(_ element: AXUIElement, _ action: String, press: Bool = fal
             return result
         }
     } catch where refused {
-        throw ComputerError("unsupported_action", "The element refused this action although it advertises it. Use another of its actions or click it instead (clickCount 2 opens most files and folders).")
+        // The fallback click needs the app in front, so the activation step comes first.
+        throw ComputerError("unsupported_action", "The element refused this action although it advertises it. Use another of its actions, or call activate_app for this app and then click it (clickCount 2 opens most files and folders).")
     }
 }
 /// Some apps (Calendar on macOS 26) answer AXPress on a menu item by opening its menu with the item
