@@ -7,6 +7,7 @@ import {
 } from '@/tools/linq/utils'
 import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMessageResult> = {
   id: 'linq_send_message',
@@ -93,7 +94,8 @@ export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMess
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}/messages`,
+    url: (params) =>
+      `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}/messages`,
     method: 'POST',
     headers: (params) => linqHeaders(params.apiKey),
     body: (params) => ({ message: buildMessageContent(params) }),

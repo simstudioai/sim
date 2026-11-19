@@ -1,6 +1,7 @@
 import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisIncrbyParams, UpstashRedisIncrbyResponse } from '@/tools/upstash/types'
+import { upstashInteger, upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisIncrbyTool: ToolConfig<
   UpstashRedisIncrbyParams,
@@ -42,7 +43,7 @@ export const upstashRedisIncrbyTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${params.restUrl}/incrby/${encodeURIComponent(params.key)}/${params.increment}`,
+      `${params.restUrl}/incrby/${upstashPathSegment(params.key, 'key')}/${upstashInteger(params.increment, 'increment')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.restToken}`,

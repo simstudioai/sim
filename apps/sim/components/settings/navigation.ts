@@ -35,7 +35,13 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 
 export type SettingsPlane = 'account' | 'selfhost' | 'workspace'
 
-export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
+export type AccountSettingsSection =
+  | 'general'
+  | 'desktop'
+  | 'billing'
+  | 'api-keys'
+  | 'admin'
+  | 'mothership'
 
 /**
  * Settings a self-hoster needs from the managed service: their profile, what
@@ -363,6 +369,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       order: 2,
       requiresDesktopSurface: 'settings',
     },
+    /** Device settings, not workspace data, so surfaces without a workspace host them too. */
+    planes: { account: { id: 'desktop', group: 'account', order: 2 } },
   },
   {
     label: 'Browser',

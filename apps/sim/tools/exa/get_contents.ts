@@ -143,19 +143,19 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
 
       const body: Record<string, any> = urls ? { urls } : { ids }
 
-      if (params.text !== undefined) body.text = params.text
+      if (params.text != null) body.text = params.text
 
       if (params.summaryQuery) {
         body.summary = { query: params.summaryQuery }
-      } else if (params.summary !== undefined) {
-        body.summary = params.summary
+      } else if (String(params.summary) === 'true') {
+        body.summary = true
       }
 
-      if (params.subpages !== undefined) body.subpages = Number(params.subpages)
+      if (params.subpages != null) body.subpages = Number(params.subpages)
       const subpageTarget = parseCommaList(params.subpageTarget)
       if (subpageTarget) body.subpageTarget = subpageTarget
 
-      if (params.highlights !== undefined) body.highlights = params.highlights
+      if (params.highlights != null) body.highlights = params.highlights
 
       const extras = buildExtras(params)
       if (extras) body.extras = extras

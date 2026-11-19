@@ -55,13 +55,7 @@ export async function executeReductoParse(
 
   const body: Record<string, unknown> = { input: resolution.fileUrl }
   if (input.pages?.length) {
-    let start = input.pages[0]
-    let end = input.pages[0]
-    for (const page of input.pages) {
-      if (page < start) start = page
-      if (page > end) end = page
-    }
-    body.settings = { page_range: { start, end } }
+    body.settings = { page_range: input.pages }
   }
   if (input.tableOutputFormat) {
     body.formatting = { table_output_format: input.tableOutputFormat }

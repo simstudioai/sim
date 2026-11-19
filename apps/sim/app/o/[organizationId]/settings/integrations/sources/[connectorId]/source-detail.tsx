@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { ChipLink } from '@sim/emcn'
+import { ChipCopyInput, ChipLink } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
@@ -23,6 +23,7 @@ import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsField } from '@/app/workspace/[workspaceId]/settings/components/settings-field'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import {
@@ -373,6 +374,9 @@ function SourceSettingsForm({
       <div className='-mx-2 flex flex-col gap-4'>
         <ConnectorSettingsFields {...form.fieldsProps} />
       </div>
+      <SettingsField label='Source ID'>
+        <ChipCopyInput value={connector.id} aria-label='Source ID' copyLabel='Copy source ID' />
+      </SettingsField>
     </SourcePanel>
   )
 }

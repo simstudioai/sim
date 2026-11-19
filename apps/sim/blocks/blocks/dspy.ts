@@ -1,6 +1,24 @@
+import { isPlainRecord } from '@sim/utils/object'
 import { DsPyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { failToolCallOnError, mapperOperation, parseOptionalJsonInput } from '@/blocks/utils'
+
+/** Predict's Additional Inputs: a JSON object as text from the canvas, or an object from an agent. */
+function parseAdditionalInputs(value: unknown): Record<string, unknown> | undefined {
+  let parsed: unknown
+  try {
+    parsed = parseOptionalJsonInput(value, 'Additional Inputs')
+  } catch {
+    // Static on purpose: the parser's message quotes the input, which can hold a resolved secret.
+    throw new Error('Additional Inputs must be valid JSON')
+  }
+  if (parsed === undefined) return undefined
+  if (!isPlainRecord(parsed)) {
+    throw new Error('Additional Inputs must be a JSON object')
+  }
+  return parsed
+}
 
 export const DSPyBlock: BlockConfig = {
   type: 'dspy',
@@ -142,17 +160,13 @@ export const DSPyBlock: BlockConfig = {
     access: ['dspy_predict', 'dspy_chain_of_thought', 'dspy_react'],
     config: {
       tool: (params) => `dspy_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const { operation, additionalInputs, maxIterations, ...rest } = params
 
-        let parsedAdditionalInputs: Record<string, unknown> | undefined
-        if (additionalInputs && typeof additionalInputs === 'string') {
-          try {
-            parsedAdditionalInputs = JSON.parse(additionalInputs)
-          } catch {
-            // Ignore parse errors
-          }
-        }
+        const parsedAdditionalInputs =
+          mapperOperation(params, context) === 'predict'
+            ? failToolCallOnError(context, () => parseAdditionalInputs(additionalInputs))
+            : undefined
 
         let parsedMaxIterations: number | undefined
         if (maxIterations) {

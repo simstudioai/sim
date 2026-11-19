@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { ErrorExtractorId, type ErrorInfo, extractErrorMessage } from '@/tools/error-extractors'
+import {
+  ErrorExtractorId,
+  type ErrorInfo,
+  extractErrorMessage,
+  redactErrorData,
+} from '@/tools/error-extractors'
 
 describe('Error Extractors', () => {
   describe('extractErrorMessage', () => {
@@ -169,6 +174,43 @@ describe('Error Extractors', () => {
   })
 
   describe('extractErrorMessage with explicit extractorId', () => {
+    it.each([
+      [
+        'a FastAPI validation array',
+        {
+          detail: [
+            { loc: ['body', 'max_results'], msg: 'Input should be less than or equal to 20' },
+            { loc: ['body', 'topic'], msg: "Input should be 'general', 'news' or 'finance'" },
+          ],
+        },
+        "Input should be less than or equal to 20; Input should be 'general', 'news' or 'finance'",
+      ],
+      ['a plain-text body', 'Upstream gateway timeout', 'Upstream gateway timeout'],
+      ['a top-level error string', { error: 'Rate limit exceeded' }, 'Rate limit exceeded'],
+      ['an unrecognized body', { unexpected: true }, 'Bad Request'],
+    ])('reads the Tavily message from %s', (_label, data, expected) => {
+      expect(
+        extractErrorMessage(
+          { status: 400, statusText: 'Bad Request', data },
+          ErrorExtractorId.TAVILY_ERRORS
+        )
+      ).toBe(expected)
+    })
+
+    it("reads Tavily's detail.error message instead of the bare status text", () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        statusText: 'Bad Request',
+        data: {
+          detail: { error: 'Invalid search_depth. Must be basic, advanced, fast, or ultra-fast.' },
+        },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.TAVILY_ERRORS)).toBe(
+        'Invalid search_depth. Must be basic, advanced, fast, or ultra-fast.'
+      )
+    })
+
     it('formats QuickBooks faults with status guidance', () => {
       const errorInfo: ErrorInfo = {
         status: 401,
@@ -419,5 +461,32 @@ describe('Error Extractors', () => {
       )
       expect(extractErrorMessage({ status: 404, data: 'no such page' })).toBe('no such page')
     })
+  })
+})
+
+describe('tavily-errors', () => {
+  it('caps a plain-text or HTML error body instead of dumping a proxy page', () => {
+    const page = `<html><body>${'Bad gateway '.repeat(200)}</body></html>`
+    const message = extractErrorMessage({ status: 502, data: page }, ErrorExtractorId.TAVILY_ERRORS)
+    expect(message.length).toBe(501)
+    expect(message.endsWith('…')).toBe(true)
+    expect(page.startsWith(message.slice(0, -1))).toBe(true)
+  })
+
+  it('caps the retained plain-text body as well as the message', () => {
+    const page = `<html><body>${'Bad gateway '.repeat(200)}</body></html>`
+    const retained = redactErrorData({ status: 502, data: page }, ErrorExtractorId.TAVILY_ERRORS)
+    expect(typeof retained === 'string' && retained.length).toBe(501)
+    const json = { detail: { error: 'bad key' } }
+    expect(redactErrorData({ status: 401, data: json }, ErrorExtractorId.TAVILY_ERRORS)).toBe(json)
+  })
+
+  it('keeps a short plain-text error whole', () => {
+    expect(
+      extractErrorMessage(
+        { status: 401, data: ' Unauthorized: missing key ' },
+        ErrorExtractorId.TAVILY_ERRORS
+      )
+    ).toBe('Unauthorized: missing key')
   })
 })

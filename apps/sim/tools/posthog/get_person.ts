@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogGetPersonParams {
@@ -68,7 +68,7 @@ export const getPersonTool: ToolConfig<PostHogGetPersonParams, PostHogGetPersonR
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/persons/${params.personId}/`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/persons/${postHogPathSegment(params.personId, 'personId')}/`
     },
     method: 'GET',
     headers: (params) => ({

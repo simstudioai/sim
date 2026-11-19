@@ -69,7 +69,13 @@ export const listAnnotationsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by alert ID',
+      description: 'Filter by legacy numeric alert ID',
+    },
+    alertUid: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by alert rule UID (Grafana 11.6+)',
     },
     userId: {
       type: 'number',
@@ -108,6 +114,7 @@ export const listAnnotationsTool: ToolConfig<
       if (params.dashboardId) searchParams.set('dashboardId', String(params.dashboardId))
       if (params.panelId) searchParams.set('panelId', String(params.panelId))
       if (params.alertId) searchParams.set('alertId', String(params.alertId))
+      if (params.alertUid?.trim()) searchParams.set('alertUID', params.alertUid.trim())
       if (params.userId) searchParams.set('userId', String(params.userId))
       if (params.tags) {
         params.tags.split(',').forEach((t) => searchParams.append('tags', t.trim()))
@@ -141,6 +148,7 @@ export const listAnnotationsTool: ToolConfig<
         annotations: rawAnnotations.map((a: Record<string, unknown>) => ({
           id: (a.id as number) ?? null,
           alertId: (a.alertId as number) ?? null,
+          alertUID: (a.alertUID as string) ?? null,
           dashboardId: (a.dashboardId as number) ?? null,
           dashboardUID: (a.dashboardUID as string) ?? null,
           panelId: (a.panelId as number) ?? null,
@@ -168,6 +176,11 @@ export const listAnnotationsTool: ToolConfig<
         properties: {
           id: { type: 'number', description: 'Annotation ID' },
           alertId: { type: 'number', description: 'Associated alert ID (0 if not alert-driven)' },
+          alertUID: {
+            type: 'string',
+            description: 'UID of the alert rule that created the annotation',
+            optional: true,
+          },
           dashboardId: { type: 'number', description: 'Dashboard ID', optional: true },
           dashboardUID: { type: 'string', description: 'Dashboard UID', optional: true },
           panelId: { type: 'number', description: 'Panel ID within the dashboard', optional: true },

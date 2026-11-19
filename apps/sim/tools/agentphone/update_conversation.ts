@@ -5,6 +5,7 @@ import type {
 } from '@/tools/agentphone/types'
 import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentphoneUpdateConversationTool: ToolConfig<
   AgentPhoneUpdateConversationParams,
@@ -39,7 +40,8 @@ export const agentphoneUpdateConversationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.agentphone.to/v1/conversations/${params.conversationId.trim()}`,
+    url: (params) =>
+      `https://api.agentphone.to/v1/conversations/${safeUrlPathSegment(params.conversationId, 'conversationId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

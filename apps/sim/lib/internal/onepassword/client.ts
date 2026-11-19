@@ -8,6 +8,7 @@ import type {
   ItemOverview,
   ItemSection,
   VaultOverview,
+  VaultType,
   Website,
 } from '@1password/sdk'
 import { generateId } from '@sim/utils/id'
@@ -65,7 +66,7 @@ type ConnectCategory =
 export interface NormalizedVault {
   id: string
   name: string
-  description: null
+  description: string | null
   attributeVersion: number
   contentVersion: number
   items: number
@@ -333,16 +334,28 @@ export function normalizeSdkVault(vault: VaultOverview): NormalizedVault {
   return {
     id: vault.id,
     name: vault.title,
-    description: null,
-    attributeVersion: 0,
-    contentVersion: 0,
-    items: 0,
-    type: 'USER_CREATED',
+    description: vault.description || null,
+    attributeVersion: vault.attributeVersion ?? 0,
+    contentVersion: vault.contentVersion ?? 0,
+    items: vault.activeItemCount ?? 0,
+    type: SDK_TO_CONNECT_VAULT_TYPE[vault.vaultType] ?? 'UNSUPPORTED',
     createdAt:
       vault.createdAt instanceof Date ? vault.createdAt.toISOString() : (vault.createdAt ?? null),
     updatedAt:
       vault.updatedAt instanceof Date ? vault.updatedAt.toISOString() : (vault.updatedAt ?? null),
   }
+}
+
+/**
+ * Maps SDK vault types (`userCreated`, `personal`, ...) to Connect's uppercase vault types. The
+ * `?? 'UNSUPPORTED'` at the lookup only catches a type a newer SDK adds.
+ */
+const SDK_TO_CONNECT_VAULT_TYPE: Record<VaultType, string> = {
+  personal: 'PERSONAL',
+  everyone: 'EVERYONE',
+  transfer: 'TRANSFER',
+  userCreated: 'USER_CREATED',
+  unsupported: 'UNSUPPORTED',
 }
 
 /** Normalize an SDK ItemOverview to match Connect API item summary shape. */

@@ -1,5 +1,5 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface PostHogGetEventDefinitionParams {
   projectId: string
@@ -29,65 +29,69 @@ interface EventDefinition {
   verified_by: string | null
 }
 
-export const getEventDefinitionTool: ToolConfig<PostHogGetEventDefinitionParams, EventDefinition> =
-  {
-    id: 'posthog_get_event_definition',
-    name: 'PostHog Get Event Definition',
-    description:
-      'Get a PostHog event definition, including its metadata, last-seen timestamp, and verification status.',
-    version: '1.0.0',
-    errorExtractor: 'posthog-errors',
+export const getEventDefinitionTool: ToolConfig<
+  PostHogGetEventDefinitionParams,
+  ToolResponse & { output: EventDefinition }
+> = {
+  id: 'posthog_get_event_definition',
+  name: 'PostHog Get Event Definition',
+  description:
+    'Get a PostHog event definition, including its metadata, last-seen timestamp, and verification status.',
+  version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
-    params: {
-      projectId: {
-        type: 'string',
-        required: true,
-        visibility: 'user-or-llm',
-        description: 'PostHog Project ID (e.g., "12345" or project UUID)',
-      },
-      eventDefinitionId: {
-        type: 'string',
-        required: true,
-        visibility: 'user-or-llm',
-        description: 'Event Definition ID to retrieve',
-      },
-      region: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'PostHog cloud region: us or eu',
-      },
-      host: {
-        type: 'string',
-        required: false,
-        visibility: 'user-only',
-        description:
-          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
-      },
-      apiKey: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'PostHog Personal API Key',
-      },
+  params: {
+    projectId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'PostHog Project ID (e.g., "12345" or project UUID)',
     },
-
-    request: {
-      url: (params) => {
-        const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-        return `${baseUrl}/api/projects/${params.projectId}/event_definitions/${params.eventDefinitionId}`
-      },
-      method: 'GET',
-      headers: (params) => ({
-        Authorization: `Bearer ${params.apiKey}`,
-        'Content-Type': 'application/json',
-      }),
+    eventDefinitionId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Event Definition ID to retrieve',
     },
+    region: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'PostHog cloud region: us or eu',
+    },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'PostHog Personal API Key',
+    },
+  },
 
-    transformResponse: async (response: Response) => {
-      const data = await response.json()
+  request: {
+    url: (params) => {
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/event_definitions/${postHogPathSegment(params.eventDefinitionId, 'eventDefinitionId')}`
+    },
+    method: 'GET',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.apiKey}`,
+      'Content-Type': 'application/json',
+    }),
+  },
 
-      return {
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
         id: data.id,
         name: data.name,
         description: data.description || '',
@@ -99,57 +103,58 @@ export const getEventDefinitionTool: ToolConfig<PostHogGetEventDefinitionParams,
         verified: data.verified || false,
         verified_at: data.verified_at ?? null,
         verified_by: data.verified_by ?? null,
-      }
-    },
+      },
+    }
+  },
 
-    outputs: {
-      id: {
-        type: 'string',
-        description: 'Unique identifier for the event definition',
-      },
-      name: {
-        type: 'string',
-        description: 'Event name',
-      },
-      description: {
-        type: 'string',
-        description: 'Event description',
-      },
-      tags: {
-        type: 'array',
-        description: 'Tags associated with the event',
-      },
-      created_at: {
-        type: 'string',
-        description: 'ISO timestamp when the event was created',
-      },
-      last_seen_at: {
-        type: 'string',
-        description: 'ISO timestamp when the event was last seen',
-        optional: true,
-      },
-      updated_at: {
-        type: 'string',
-        description: 'ISO timestamp when the event was updated',
-      },
-      updated_by: {
-        type: 'object',
-        description: 'User who last updated the event',
-        optional: true,
-      },
-      verified: {
-        type: 'boolean',
-        description: 'Whether the event has been verified',
-      },
-      verified_at: {
-        type: 'string',
-        description: 'ISO timestamp when the event was verified',
-        optional: true,
-      },
-      verified_by: {
-        type: 'string',
-        description: 'User who verified the event',
-        optional: true,
-      },
+  outputs: {
+    id: {
+      type: 'string',
+      description: 'Unique identifier for the event definition',
     },
-  }
+    name: {
+      type: 'string',
+      description: 'Event name',
+    },
+    description: {
+      type: 'string',
+      description: 'Event description',
+    },
+    tags: {
+      type: 'array',
+      description: 'Tags associated with the event',
+    },
+    created_at: {
+      type: 'string',
+      description: 'ISO timestamp when the event was created',
+    },
+    last_seen_at: {
+      type: 'string',
+      description: 'ISO timestamp when the event was last seen',
+      optional: true,
+    },
+    updated_at: {
+      type: 'string',
+      description: 'ISO timestamp when the event was updated',
+    },
+    updated_by: {
+      type: 'object',
+      description: 'User who last updated the event',
+      optional: true,
+    },
+    verified: {
+      type: 'boolean',
+      description: 'Whether the event has been verified',
+    },
+    verified_at: {
+      type: 'string',
+      description: 'ISO timestamp when the event was verified',
+      optional: true,
+    },
+    verified_by: {
+      type: 'string',
+      description: 'User who verified the event',
+      optional: true,
+    },
+  },
+}

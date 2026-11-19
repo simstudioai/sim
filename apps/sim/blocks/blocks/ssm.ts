@@ -1,7 +1,12 @@
 import { SSMIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
+import {
+  blockFieldOrToolArg,
+  mapperOperation,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 /** Operations whose SSM API caps `MaxResults` at 50. */
 const STANDARD_PAGE_OPERATIONS = [
@@ -804,7 +809,6 @@ export const SSMBlock: BlockConfig = {
           accessKeyId: params.accessKeyId,
           secretAccessKey: params.secretAccessKey,
         }
-
         const setJson = (key: string, value: unknown) => {
           const parsed = toParsedJson(value)
           if (parsed !== undefined) result[key] = parsed
@@ -874,9 +878,8 @@ export const SSMBlock: BlockConfig = {
             setBoolean('recursive', params.recursive)
             setBoolean('withDecryption', params.withDecryption)
             setJson('parameterFilters', params.parameterFilters)
-            setNumber(
-              'maxResults',
-              params.pathMaxResults ?? toolCallArg(context, params.maxResults)
+            result.maxResults = toOptionalNumber(
+              blockFieldOrToolArg(context, params.pathMaxResults, params.maxResults)
             )
             setString('nextToken', params.nextToken)
             break
@@ -905,27 +908,27 @@ export const SSMBlock: BlockConfig = {
             setString('nextToken', params.nextToken)
             break
           case 'describe_instance_information':
-            setJson('filters', params.instanceInfoFilters ?? toolCallArg(context, params.filters))
-            setNumber(
-              'maxResults',
-              params.instanceInfoMaxResults ?? toolCallArg(context, params.maxResults)
+            setJson(
+              'filters',
+              blockFieldOrToolArg(context, params.instanceInfoFilters, params.filters)
+            )
+            result.maxResults = toOptionalNumber(
+              blockFieldOrToolArg(context, params.instanceInfoMaxResults, params.maxResults)
             )
             setString('nextToken', params.nextToken)
             break
           case 'describe_instance_patches':
             result.instanceId = params.instanceId
-            setJson('filters', params.patchFilters ?? toolCallArg(context, params.filters))
-            setNumber(
-              'maxResults',
-              params.patchMaxResults ?? toolCallArg(context, params.maxResults)
+            setJson('filters', blockFieldOrToolArg(context, params.patchFilters, params.filters))
+            result.maxResults = toOptionalNumber(
+              blockFieldOrToolArg(context, params.patchMaxResults, params.maxResults)
             )
             setString('nextToken', params.nextToken)
             break
           case 'describe_instance_patch_states':
             setJson('instanceIds', params.instanceIds)
-            setNumber(
-              'maxResults',
-              params.patchMaxResults ?? toolCallArg(context, params.maxResults)
+            result.maxResults = toOptionalNumber(
+              blockFieldOrToolArg(context, params.patchMaxResults, params.maxResults)
             )
             setString('nextToken', params.nextToken)
             break

@@ -138,7 +138,7 @@ export const KalshiBlock: BlockConfig = {
         { label: 'Get Series List', id: 'get_series_list' },
         { label: 'Get Exchange Status', id: 'get_exchange_status' },
         { label: 'Get Exchange Schedule', id: 'get_exchange_schedule' },
-        { label: 'Get Exchange Announcements', id: 'get_exchange_announcements' },
+        { label: 'Get Exchange Announcements', id: 'get_exchange_announcements', hidden: true },
         { label: 'Create Order', id: 'create_order' },
         { label: 'Cancel Order', id: 'cancel_order' },
         { label: 'Amend Order', id: 'amend_order' },
@@ -432,6 +432,13 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       condition: { field: 'operation', value: ['get_order', 'cancel_order', 'amend_order'] },
     },
     {
+      id: 'cancelTicker',
+      title: 'Market Ticker',
+      type: 'short-input',
+      placeholder: "Order's market ticker (optional; looked up from the order when empty)",
+      condition: { field: 'operation', value: ['cancel_order'] },
+    },
+    {
       id: 'tickerOrder',
       title: 'Market Ticker',
       type: 'short-input',
@@ -479,7 +486,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       id: 'countAmend',
       title: 'Contracts',
       type: 'short-input',
-      placeholder: 'Updated number of contracts (optional)',
+      placeholder: 'New total contracts, filled plus resting (empty keeps the current total)',
       condition: { field: 'operation', value: ['amend_order'] },
     },
     {
@@ -488,7 +495,8 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       type: 'dropdown',
       options: [
         { label: 'Limit', id: 'limit' },
-        { label: 'Market', id: 'market' },
+        // Kalshi removed market orders (2026-02-11); kept hidden so saved blocks stay valid.
+        { label: 'Market', id: 'market', hidden: true },
       ],
       condition: { field: 'operation', value: ['create_order'] },
     },
@@ -538,6 +546,18 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
         { label: 'Good Till Canceled', id: 'good_till_canceled' },
         { label: 'Fill or Kill', id: 'fill_or_kill' },
         { label: 'Immediate or Cancel', id: 'immediate_or_cancel' },
+      ],
+      condition: { field: 'operation', value: ['create_order'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'orderSelfTradePrevention',
+      title: 'Self-Trade Prevention',
+      type: 'dropdown',
+      options: [
+        { label: 'Taker at cross (default)', id: '' },
+        { label: 'Maker', id: 'maker' },
+        { label: 'Taker at cross', id: 'taker_at_cross', hidden: true },
       ],
       condition: { field: 'operation', value: ['create_order'] },
       mode: 'advanced',
@@ -712,6 +732,8 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           orderIdParam,
           tickerOrder,
           orderType,
+          orderSelfTradePrevention,
+          cancelTicker,
           countAmend,
           clientOrderIdAmend,
           ...rest
@@ -730,6 +752,17 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
          */
         const mapField = (key: string, field: unknown) => {
           cleanParams[key] = field || toolCallArg(context, cleanParams[key])
+        }
+
+        /** Fields shown only for one operation: any other operation takes them from the model alone. */
+        const keepOnlyFor = (key: string, owner: string) => {
+          if (operation !== owner) cleanParams[key] = toolCallArg(context, cleanParams[key])
+        }
+        keepOnlyFor('minTs', 'get_fills')
+        keepOnlyFor('maxTs', 'get_fills')
+        keepOnlyFor('countFp', 'create_order')
+        if (operation === 'get_trades') {
+          cleanParams.ticker = toolCallArg(context, cleanParams.ticker)
         }
 
         if (operation === 'get_orders') {
@@ -774,8 +807,14 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           mapField('ticker', tickerOrder)
         }
 
+        // Routes the cancel to the order's exchange shard; the tool looks it up when empty.
+        if (operation === 'cancel_order') {
+          mapField('ticker', cancelTicker)
+        }
+
         if (operation === 'create_order') {
           mapField('type', orderType)
+          mapField('selfTradePreventionType', orderSelfTradePrevention)
         }
 
         if (operation === 'amend_order') {

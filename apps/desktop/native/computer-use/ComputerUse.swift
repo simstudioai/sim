@@ -69,7 +69,8 @@ func performAXAction(_ element: AXUIElement, _ action: String, press: Bool = fal
             return result
         }
     } catch where refused {
-        throw ComputerError("unsupported_action", "The element refused this action although it advertises it. Use another of its actions or click it instead (clickCount 2 opens most files and folders).")
+        // The fallback click needs the app in front, so the activation step comes first.
+        throw ComputerError("unsupported_action", "The element refused this action although it advertises it. Use another of its actions, or call activate_app for this app and then click it (clickCount 2 opens most files and folders).")
     }
 }
 /// Some apps (Calendar on macOS 26) answer AXPress on a menu item by opening its menu with the item
@@ -252,9 +253,16 @@ func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunning
 func requireAccessibility() throws {
     guard AXIsProcessTrusted() else { throw ComputerError("accessibility_permission_required", "Enable Accessibility for Mothership in System Settings, then retry.") }
 }
+/// The app's window-list entries at document, floating and panel levels. Calendar's event inspector is a
+/// panel-level window, so it must be observable; the Dock level and above (menus, status items,
+/// overlays) holds no app window.
 func windowsFor(_ pid: pid_t) -> [[String: Any]] {
     guard let entries = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return [] }
-    return entries.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }
+    let dockLevel = Int(CGWindowLevelForKey(.dockWindow))
+    return entries.filter { entry in
+        guard (entry[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid, let layer = entry[kCGWindowLayer as String] as? Int else { return false }
+        return layer >= 0 && layer < dockLevel
+    }
 }
 /// Whether the app has a window an observation can list: an Accessibility window whose frame matches
 /// one of its window-list entries, the match `get_app_state` uses. A minimized window counts, since it

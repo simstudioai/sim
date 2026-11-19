@@ -52,6 +52,8 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
     url: (params) => {
       const limit = Math.min(Math.max(params.limit || 50, 1), 100)
       const offset = params.offset || 0
+      // `/items` only returns playlists the user owns or collaborates on; `/tracks` still reads any
+      // public playlist for Extended Quota Mode apps.
       let url = `https://api.spotify.com/v1/playlists/${params.playlistId}/tracks?limit=${limit}&offset=${offset}`
       if (params.market) {
         url += `&market=${params.market}`
@@ -68,25 +70,29 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
   transformResponse: async (response): Promise<SpotifyGetPlaylistTracksResponse> => {
     const data = await response.json()
 
-    const tracks = (data.items || [])
-      .filter((item: any) => item.track !== null)
-      .map((item: any) => ({
-        added_at: item.added_at,
-        added_by: item.added_by?.id || '',
-        track: {
-          id: item.track.id,
-          name: item.track.name,
-          artists: item.track.artists?.map((a: any) => ({ id: a.id, name: a.name })) || [],
-          album: {
-            id: item.track.album?.id || '',
-            name: item.track.album?.name || '',
-            image_url: item.track.album?.images?.[0]?.url || null,
+    const tracks = (data.items || []).flatMap((entry: any) => {
+      const track = entry.item ?? entry.track
+      if (track == null) return []
+      return [
+        {
+          added_at: entry.added_at,
+          added_by: entry.added_by?.id || '',
+          track: {
+            id: track.id,
+            name: track.name,
+            artists: track.artists?.map((a: any) => ({ id: a.id, name: a.name })) || [],
+            album: {
+              id: track.album?.id || '',
+              name: track.album?.name || '',
+              image_url: track.album?.images?.[0]?.url || null,
+            },
+            duration_ms: track.duration_ms,
+            popularity: track.popularity,
+            external_url: track.external_urls?.spotify || '',
           },
-          duration_ms: item.track.duration_ms,
-          popularity: item.track.popularity,
-          external_url: item.track.external_urls?.spotify || '',
         },
-      }))
+      ]
+    })
 
     return {
       success: true,

@@ -43,9 +43,9 @@ Retrieve consent status for a data subject. Returns the current consent preferen
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `purposes` | object | Map of purpose codes to consent status and legal basis |
-|   ↳ `allowed` | string | Consent status for the purpose: "granted" or "denied" |
+|   ↳ `allowed` | string | Consent status for the purpose: "true" or "false" |
 |   ↳ `legalBasisCode` | string | Legal basis code \(e.g., "consent_optin", "consent_optout", "disclosure", "other"\) |
-| `vendors` | object | Map of vendor consent statuses |
+| `vendors` | array | List of vendor IDs for which the user has opted out \(deprecated by Ketch in favor of vendorConsents\) |
 
 </ReferenceDetails>
 
@@ -64,7 +64,7 @@ Update consent preferences for a data subject. Sets the consent status for speci
 | `environmentCode` | string | Yes | Environment code defined in Ketch \(e.g., "production"\) |
 | `jurisdictionCode` | string | No | Jurisdiction code \(e.g., "gdpr", "ccpa"\) |
 | `identities` | json | Yes | Identity map \(e.g., \{"email": "user@example.com"\}\) |
-| `purposes` | json | Yes | Map of purpose codes to consent settings \(e.g., \{"analytics": \{"allowed": "granted", "legalBasisCode": "consent_optin"\}\}\) |
+| `purposes` | json | Yes | Map of purpose codes to consent settings. "allowed" is "true" or "false" \("granted"/"denied" are accepted and converted\) \(e.g., \{"analytics": \{"allowed": "true", "legalBasisCode": "consent_optin"\}\}\) |
 | `collectedAt` | number | No | UNIX timestamp when consent was collected \(defaults to current time\) |
 
 #### Output
@@ -72,7 +72,7 @@ Update consent preferences for a data subject. Sets the consent status for speci
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `purposes` | object | Updated consent status map of purpose codes to consent settings |
-|   ↳ `allowed` | string | Consent status for the purpose: "granted" or "denied" |
+|   ↳ `allowed` | string | Consent status for the purpose: "true" or "false" |
 |   ↳ `legalBasisCode` | string | Legal basis code \(e.g., "consent_optin", "consent_optout", "disclosure", "other"\) |
 
 </ReferenceDetails>
@@ -142,7 +142,7 @@ Submit a data subject rights request (e.g., access, delete, correct, restrict pr
 | `jurisdictionCode` | string | Yes | Jurisdiction code \(e.g., "gdpr", "ccpa"\) |
 | `rightCode` | string | Yes | Privacy right code to invoke \(e.g., "access", "delete", "correct", "restrict_processing"\) |
 | `identities` | json | Yes | Identity map \(e.g., \{"email": "user@example.com"\}\) |
-| `userData` | json | No | Optional data subject information \(e.g., \{"email": "user@example.com", "firstName": "John", "lastName": "Doe"\}\) |
+| `userData` | json | Yes | Data subject information sent as the request "user"; Ketch requires it for rights requests \(e.g., \{"email": "user@example.com", "firstName": "John", "lastName": "Doe"\}\) |
 
 #### Output
 

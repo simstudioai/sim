@@ -190,8 +190,7 @@ export const SpotifyBlock: BlockConfig = {
         spotify_follow_playlist: [{ text: 'Follow playlist', field: 'playlistId', core: true }],
         spotify_unfollow_playlist: [{ text: 'Unfollow playlist', field: 'playlistId', core: true }],
         spotify_check_playlist_followers: [
-          { text: 'Check whether', field: 'userIds', core: true },
-          { text: 'follow playlist', field: 'playlistId', core: true },
+          { text: 'Check whether you follow playlist', field: 'playlistId', core: true },
         ],
         spotify_get_current_user: ['Read the current user profile'],
         spotify_get_user_profile: [
@@ -703,8 +702,8 @@ export const SpotifyBlock: BlockConfig = {
       id: 'userIds',
       title: 'User IDs',
       type: 'short-input',
-      placeholder: 'Comma-separated user IDs to check (max 5)',
-      required: true,
+      placeholder: 'Not used: Spotify checks the current user',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'spotify_check_playlist_followers' },
     },
 
@@ -895,7 +894,8 @@ export const SpotifyBlock: BlockConfig = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: 'Number of results (1-50, default: 20)',
+      placeholder:
+        'Number of results (empty for the default; Search allows at most 10 for Development Mode apps)',
       condition: {
         field: 'operation',
         value: [

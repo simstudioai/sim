@@ -2,6 +2,7 @@ import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
 import { PAGINATION_OUTPUT_PROPERTIES, THREADS_ARRAY_OUTPUT } from '@/tools/zep/types'
+import { zepPathSegment } from '@/tools/zep/utils'
 
 export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_get_user_threads',
@@ -35,7 +36,7 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
   request: {
     url: (params) => {
       const limit = Number(params.limit || 10)
-      return `https://api.getzep.com/api/v2/users/${params.userId}/threads?limit=${limit}`
+      return `https://api.getzep.com/api/v2/users/${zepPathSegment(params.userId, 'userId')}/threads?limit=${limit}`
     },
     method: 'GET',
     headers: (params) => ({

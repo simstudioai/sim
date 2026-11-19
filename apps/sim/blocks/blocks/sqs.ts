@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { SQSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { mapperOperation, withSavedCredential } from '@/blocks/utils'
+import { blockFieldOrToolArg, mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 export const SQSBlock: BlockConfig = {
   type: 'sqs',
@@ -672,11 +672,14 @@ export const SQSBlock: BlockConfig = {
             if (maxNumberOfMessages !== undefined) result.maxNumberOfMessages = maxNumberOfMessages
             const waitTimeSeconds = parseInteger(params.waitTimeSeconds, 'waitTimeSeconds')
             if (waitTimeSeconds !== undefined) result.waitTimeSeconds = waitTimeSeconds
-            const visibilityTimeout = parseInteger(
-              params.receiveVisibilityTimeout,
+            result.visibilityTimeout = parseInteger(
+              blockFieldOrToolArg(
+                context,
+                params.receiveVisibilityTimeout,
+                params.visibilityTimeout
+              ),
               'visibilityTimeout'
             )
-            if (visibilityTimeout !== undefined) result.visibilityTimeout = visibilityTimeout
             const messageAttributeNames = parseJson(
               params.messageAttributeNames,
               'messageAttributeNames'
@@ -791,8 +794,10 @@ export const SQSBlock: BlockConfig = {
           }
           case 'list_message_move_tasks': {
             result.sourceArn = params.sourceArn
-            const maxResults = parseInteger(params.moveTaskMaxResults, 'maxResults')
-            if (maxResults !== undefined) result.maxResults = maxResults
+            result.maxResults = parseInteger(
+              blockFieldOrToolArg(context, params.moveTaskMaxResults, params.maxResults),
+              'maxResults'
+            )
             break
           }
           case 'cancel_message_move_task': {

@@ -1,6 +1,20 @@
+import { toError } from '@sim/utils/errors'
 import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 import type { VercelCreateProjectParams, VercelCreateProjectResponse } from '@/tools/vercel/types'
+
+/** The `nodeVersion` values Vercel's update-project endpoint accepts (openapi.vercel.sh). */
+const VERCEL_NODE_VERSIONS = [
+  '26.x',
+  '24.x',
+  '22.x',
+  '20.x',
+  '18.x',
+  '16.x',
+  '14.x',
+  '12.x',
+  '10.x',
+]
 
 export const vercelCreateProjectTool: ToolConfig<
   VercelCreateProjectParams,
@@ -101,6 +115,14 @@ export const vercelCreateProjectTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params: VercelCreateProjectParams) => {
+      // Checked before the create call: the version is applied by a follow-up update, and an
+      // invalid one would fail only after the project already exists.
+      const nodeVersion = params.nodeVersion == null ? '' : String(params.nodeVersion).trim()
+      if (nodeVersion && !VERCEL_NODE_VERSIONS.includes(nodeVersion)) {
+        throw new Error(
+          `Invalid Node.js version "${nodeVersion}". Use one of: ${VERCEL_NODE_VERSIONS.join(', ')}`
+        )
+      }
       const body: Record<string, unknown> = { name: params.name.trim() }
       if (params.framework) body.framework = params.framework.trim()
       if (params.gitRepository) body.gitRepository = params.gitRepository
@@ -108,10 +130,43 @@ export const vercelCreateProjectTool: ToolConfig<
       if (params.outputDirectory) body.outputDirectory = params.outputDirectory.trim()
       if (params.installCommand) body.installCommand = params.installCommand.trim()
       if (params.rootDirectory) body.rootDirectory = params.rootDirectory.trim()
-      if (params.nodeVersion) body.nodeVersion = params.nodeVersion.trim()
       if (params.devCommand) body.devCommand = params.devCommand.trim()
       return body
     },
+  },
+
+  /**
+   * Vercel's create-project body rejects `nodeVersion` (it allows no additional properties), so the
+   * version is applied with a follow-up update once the project exists.
+   */
+  postProcess: async (result, params, executeTool) => {
+    const nodeVersion = params.nodeVersion?.trim()
+    if (!result.success || !nodeVersion) return result
+
+    let update: ToolResponse
+    try {
+      update = await executeTool('vercel_update_project', {
+        apiKey: params.apiKey,
+        projectId: result.output.id,
+        nodeVersion,
+        teamId: params.teamId,
+        slug: params.slug,
+      })
+    } catch (error) {
+      update = { success: false, output: {}, error: toError(error).message }
+    }
+    if (update.success) {
+      const updatedAt = update.output?.updatedAt
+      return typeof updatedAt === 'number'
+        ? { ...result, output: { ...result.output, updatedAt } }
+        : result
+    }
+
+    return {
+      ...result,
+      success: false,
+      error: `Project ${result.output.name} (${result.output.id}) was created, but setting Node.js version ${nodeVersion} failed: ${update.error ?? 'unknown error'}`,
+    }
   },
 
   transformResponse: async (response: Response) => {

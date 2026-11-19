@@ -1,13 +1,18 @@
 import { createLogger } from '@sim/logger'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
+import { readFirecrawlJobStatus } from '@/tools/firecrawl/job-polling'
 import {
   applyFirecrawlScrapeOptionsModelInput,
   selectFirecrawlScrapeOptionsModelInput,
 } from '@/tools/firecrawl/model-input'
-import type { ExtractParams, ExtractResponse } from '@/tools/firecrawl/types'
+import type {
+  ExtractParams,
+  ExtractResponse,
+  FirecrawlJobStatusBody,
+} from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FirecrawlExtractTool')
@@ -148,6 +153,10 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!data.id) {
+      throw new Error(data.error || 'Firecrawl did not return an extract job id to poll')
+    }
+
     return {
       success: true,
       output: {
@@ -157,26 +166,29 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
       },
     }
   },
-  postProcess: async (result, params) => {
+  postProcess: async (result, params, _executeTool, context) => {
     if (!result.success) {
       return result
     }
 
     const jobId = result.output.jobId
+    const signal = context?.signal
     logger.info(`Firecrawl extract job ${jobId} created, polling for completion...`)
 
     let elapsedTime = 0
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
+        signal?.throwIfAborted()
         const statusResponse = await outboundFetch(
-          `https://api.firecrawl.dev/v2/extract/${jobId}`,
+          `https://api.firecrawl.dev/v2/extract/${encodeURIComponent(jobId)}`,
           {
             method: 'GET',
             headers: {
               Authorization: `Bearer ${params.apiKey}`,
               'Content-Type': 'application/json',
             },
+            signal,
           }
         )
 
@@ -184,7 +196,9 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
           throw new Error(`Failed to get extract status: ${statusResponse.statusText}`)
         }
 
-        const extractData = await statusResponse.json()
+        const extractData = await readFirecrawlJobStatus<
+          FirecrawlJobStatusBody<ExtractResponse['output']['data']>
+        >(statusResponse, signal)
         logger.info(`Firecrawl extract job ${jobId} status: ${extractData.status}`)
 
         if (extractData.status === 'completed') {
@@ -197,15 +211,15 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
           return result
         }
 
-        if (extractData.status === 'failed') {
+        if (extractData.status === 'failed' || extractData.status === 'cancelled') {
           return {
             ...result,
             success: false,
-            error: `Extract job failed: ${extractData.error || 'Unknown error'}`,
+            error: `Extract job ${extractData.status}: ${extractData.error || 'Unknown error'}`,
           }
         }
 
-        await sleep(POLL_INTERVAL_MS)
+        await interruptibleSleep(POLL_INTERVAL_MS, signal)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
         logger.error('Error polling for extract job status:', {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { agentTool } from '@/tools/exa/agent'
 import { answerTool } from '@/tools/exa/answer'
+import { findSimilarLinksTool } from '@/tools/exa/find_similar_links'
 import { getContentsTool } from '@/tools/exa/get_contents'
 import { searchTool } from '@/tools/exa/search'
 import { applyFreshness, resolveCategory } from '@/tools/exa/utils'
@@ -144,6 +145,35 @@ describe('exa_get_contents request body', () => {
   it('rejects neither selector', () => {
     expect(() => body({})).toThrow(/requires either urls or ids/)
   })
+
+  it('omits untouched (null) content options but keeps an explicit false or 0', () => {
+    const untouched = body({ urls: 'https://a.com', text: null, highlights: null, subpages: null })
+    expect(untouched).not.toHaveProperty('text')
+    expect(untouched).not.toHaveProperty('highlights')
+    expect(untouched).not.toHaveProperty('subpages')
+
+    const explicit = body({ urls: 'https://a.com', text: false, highlights: false, subpages: 0 })
+    expect(explicit).toMatchObject({ text: false, highlights: false, subpages: 0 })
+  })
+})
+
+describe('exa_find_similar_links request body', () => {
+  const body = (params: Record<string, unknown>) =>
+    findSimilarLinksTool.request.body?.({
+      url: 'https://a.com',
+      apiKey: API_KEY,
+      ...params,
+    } as never) as Record<string, unknown>
+
+  it('omits untouched (null) options but keeps an explicit false', () => {
+    const untouched = body({ text: null, highlights: null, excludeSourceDomain: null })
+    expect(untouched).not.toHaveProperty('excludeSourceDomain')
+    expect(untouched).not.toHaveProperty('contents')
+
+    const explicit = body({ text: false, highlights: false, excludeSourceDomain: false })
+    expect(explicit.excludeSourceDomain).toBe(false)
+    expect(explicit.contents).toEqual({ text: false, highlights: false })
+  })
 })
 
 describe('exa_answer', () => {
@@ -157,7 +187,55 @@ describe('exa_answer', () => {
   })
 })
 
+describe('exa_search untouched fields and Lite', () => {
+  it('omits fields a block never filled in (null) instead of sending them', () => {
+    const body = searchBody({
+      text: null,
+      highlights: null,
+      summary: null,
+      maxAgeHours: null,
+      livecrawlTimeout: null,
+    })
+    expect(body).not.toHaveProperty('contents')
+  })
+
+  it('sends only the parameters Lite accepts', () => {
+    const body = searchBody({
+      type: 'lite',
+      numResults: 5,
+      includeDomains: 'a.com',
+      text: true,
+      highlights: true,
+      summary: true,
+      summaryQuery: 'pricing',
+      subpages: 2,
+      subpageTarget: 'docs',
+      extrasLinks: 3,
+      maxAgeHours: 24,
+      livecrawlTimeout: 5000,
+      startCrawlDate: '2024-01-01',
+      outputSchema: { type: 'object', properties: {} },
+      systemPrompt: 'be brief',
+    })
+    expect(body).toEqual({
+      query: 'q',
+      type: 'lite',
+      numResults: 5,
+      includeDomains: ['a.com'],
+      contents: { text: true, highlights: true },
+    })
+  })
+})
+
 describe('exa block', () => {
+  it('leaves Max Content Age unset when the field was never filled in', () => {
+    const params = ExaBlock.tools.config?.params?.({
+      operation: 'exa_search',
+      maxAgeHours: null,
+    }) as Record<string, unknown>
+    expect(params).not.toHaveProperty('maxAgeHours')
+  })
+
   it('routes the retired research operation to the agent tool', () => {
     expect(ExaBlock.tools.config?.tool?.({ operation: 'exa_research' })).toBe('exa_agent')
   })
@@ -209,6 +287,26 @@ describe('exa_agent terminal statuses', () => {
     const result = await settle('failed', 'error')
     expect(result?.success).toBe(false)
     expect(result?.error).toMatch(/failed: error/)
+  })
+
+  it("surfaces Exa's error message for a failed run", async () => {
+    const response = new Response(
+      JSON.stringify({
+        id: 'agent_run_1',
+        status: 'failed',
+        stopReason: 'error',
+        error: { type: 'INVALID_REQUEST', code: 'INVALID_OUTPUT_SCHEMA', message: 'Bad schema' },
+      })
+    )
+    const created = await agentTool.transformResponse?.(response, { apiKey: API_KEY, query: 'q' })
+    if (!created) throw new Error('exa_agent has no transformResponse')
+    const result = await agentTool.postProcess?.(
+      created,
+      { apiKey: API_KEY, query: 'q' } as never,
+      {} as never
+    )
+    expect(result?.success).toBe(false)
+    expect(result?.error).toBe('Exa agent run failed: Bad schema')
   })
 
   it('reports a cancelled run as a failure', async () => {

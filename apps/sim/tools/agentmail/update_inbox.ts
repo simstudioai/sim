@@ -1,6 +1,7 @@
 import type { UpdateInboxParams, UpdateInboxResult } from '@/tools/agentmail/types'
 import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailUpdateInboxTool: ToolConfig<UpdateInboxParams, UpdateInboxResult> = {
   id: 'agentmail_update_inbox',
@@ -31,7 +32,8 @@ export const agentmailUpdateInboxTool: ToolConfig<UpdateInboxParams, UpdateInbox
   },
 
   request: {
-    url: (params) => `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}`,
+    url: (params) =>
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

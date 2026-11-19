@@ -1,6 +1,26 @@
 import type { PineconeFetchParams, PineconeResponse, PineconeVector } from '@/tools/pinecone/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * The vector IDs to fetch: a JSON array (or JSON value) as the wand and agents send it, or a
+ * single plain ID typed on the canvas (`vec-1`), which is not valid JSON on its own.
+ */
+function parseFetchIds(value: unknown): unknown[] {
+  let ids = value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) throw new Error('ids is required')
+    try {
+      const parsed: unknown = JSON.parse(trimmed)
+      // Only an array or a string is taken as parsed; a bare JSON number or literal stays as typed.
+      ids = Array.isArray(parsed) || typeof parsed === 'string' ? parsed : trimmed
+    } catch {
+      ids = trimmed
+    }
+  }
+  return Array.isArray(ids) ? ids : [ids]
+}
+
 export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
   id: 'pinecone_fetch',
   name: 'Pinecone Fetch',
@@ -39,7 +59,9 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
     url: (params) => {
       const baseUrl = `${params.indexHost}/vectors/fetch`
       const queryParams = new URLSearchParams()
-      queryParams.append('ids', params.ids.join(','))
+      for (const id of parseFetchIds(params.ids)) {
+        queryParams.append('ids', String(id))
+      }
       if (params.namespace) {
         queryParams.append('namespace', params.namespace)
       }

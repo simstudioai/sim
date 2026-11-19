@@ -84,7 +84,7 @@ interface PineconeRerank {
   rank_fields: string[]
   top_n?: number
   parameters?: Record<string, any>
-  query?: { text: string }
+  query?: string | { text: string }
 }
 
 export interface PineconeSearchTextParams extends PineconeBaseParams {

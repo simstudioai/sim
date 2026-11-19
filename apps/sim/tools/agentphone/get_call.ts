@@ -5,6 +5,7 @@ import type {
 } from '@/tools/agentphone/types'
 import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentphoneGetCallTool: ToolConfig<AgentPhoneGetCallParams, AgentPhoneGetCallResult> = {
   id: 'agentphone_get_call',
@@ -29,7 +30,8 @@ export const agentphoneGetCallTool: ToolConfig<AgentPhoneGetCallParams, AgentPho
   },
 
   request: {
-    url: (params) => `https://api.agentphone.to/v1/calls/${params.callId.trim()}`,
+    url: (params) =>
+      `https://api.agentphone.to/v1/calls/${safeUrlPathSegment(params.callId, 'callId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

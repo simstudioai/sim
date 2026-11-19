@@ -7,7 +7,7 @@ import type {
   QuickChatShortcut,
 } from '@sim/desktop-bridge'
 import { Label, Switch, toast } from '@sim/emcn'
-import { useParams, useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { getDesktopBridge, getDesktopShellVersion } from '@/lib/desktop'
 import { ComputerUseSettings } from '@/app/workspace/[workspaceId]/settings/components/desktop/computer-use'
 import { QuickChatShortcutSelect } from '@/app/workspace/[workspaceId]/settings/components/desktop/quick-chat-shortcut-select'
@@ -34,9 +34,8 @@ function PreferenceRow({ id, label, checked, disabled, onCheckedChange }: Prefer
 }
 
 export function Desktop() {
-  const params = useParams()
+  const pathname = usePathname()
   const router = useRouter()
-  const workspaceId = params.workspaceId as string
   const [preferences, setPreferences] = useState<DesktopPreferences | null>(null)
   const [pendingPreference, setPendingPreference] = useState<DesktopPreferenceKey | null>(null)
   /** Whether Sim runs chats on this device in the background; only then can sleep matter. */
@@ -47,7 +46,8 @@ export function Desktop() {
   useEffect(() => {
     const bridge = getDesktopBridge()
     if (!bridge) {
-      router.replace(`/workspace/${workspaceId}/settings/general`)
+      // Workspace and organization settings both end in /desktop beside /general.
+      router.replace(pathname.replace(/\/desktop$/, '/general'))
       return
     }
     void bridge.settings
@@ -59,7 +59,7 @@ export function Desktop() {
       .then((device) => setRunsInBackground(device !== null))
       .catch(() => setRunsInBackground(false))
     return bridge.settings.onFullFileAccessChanged?.(setPreferences)
-  }, [router, workspaceId])
+  }, [router, pathname])
 
   const updatePreference = async (key: DesktopPreferenceKey, value: boolean) => {
     const settings = getDesktopBridge()?.settings

@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import type { AgentParams, AgentResponse } from '@/tools/firecrawl/types'
+import { cancelFirecrawlJob, readFirecrawlJobStatus } from '@/tools/firecrawl/job-polling'
+import type { AgentParams, AgentResponse, FirecrawlJobStatusBody } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FirecrawlAgentTool')
@@ -97,6 +98,10 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!data.id) {
+      throw new Error(data.error || 'Firecrawl did not return an agent job id to poll')
+    }
+
     return {
       success: true,
       output: {
@@ -108,31 +113,39 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
     }
   },
 
-  postProcess: async (result, params) => {
+  postProcess: async (result, params, _executeTool, context) => {
     if (!result.success) {
       return result
     }
 
     const jobId = result.output.jobId
+    const signal = context?.signal
     logger.info(`Firecrawl agent job ${jobId} created, polling for completion...`)
 
     let elapsedTime = 0
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
-        const statusResponse = await outboundFetch(`https://api.firecrawl.dev/v2/agent/${jobId}`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${params.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-        })
+        signal?.throwIfAborted()
+        const statusResponse = await outboundFetch(
+          `https://api.firecrawl.dev/v2/agent/${encodeURIComponent(jobId)}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${params.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            signal,
+          }
+        )
 
         if (!statusResponse.ok) {
           throw new Error(`Failed to get agent status: ${statusResponse.statusText}`)
         }
 
-        const agentData = await statusResponse.json()
+        const agentData = await readFirecrawlJobStatus<
+          FirecrawlJobStatusBody<AgentResponse['output']['data']>
+        >(statusResponse, signal)
         logger.info(`Firecrawl agent job ${jobId} status: ${agentData.status}`)
 
         if (agentData.status === 'completed') {
@@ -156,9 +169,11 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
           }
         }
 
-        await sleep(POLL_INTERVAL_MS)
+        await interruptibleSleep(POLL_INTERVAL_MS, signal)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
+        if (signal?.aborted)
+          await cancelFirecrawlJob(`agent/${encodeURIComponent(jobId)}`, params.apiKey)
         logger.error('Error polling for agent job status:', {
           message: error.message || 'Unknown error',
           jobId,

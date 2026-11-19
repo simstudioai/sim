@@ -1,6 +1,7 @@
 import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
+import { zepPathSegment } from '@/tools/zep/utils'
 
 export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_get_context',
@@ -44,7 +45,7 @@ export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
       queryParams.append('mode', mode)
       if (params.minRating !== undefined)
         queryParams.append('minRating', String(Number(params.minRating)))
-      return `https://api.getzep.com/api/v2/threads/${params.threadId}/context?${queryParams.toString()}`
+      return `https://api.getzep.com/api/v2/threads/${zepPathSegment(params.threadId, 'threadId')}/context?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({

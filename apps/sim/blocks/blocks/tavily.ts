@@ -91,6 +91,8 @@ export const TavilyBlock: BlockConfig = {
       options: [
         { label: 'Basic', id: 'basic' },
         { label: 'Advanced', id: 'advanced' },
+        { label: 'Fast', id: 'fast' },
+        { label: 'Ultra Fast', id: 'ultra-fast' },
       ],
       value: () => 'basic',
       mode: 'advanced',

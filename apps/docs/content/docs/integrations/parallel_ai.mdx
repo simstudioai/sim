@@ -33,7 +33,7 @@ Search the web with Parallel AI and return matching pages with content excerpts.
 | `objective` | string | No | Natural-language description of the search intent used to rank and excerpt results |
 | `mode` | string | No | Search mode: turbo, fast, basic, or advanced \(default: advanced\) |
 | `max_results` | number | No | Maximum number of results to return \(default: 10, max: 20\) |
-| `max_chars_per_result` | number | No | Maximum characters of excerpts per result |
+| `max_chars_per_result` | number | No | Maximum characters of excerpts per result. Sent as a total excerpt budget \(this value times max_results, default 10 results\) |
 | `include_domains` | string | No | Comma-separated list of domains to restrict search results to |
 | `exclude_domains` | string | No | Comma-separated list of domains to exclude from search results |
 | `apiKey` | string | Yes | Parallel AI API Key |

@@ -7,6 +7,7 @@ import type {
 } from '@/tools/clerk/types'
 import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkGetSession')
 
@@ -33,7 +34,8 @@ export const clerkGetSessionTool: ToolConfig<ClerkGetSessionParams, ClerkGetSess
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/sessions/${params.sessionId?.trim()}`,
+    url: (params) =>
+      `https://api.clerk.com/v1/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}`,
     method: 'GET',
     headers: (params) => {
       if (!params.secretKey) {

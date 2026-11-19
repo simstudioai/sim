@@ -1,6 +1,7 @@
 import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisExistsParams, UpstashRedisExistsResponse } from '@/tools/upstash/types'
+import { upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisExistsTool: ToolConfig<
   UpstashRedisExistsParams,
@@ -35,7 +36,7 @@ export const upstashRedisExistsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${params.restUrl}/exists/${encodeURIComponent(params.key)}`,
+    url: (params) => `${params.restUrl}/exists/${upstashPathSegment(params.key, 'key')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.restToken}`,

@@ -1,6 +1,6 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { TAVILY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { MapResponse, TavilyMapParams } from '@/tools/tavily/types'
-import { TAVILY_MAP_RESULT_OUTPUT_PROPERTIES } from '@/tools/tavily/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const mapTool: ToolConfig<TavilyMapParams, MapResponse> = {
@@ -9,6 +9,7 @@ export const mapTool: ToolConfig<TavilyMapParams, MapResponse> = {
   description:
     "Discover and visualize website structure using Tavily's map API. Maps out all accessible URLs from a base URL with depth control, path filtering, and domain restrictions.",
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.TAVILY_ERRORS,
   oauth: TAVILY_CREDENTIAL_OAUTH,
 
   params: {
@@ -136,11 +137,8 @@ export const mapTool: ToolConfig<TavilyMapParams, MapResponse> = {
     base_url: { type: 'string', description: 'The base URL that was mapped' },
     results: {
       type: 'array',
-      description: 'Array of discovered URLs during mapping',
-      items: {
-        type: 'object',
-        properties: TAVILY_MAP_RESULT_OUTPUT_PROPERTIES,
-      },
+      description: 'URLs discovered during mapping',
+      items: { type: 'string', description: 'Discovered URL', open: true },
     },
     response_time: { type: 'number', description: 'Time taken for the map request in seconds' },
     request_id: {

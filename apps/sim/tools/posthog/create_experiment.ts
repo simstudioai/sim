@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface CreateExperimentParams {
   projectId: string
@@ -35,7 +35,10 @@ interface CreateExperimentResponse {
   experiment: Experiment
 }
 
-export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExperimentResponse> = {
+export const createExperimentTool: ToolConfig<
+  CreateExperimentParams,
+  ToolResponse & { output: CreateExperimentResponse }
+> = {
   id: 'posthog_create_experiment',
   name: 'PostHog Create Experiment',
   description: 'Create a new experiment in PostHog',
@@ -115,7 +118,7 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/experiments/`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/experiments/`
     },
     method: 'POST',
     headers: (params) => ({
@@ -164,7 +167,10 @@ export const createExperimentTool: ToolConfig<CreateExperimentParams, CreateExpe
     const data = await response.json()
 
     return {
-      experiment: data,
+      success: true,
+      output: {
+        experiment: data,
+      },
     }
   },
 

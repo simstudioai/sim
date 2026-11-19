@@ -2,6 +2,7 @@ import type { LinqListMessagesParams, LinqListMessagesResult } from '@/tools/lin
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqListMessagesTool: ToolConfig<LinqListMessagesParams, LinqListMessagesResult> = {
   id: 'linq_list_messages',
@@ -43,7 +44,7 @@ export const linqListMessagesTool: ToolConfig<LinqListMessagesParams, LinqListMe
       if (typeof params.limit === 'number') query.set('limit', String(params.limit))
       if (params.cursor) query.set('cursor', params.cursor)
       const qs = query.toString()
-      return `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}/messages${
+      return `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}/messages${
         qs ? `?${qs}` : ''
       }`
     },

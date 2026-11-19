@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isPlainRecord } from '@sim/utils/object'
 import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import { submitExtendParse } from '@/lib/internal/extend/client'
 import { ExtendOperationError } from '@/lib/internal/extend/errors'
@@ -62,6 +63,15 @@ export async function executeExtendParse(
 
   const data = await submitExtendParse(input.apiKey, body, context.signal)
   context.signal?.throwIfAborted()
+  if (data.status === 'FAILED') {
+    const reason = typeof data.failureReason === 'string' ? data.failureReason : 'unknown reason'
+    throw new ExtendOperationError(422, {
+      success: false,
+      error: `Extend could not parse the file: ${reason}`,
+    })
+  }
+  const metrics = isPlainRecord(data.metrics) ? data.metrics : {}
+  const usage = isPlainRecord(data.usage) ? data.usage : {}
   return {
     success: true,
     output: {
@@ -69,8 +79,8 @@ export async function executeExtendParse(
       status: data.status ?? 'PROCESSED',
       chunks: data.chunks ?? [],
       blocks: data.blocks ?? [],
-      pageCount: data.pageCount ?? data.page_count ?? null,
-      creditsUsed: data.creditsUsed ?? data.credits_used ?? null,
+      pageCount: metrics.pageCount ?? data.pageCount ?? null,
+      creditsUsed: usage.credits ?? data.creditsUsed ?? null,
     },
   }
 }

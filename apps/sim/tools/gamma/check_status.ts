@@ -1,6 +1,7 @@
 import type { GammaCheckStatusParams, GammaCheckStatusResponse } from '@/tools/gamma/types'
 import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const checkStatusTool: ToolConfig<GammaCheckStatusParams, GammaCheckStatusResponse> = {
   id: 'gamma_check_status',
@@ -26,7 +27,8 @@ export const checkStatusTool: ToolConfig<GammaCheckStatusParams, GammaCheckStatu
   },
 
   request: {
-    url: (params) => `https://public-api.gamma.app/v1.0/generations/${params.generationId}`,
+    url: (params) =>
+      `https://public-api.gamma.app/v1.0/generations/${safeUrlPathSegment(params.generationId, 'generationId')}`,
     method: 'GET',
     headers: (params) => ({
       'X-API-KEY': params.apiKey,
@@ -40,6 +42,8 @@ export const checkStatusTool: ToolConfig<GammaCheckStatusParams, GammaCheckStatu
       generationId: data.generationId ?? '',
       status: data.status ?? 'pending',
       gammaUrl: data.gammaUrl ?? null,
+      gammaId: data.gammaId ?? null,
+      exportUrl: data.exportUrl ?? null,
     }
 
     if (data.credits) {
@@ -71,6 +75,17 @@ export const checkStatusTool: ToolConfig<GammaCheckStatusParams, GammaCheckStatu
     gammaUrl: {
       type: 'string',
       description: 'URL of the generated gamma (only present when status is completed)',
+      optional: true,
+    },
+    gammaId: {
+      type: 'string',
+      description: 'ID of the generated gamma (only present when status is completed)',
+      optional: true,
+    },
+    exportUrl: {
+      type: 'string',
+      description:
+        'Download URL of the exported file when Export As was set (pdf, pptx, or a zip of PNGs). Anyone with the link can download it until it expires, about a week later',
       optional: true,
     },
     credits: {

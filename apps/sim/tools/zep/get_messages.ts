@@ -2,6 +2,7 @@ import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
 import { MESSAGES_ARRAY_OUTPUT, PAGINATION_OUTPUT_PROPERTIES } from '@/tools/zep/types'
+import { zepPathSegment } from '@/tools/zep/utils'
 
 export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_get_messages',
@@ -51,7 +52,7 @@ export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
       if (params.lastn) queryParams.append('lastn', String(Number(params.lastn)))
 
       const queryString = queryParams.toString()
-      return `https://api.getzep.com/api/v2/threads/${params.threadId}/messages${queryString ? `?${queryString}` : ''}`
+      return `https://api.getzep.com/api/v2/threads/${zepPathSegment(params.threadId, 'threadId')}/messages${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

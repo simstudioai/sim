@@ -142,7 +142,7 @@ export const findSimilarLinksTool: ToolConfig<
       if (includeDomains) body.includeDomains = includeDomains
       const excludeDomains = parseCommaList(params.excludeDomains)
       if (excludeDomains) body.excludeDomains = excludeDomains
-      if (params.excludeSourceDomain !== undefined) {
+      if (params.excludeSourceDomain != null) {
         body.excludeSourceDomain = params.excludeSourceDomain
       }
 
@@ -150,9 +150,9 @@ export const findSimilarLinksTool: ToolConfig<
       if (category) body.category = category
 
       const contents: Record<string, any> = {}
-      if (params.text !== undefined) contents.text = params.text
-      if (params.highlights !== undefined) contents.highlights = params.highlights
-      if (params.summary !== undefined) contents.summary = params.summary
+      if (params.text != null) contents.text = params.text
+      if (params.highlights != null) contents.highlights = params.highlights
+      if (String(params.summary) === 'true') contents.summary = true
 
       applyFreshness(contents, params)
 

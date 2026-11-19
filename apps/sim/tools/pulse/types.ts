@@ -89,6 +89,9 @@ interface PulseParserOutputData {
   /** Unique job identifier */
   job_id: string
 
+  /** Persisted extraction ID */
+  extraction_id: string | null
+
   /** Plan usage information */
   'plan-info': PulsePlanInfo
 

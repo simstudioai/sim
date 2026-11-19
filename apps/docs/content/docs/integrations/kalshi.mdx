@@ -722,18 +722,18 @@ Create a new order on a Kalshi prediction market
 | `side` | string | Yes | Side of the order: "yes" or "no" |
 | `action` | string | Yes | Action type: "buy" or "sell" |
 | `count` | string | No | Number of contracts to trade \(e.g., "10", "100"\). Provide count or countFp |
-| `type` | string | No | Order type: "limit" or "market" \(default: "limit"\) |
+| `type` | string | No | Order type: "limit" \(default\). Kalshi no longer accepts "market" orders; set a price instead |
 | `yesPrice` | string | No | Yes price in cents \(1-99\) |
 | `noPrice` | string | No | No price in cents \(1-99\) |
 | `yesPriceDollars` | string | No | Yes price in dollars \(e.g., "0.56"\) |
 | `noPriceDollars` | string | No | No price in dollars \(e.g., "0.56"\) |
 | `clientOrderId` | string | No | Custom order identifier |
 | `expirationTs` | string | No | Unix timestamp for order expiration |
-| `timeInForce` | string | No | Time in force: 'fill_or_kill', 'good_till_canceled', 'immediate_or_cancel' |
-| `buyMaxCost` | string | No | Maximum cost in cents \(auto-enables fill_or_kill\) |
+| `timeInForce` | string | No | Time in force: 'good_till_canceled' \(default\), 'fill_or_kill', or 'immediate_or_cancel' |
+| `buyMaxCost` | string | No | No longer supported by Kalshi: set a limit price and count with timeInForce fill_or_kill instead |
 | `postOnly` | string | No | Set to 'true' for maker-only orders |
 | `reduceOnly` | string | No | Set to 'true' for position reduction only |
-| `selfTradePreventionType` | string | No | Self-trade prevention: 'taker_at_cross' or 'maker' |
+| `selfTradePreventionType` | string | No | Self-trade prevention: 'taker_at_cross' \(default\) or 'maker' |
 | `orderGroupId` | string | No | Associated order group ID |
 | `countFp` | string | No | Count in fixed-point for fractional contracts |
 | `cancelOrderOnPause` | string | No | Set to 'true' to cancel order on market pause |
@@ -743,7 +743,7 @@ Create a new order on a Kalshi prediction market
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `order` | object | The created order object with full API response fields |
+| `order` | object | The created order. Kalshi reports only its ID and fill counts on create; the direction, price and settings are the ones this request sent, and fields Kalshi no longer reports are null |
 |   ↳ `order_id` | string | Order ID |
 |   ↳ `user_id` | string | User ID |
 |   ↳ `client_order_id` | string | Client order ID |
@@ -791,12 +791,14 @@ Cancel an existing order on Kalshi
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `orderId` | string | Yes | Order ID to cancel \(e.g., "abc123-def456-ghi789"\) |
+| `ticker` | string | No | Market ticker of the order \(e.g., "KXBTC-24DEC31"\), so the cancel reaches the order's exchange shard. Leave empty to look it up from the order first |
+| `subaccount` | string | No | Subaccount the order belongs to \(0 for primary, 1-63 for numbered subaccounts\). Leave empty for the primary account |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `order` | object | The canceled order object with full API response fields |
+| `order` | object | The canceled order. Kalshi now returns only order_id and client_order_id on cancel, so the other fields are null |
 |   ↳ `order_id` | string | Order ID |
 |   ↳ `user_id` | string | User ID |
 |   ↳ `client_order_id` | string | Client order ID |
@@ -851,18 +853,19 @@ Modify the price or quantity of an existing order on Kalshi
 | `action` | string | Yes | Action type: "buy" or "sell" |
 | `clientOrderId` | string | No | Original client-specified order ID |
 | `updatedClientOrderId` | string | No | New client-specified order ID after amendment |
-| `count` | string | No | Updated quantity for the order \(e.g., "10", "100"\) |
+| `count` | string | No | New total contracts for the order: already filled plus desired resting \(e.g., "10"\). Leave empty to keep the current total, only if the order hasn't just changed; Kalshi's order reads can briefly lag |
 | `yesPrice` | string | No | Updated yes price in cents \(1-99\) |
 | `noPrice` | string | No | Updated no price in cents \(1-99\) |
 | `yesPriceDollars` | string | No | Updated yes price in dollars \(e.g., "0.56"\) |
 | `noPriceDollars` | string | No | Updated no price in dollars \(e.g., "0.56"\) |
 | `countFp` | string | No | Count in fixed-point for fractional contracts |
+| `subaccount` | string | No | Subaccount the order belongs to \(0 for primary, 1-63 for numbered subaccounts\). Leave empty for the primary account |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `old_order` | object | The original order object before amendment |
+| `old_order` | object | The order before the amend when it was read first \(an amend with no count or price\); otherwise only order_id is known |
 |   ↳ `order_id` | string | Order ID |
 |   ↳ `user_id` | string | User ID |
 |   ↳ `ticker` | string | Market ticker |
@@ -872,9 +875,13 @@ Modify the price or quantity of an existing order on Kalshi
 |   ↳ `type` | string | Order type \(limit/market\) |
 |   ↳ `yes_price` | number | Yes price in cents |
 |   ↳ `no_price` | number | No price in cents |
+|   ↳ `yes_price_dollars` | string | Yes price in dollars |
+|   ↳ `no_price_dollars` | string | No price in dollars |
 |   ↳ `action` | string | Action \(buy/sell\) |
 |   ↳ `count` | number | Number of contracts |
 |   ↳ `remaining_count` | number | Remaining contracts |
+|   ↳ `fill_count_fp` | string | Filled count \(fixed-point\) |
+|   ↳ `remaining_count_fp` | string | Remaining count \(fixed-point\) |
 |   ↳ `created_time` | string | Order creation time |
 |   ↳ `expiration_time` | string | Order expiration time |
 |   ↳ `order_group_id` | string | Order group ID |
@@ -891,7 +898,7 @@ Modify the price or quantity of an existing order on Kalshi
 |   ↳ `stop_loss_order_id` | string | Stop loss order ID |
 |   ↳ `amend_count` | number | Amend count |
 |   ↳ `amend_taker_fill_count` | number | Amend taker fill count |
-| `order` | object | The amended order object with full API response fields |
+| `order` | object | The amended order: order_id, client_order_id and counts from Kalshi, with the direction, price and total count this amend sent; fields Kalshi no longer reports are null |
 |   ↳ `order_id` | string | Order ID |
 |   ↳ `user_id` | string | User ID |
 |   ↳ `ticker` | string | Market ticker |
@@ -901,9 +908,13 @@ Modify the price or quantity of an existing order on Kalshi
 |   ↳ `type` | string | Order type \(limit/market\) |
 |   ↳ `yes_price` | number | Yes price in cents |
 |   ↳ `no_price` | number | No price in cents |
+|   ↳ `yes_price_dollars` | string | Yes price in dollars |
+|   ↳ `no_price_dollars` | string | No price in dollars |
 |   ↳ `action` | string | Action \(buy/sell\) |
 |   ↳ `count` | number | Number of contracts |
 |   ↳ `remaining_count` | number | Remaining contracts |
+|   ↳ `fill_count_fp` | string | Contracts filled by this amend \(fixed-point\) |
+|   ↳ `remaining_count_fp` | string | Remaining count \(fixed-point\) |
 |   ↳ `created_time` | string | Order creation time |
 |   ↳ `expiration_time` | string | Order expiration time |
 |   ↳ `order_group_id` | string | Order group ID |

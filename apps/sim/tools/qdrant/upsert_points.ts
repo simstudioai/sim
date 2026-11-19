@@ -5,6 +5,7 @@ import {
 } from '@/tools/qdrant/types'
 import { QDRANT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = {
   id: 'qdrant_upsert_points',
@@ -42,7 +43,8 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
 
   request: {
     method: 'PUT',
-    url: (params) => `${params.url.replace(/\/$/, '')}/collections/${params.collection}/points`,
+    url: (params) =>
+      `${params.url.replace(/\/$/, '')}/collections/${safeUrlPathSegment(params.collection, 'collection', { preserveWhitespace: true, stripTabsAndNewlines: true })}/points`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),

@@ -2,6 +2,11 @@ import type {
   SpotifyCheckSavedTracksParams,
   SpotifyCheckSavedTracksResponse,
 } from '@/tools/spotify/types'
+import {
+  readSpotifyLibraryChecks,
+  splitSpotifyLibraryIds,
+  spotifyLibraryUrl,
+} from '@/tools/spotify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const spotifyCheckSavedTracksTool: ToolConfig<
@@ -29,27 +34,24 @@ export const spotifyCheckSavedTracksTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const ids = params.trackIds
-        .split(',')
-        .map((id) => id.trim())
-        .slice(0, 50)
-        .join(',')
-      return `https://api.spotify.com/v1/me/tracks/contains?ids=${ids}`
-    },
+    url: (params) => spotifyLibraryUrl(params.trackIds, 'track', { contains: true, maxIds: 50 }),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
     }),
   },
 
-  transformResponse: async (response, params): Promise<SpotifyCheckSavedTracksResponse> => {
-    const data = await response.json()
-    const ids = (params?.trackIds || '')
-      .split(',')
-      .map((id) => id.trim())
-      .slice(0, 50)
+  transformResponse: async (
+    response,
+    params,
+    context
+  ): Promise<SpotifyCheckSavedTracksResponse> => {
+    const data = await readSpotifyLibraryChecks(
+      response,
+      params && { params, ids: params.trackIds, type: 'track', maxIds: 50 },
+      context?.signal
+    )
+    const ids = splitSpotifyLibraryIds(params?.trackIds || '', 50)
 
     const results = ids.map((id, index) => ({
       id,

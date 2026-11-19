@@ -1,5 +1,5 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface PostHogGetPropertyDefinitionParams {
   projectId: string
@@ -34,7 +34,7 @@ interface PropertyDefinition {
 
 export const getPropertyDefinitionTool: ToolConfig<
   PostHogGetPropertyDefinitionParams,
-  PropertyDefinition
+  ToolResponse & { output: PropertyDefinition }
 > = {
   id: 'posthog_get_property_definition',
   name: 'PostHog Get Property Definition',
@@ -80,7 +80,7 @@ export const getPropertyDefinitionTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/property_definitions/${params.propertyDefinitionId}`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/property_definitions/${postHogPathSegment(params.propertyDefinitionId, 'propertyDefinitionId')}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -93,20 +93,23 @@ export const getPropertyDefinitionTool: ToolConfig<
     const data = await response.json()
 
     return {
-      id: data.id,
-      name: data.name,
-      description: data.description || '',
-      tags: data.tags || [],
-      is_numerical: data.is_numerical || false,
-      is_seen_on_filtered_events: data.is_seen_on_filtered_events ?? null,
-      property_type: data.property_type,
-      type: data.type,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-      updated_by: data.updated_by ?? null,
-      verified: data.verified || false,
-      verified_at: data.verified_at ?? null,
-      verified_by: data.verified_by ?? null,
+      success: true,
+      output: {
+        id: data.id,
+        name: data.name,
+        description: data.description || '',
+        tags: data.tags || [],
+        is_numerical: data.is_numerical || false,
+        is_seen_on_filtered_events: data.is_seen_on_filtered_events ?? null,
+        property_type: data.property_type,
+        type: data.type,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        updated_by: data.updated_by ?? null,
+        verified: data.verified || false,
+        verified_at: data.verified_at ?? null,
+        verified_by: data.verified_by ?? null,
+      },
     }
   },
 

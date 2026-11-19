@@ -1,6 +1,7 @@
 import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisLPushParams, UpstashRedisLPushResponse } from '@/tools/upstash/types'
+import { upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisLPushTool: ToolConfig<UpstashRedisLPushParams, UpstashRedisLPushResponse> =
   {
@@ -39,7 +40,7 @@ export const upstashRedisLPushTool: ToolConfig<UpstashRedisLPushParams, UpstashR
     },
 
     request: {
-      url: (params) => `${params.restUrl}/lpush/${encodeURIComponent(params.key)}`,
+      url: (params) => `${params.restUrl}/lpush/${upstashPathSegment(params.key, 'key')}`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.restToken}`,

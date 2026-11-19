@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { TAVILY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TavilyExtractParams, TavilyExtractResponse } from '@/tools/tavily/types'
 import {
@@ -12,6 +13,7 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
   description:
     "Extract raw content from multiple web pages simultaneously using Tavily's extraction API. Supports basic and advanced extraction depths with detailed error reporting for failed URLs.",
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.TAVILY_ERRORS,
   oauth: TAVILY_CREDENTIAL_OAUTH,
 
   params: {
@@ -83,6 +85,7 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
         results: data.results || [],
         ...(data.failed_results && { failed_results: data.failed_results }),
         response_time: data.response_time,
+        ...(data.request_id && { request_id: data.request_id }),
       },
     }
   },
@@ -108,6 +111,11 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
     response_time: {
       type: 'number',
       description: 'Time taken for the extraction request in seconds',
+    },
+    request_id: {
+      type: 'string',
+      description: 'Request identifier to share with Tavily support',
+      optional: true,
     },
   },
 }

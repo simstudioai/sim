@@ -138,6 +138,25 @@ describe('CrowdStrike block params', () => {
     expect(merged.includeHidden).toBe(true)
   })
 
+  it('sends no status change when the status dropdown keeps the value the editor seeds', () => {
+    const updateStatus = CrowdStrikeBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'updateStatus'
+    )
+    const options = typeof updateStatus?.options === 'function' ? [] : (updateStatus?.options ?? [])
+    const seeded = updateStatus?.value?.({}) ?? options[0]?.id
+
+    const merged = merge({
+      ...credentials,
+      operation: 'crowdstrike_update_alerts',
+      compositeIds: '["cid:aid:alert"]',
+      appendComment: 'Reviewed',
+      updateStatus: seeded,
+    })
+
+    expect(merged.appendComment).toBe('Reviewed')
+    expect(merged.updateStatus).toBeUndefined()
+  })
+
   it('still sends false when the analyst turns the hidden-alert switch off', () => {
     const merged = merge({
       ...credentials,

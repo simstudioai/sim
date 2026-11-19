@@ -17,3 +17,19 @@ describe('GoogleMapsBlock agent tool calls', () => {
     expect({ ...inputs, ...mapped }).toMatchObject(inputs)
   })
 })
+
+/**
+ * Every operation's coordinate fields serialize with the block, so a value left in another
+ * operation's latitude/longitude must not replace the coordinates of the selected operation.
+ */
+describe('GoogleMapsBlock coordinate fields', () => {
+  const stored = { latitude: '40.7128', longitude: '-74.006', aqLatitude: '1', aqLongitude: '2' }
+
+  it.each([
+    ['reverse_geocode', { lat: 40.7128, lng: -74.006 }],
+    ['air_quality', { lat: 1, lng: 2 }],
+  ])('sends the %s coordinates when the other fields hold stale values', (operation, expected) => {
+    const mapped = GoogleMapsBlock.tools.config?.params?.({ operation, ...stored })
+    expect(mapped).toMatchObject(expected)
+  })
+})

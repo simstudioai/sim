@@ -9,7 +9,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 export const CONSENT_PURPOSE_OUTPUT_PROPERTIES = {
   allowed: {
     type: 'string',
-    description: 'Consent status for the purpose: "granted" or "denied"',
+    description: 'Consent status for the purpose: "true" or "false"',
   },
   legalBasisCode: {
     type: 'string',
@@ -31,7 +31,7 @@ export interface KetchGetConsentParams {
 export interface KetchGetConsentResponse extends ToolResponse {
   output: {
     purposes: Record<string, { allowed: string; legalBasisCode?: string }>
-    vendors: Record<string, string> | null
+    vendors: string[] | null
   }
 }
 
@@ -41,7 +41,7 @@ export interface KetchSetConsentParams {
   environmentCode: string
   jurisdictionCode?: string
   identities: Record<string, string>
-  purposes: Record<string, { allowed: string; legalBasisCode?: string }>
+  purposes: Record<string, { allowed: string | boolean; legalBasisCode?: string }>
   collectedAt?: number
 }
 
@@ -58,10 +58,11 @@ export interface KetchInvokeRightParams {
   jurisdictionCode: string
   rightCode: string
   identities: Record<string, string>
-  userData?: {
-    email?: string
-    firstName?: string
-    lastName?: string
+  userData: {
+    email: string
+    firstName: string
+    lastName: string
+    [key: string]: unknown
   }
 }
 

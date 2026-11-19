@@ -1,3 +1,4 @@
+import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyRemoveSavedTracksParams {
@@ -36,21 +37,29 @@ export const spotifyRemoveSavedTracksTool: ToolConfig<
   },
 
   request: {
-    url: () => 'https://api.spotify.com/v1/me/tracks',
+    url: (params) => spotifyLibraryUrl(params.trackIds, 'track', { maxIds: 50 }),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
-      ids: params.trackIds
-        .split(',')
-        .map((id) => id.trim())
-        .slice(0, 50),
     }),
   },
 
-  transformResponse: async (): Promise<SpotifyRemoveSavedTracksResponse> => {
+  transformResponse: async (
+    _response,
+    params,
+    context
+  ): Promise<SpotifyRemoveSavedTracksResponse> => {
+    if (params)
+      await sendRemainingSpotifyLibraryChunks(
+        params,
+        params.trackIds,
+        'track',
+        'DELETE',
+        {
+          maxIds: 50,
+        },
+        context?.signal
+      )
     return {
       success: true,
       output: { success: true },

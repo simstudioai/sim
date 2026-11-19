@@ -26,24 +26,19 @@ const logger = createLogger('PiiMaskClient')
 const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
 
 /**
- * Per-chunk retry budget for transient failures (network errors, 408/429/5xx).
- * A large payload fans out into many chunk requests, so a single blip — an ALB
- * 502 during a deploy, a Presidio pod restart — must not fail the whole
- * redaction (and, on the execution-altering stages, abort the run). With the
- * default 500ms→30s jittered backoff this rides out ~2 minutes of outage per
- * chunk before giving up. Deterministic failures (4xx, shape mismatches) throw
- * immediately.
+ * Attempts per chunk for transient failures (network errors, timeouts, and the
+ * statuses in {@link RETRYABLE_STATUSES}), the 3-attempt default of the AWS SDK
+ * standard retry mode and the OpenAI and Anthropic SDKs. A large payload fans out into many chunk requests, so one blip (a
+ * dropped connection, a Presidio worker restart, a request queued behind a busy
+ * fleet) must not fail the whole redaction. The budget stays small because every
+ * retry re-runs the chunk's full NER pass, so a chunk that fails on its own input (a
+ * 500 from a recognizer) only repeats that work before reaching the fail-safe.
+ * Without a `Retry-After`, the jittered backoff spans about 1.5s; an outage
+ * (502/503/504) that outlasts it falls to the caller's fail-safe, which with
+ * {@link MaskPIIBatchOptions.failedChunkPlaceholder} also scrubs chunks not yet sent.
+ * Any other status and shape mismatches throw immediately.
  */
-const MAX_CHUNK_ATTEMPTS = 8
-
-/**
- * Attempts for a chunk the route answers with a 500. The route keeps 503 for a
- * Presidio outage and 422 for input Presidio refused, so a 500 is an unclassified
- * failure that may be deterministic for this input: two retries cover a one-off
- * crash without spending the full outage budget resending input that fails the
- * same way every time.
- */
-const MAX_ATTEMPTS_AFTER_SERVER_ERROR = 3
+const MAX_CHUNK_ATTEMPTS = 3
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 
@@ -206,11 +201,7 @@ async function postChunk(
     try {
       return await postChunkOnce(url, texts, entityTypes, language, customPatterns)
     } catch (error) {
-      const maxAttempts =
-        error instanceof MaskChunkHttpError && error.status === 500
-          ? MAX_ATTEMPTS_AFTER_SERVER_ERROR
-          : MAX_CHUNK_ATTEMPTS
-      if (attempt >= maxAttempts || !isRetryableChunkError(error)) {
+      if (attempt >= MAX_CHUNK_ATTEMPTS || !isRetryableChunkError(error)) {
         throw error
       }
       const retryAfterMs = error instanceof MaskChunkHttpError ? error.retryAfterMs : null
@@ -227,8 +218,7 @@ async function postChunkOnce(
   customPatterns: CustomPiiPattern[] | undefined
 ): Promise<string[]> {
   // Mint per attempt: a single token (5min TTL) can expire mid-batch when a
-  // large execution fans out into many sequential chunk requests or a chunk
-  // spends its retry budget waiting out an outage.
+  // large execution fans out into many sequential chunk requests.
   const token = await generateInternalToken()
 
   // boundary-raw-fetch: internal server-to-server call to the app container (internal JWT auth, configurable base URL)

@@ -7,6 +7,7 @@ import {
   contextDevJsonHeaders,
   extractCreditMetadata,
   parseContextDevResponse,
+  timeoutOpts,
 } from '@/tools/context_dev/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -112,7 +113,7 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
       if (params.markdownEnabled != null) {
         body.markdownOptions = { enabled: params.markdownEnabled }
       }
-      if (params.timeoutMS != null) body.timeoutMS = params.timeoutMS
+      body.timeoutOpts = timeoutOpts(params.timeoutMS)
       return body
     },
   },

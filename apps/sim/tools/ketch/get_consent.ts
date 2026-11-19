@@ -1,5 +1,6 @@
 import type { KetchGetConsentParams, KetchGetConsentResponse } from '@/tools/ketch/types'
 import { CONSENT_PURPOSE_OUTPUT_PROPERTIES } from '@/tools/ketch/types'
+import { readKetchErrorMessage } from '@/tools/ketch/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getConsentTool: ToolConfig<KetchGetConsentParams, KetchGetConsentResponse> = {
@@ -71,13 +72,7 @@ export const getConsentTool: ToolConfig<KetchGetConsentParams, KetchGetConsentRe
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let errorMessage = `Request failed with status ${response.status}`
-      try {
-        const data = await response.json()
-        errorMessage = data.message ?? data.error ?? errorMessage
-      } catch {
-        // No JSON body in error response
-      }
+      const errorMessage = await readKetchErrorMessage(response)
       return {
         success: false,
         output: {
@@ -105,9 +100,11 @@ export const getConsentTool: ToolConfig<KetchGetConsentParams, KetchGetConsentRe
       properties: CONSENT_PURPOSE_OUTPUT_PROPERTIES,
     },
     vendors: {
-      type: 'object',
-      description: 'Map of vendor consent statuses',
+      type: 'array',
+      description:
+        'List of vendor IDs for which the user has opted out (deprecated by Ketch in favor of vendorConsents)',
       optional: true,
+      items: { type: 'string', open: true },
     },
   },
 }

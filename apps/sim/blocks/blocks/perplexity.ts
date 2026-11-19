@@ -86,6 +86,7 @@ export const PerplexityBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Maximum number of tokens',
       condition: { field: 'operation', value: 'perplexity_chat' },
+      mode: 'advanced',
     },
     // Search operation inputs
     {
@@ -102,6 +103,7 @@ export const PerplexityBlock: BlockConfig = {
       type: 'short-input',
       placeholder: '10',
       condition: { field: 'operation', value: 'perplexity_search' },
+      mode: 'advanced',
     },
     {
       id: 'search_domain_filter',
@@ -116,6 +118,7 @@ export const PerplexityBlock: BlockConfig = {
       type: 'short-input',
       placeholder: '1024',
       condition: { field: 'operation', value: 'perplexity_search' },
+      mode: 'advanced',
     },
     {
       id: 'country',
@@ -123,6 +126,7 @@ export const PerplexityBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'US, GB, DE, etc.',
       condition: { field: 'operation', value: 'perplexity_search' },
+      mode: 'advanced',
     },
     {
       id: 'search_recency_filter',
@@ -144,6 +148,7 @@ export const PerplexityBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'MM/DD/YYYY',
       condition: { field: 'operation', value: 'perplexity_search' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate a date in MM/DD/YYYY format based on the user's description for Perplexity search "after date" filter.
@@ -165,6 +170,7 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
       type: 'short-input',
       placeholder: 'MM/DD/YYYY',
       condition: { field: 'operation', value: 'perplexity_search' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate a date in MM/DD/YYYY format based on the user's description for Perplexity search "before date" filter.
@@ -274,9 +280,18 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
     // Chat outputs
     content: { type: 'string', description: 'Generated response' },
     model: { type: 'string', description: 'Model used' },
+    citations: { type: 'json', description: 'Cited source URLs (chat)' },
+    search_results: {
+      type: 'json',
+      description:
+        'Sources the chat answer was grounded in [{title, url, date, last_updated, snippet}]',
+    },
     usage: { type: 'json', description: 'Token usage' },
     // Search outputs
-    results: { type: 'json', description: 'Search results array' },
+    results: {
+      type: 'json',
+      description: 'Search results [{title, url, snippet, date, last_updated}]',
+    },
   },
 }
 

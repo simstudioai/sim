@@ -1,16 +1,100 @@
-import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
+import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
+import {
+  KALSHI_ORDER_SUBACCOUNT_PARAM,
+  kalshiCountNumber,
+  kalshiLegacyOrder,
+  kalshiOrderPath,
+  kalshiOrderReadPath,
+  kalshiOrderWriteUrl,
+} from '@/tools/kalshi/orders'
+import type { KalshiAuthParams } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
+
+/**
+ * Cancel Order (V2) routes by `market_ticker`: without it Kalshi sends the cancel to shard 0, and
+ * an order resting on another shard answers 404 and stays open (Kalshi's order_errors guide). With
+ * no ticker given, the tool first reads the order (`GET /portfolio/orders/{id}`, which needs no
+ * routing) and `postProcess` sends the cancel with the order's ticker.
+ */
+function cancelNeedsTicker(params: { ticker?: string }): boolean {
+  return params.ticker == null || String(params.ticker).trim() === ''
+}
+
+function cancelRequestPath(params: { orderId: string; ticker?: string }): string {
+  return cancelNeedsTicker(params)
+    ? kalshiOrderReadPath(params.orderId)
+    : kalshiOrderPath(params.orderId)
+}
+
+/** The read takes no subaccount (GetOrder has no such param); the cancel does. */
+function cancelRequestUrl(params: {
+  orderId: string
+  ticker?: string
+  subaccount?: string
+}): string {
+  if (cancelNeedsTicker(params)) return buildKalshiUrl(cancelRequestPath(params))
+  return kalshiOrderWriteUrl(cancelRequestPath(params), params.subaccount, {
+    market_ticker: String(params.ticker).trim(),
+  })
+}
+
+function cancelRequestMethod(params: { ticker?: string }): 'GET' | 'DELETE' {
+  return cancelNeedsTicker(params) ? 'GET' : 'DELETE'
+}
+
+/** The ticker of the order a cancel's read returned (GetOrderResponse `order`). */
+function readOrderTicker(data: unknown): string | null {
+  const ticker = toRecord(toRecord(data).order).ticker
+  return typeof ticker === 'string' && ticker.trim() ? ticker : null
+}
+
+/** Sends the cancel once the order read found the order's ticker. */
+async function cancelWithOrderTicker(
+  toolId: string,
+  params: Record<string, unknown>,
+  ticker: unknown,
+  executeTool: (toolId: string, params: Record<string, unknown>) => Promise<ToolResponse>
+): Promise<ToolResponse> {
+  if (typeof ticker !== 'string' || !ticker) {
+    return {
+      success: false,
+      output: {},
+      error: "Could not cancel the order: Kalshi's order read returned no market ticker",
+    }
+  }
+  try {
+    return await executeTool(toolId, { ...params, ticker })
+  } catch (error) {
+    return {
+      success: false,
+      output: {},
+      error: `Could not cancel the order: ${getErrorMessage(error)}`,
+    }
+  }
+}
+
+const TICKER_PARAM = {
+  type: 'string',
+  required: false,
+  visibility: 'user-or-llm',
+  description:
+    'Market ticker of the order (e.g., "KXBTC-24DEC31"), so the cancel reaches the order\'s exchange shard. Leave empty to look it up from the order first',
+} as const
 
 export interface KalshiCancelOrderParams extends KalshiAuthParams {
   orderId: string // Order ID to cancel (required)
+  ticker?: string // Market ticker, which routes the cancel to the order's shard
+  subaccount?: string // Subaccount the order belongs to
 }
 
 export interface KalshiCancelOrderResponse {
   success: boolean
+  error?: string
   output: {
-    order: KalshiOrder
+    order: Record<string, unknown>
     reducedBy: number
   }
 }
@@ -42,37 +126,73 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
         visibility: 'user-or-llm',
         description: 'Order ID to cancel (e.g., "abc123-def456-ghi789")',
       },
+      ticker: TICKER_PARAM,
+      subaccount: KALSHI_ORDER_SUBACCOUNT_PARAM,
     },
 
     request: {
-      url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}`),
-      method: 'DELETE',
-      headers: (params) => {
-        const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}`
-        return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'DELETE', path)
-      },
+      url: (params) => cancelRequestUrl(params),
+      method: (params) => cancelRequestMethod(params),
+      headers: (params) =>
+        buildKalshiAuthHeaders(
+          params.keyId,
+          params.privateKey,
+          cancelRequestMethod(params),
+          `/trade-api/v2${cancelRequestPath(params)}`
+        ),
     },
 
-    transformResponse: async (response: Response) => {
+    transformResponse: async (response: Response, params) => {
       const data = await response.json()
 
       if (!response.ok) {
-        handleKalshiError(data, 'cancel_order')
+        handleKalshiError(data, params && cancelNeedsTicker(params) ? 'order read' : 'cancel_order')
       }
 
+      // The order read that precedes a cancel with no ticker: postProcess cancels with its ticker.
+      if (params && cancelNeedsTicker(params)) {
+        return {
+          success: true,
+          output: {
+            order: kalshiLegacyOrder({
+              order_id: params.orderId,
+              client_order_id: null,
+              ticker: readOrderTicker(data),
+            }),
+            reducedBy: 0,
+          },
+        }
+      }
+
+      // V2 returns only the order's identity, not the full order object.
       return {
         success: true,
         output: {
-          order: data.order,
-          reducedBy: data.reduced_by || 0,
+          order: kalshiLegacyOrder({
+            order_id: data.order_id ?? null,
+            client_order_id: data.client_order_id ?? null,
+            ticker: params?.ticker?.trim() || null,
+          }),
+          reducedBy: kalshiCountNumber(data.reduced_by) ?? 0,
         },
       }
+    },
+
+    postProcess: async (result, params, executeTool) => {
+      if (!result.success || !cancelNeedsTicker(params)) return result
+      return cancelWithOrderTicker(
+        'kalshi_cancel_order',
+        { ...params },
+        result.output.order.ticker,
+        executeTool
+      ) as Promise<typeof result>
     },
 
     outputs: {
       order: {
         type: 'object',
-        description: 'The canceled order object',
+        description:
+          'The canceled order: order_id, client_order_id and ticker (Kalshi no longer returns the full order on cancel)',
       },
       reducedBy: {
         type: 'number',
@@ -83,20 +203,23 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
 
 export interface KalshiCancelOrderV2Params extends KalshiAuthParams {
   orderId: string // Order ID to cancel (required)
+  ticker?: string // Market ticker, which routes the cancel to the order's shard
+  subaccount?: string // Subaccount the order belongs to
 }
 
 export interface KalshiCancelOrderV2Response {
   success: boolean
+  error?: string
   output: {
     order: {
-      order_id: string
+      order_id: string | null
       user_id: string | null
       client_order_id: string | null
-      ticker: string
-      side: string
-      action: string
-      type: string
-      status: string
+      ticker: string | null
+      side: string | null
+      action: string | null
+      type: string | null
+      status: string | null
       yes_price: number | null
       no_price: number | null
       yes_price_dollars: string | null
@@ -157,108 +280,181 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Order ID to cancel (e.g., "abc123-def456-ghi789")',
     },
+    ticker: TICKER_PARAM,
+    subaccount: KALSHI_ORDER_SUBACCOUNT_PARAM,
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}`),
-    method: 'DELETE',
-    headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}`
-      return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'DELETE', path)
-    },
+    url: (params) => cancelRequestUrl(params),
+    method: (params) => cancelRequestMethod(params),
+    headers: (params) =>
+      buildKalshiAuthHeaders(
+        params.keyId,
+        params.privateKey,
+        cancelRequestMethod(params),
+        `/trade-api/v2${cancelRequestPath(params)}`
+      ),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, 'cancel_order_v2')
+      handleKalshiError(
+        data,
+        params && cancelNeedsTicker(params) ? 'order read' : 'cancel_order_v2'
+      )
     }
 
-    const order = data.order || {}
+    // The order read that precedes a cancel with no ticker: postProcess cancels with its ticker.
+    const isRead = Boolean(params && cancelNeedsTicker(params))
+    const ticker = isRead ? readOrderTicker(data) : params?.ticker?.trim() || null
 
+    // V2 returns only the order's identity, so the other order fields are unknown here.
     return {
       success: true,
       output: {
         order: {
-          order_id: order.order_id ?? null,
-          user_id: order.user_id ?? null,
-          client_order_id: order.client_order_id ?? null,
-          ticker: order.ticker ?? null,
-          side: order.side ?? null,
-          action: order.action ?? null,
-          type: order.type ?? null,
-          status: order.status ?? null,
-          yes_price: order.yes_price ?? null,
-          no_price: order.no_price ?? null,
-          yes_price_dollars: order.yes_price_dollars ?? null,
-          no_price_dollars: order.no_price_dollars ?? null,
-          fill_count: order.fill_count ?? null,
-          fill_count_fp: order.fill_count_fp ?? null,
-          remaining_count: order.remaining_count ?? null,
-          remaining_count_fp: order.remaining_count_fp ?? null,
-          initial_count: order.initial_count ?? null,
-          initial_count_fp: order.initial_count_fp ?? null,
-          taker_fees: order.taker_fees ?? null,
-          maker_fees: order.maker_fees ?? null,
-          taker_fees_dollars: order.taker_fees_dollars ?? null,
-          maker_fees_dollars: order.maker_fees_dollars ?? null,
-          taker_fill_cost: order.taker_fill_cost ?? null,
-          maker_fill_cost: order.maker_fill_cost ?? null,
-          taker_fill_cost_dollars: order.taker_fill_cost_dollars ?? null,
-          maker_fill_cost_dollars: order.maker_fill_cost_dollars ?? null,
-          queue_position: order.queue_position ?? null,
-          expiration_time: order.expiration_time ?? null,
-          created_time: order.created_time ?? null,
-          last_update_time: order.last_update_time ?? null,
-          self_trade_prevention_type: order.self_trade_prevention_type ?? null,
-          order_group_id: order.order_group_id ?? null,
-          cancel_order_on_pause: order.cancel_order_on_pause ?? null,
+          order_id: isRead ? (params?.orderId ?? null) : (data.order_id ?? null),
+          user_id: null,
+          client_order_id: isRead ? null : (data.client_order_id ?? null),
+          ticker,
+          side: null,
+          action: null,
+          type: null,
+          status: null,
+          yes_price: null,
+          no_price: null,
+          yes_price_dollars: null,
+          no_price_dollars: null,
+          fill_count: null,
+          fill_count_fp: null,
+          remaining_count: null,
+          remaining_count_fp: null,
+          initial_count: null,
+          initial_count_fp: null,
+          taker_fees: null,
+          maker_fees: null,
+          taker_fees_dollars: null,
+          maker_fees_dollars: null,
+          taker_fill_cost: null,
+          maker_fill_cost: null,
+          taker_fill_cost_dollars: null,
+          maker_fill_cost_dollars: null,
+          queue_position: null,
+          expiration_time: null,
+          created_time: null,
+          last_update_time: null,
+          self_trade_prevention_type: null,
+          order_group_id: null,
+          cancel_order_on_pause: null,
         },
-        reduced_by: data.reduced_by ?? 0,
-        reduced_by_fp: data.reduced_by_fp ?? null,
+        reduced_by: isRead ? 0 : (kalshiCountNumber(data.reduced_by) ?? 0),
+        reduced_by_fp: !isRead && typeof data.reduced_by === 'string' ? data.reduced_by : null,
       },
     }
   },
 
+  postProcess: async (result, params, executeTool) => {
+    if (!result.success || !cancelNeedsTicker(params)) return result
+    return cancelWithOrderTicker(
+      'kalshi_cancel_order_v2',
+      { ...params },
+      result.output.order.ticker,
+      executeTool
+    ) as Promise<typeof result>
+  },
   outputs: {
     order: {
       type: 'object',
-      description: 'The canceled order object with full API response fields',
+      description:
+        'The canceled order. Kalshi now returns only order_id and client_order_id on cancel, so the other fields are null',
       properties: {
-        order_id: { type: 'string', description: 'Order ID' },
-        user_id: { type: 'string', description: 'User ID' },
-        client_order_id: { type: 'string', description: 'Client order ID' },
-        ticker: { type: 'string', description: 'Market ticker' },
-        side: { type: 'string', description: 'Order side (yes/no)' },
-        action: { type: 'string', description: 'Action (buy/sell)' },
-        type: { type: 'string', description: 'Order type (limit/market)' },
-        status: { type: 'string', description: 'Order status (resting/canceled/executed)' },
-        yes_price: { type: 'number', description: 'Yes price in cents' },
-        no_price: { type: 'number', description: 'No price in cents' },
-        yes_price_dollars: { type: 'string', description: 'Yes price in dollars' },
-        no_price_dollars: { type: 'string', description: 'No price in dollars' },
-        fill_count: { type: 'number', description: 'Filled contract count' },
-        fill_count_fp: { type: 'string', description: 'Filled count (fixed-point)' },
-        remaining_count: { type: 'number', description: 'Remaining contracts' },
-        remaining_count_fp: { type: 'string', description: 'Remaining count (fixed-point)' },
-        initial_count: { type: 'number', description: 'Initial contract count' },
-        initial_count_fp: { type: 'string', description: 'Initial count (fixed-point)' },
-        taker_fees: { type: 'number', description: 'Taker fees in cents' },
-        maker_fees: { type: 'number', description: 'Maker fees in cents' },
-        taker_fees_dollars: { type: 'string', description: 'Taker fees in dollars' },
-        maker_fees_dollars: { type: 'string', description: 'Maker fees in dollars' },
-        taker_fill_cost: { type: 'number', description: 'Taker fill cost in cents' },
-        maker_fill_cost: { type: 'number', description: 'Maker fill cost in cents' },
-        taker_fill_cost_dollars: { type: 'string', description: 'Taker fill cost in dollars' },
-        maker_fill_cost_dollars: { type: 'string', description: 'Maker fill cost in dollars' },
-        queue_position: { type: 'number', description: 'Queue position (deprecated)' },
-        expiration_time: { type: 'string', description: 'Order expiration time' },
-        created_time: { type: 'string', description: 'Order creation time' },
-        last_update_time: { type: 'string', description: 'Last update time' },
-        self_trade_prevention_type: { type: 'string', description: 'Self-trade prevention type' },
-        order_group_id: { type: 'string', description: 'Order group ID' },
-        cancel_order_on_pause: { type: 'boolean', description: 'Cancel on market pause' },
+        order_id: { type: 'string', description: 'Order ID', nullable: true },
+        user_id: { type: 'string', description: 'User ID', nullable: true },
+        client_order_id: { type: 'string', description: 'Client order ID', nullable: true },
+        ticker: { type: 'string', description: 'Market ticker', nullable: true },
+        side: { type: 'string', description: 'Order side (yes/no)', nullable: true },
+        action: { type: 'string', description: 'Action (buy/sell)', nullable: true },
+        type: { type: 'string', description: 'Order type (limit/market)', nullable: true },
+        status: {
+          type: 'string',
+          description: 'Order status (resting/canceled/executed)',
+          nullable: true,
+        },
+        yes_price: { type: 'number', description: 'Yes price in cents', nullable: true },
+        no_price: { type: 'number', description: 'No price in cents', nullable: true },
+        yes_price_dollars: { type: 'string', description: 'Yes price in dollars', nullable: true },
+        no_price_dollars: { type: 'string', description: 'No price in dollars', nullable: true },
+        fill_count: { type: 'number', description: 'Filled contract count', nullable: true },
+        fill_count_fp: {
+          type: 'string',
+          description: 'Filled count (fixed-point)',
+          nullable: true,
+        },
+        remaining_count: { type: 'number', description: 'Remaining contracts', nullable: true },
+        remaining_count_fp: {
+          type: 'string',
+          description: 'Remaining count (fixed-point)',
+          nullable: true,
+        },
+        initial_count: { type: 'number', description: 'Initial contract count', nullable: true },
+        initial_count_fp: {
+          type: 'string',
+          description: 'Initial count (fixed-point)',
+          nullable: true,
+        },
+        taker_fees: { type: 'number', description: 'Taker fees in cents', nullable: true },
+        maker_fees: { type: 'number', description: 'Maker fees in cents', nullable: true },
+        taker_fees_dollars: {
+          type: 'string',
+          description: 'Taker fees in dollars',
+          nullable: true,
+        },
+        maker_fees_dollars: {
+          type: 'string',
+          description: 'Maker fees in dollars',
+          nullable: true,
+        },
+        taker_fill_cost: {
+          type: 'number',
+          description: 'Taker fill cost in cents',
+          nullable: true,
+        },
+        maker_fill_cost: {
+          type: 'number',
+          description: 'Maker fill cost in cents',
+          nullable: true,
+        },
+        taker_fill_cost_dollars: {
+          type: 'string',
+          description: 'Taker fill cost in dollars',
+          nullable: true,
+        },
+        maker_fill_cost_dollars: {
+          type: 'string',
+          description: 'Maker fill cost in dollars',
+          nullable: true,
+        },
+        queue_position: {
+          type: 'number',
+          description: 'Queue position (deprecated)',
+          nullable: true,
+        },
+        expiration_time: { type: 'string', description: 'Order expiration time', nullable: true },
+        created_time: { type: 'string', description: 'Order creation time', nullable: true },
+        last_update_time: { type: 'string', description: 'Last update time', nullable: true },
+        self_trade_prevention_type: {
+          type: 'string',
+          description: 'Self-trade prevention type',
+          nullable: true,
+        },
+        order_group_id: { type: 'string', description: 'Order group ID', nullable: true },
+        cancel_order_on_pause: {
+          type: 'boolean',
+          description: 'Cancel on market pause',
+          nullable: true,
+        },
       },
     },
     reduced_by: {
@@ -268,6 +464,7 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
     reduced_by_fp: {
       type: 'string',
       description: 'Number of contracts canceled in fixed-point format',
+      nullable: true,
     },
   },
 }

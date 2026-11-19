@@ -123,18 +123,23 @@ function encodeNdjson(value: unknown): Uint8Array {
   return ndjsonEncoder.encode(`${JSON.stringify(value)}\n`)
 }
 
+/**
+ * The run resource, its bounded fields ahead of `output` and `blockOutputs`: a reader that keeps
+ * only the head of an oversized response (an agent's output window) still sees the status, the
+ * failing block and its error, and the duration.
+ */
 function presentRun(result: ExecuteWorkflowServiceRun) {
   return {
     runId: result.executionId,
     workflowId: result.workflowId,
     status: result.status,
-    output: result.output ?? null,
-    blockOutputs: result.blockOutputs ?? null,
     error: result.error,
     startedAt: result.startedAt,
     endedAt: result.endedAt,
     durationMs: result.durationMs,
     executionTimeoutSeconds: executionTimeoutSeconds(result.executionTimeoutMs),
+    output: result.output ?? null,
+    blockOutputs: result.blockOutputs ?? null,
   }
 }
 

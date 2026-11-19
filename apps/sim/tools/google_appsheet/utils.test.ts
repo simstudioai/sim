@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { googleAppsheetFindRowsTool } from '@/tools/google_appsheet/find_rows'
 import { buildAppsheetActionUrl, readAppsheetResponseBody } from '@/tools/google_appsheet/utils'
 
 describe('buildAppsheetActionUrl', () => {
@@ -43,5 +44,14 @@ describe('readAppsheetResponseBody', () => {
     expect(await readAppsheetResponseBody(response)).toEqual({
       message: '<html>502 Bad Gateway</html>',
     })
+  })
+})
+
+describe('google_appsheet_find_rows response', () => {
+  it('reads a bare row array body as the rows instead of an empty result', async () => {
+    const transform = googleAppsheetFindRowsTool.transformResponse
+    if (!transform) throw new Error('find_rows has no transformResponse')
+    const result = await transform(Response.json([{ id: '1' }, { id: '2' }]))
+    expect(result.output.rows).toEqual([{ id: '1' }, { id: '2' }])
   })
 })

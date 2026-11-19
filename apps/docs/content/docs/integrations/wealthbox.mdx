@@ -57,9 +57,11 @@ Read content from a Wealthbox note
 | `output` | object | Note data and metadata |
 |   ↳ `content` | string | Formatted note information |
 |   ↳ `note` | object | Raw note data from Wealthbox |
+|   ↳ `notes` | array | Notes in the returned page when no ID is given \(list request\) |
 |   ↳ `metadata` | object | Operation metadata |
 |     ↳ `itemId` | string | ID of the note |
 |     ↳ `noteId` | string | ID of the note |
+|     ↳ `totalItems` | number | Number of items in the returned page \(list requests only\) |
 |     ↳ `itemType` | string | Type of item \(note\) |
 
 </ReferenceDetails>
@@ -112,9 +114,11 @@ Read content from a Wealthbox contact
 | `output` | object | Contact data and metadata |
 |   ↳ `content` | string | Formatted contact information |
 |   ↳ `contact` | object | Raw contact data from Wealthbox |
+|   ↳ `contacts` | array | Contacts in the returned page when no ID is given \(list request\) |
 |   ↳ `metadata` | object | Operation metadata |
 |     ↳ `itemId` | string | ID of the contact |
 |     ↳ `contactId` | string | ID of the contact |
+|     ↳ `totalItems` | number | Number of items in the returned page \(list requests only\) |
 |     ↳ `itemType` | string | Type of item \(contact\) |
 
 </ReferenceDetails>
@@ -169,16 +173,18 @@ Read content from a Wealthbox task
 | `output` | object | Task data and metadata |
 |   ↳ `content` | string | Formatted task information |
 |   ↳ `task` | object | Raw task data from Wealthbox |
+|   ↳ `tasks` | array | Tasks in the returned page when no ID is given \(list request\) |
 |   ↳ `metadata` | object | Operation metadata |
 |     ↳ `itemId` | string | ID of the task |
 |     ↳ `taskId` | string | ID of the task |
+|     ↳ `totalItems` | number | Number of items in the returned page \(list requests only\) |
 |     ↳ `itemType` | string | Type of item \(task\) |
 
 </ReferenceDetails>
 
 ### Write Wealthbox Task
 
-Create or update a Wealthbox task
+Create a Wealthbox task
 
 <ReferenceDetails>
 
@@ -196,12 +202,12 @@ Create or update a Wealthbox task
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | Created or updated task data and metadata |
+| `output` | object | Created task data and metadata |
 |   ↳ `task` | object | Raw task data from Wealthbox |
 |   ↳ `success` | boolean | Operation success indicator |
 |   ↳ `metadata` | object | Operation metadata |
-|     ↳ `itemId` | string | ID of the created/updated task |
-|     ↳ `taskId` | string | ID of the created/updated task |
+|     ↳ `itemId` | string | ID of the created task |
+|     ↳ `taskId` | string | ID of the created task |
 |     ↳ `itemType` | string | Type of item \(task\) |
 
 </ReferenceDetails>

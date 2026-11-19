@@ -34,22 +34,23 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
       }),
     },
 
-    transformResponse: async (response: Response) => {
+    transformResponse: async (response: Response, params) => {
       const html = await response.text()
 
-      // Extract metadata from response headers
-      const revision = response.headers.get('etag')?.match(/^"(\d+)/)?.[1] || '0'
+      const etag = response.headers.get('etag') ?? ''
+      const revision =
+        response.headers.get('content-revision-id') ?? etag.match(/^(?:W\/)?"(\d+)/)?.[1] ?? '0'
       const timestamp = response.headers.get('last-modified') || new Date().toISOString()
 
       return {
         success: true,
         output: {
           content: {
-            title: '', // Will be filled by the calling code
-            pageid: 0, // Not available from this endpoint
+            title: params?.pageTitle?.trim() ?? '',
+            pageid: 0,
             html: html,
             revision: Number.parseInt(revision, 10),
-            tid: response.headers.get('etag') || '',
+            tid: etag,
             timestamp: timestamp,
             content_model: 'wikitext',
             content_format: 'text/html',

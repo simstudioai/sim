@@ -9,16 +9,23 @@ import { awsDynamodbScanContract } from '@/lib/api/contracts/tools/aws/dynamodb-
 import { awsIamCreateUserContract } from '@/lib/api/contracts/tools/aws/iam-create-user'
 import { awsIamListPoliciesContract } from '@/lib/api/contracts/tools/aws/iam-list-policies'
 import { awsSesSendTemplatedEmailContract } from '@/lib/api/contracts/tools/aws/ses-send-templated-email'
+import { awsSqsListMessageMoveTasksContract } from '@/lib/api/contracts/tools/aws/sqs-list-message-move-tasks'
+import { awsSsmGetParametersByPathContract } from '@/lib/api/contracts/tools/aws/ssm-get-parameters-by-path'
 import { CloudFormationBlock } from '@/blocks/blocks/cloudformation'
 import { DynamoDBBlock } from '@/blocks/blocks/dynamodb'
 import { IAMBlock } from '@/blocks/blocks/iam'
 import { SESBlock } from '@/blocks/blocks/ses'
+import { SQSBlock } from '@/blocks/blocks/sqs'
+import { SSMBlock } from '@/blocks/blocks/ssm'
 import type { BlockConfig } from '@/blocks/types'
 import { createChangeSetTool } from '@/tools/cloudformation/create_change_set'
 import { scanTool } from '@/tools/dynamodb/scan'
 import { createUserTool } from '@/tools/iam/create_user'
 import { listPoliciesTool } from '@/tools/iam/list_policies'
 import { sendTemplatedEmailTool } from '@/tools/ses/send_templated_email'
+import { listMessageMoveTasksTool } from '@/tools/sqs/list_message_move_tasks'
+import { receiveMessageTool } from '@/tools/sqs/receive_message'
+import { getParametersByPathTool } from '@/tools/ssm/get_parameters_by_path'
 
 const AWS = { region: 'us-east-1', accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' }
 
@@ -103,5 +110,70 @@ describe('AWS blocks keep stale subBlock values out of tool input', () => {
         tags: '[{"name":"team","val":"core"}]',
       })
     ).toThrow('Tags must be a list of {"key", "value"} entries or a JSON object')
+  })
+
+  it('SQS receive ignores the change-visibility timeout', () => {
+    const params = executorParams(SQSBlock, {
+      ...AWS,
+      operation: 'receive_message',
+      queueUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/orders',
+      visibilityTimeout: '43200',
+    })
+    const body = receiveMessageTool.operation.input(params as never) as Record<string, unknown>
+    expect(body.visibilityTimeout).toBeUndefined()
+  })
+
+  it('SQS list move tasks ignores the list queues max results', () => {
+    const params = executorParams(SQSBlock, {
+      ...AWS,
+      operation: 'list_message_move_tasks',
+      sourceArn: 'arn:aws:sqs:us-east-1:123456789012:orders-dlq',
+      maxResults: '1000',
+    })
+    const body = listMessageMoveTasksTool.operation.input(params as never) as Record<
+      string,
+      unknown
+    >
+    expect(body.maxResults).toBeUndefined()
+    expect(awsSqsListMessageMoveTasksContract.body?.safeParse(body).success).toBe(true)
+  })
+
+  it('SSM get parameters by path ignores the list max results', () => {
+    const params = executorParams(SSMBlock, {
+      ...AWS,
+      operation: 'get_parameters_by_path',
+      parameterPath: '/app',
+      maxResults: '50',
+    })
+    const body = getParametersByPathTool.operation.input(params as never) as Record<string, unknown>
+    expect(body.maxResults).toBeUndefined()
+    expect(awsSsmGetParametersByPathContract.body?.safeParse(body).success).toBe(true)
+  })
+
+  it('a blank stored limit still lets an Agent call pass its own limit', () => {
+    const sqsInputs = {
+      ...AWS,
+      receiveVisibilityTimeout: '',
+      visibilityTimeout: 30,
+      moveTaskMaxResults: '',
+      maxResults: 5,
+    }
+    const sqs = {
+      ...sqsInputs,
+      ...SQSBlock.tools.config?.params?.(sqsInputs, { operation: 'receive_message' }),
+    }
+    expect(sqs.visibilityTimeout).toBe(30)
+    const moveTaskInputs = { ...AWS, moveTaskMaxResults: '', maxResults: 5 }
+    const moveTasks = {
+      ...moveTaskInputs,
+      ...SQSBlock.tools.config?.params?.(moveTaskInputs, { operation: 'list_message_move_tasks' }),
+    }
+    expect(moveTasks.maxResults).toBe(5)
+    const ssmInputs = { ...AWS, pathMaxResults: '', maxResults: 5 }
+    const ssm = {
+      ...ssmInputs,
+      ...SSMBlock.tools.config?.params?.(ssmInputs, { operation: 'get_parameters_by_path' }),
+    }
+    expect(ssm.maxResults).toBe(5)
   })
 })

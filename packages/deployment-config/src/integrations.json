@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-16",
+  "updatedAt": "2026-11-18",
   "integrations": [
     {
       "type": "onepassword",
@@ -13044,15 +13044,15 @@
       "type": "greptile",
       "slug": "greptile",
       "name": "Greptile",
-      "description": "AI-powered codebase search and Q&A",
-      "longDescription": "Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.",
+      "description": "Index repositories and check indexing status with Greptile",
+      "longDescription": "Index repositories with Greptile and check their indexing status. Greptile has retired its natural-language query and search endpoints, so the Query operation is no longer offered.",
       "bgColor": "#181C1E",
       "iconName": "GreptileIcon",
       "docsUrl": "https://docs.sim.ai/integrations/greptile",
       "operations": [
         {
           "name": "Query",
-          "description": "Query repositories in natural language and get answers with relevant code references. Greptile uses AI to understand your codebase and answer questions."
+          "description": "Retired: Greptile removed the POST /v2/query endpoint (it returns 404) with no documented replacement, so this call fails. Kept so saved workflows still load."
         },
         {
           "name": "Index Repository",
@@ -13070,7 +13070,7 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["version-control", "knowledge-base"],
-      "updatedAt": "2026-10-02"
+      "updatedAt": "2026-11-18"
     },
     {
       "type": "harmonic",
@@ -21979,12 +21979,12 @@
           "description": "Query human referral traffic report with hourly granularity for a domain in Profound"
         },
         {
-          "name": "Raw Logs",
-          "description": "Get raw traffic logs with filters for a domain in Profound"
+          "name": "Raw Logs (Retired)",
+          "description": "Get raw traffic logs with filters for a domain in Profound. Profound retired this endpoint on 2026-06-10; use the Referrals Report instead."
         },
         {
-          "name": "Bot Logs",
-          "description": "Get identified bot visit logs with filters for a domain in Profound"
+          "name": "Bot Logs (Retired)",
+          "description": "Get identified bot visit logs with filters for a domain in Profound. Profound retired this endpoint on 2026-06-10; use the Bots Report instead."
         },
         {
           "name": "List Optimizations",
@@ -22011,7 +22011,7 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["seo", "data-analytics"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-18"
     },
     {
       "type": "prospeo",
@@ -25743,7 +25743,7 @@
       "operations": [
         {
           "name": "Web Search",
-          "description": "Search Google through the Serper.dev API for web, news, places, images, videos, shopping, scholar, or patent results. Available response sections include organic results, a knowledge graph, an answer box, related questions, related searches, and top stories."
+          "description": "Search Google through the Serper.dev API for web, news, places, images, videos, shopping, scholar, or patent results. Returns the ranked results for the chosen search type."
         }
       ],
       "operationCount": 1,
@@ -25753,7 +25753,7 @@
       "category": "tools",
       "integrationType": "search",
       "tags": ["web-scraping", "seo"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-18"
     },
     {
       "type": "servicenow_v3",
@@ -30586,7 +30586,7 @@
         },
         {
           "name": "Write Task",
-          "description": "Create or update a Wealthbox task"
+          "description": "Create a Wealthbox task"
         }
       ],
       "operationCount": 6,
@@ -30597,7 +30597,7 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["sales-engagement"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-18"
     },
     {
       "type": "webflow",

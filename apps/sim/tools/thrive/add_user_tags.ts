@@ -7,6 +7,7 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const addUserTagsTool: ToolConfig<ThriveAddUserTagsParams, ThriveMessageResponse> = {
   id: 'thrive_add_user_tags',
@@ -50,7 +51,7 @@ export const addUserTagsTool: ToolConfig<ThriveAddUserTagsParams, ThriveMessageR
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/users/${encodeURIComponent(params.userId)}/tags`,
+      `${getThriveBaseUrl(params.host, 'v1')}/users/${safeUrlPathSegment(params.userId, 'userId')}/tags`,
     method: 'POST',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => ({ tags: parseThriveArray<string>(params.tags, 'tags') }),

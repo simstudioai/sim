@@ -144,24 +144,25 @@ function buildExecutionOutput(
     : result.error || failedBlockError(logs) || 'Workflow execution failed'
   // A caller that names the outputs it wants gets those and nothing else: a seven-block
   // run otherwise costs ~14K chars of logs to learn one headline.
+  const bounded = boundRunResultForModel(
+    {
+      executionId,
+      success: result.success,
+      ...extra,
+      output: lifted ? lifted.output : output,
+      ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
+      ...presentWorkflowLogsForModel(logs, executionId, registry, select, {
+        previewLongInputs: true,
+      }),
+    },
+    error,
+    executionId,
+    registry
+  )
   return {
     success: result.success,
-    output: boundRunResultForModel(
-      {
-        executionId,
-        success: result.success,
-        ...extra,
-        output: lifted ? lifted.output : output,
-        ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
-        ...presentWorkflowLogsForModel(logs, executionId, registry, select, {
-          previewLongInputs: true,
-        }),
-      },
-      error,
-      executionId,
-      registry
-    ),
-    error,
+    output: bounded.data,
+    error: bounded.error,
     effect: executionEffect(phase, executionId),
   }
 }

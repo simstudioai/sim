@@ -2,6 +2,7 @@ import type { LinqDeleteMessageParams, LinqSuccessResult } from '@/tools/linq/ty
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqDeleteMessageTool: ToolConfig<LinqDeleteMessageParams, LinqSuccessResult> = {
   id: 'linq_delete_message',
@@ -27,7 +28,8 @@ export const linqDeleteMessageTool: ToolConfig<LinqDeleteMessageParams, LinqSucc
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/messages/${encodeURIComponent(params.messageId.trim())}`,
+    url: (params) =>
+      `${LINQ_API_BASE}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}`,
     method: 'DELETE',
     headers: (params) => linqHeaders(params.apiKey),
   },

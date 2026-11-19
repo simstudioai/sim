@@ -2,8 +2,10 @@ import type {
   RootlyDeleteActionItemParams,
   RootlyDeleteActionItemResponse,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyDeleteActionItemTool: ToolConfig<
   RootlyDeleteActionItemParams,
@@ -31,7 +33,8 @@ export const rootlyDeleteActionItemTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.rootly.com/v1/action_items/${params.actionItemId.trim()}`,
+    url: (params) =>
+      `https://api.rootly.com/v1/action_items/${safeUrlPathSegment(params.actionItemId, 'actionItemId')}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
@@ -45,7 +48,7 @@ export const rootlyDeleteActionItemTool: ToolConfig<
       return {
         success: false,
         output: { success: false, message: '' },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

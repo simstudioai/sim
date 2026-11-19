@@ -38,8 +38,8 @@ export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchRes
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      default: 20,
-      description: 'Maximum number of results to return (1-50)',
+      description:
+        "Maximum number of results per type (1-50; Spotify Development Mode apps allow at most 10). Defaults to Spotify's own default when omitted.",
     },
     offset: {
       type: 'number',
@@ -59,9 +59,10 @@ export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchRes
   request: {
     url: (params) => {
       const type = params.type || 'track'
-      const limit = Math.min(Math.max(params.limit || 20, 1), 50)
       const offset = params.offset || 0
-      let url = `https://api.spotify.com/v1/search?q=${encodeURIComponent(params.query)}&type=${encodeURIComponent(type)}&limit=${limit}&offset=${offset}`
+      let url = `https://api.spotify.com/v1/search?q=${encodeURIComponent(params.query)}&type=${encodeURIComponent(type)}&offset=${offset}`
+      // Left unset, Spotify applies the app's own default: Development Mode apps reject a limit above 10.
+      if (params.limit) url += `&limit=${Math.min(Math.max(params.limit, 1), 50)}`
       if (params.market) {
         url += `&market=${params.market}`
       }
@@ -113,7 +114,7 @@ export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchRes
       name: playlist.name,
       description: playlist.description,
       owner: playlist.owner?.display_name || '',
-      total_tracks: playlist.tracks?.total || 0,
+      total_tracks: (playlist.items ?? playlist.tracks)?.total || 0,
       image_url: playlist.images?.[0]?.url || null,
       external_url: playlist.external_urls?.spotify || '',
     }))

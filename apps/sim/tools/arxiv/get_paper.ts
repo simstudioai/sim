@@ -2,6 +2,36 @@ import type { ArxivGetPaperParams, ArxivGetPaperResponse } from '@/tools/arxiv/t
 import { parseArxivXML } from '@/tools/arxiv/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** A scheme-less link on arxiv.org or one of its subdomains, such as `www.arxiv.org/abs/<id>`. */
+const SCHEMELESS_ARXIV_LINK = /^(?:[a-z0-9-]+\.)*arxiv\.org\//i
+
+/**
+ * The paper ID from a bare ID or an arxiv.org `/abs/` or `/pdf/` link. Only a link whose host is
+ * arxiv.org or a subdomain of it is unwrapped; any other input is taken as a bare ID.
+ */
+function arxivPaperId(input: string): string {
+  const trimmed = input.trim()
+  const linkPath = arxivLinkPath(
+    SCHEMELESS_ARXIV_LINK.test(trimmed) ? `https://${trimmed}` : trimmed
+  )
+  const id = linkPath ?? trimmed.split(/[?#]/, 1)[0]
+  return id.replace(/\.pdf$/, '')
+}
+
+/** The ID after `/abs/` or `/pdf/` when `candidate` is an http(s) arxiv.org link. */
+function arxivLinkPath(candidate: string): string | undefined {
+  let url: URL
+  try {
+    url = new URL(candidate)
+  } catch {
+    return undefined
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined
+  const host = url.hostname.toLowerCase()
+  if (host !== 'arxiv.org' && !host.endsWith('.arxiv.org')) return undefined
+  return /^\/(?:abs|pdf)\/(.+)$/.exec(url.pathname)?.[1]
+}
+
 export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse> = {
   id: 'arxiv_get_paper',
   name: 'ArXiv Get Paper',
@@ -19,12 +49,7 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
 
   request: {
     url: (params: ArxivGetPaperParams) => {
-      // Clean paper ID - remove arxiv.org URLs if present
-      let paperId = params.paperId
-      if (paperId.includes('arxiv.org/abs/')) {
-        paperId = paperId.split('arxiv.org/abs/')[1]
-      }
-
+      const paperId = arxivPaperId(params.paperId)
       const baseUrl = 'https://export.arxiv.org/api/query'
       const searchParams = new URLSearchParams()
       searchParams.append('id_list', paperId)
@@ -51,25 +76,23 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
 
   outputs: {
     paper: {
-      type: 'json',
+      type: 'object',
       description: 'Detailed information about the requested ArXiv paper',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          title: { type: 'string' },
-          summary: { type: 'string' },
-          authors: { type: 'string' },
-          published: { type: 'string' },
-          updated: { type: 'string' },
-          link: { type: 'string' },
-          pdfLink: { type: 'string' },
-          categories: { type: 'string' },
-          primaryCategory: { type: 'string' },
-          comment: { type: 'string' },
-          journalRef: { type: 'string' },
-          doi: { type: 'string' },
-        },
+      nullable: true,
+      properties: {
+        id: { type: 'string' },
+        title: { type: 'string' },
+        summary: { type: 'string' },
+        authors: { type: 'array', items: { type: 'string' } },
+        published: { type: 'string' },
+        updated: { type: 'string' },
+        link: { type: 'string' },
+        pdfLink: { type: 'string' },
+        categories: { type: 'array', items: { type: 'string' } },
+        primaryCategory: { type: 'string' },
+        comment: { type: 'string', optional: true },
+        journalRef: { type: 'string', optional: true },
+        doi: { type: 'string', optional: true },
       },
     },
   },

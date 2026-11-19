@@ -281,7 +281,9 @@ function hasMultipleOperations(block: BlockConfig | undefined): boolean {
  * @param block - The block config to get operations for
  * @returns Array of operation options with label and id properties
  */
-function getOperationOptions(block: BlockConfig | undefined): { label: string; id: string }[] {
+function getOperationOptions(
+  block: BlockConfig | undefined
+): { label: string; id: string; hidden?: boolean }[] {
   if (!block || !block.tools?.access) return []
 
   const operationSubBlock = block.subBlocks.find((sb) => sb.id === OPERATION_SUBBLOCK_ID)
@@ -290,7 +292,7 @@ function getOperationOptions(block: BlockConfig | undefined): { label: string; i
     operationSubBlock.type === 'dropdown' &&
     Array.isArray(operationSubBlock.options)
   ) {
-    return operationSubBlock.options as { label: string; id: string }[]
+    return operationSubBlock.options as { label: string; id: string; hidden?: boolean }[]
   }
 
   return block.tools.access.map((toolId) => {
@@ -612,8 +614,9 @@ export const ToolInput = memo(function ToolInput({
   const { getDeniedOperations } = useOperationAccess()
 
   /**
-   * A tool block's selectable operations paired with the ones the caller's
-   * permission group denies.
+   * A tool block's selectable operations paired with the ones the caller may not
+   * pick: those the caller's permission group denies, and retired operations the
+   * block keeps as `hidden` options so saved workflows stay valid.
    *
    * Both callers derive from this single result so they cannot drift: the
    * picker *removes* denied operations (it must never offer or default to one),
@@ -623,12 +626,14 @@ export const ToolInput = memo(function ToolInput({
   const getOperationChoices = useCallback(
     (block: BlockConfig | undefined) => {
       const options = getOperationOptions(block).filter((option) => option.id !== '')
+      const denied = getDeniedOperations(
+        block,
+        options.map((option) => option.id)
+      )
+      const hiddenIds = options.filter((option) => option.hidden).map((option) => option.id)
       return {
         options,
-        denied: getDeniedOperations(
-          block,
-          options.map((option) => option.id)
-        ),
+        denied: hiddenIds.length > 0 ? new Set([...denied, ...hiddenIds]) : denied,
       }
     },
     [getDeniedOperations]

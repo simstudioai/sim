@@ -19,7 +19,7 @@ export interface GammaGenerateParams extends GammaBaseParams {
   cardSplit?: 'auto' | 'inputTextBreaks'
   cardDimensions?: string
   additionalInstructions?: string
-  exportAs?: 'pdf' | 'pptx'
+  exportAs?: 'pdf' | 'png' | 'pptx'
   folderIds?: string
   textAmount?: 'brief' | 'medium' | 'detailed' | 'extensive'
   textTone?: string
@@ -29,6 +29,8 @@ export interface GammaGenerateParams extends GammaBaseParams {
     | 'aiGenerated'
     | 'pictographic'
     | 'unsplash'
+    | 'pexels'
+    | 'themeAccent'
     | 'webAllImages'
     | 'webFreeToUse'
     | 'webFreeToUseCommercially'
@@ -46,7 +48,7 @@ export interface GammaGenerateFromTemplateParams extends GammaBaseParams {
   gammaId: string
   prompt: string
   themeId?: string
-  exportAs?: 'pdf' | 'pptx'
+  exportAs?: 'pdf' | 'png' | 'pptx'
   folderIds?: string
   imageModel?: string
   imageStyle?: string
@@ -83,6 +85,7 @@ export interface GammaListFoldersParams extends GammaBaseParams {
 export interface GammaGenerateResponse extends ToolResponse {
   output: {
     generationId: string
+    warnings: string | null
   }
 }
 
@@ -92,6 +95,7 @@ export interface GammaGenerateResponse extends ToolResponse {
 export interface GammaGenerateFromTemplateResponse extends ToolResponse {
   output: {
     generationId: string
+    warnings: string | null
   }
 }
 
@@ -103,6 +107,8 @@ export interface GammaCheckStatusResponse extends ToolResponse {
     generationId: string
     status: 'pending' | 'completed' | 'failed'
     gammaUrl: string | null
+    gammaId: string | null
+    exportUrl: string | null
     credits?: {
       deducted: number | null
       remaining: number | null

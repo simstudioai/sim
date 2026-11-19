@@ -1,5 +1,5 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface GetFeatureFlagParams {
   projectId: string
@@ -29,7 +29,10 @@ interface GetFeatureFlagResponse {
   flag: FeatureFlag
 }
 
-export const getFeatureFlagTool: ToolConfig<GetFeatureFlagParams, GetFeatureFlagResponse> = {
+export const getFeatureFlagTool: ToolConfig<
+  GetFeatureFlagParams,
+  ToolResponse & { output: GetFeatureFlagResponse }
+> = {
   id: 'posthog_get_feature_flag',
   name: 'PostHog Get Feature Flag',
   description: 'Get details of a specific feature flag',
@@ -73,7 +76,7 @@ export const getFeatureFlagTool: ToolConfig<GetFeatureFlagParams, GetFeatureFlag
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/feature_flags/${params.flagId}/`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/feature_flags/${postHogPathSegment(params.flagId, 'flagId')}/`
     },
     method: 'GET',
     headers: (params) => ({
@@ -86,7 +89,10 @@ export const getFeatureFlagTool: ToolConfig<GetFeatureFlagParams, GetFeatureFlag
     const data = await response.json()
 
     return {
-      flag: data,
+      success: true,
+      output: {
+        flag: data,
+      },
     }
   },
 

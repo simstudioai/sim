@@ -1,4 +1,5 @@
 import type { RootlyListOnCallsParams, RootlyListOnCallsResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -67,7 +68,7 @@ export const rootlyListOnCallsTool: ToolConfig<RootlyListOnCallsParams, RootlyLi
         return {
           success: false,
           output: { onCalls: [], totalCount: 0 },
-          error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+          error: rootlyErrorMessage(errorData, response),
         }
       }
 

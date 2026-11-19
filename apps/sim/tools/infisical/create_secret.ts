@@ -2,7 +2,12 @@ import type {
   InfisicalCreateSecretParams,
   InfisicalCreateSecretResponse,
 } from '@/tools/infisical/types'
-import { infisicalApiUrl } from '@/tools/infisical/utils'
+import {
+  INFISICAL_APPROVAL_OUTPUT,
+  infisicalApiUrl,
+  infisicalSecretPath,
+  mapInfisicalApproval,
+} from '@/tools/infisical/utils'
 import { INFISICAL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -82,11 +87,7 @@ export const createSecretTool: ToolConfig<
 
   request: {
     method: 'POST',
-    url: (params) =>
-      infisicalApiUrl(
-        params.baseUrl,
-        `/api/v4/secrets/${encodeURIComponent(params.secretName.trim())}`
-      ),
+    url: (params) => infisicalApiUrl(params.baseUrl, infisicalSecretPath(params.secretName)),
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
@@ -116,7 +117,7 @@ export const createSecretTool: ToolConfig<
         error: data.message ?? `Request failed with status ${response.status}`,
       }
     }
-    const s = data.secret ?? data
+    const s = data.secret ?? {}
     return {
       success: true,
       output: {
@@ -165,6 +166,7 @@ export const createSecretTool: ToolConfig<
           createdAt: s.createdAt ?? null,
           updatedAt: s.updatedAt ?? null,
         },
+        approval: mapInfisicalApproval(data),
       },
     }
   },
@@ -256,5 +258,6 @@ export const createSecretTool: ToolConfig<
         updatedAt: { type: 'string', description: 'Last update timestamp' },
       },
     },
+    approval: INFISICAL_APPROVAL_OUTPUT,
   },
 }

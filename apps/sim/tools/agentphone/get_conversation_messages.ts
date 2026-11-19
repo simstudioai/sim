@@ -5,6 +5,7 @@ import type {
 } from '@/tools/agentphone/types'
 import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentphoneGetConversationMessagesTool: ToolConfig<
   AgentPhoneGetConversationMessagesParams,
@@ -56,7 +57,7 @@ export const agentphoneGetConversationMessagesTool: ToolConfig<
       if (params.before) query.set('before', params.before)
       if (params.after) query.set('after', params.after)
       const qs = query.toString()
-      return `https://api.agentphone.to/v1/conversations/${params.conversationId.trim()}/messages${qs ? `?${qs}` : ''}`
+      return `https://api.agentphone.to/v1/conversations/${safeUrlPathSegment(params.conversationId, 'conversationId')}/messages${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

@@ -62,3 +62,42 @@ describe('KalshiBlock', () => {
     expect({ ...args, ...buildParams(args, { operation: 'cancel_order' }) }.orderId).toBe('model')
   })
 })
+
+/** The executor sends `{ ...storedInputs, ...mapped }`, so a value stored for another operation must not leak in. */
+describe('KalshiBlock fields owned by one operation', () => {
+  const stored = {
+    minTs: '1700000000',
+    maxTs: '1700003600',
+    countFp: '10.00',
+    ticker: 'KXOLD-24',
+    countAmend: '5',
+    orderIdParam: 'order-1',
+    tickerOrder: 'KXNEW-25',
+  }
+  const run = (operation: string) => {
+    const inputs = { ...stored, operation }
+    return { ...inputs, ...KalshiBlock.tools.config?.params?.(inputs) }
+  }
+
+  it('does not apply the Get Fills time window to Get Orders, Get Trades or Get Settlements', () => {
+    for (const operation of ['get_orders', 'get_trades', 'get_settlements']) {
+      expect(run(operation)).toMatchObject({ minTs: undefined, maxTs: undefined })
+    }
+    expect(run('get_fills')).toMatchObject({ minTs: '1700000000', maxTs: '1700003600' })
+  })
+
+  it('does not send the Create Order fixed-point count when amending an order', () => {
+    expect(run('amend_order')).toMatchObject({ count: '5', countFp: undefined })
+  })
+
+  it('does not filter Get Trades by the Get Market ticker', () => {
+    expect(run('get_trades').ticker).toBeUndefined()
+  })
+
+  it('keeps the model time window and ticker on an agent tool call', () => {
+    const args = { minTs: '1', maxTs: '2', ticker: 'KX-1' }
+    expect(KalshiBlock.tools.config?.params?.(args, { operation: 'get_trades' })).toMatchObject(
+      args
+    )
+  })
+})

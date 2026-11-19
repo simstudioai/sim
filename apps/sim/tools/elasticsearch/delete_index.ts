@@ -4,6 +4,7 @@ import type {
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteIndexTool: ToolConfig<
   ElasticsearchDeleteIndexParams,
@@ -66,7 +67,7 @@ export const deleteIndexTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      return `${baseUrl}/${encodeURIComponent(params.index)}`
+      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}`
     },
     method: 'DELETE',
     headers: (params) => buildAuthHeaders(params),

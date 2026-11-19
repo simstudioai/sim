@@ -5,7 +5,8 @@ import type { ProfoundRawLogsParams, ProfoundRawLogsResponse } from './types'
 export const profoundRawLogsTool: ToolConfig<ProfoundRawLogsParams, ProfoundRawLogsResponse> = {
   id: 'profound_raw_logs',
   name: 'Profound Raw Logs',
-  description: 'Get raw traffic logs with filters for a domain in Profound',
+  description:
+    'Get raw traffic logs with filters for a domain in Profound. Profound retired this endpoint on 2026-06-10; use the Referrals Report instead.',
   version: '1.0.0',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 

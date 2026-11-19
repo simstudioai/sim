@@ -42,9 +42,17 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
       type: 'string',
       description: 'Calendar event title',
     },
+    meeting_type: {
+      type: 'string',
+      description: 'Meeting type name, or null when none is assigned',
+    },
     recording_id: {
       type: 'number',
       description: 'Unique recording ID',
+    },
+    meeting_url: {
+      type: 'string',
+      description: 'Underlying video call URL (Zoom, Meet, Teams), or null',
     },
     url: {
       type: 'string',
@@ -82,11 +90,20 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
       type: 'string',
       description: 'Domain type: only_internal or one_or_more_external',
     },
+    shared_with: {
+      type: 'string',
+      description: 'Sharing scope: no_teams, single_team, multiple_teams, or all_teams',
+    },
     recorded_by: {
       type: 'object',
       description: 'Recorder details',
-      name: { type: 'string', description: 'Name of the recorder' },
-      email: { type: 'string', description: 'Email of the recorder' },
+      open: true,
+      properties: {
+        name: { type: 'string', description: 'Name of the recorder' },
+        email: { type: 'string', description: 'Email of the recorder' },
+        email_domain: { type: 'string', description: 'Email domain of the recorder' },
+        team: { type: 'string', description: 'Recorder team name, or null' },
+      },
     },
     calendar_invitees: {
       type: 'array',
@@ -95,8 +112,11 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
     default_summary: {
       type: 'object',
       description: 'Meeting summary',
-      template_name: { type: 'string', description: 'Summary template name' },
-      markdown_formatted: { type: 'string', description: 'Markdown-formatted summary' },
+      open: true,
+      properties: {
+        template_name: { type: 'string', description: 'Summary template name' },
+        markdown_formatted: { type: 'string', description: 'Markdown-formatted summary' },
+      },
     },
     transcript: {
       type: 'array',

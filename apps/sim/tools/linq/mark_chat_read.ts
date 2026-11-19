@@ -2,6 +2,7 @@ import type { LinqChatActionParams, LinqSuccessResult } from '@/tools/linq/types
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqMarkChatReadTool: ToolConfig<LinqChatActionParams, LinqSuccessResult> = {
   id: 'linq_mark_chat_read',
@@ -27,7 +28,7 @@ export const linqMarkChatReadTool: ToolConfig<LinqChatActionParams, LinqSuccessR
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}/read`,
+    url: (params) => `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}/read`,
     method: 'POST',
     headers: (params) => linqHeaders(params.apiKey),
   },

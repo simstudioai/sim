@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { WealthboxReadParams, WealthboxReadResponse } from '@/tools/wealthbox/types'
 
 export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxReadResponse> = {
@@ -29,12 +30,11 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
 
   request: {
     url: (params) => {
-      const taskId = params.taskId?.trim()
-      let url = 'https://api.crmworkspace.com/v1/tasks'
-      if (taskId) {
-        url = `https://api.crmworkspace.com/v1/tasks/${taskId}`
+      const taskId = params.taskId
+      if (taskId == null || (typeof taskId === 'string' && !taskId.trim())) {
+        return 'https://api.crmworkspace.com/v1/tasks'
       }
-      return url
+      return `https://api.crmworkspace.com/v1/tasks/${safeUrlPathSegment(taskId, 'taskId')}`
     },
     method: 'GET',
     headers: (params) => {
@@ -51,6 +51,8 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    const listed = Array.isArray(data?.tasks) ? data.tasks : undefined
 
     // Format task information into readable content
     const task = data
@@ -88,10 +90,12 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       output: {
         content,
         task,
+        ...(listed ? { tasks: listed } : {}),
         metadata: {
           itemId: task.id?.toString() ?? null,
           taskId: task.id?.toString() ?? null,
           itemType: 'task' as const,
+          ...(listed ? { totalItems: listed.length } : {}),
         },
       },
     }
@@ -105,12 +109,22 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       properties: {
         content: { type: 'string', description: 'Formatted task information' },
         task: { type: 'object', description: 'Raw task data from Wealthbox' },
+        tasks: {
+          type: 'array',
+          description: 'Tasks in the returned page when no ID is given (list request)',
+          optional: true,
+        },
         metadata: {
           type: 'object',
           description: 'Operation metadata',
           properties: {
             itemId: { type: 'string', description: 'ID of the task', optional: true },
             taskId: { type: 'string', description: 'ID of the task', optional: true },
+            totalItems: {
+              type: 'number',
+              description: 'Number of items in the returned page (list requests only)',
+              optional: true,
+            },
             itemType: { type: 'string', description: 'Type of item (task)' },
           },
         },
