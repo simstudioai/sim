@@ -402,6 +402,15 @@ describe('raw requests', () => {
     await expect(unauthenticated.requestRaw('/api/v2/workflows')).rejects.toThrow(/Not logged in/)
     expect(fetch).not.toHaveBeenCalled()
   })
+
+  it('refuses a profile with no login as AUTH_REQUIRED, exit 13, apart from a failed command', async () => {
+    vi.stubGlobal('fetch', vi.fn())
+
+    await expect(client({}).request('/api/v2/workflows')).rejects.toMatchObject({
+      code: 'AUTH_REQUIRED',
+      exitCode: 13,
+    })
+  })
 })
 
 describe('rate limiting', () => {
@@ -948,6 +957,11 @@ describe('OAuth bearer credentials', () => {
     })
 
     await expect(client.request('/api/v2/meta')).rejects.toThrow('sim login --profile default')
+    await expect(client.request('/api/v2/meta')).rejects.toMatchObject({
+      status: 401,
+      code: 'AUTH_REQUIRED',
+      exitCode: 13,
+    })
   })
 
   it('prefers an explicit API key over the stored login', async () => {

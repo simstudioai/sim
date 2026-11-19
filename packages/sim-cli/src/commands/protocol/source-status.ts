@@ -7,7 +7,11 @@
 import type { FileChange, SourceStatus } from '@sim/workspace-code/status'
 import { createTwoFilesPatch, FILE_HEADERS_ONLY } from 'diff'
 import type { OutputFormat } from '../../config/index'
-import { SOURCE_DRIFT_EXIT_CODE, SOURCE_LOCAL_CHANGES_EXIT_CODE } from '../../exit-codes'
+import {
+  AUTH_REQUIRED_CODE,
+  SOURCE_DRIFT_EXIT_CODE,
+  SOURCE_LOCAL_CHANGES_EXIT_CODE,
+} from '../../exit-codes'
 import { SimApiError } from '../../http/client'
 import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
@@ -60,15 +64,17 @@ export function statusExitCode(state: SourceStatus['state']): number {
 const UNREACHABLE_STATUSES = new Set([502, 503, 504])
 
 /**
- * Why the server could not be reached (no connection, a timeout, a gateway that gave up), or
- * `null` for any other failure, which a status reports rather than hides.
+ * Why the server could not be reached (no connection, a timeout, a gateway that gave up, no login
+ * on the profile), as a sentence, or `null` for any other failure, which a status reports rather
+ * than hides.
  */
 export function unreachableReason(error: unknown): string | null {
   if (!(error instanceof SimApiError)) return null
-  if ((error.status === 0 && error.code === null) || UNREACHABLE_STATUSES.has(error.status)) {
-    return error.message
-  }
-  return null
+  const offline =
+    (error.status === 0 && (error.code === null || error.code === AUTH_REQUIRED_CODE)) ||
+    UNREACHABLE_STATUSES.has(error.status)
+  if (!offline) return null
+  return /[.!?]$/.test(error.message) ? error.message : `${error.message}.`
 }
 
 const SERVER_WORDS = {

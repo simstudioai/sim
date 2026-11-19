@@ -58,3 +58,14 @@ export const SOURCE_LOCAL_CHANGES_EXIT_CODE = 11
  * stale). Local changes may exist beside it.
  */
 export const SOURCE_DRIFT_EXIT_CODE = 12
+
+/**
+ * No usable login: the profile has no credential (`AUTH_REQUIRED`, "Not logged in"), its OAuth
+ * login expired and cannot be refreshed, or the server refused the credential (`401`). Nothing
+ * was sent or done: run `sim login`, then the same command again. Apart from exit 1 (the source
+ * has errors, or another failure), so a script can tell a login to fix from a source to fix.
+ */
+export const AUTH_REQUIRED_EXIT_CODE = 13
+
+/** The error code of an {@link AUTH_REQUIRED_EXIT_CODE} refusal the CLI raises itself. */
+export const AUTH_REQUIRED_CODE = 'AUTH_REQUIRED'

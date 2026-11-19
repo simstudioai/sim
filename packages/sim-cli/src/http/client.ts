@@ -4,7 +4,7 @@ import { truncate } from '@sim/utils/string'
 import { writeStderr } from '#sim-cli/output/io'
 import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
-import { RATE_LIMITED_EXIT_CODE } from '../exit-codes'
+import { AUTH_REQUIRED_CODE, AUTH_REQUIRED_EXIT_CODE, RATE_LIMITED_EXIT_CODE } from '../exit-codes'
 import { identityHeaders } from '../telemetry/client-info'
 import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment'
 
@@ -595,7 +595,10 @@ export class SimClient {
     if (auth === 'optional') return undefined
     throw new SimApiError(
       `Not logged in on profile "${this.profile.name}". Run: sim login --profile ${this.profile.authProfile}`,
-      0
+      0,
+      AUTH_REQUIRED_CODE,
+      undefined,
+      AUTH_REQUIRED_EXIT_CODE
     )
   }
 
@@ -608,7 +611,10 @@ export class SimClient {
     if (!refresh) {
       throw new SimApiError(
         `Your Sim login has expired. Run sim logout --profile ${this.profile.name}, then sim login --profile ${this.profile.name}.`,
-        401
+        401,
+        AUTH_REQUIRED_CODE,
+        undefined,
+        AUTH_REQUIRED_EXIT_CODE
       )
     }
     if (!this.refreshing) {
@@ -777,11 +783,19 @@ export class SimClient {
 
     if (!response.ok) {
       const raw = await readResponseText(response)
-      const error = toApiError(url, response, raw)
+      const refused = toApiError(url, response, raw)
+      const error =
+        response.status === 401
+          ? new SimApiError(
+              `${refused.message} — run: sim login --profile ${this.profile.authProfile}`,
+              refused.status,
+              refused.code ?? AUTH_REQUIRED_CODE,
+              refused.details,
+              AUTH_REQUIRED_EXIT_CODE,
+              refused.requestId
+            )
+          : refused
       error.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), 300_000)
-      if (response.status === 401) {
-        error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
-      }
       if (namesKeyScopeRefusal(error)) {
         error.message = `${error.message} — this operation does not support workspace API keys; use an OAuth login or personal API key: sim login --profile ${this.profile.authProfile}`
       }
