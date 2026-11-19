@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogListInsightsParams {
@@ -83,7 +83,7 @@ export const listInsightsTool: ToolConfig<PostHogListInsightsParams, PostHogList
     request: {
       url: (params) => {
         const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
-        let url = `${baseUrl}/api/projects/${params.projectId}/insights/`
+        let url = `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/insights/`
 
         const queryParams = []
         if (params.limit) queryParams.push(`limit=${params.limit}`)

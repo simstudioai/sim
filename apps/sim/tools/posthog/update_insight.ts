@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogUpdateInsightParams {
@@ -116,7 +116,7 @@ export const updateInsightTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/insights/${params.insightId}/`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/insights/${postHogPathSegment(params.insightId, 'insightId')}/`
     },
     method: 'PATCH',
     headers: (params) => ({

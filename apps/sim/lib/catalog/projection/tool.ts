@@ -3,7 +3,7 @@ import type { HostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata, type ToolMetadata } from '@/tools/metadata'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { resolveToolId } from '@/tools/tool-ids'
-import type { ToolConfig } from '@/tools/types'
+import type { OutputProperty, ToolConfig } from '@/tools/types'
 
 /**
  * Surface-neutral projection of a built-in tool.
@@ -141,9 +141,25 @@ export function projectToolOutputs(
   const projected: Record<string, CatalogToolOutput> = {}
   for (const [id, output] of Object.entries(outputs ?? {})) {
     if (!output || isHiddenFromDisplay(output)) continue
-    projected[id] = output as CatalogToolOutput
+    projected[id] = publicOutput(output)
   }
   return projected
+}
+
+/** A declared output in its public shape, without the internal `open` marker at any depth. */
+function publicOutput(output: OutputProperty): CatalogToolOutput {
+  const { open, properties, items, ...rest } = output
+  const projected: CatalogToolOutput = { ...rest }
+  if (properties) projected.properties = publicOutputs(properties)
+  if (items) {
+    const { open: itemOpen, properties: itemProperties, ...item } = items
+    projected.items = itemProperties ? { ...item, properties: publicOutputs(itemProperties) } : item
+  }
+  return projected
+}
+
+function publicOutputs(outputs: Record<string, OutputProperty>): Record<string, CatalogToolOutput> {
+  return Object.fromEntries(Object.entries(outputs).map(([id, node]) => [id, publicOutput(node)]))
 }
 
 /**

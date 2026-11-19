@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { buildKalshiUrl } from '@/tools/kalshi/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
@@ -86,9 +87,17 @@ function oneOf(value: unknown, allowed: string[], fallback: string, label: strin
   return text
 }
 
-/** `undefined` when unset, so an untouched field sends nothing; `'false'` stays an explicit false. */
-function optionalFlag(value: unknown): boolean | undefined {
-  return isBlank(value) ? undefined : String(value).trim().toLowerCase() === 'true'
+/**
+ * `undefined` when unset, so an untouched field sends nothing; `'false'` stays an explicit false.
+ * Anything other than true or false throws, so a typo never drops a requested safety restriction.
+ */
+function optionalFlag(value: unknown, label: string): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (isBlank(value)) return undefined
+  const text = String(value).trim().toLowerCase()
+  if (text === 'true') return true
+  if (text === 'false') return false
+  throw new Error(`${label} must be true or false, got "${String(value).trim()}"`)
 }
 
 /** The V2 book side for a legacy (side, action): buy yes and sell no bid; buy no and sell yes ask. */
@@ -194,14 +203,15 @@ export function buildKalshiCreateOrderBody(
   if (!isBlank(params.expirationTs)) {
     body.expiration_time = parseScaled(params.expirationTs, 0, 'Expiration')
   }
-  const postOnly = optionalFlag(params.postOnly)
+  const postOnly = optionalFlag(params.postOnly, 'Post Only')
   if (postOnly !== undefined) body.post_only = postOnly
-  const reduceOnly = optionalFlag(params.reduceOnly)
+  const reduceOnly = optionalFlag(params.reduceOnly, 'Reduce Only')
   if (reduceOnly !== undefined) body.reduce_only = reduceOnly
-  const cancelOnPause = optionalFlag(params.cancelOrderOnPause)
+  const cancelOnPause = optionalFlag(params.cancelOrderOnPause, 'Cancel Order on Pause')
   if (cancelOnPause !== undefined) body.cancel_order_on_pause = cancelOnPause
   if (!isBlank(params.orderGroupId)) body.order_group_id = params.orderGroupId
-  if (!isBlank(params.subaccount)) body.subaccount = parseScaled(params.subaccount, 0, 'Subaccount')
+  const subaccount = kalshiSubaccount(params.subaccount)
+  if (subaccount !== undefined) body.subaccount = subaccount
   return body
 }
 
@@ -274,6 +284,36 @@ export function kalshiOrderPath(orderId?: string, action?: 'amend'): string {
   const order = `/portfolio/events/orders/${safeUrlPathSegment(orderId, 'orderId')}`
   return action ? `${order}/${action}` : order
 }
+
+/** The subaccount number (0 primary, 1-63 numbered), or `undefined` when unset. */
+function kalshiSubaccount(value: unknown): number | undefined {
+  return isBlank(value) ? undefined : parseScaled(value, 0, 'Subaccount')
+}
+
+/**
+ * A cancel or amend URL with its query: `subaccount` (CancelOrderV2 and AmendOrderV2 take it as a
+ * query param) and any extra params. Kalshi signs the path only, never the query.
+ */
+export function kalshiOrderWriteUrl(
+  path: string,
+  subaccount: unknown,
+  query: Record<string, string> = {}
+): string {
+  const search = new URLSearchParams(query)
+  const number = kalshiSubaccount(subaccount)
+  if (number !== undefined) search.set('subaccount', String(number))
+  const text = search.toString()
+  return text ? `${buildKalshiUrl(path)}?${text}` : buildKalshiUrl(path)
+}
+
+/** The optional `subaccount` param of the cancel and amend tools. */
+export const KALSHI_ORDER_SUBACCOUNT_PARAM = {
+  type: 'string',
+  required: false,
+  visibility: 'user-or-llm',
+  description:
+    'Subaccount the order belongs to (0 for primary, 1-63 for numbered subaccounts). Leave empty for the primary account',
+} as const
 
 /** Path of the documented order read (`GET /portfolio/orders/{id}`). */
 export function kalshiOrderReadPath(orderId: string): string {

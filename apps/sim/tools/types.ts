@@ -79,11 +79,15 @@ export interface OutputProperty {
   optional?: boolean
   nullable?: boolean
   properties?: Record<string, OutputProperty>
+  /** Fields beyond `properties` are valid references; an internal hint the public catalog omits. */
+  open?: boolean
   items?: {
     type: OutputType
     description?: string
     nullable?: boolean
     properties?: Record<string, OutputProperty>
+    /** Any sub-path of an item is a valid reference; an internal hint the public catalog omits. */
+    open?: boolean
   }
 }
 
