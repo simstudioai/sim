@@ -146,3 +146,41 @@ export function checkStorableLiterals(
     for (const child of childNodes(node)) stack.push(child)
   }
 }
+
+/**
+ * Scripts whose letters pass for Latin ones (`а` U+0430 is Cyrillic, `ο` U+03BF Greek), so a word
+ * mixing one of them with Latin reads as a Latin word it is not. Unicode's own script property
+ * decides, so no confusables table is needed.
+ */
+const LOOKALIKE_SCRIPTS: ReadonlyArray<readonly [string, RegExp]> = [
+  ['Latin', /\p{Script=Latin}/u],
+  ['Cyrillic', /\p{Script=Cyrillic}/u],
+  ['Greek', /\p{Script=Greek}/u],
+  ['Armenian', /\p{Script=Armenian}/u],
+  ['Cherokee', /\p{Script=Cherokee}/u],
+]
+
+/** The {@link LOOKALIKE_SCRIPTS} script `character` belongs to, or `null`. */
+export function scriptName(character: string): string | null {
+  return LOOKALIKE_SCRIPTS.find(([, pattern]) => pattern.test(character))?.[0] ?? null
+}
+
+/**
+ * The first character of `text` that puts a second script into a word of Latin letters (`С` in
+ * `Сlaude`), with its script; `null` when every word keeps to one script. Words are runs of
+ * letters, so `Send to Москва` (two words, one script each) is fine.
+ */
+export function mixedScriptCharacter(text: string): { character: string; script: string } | null {
+  for (const word of text.normalize('NFC').match(/\p{L}+/gu) ?? []) {
+    const letters = [...word].map((character) => ({ character, script: scriptName(character) }))
+    if (!letters.some(({ script }) => script === 'Latin')) continue
+    const other = letters.find(({ script }) => script !== null && script !== 'Latin')
+    if (other?.script) return { character: other.character, script: other.script }
+  }
+  return null
+}
+
+/** `U+0421`: a character's code point as Unicode writes it. */
+export function codePointLabel(character: string): string {
+  return `U+${(character.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}`
+}

@@ -149,6 +149,8 @@ export interface CompileContext {
   stored: CanonicalWorkflow | undefined
   /** `CompileInput.envNames`: the env names a run resolves, when known. */
   envNames: ReadonlySet<string> | undefined
+  /** `CompileInput.envDeclaredIn`: the file the env names are declared in, when there is one. */
+  envDeclaredIn: string | undefined
   /** Every env name the source reads, whether or not `envNames` holds it. */
   envReferences: Set<string>
   /**

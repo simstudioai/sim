@@ -659,14 +659,16 @@ function segmentsOf(
 function checkEnvName(ctx: CompileContext, name: string, at: Range, blockKey: BlockKey): void {
   ctx.envReferences.add(name)
   if (!ctx.envNames || ctx.envNames.has(name)) return
+  const near = didYouMean(name, ctx.envNames)
   ctx.reporter.report(
     'W_ENV_UNKNOWN',
     `The workspace has no env variable ${name}, so it resolves to nothing at run time.`,
     at,
     {
-      hint:
-        didYouMean(name, ctx.envNames) ??
-        `Add ${name} under the workspace's or your environment variables, or use a name .sim/sdk/workspace.d.ts lists.`,
+      hint: ctx.envDeclaredIn
+        ? `${near ? `${near} Otherwise d` : 'D'}eclare ${name} in ${ctx.envDeclaredIn} and set its value with \`sim secrets set ${name} --scope workspace\`.`
+        : (near ??
+          `Add ${name} under the workspace's or your environment variables, or use a name .sim/sdk/workspace.d.ts lists.`),
       blockKey,
     }
   )

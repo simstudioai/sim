@@ -57,6 +57,10 @@
     "./sdk": {
       "types": "./src/sdk.ts",
       "default": "./src/sdk.ts"
+    },
+    "./start-inputs": {
+      "types": "./src/start-inputs.ts",
+      "default": "./src/start-inputs.ts"
     }
   },
   "scripts": {

@@ -63,7 +63,11 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
   name too); the printer escapes such characters (U+202E prints as `\u202E`) in every string. Two
   names whose keys differ only by Unicode normalization (`café` precomposed and decomposed) are
   `E_LOOKALIKE_NAME`: the runtime binds keys by their bytes, so they would be two blocks no reader
-  can tell apart. A pair the stored workflow already holds is `W_LOOKALIKE_NAME`. Keys are compared
+  can tell apart. So is a name with a word that mixes Latin letters with Cyrillic, Greek, Armenian
+  or Cherokee ones (`Сlaude` with a Cyrillic `С`), which reads as a Latin name it is not: Unicode's
+  script property decides, without a confusables table, so a look-alike written wholly in one
+  other script (`Сlаudе` is caught, `Сласде` is not mixed) and digit look-alikes are not caught. A
+  pair or name the stored workflow already holds is `W_LOOKALIKE_NAME`. Keys are compared
   NFC-normalized and stored as written.
 - `response(name, { body, status?, headers? })` is the response block in the editor's JSON mode:
   `body` in `data` (a literal or text), `status` as text (a number literal prints for a canonical
@@ -370,7 +374,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_KEY_OVERRIDE` | A `meta.key` that is not a legacy key the stored workflow already has. |
 | `E_EMPTY_NAME` | An empty block name. |
 | `E_NAME_NOT_LITERAL` | A block or workflow name that is not a string literal. |
-| `E_LOOKALIKE_NAME` | Two block names whose keys differ only by Unicode normalization (NFC vs NFD). |
+| `E_LOOKALIKE_NAME` | Two block names whose keys differ only by Unicode normalization (NFC vs NFD), or a block name with a word that mixes Latin letters with Cyrillic, Greek, Armenian or Cherokee ones (`Сlaude`); the message names the code point. |
 | `W_LOOKALIKE_NAME` | A look-alike pair the stored workflow already holds, kept so it round-trips. |
 | `W_SUSPICIOUS_CHARACTER` | A block or workflow name holds a bidi control or zero-width character. |
 | `E_UNKNOWN_IDENTIFIER` | An identifier that names nothing in scope; the hint has a did-you-mean, says to write the value for a const refused for holding one, and points `process.env` at `env.NAME`. |
@@ -379,7 +383,9 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_DUPLICATE_VARIABLE` | Two variables with one key. |
 | `E_VARIABLE_NAME_MISMATCH` | A variable's `name` does not normalize to its key. |
 | `E_INVALID_ENV_NAME` | `env.X` with an invalid name. |
-| `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known); the hint has a did-you-mean. |
+| `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known); the hint has a did-you-mean, and in a workspace directory points at `secrets.ts`. |
+| `W_CHILD_INPUT_UNKNOWN` | A child workflow call's `inputMapping` sets an input the child's Start trigger does not declare (`sim workspaces source check`, with the child in the same directory); the hint names the nearest input. |
+| `W_CHILD_NO_START` | A child workflow call names a workflow of the same directory that has no Start trigger (`sim workspaces source check`). |
 | `E_UNKNOWN_SUBFLOW_PROPERTY` | `p.<prop>` that a loop or parallel does not have. |
 | `W_FORWARD_REF` | A ref to a block declared later; it resolves. |
 | `W_REF_NOT_NORMALIZED` | Hand-written `<Name.path>` text that is not in key form. |
