@@ -49,7 +49,7 @@ vi.mock('@/lib/billing/core/usage-segment-cache', () => ({
   },
 }))
 
-import { markFinishedRunDirty } from '@/lib/billing/activity-rollup/marks'
+import { markFinishedRunsDirty } from '@/lib/billing/activity-rollup/marks'
 import {
   type ActivityRollupPassOptions,
   markStaleHours,
@@ -636,11 +636,10 @@ describe('organization activity rollup', () => {
     await expectEquivalent()
   }, 120_000)
 
-  it('reads a completion committed after the scan passed its stamped end live at once', async () => {
+  it('marks a late-committing completion so its computed hour reads live', async () => {
     const run = await oneLog(
       `status = 'running' AND started_at < (now() AT TIME ZONE 'UTC') - interval '3 days'`
     )
-    // The end is stamped when the run finished, so its write lands behind the late-end scan.
     await database.transaction(async (tx) => {
       const [finished] = await tx
         .update(schema.workflowExecutionLogs)
@@ -652,7 +651,7 @@ describe('organization activity rollup', () => {
         .where(eq(schema.workflowExecutionLogs.id, run.id))
         .returning()
       if (!finished) throw new Error('No run to finish')
-      await markFinishedRunDirty(tx, finished)
+      await markFinishedRunsDirty(tx, [finished])
     })
     await expectEquivalent()
     await runPass()

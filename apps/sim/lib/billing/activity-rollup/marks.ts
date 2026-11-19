@@ -27,7 +27,8 @@ const logger = createLogger('ActivityRollupMarks')
 /**
  * How far behind now the late-end scan stays: an end is stamped by the app before its write
  * commits, so the scan only consumes ends old enough that every write stamped with them is
- * visible. Ends younger than this are read by a later pass.
+ * visible. Ends younger than this are read by a later pass. A writer whose stamp can trail its
+ * commit by longer marks the runs it finishes itself (see {@link markFinishedRunsDirty}).
  */
 export const LATE_END_SCAN_MARGIN_MS = 5 * 60 * 1000
 
@@ -45,7 +46,8 @@ interface ChangedRun {
 /**
  * Marks the rollup cells of `runs` for recomputing, in the caller's transaction so the marks
  * commit exactly when the change does. For changes the rollup pass cannot see on its own:
- * deleted runs, and finished runs reopened without an end.
+ * deleted runs, finished runs reopened without an end, and runs whose end committed too late for
+ * the late-end scan (see {@link markFinishedRunsDirty}).
  *
  * Runs in a savepoint and never throws: a mark that fails (the table missing mid-deploy) is logged
  * and the caller's change goes ahead, so retention and resumes behave exactly as without the
@@ -87,17 +89,20 @@ export async function markWorkflowActivityDirty(
   }
 }
 
+/** Runs younger than this lie in hours not computed yet: the settle lag less an hour of clock margin. */
+const FINISHED_RUN_MARK_AGE_MS = ACTIVITY_ROLLUP_SETTLE_MS - HOUR_MS
+
 /**
- * Marks the cell of a run whose final status is being written, in the transaction that writes it,
- * when the run's hour may already be computed (it started at least the settle lag, less an hour of
- * clock margin, ago). The run's end is stamped when it finishes, before masking and usage
- * recording, so its write can commit after the late-end scan has passed that end, or after its
- * hour was computed without a late end at all; the mark leaves neither to the in-flight recheck.
- * Younger runs lie in hours not computed yet, and are not marked.
+ * Marks the cells of runs whose final status is being written, in the transaction that writes it,
+ * when their hours may already be computed. Their ends were stamped before the write, so it can
+ * commit after the late-end scan passed the end, or after the hour was computed without a late end.
  */
-export async function markFinishedRunDirty(tx: DbTransaction, run: ChangedRun): Promise<void> {
-  if (Date.now() - run.startedAt.getTime() < ACTIVITY_ROLLUP_SETTLE_MS - HOUR_MS) return
-  await markWorkflowActivityDirty(tx, [run])
+export async function markFinishedRunsDirty(tx: DbTransaction, runs: ChangedRun[]): Promise<void> {
+  const settled = Date.now() - FINISHED_RUN_MARK_AGE_MS
+  await markWorkflowActivityDirty(
+    tx,
+    runs.filter((run) => run.startedAt.getTime() <= settled)
+  )
 }
 
 /**
