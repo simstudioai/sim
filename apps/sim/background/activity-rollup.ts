@@ -12,7 +12,7 @@ import {
 export const activityRollupTask = task({
   id: ACTIVITY_ROLLUP_TASK_ID,
   machine: 'small-1x',
-  maxDuration: 5 * 60,
+  maxDuration: 10 * 60,
   retry: { maxAttempts: 1 },
   queue: { name: ACTIVITY_ROLLUP_TASK_ID, concurrencyLimit: 1 },
   run: async () => runActivityRollupMaintenance(),

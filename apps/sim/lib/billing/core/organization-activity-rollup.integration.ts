@@ -751,6 +751,33 @@ describe('organization activity rollup', () => {
     await expectEquivalent()
   }, 300_000)
 
+  it('rebuilds when the maintenance heartbeat expired while a pass was running', async () => {
+    // The pass's first hour write ages the heartbeat past the gap, as a pass straddling it would.
+    await connection.unsafe(`
+      UPDATE activity_rollup_state
+        SET fresh_through = fresh_through - interval '1 hour', maintained_at = now();
+      DELETE FROM workflow_activity_hourly
+        WHERE bucket_start >= (SELECT fresh_through FROM activity_rollup_state);
+      CREATE FUNCTION age_rollup_heartbeat() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        UPDATE activity_rollup_state SET maintained_at = now() - interval '7 hours';
+        RETURN NULL;
+      END $$;
+      CREATE TRIGGER age_rollup_heartbeat AFTER INSERT ON workflow_activity_hourly
+        FOR EACH STATEMENT EXECUTE FUNCTION age_rollup_heartbeat();
+    `)
+    try {
+      expect((await runPass()).finalizedHours).toBe(1)
+    } finally {
+      await connection.unsafe(`
+        DROP TRIGGER age_rollup_heartbeat ON workflow_activity_hourly;
+        DROP FUNCTION age_rollup_heartbeat();
+      `)
+    }
+    expect((await runPass()).reset).toBe('maintenance-gap')
+    await expectEquivalent()
+  }, 300_000)
+
   it('backs off an hour too heavy to read and keeps the rest of the pass running', async () => {
     const [{ hour }] = await connection.unsafe<{ hour: string }[]>(
       `SELECT to_char(h, 'YYYY-MM-DD HH24:MI:SS') AS hour FROM (

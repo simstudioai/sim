@@ -3,6 +3,7 @@ import {
   activityRollupBlocked,
   activityRollupDirty,
   activityRollupInflight,
+  activityRollupState,
   workflow,
   workflowActivityHourly,
   workflowExecutionLogs,
@@ -141,6 +142,8 @@ function startCoverage(
 
 /** How long a retry of an hour too heavy to read may page through workspaces. */
 const HEAVY_RETRY_MS = 2 * 60 * 1000
+/** A retry's budget grows with its attempts up to this, still inside the task's duration. */
+const MAX_HEAVY_RETRY_MS = 6 * 60 * 1000
 
 /**
  * Backs off an hour no read could aggregate, loudly, so passes stop retrying it every tick and
@@ -167,8 +170,8 @@ async function blockHour(hour: Date, attempts: number, error: HeavyHourError): P
 /**
  * Aggregates and writes `hour` with the progress it completes, or leaves it: still backing off,
  * or found too heavy to read. A retry of a blocked hour skips the reads known to time out and
- * pages through workspaces under its own budget (the lease is extended to cover it), and a write
- * that completes it forgets the block in the same transaction.
+ * pages through workspaces under its own budget, which grows with its attempts (the lease is
+ * extended to cover it), and a write that completes it forgets the block in the same transaction.
  */
 async function computeHour(
   owner: string,
@@ -187,10 +190,11 @@ async function computeHour(
     .from(activityRollupBlocked)
     .where(eq(activityRollupBlocked.bucketStart, hour))
   if (block && block.retryAt.getTime() > Date.now()) return { state: null, runs: 0 }
-  if (block) await extendLease(owner, HEAVY_RETRY_MS + LEASE_MARGIN_MS)
+  const retryBudgetMs = block ? Math.min(MAX_HEAVY_RETRY_MS, HEAVY_RETRY_MS * block.attempts) : 0
+  if (block) await extendLease(owner, retryBudgetMs + LEASE_MARGIN_MS)
   let cells: ActivityCell[]
   try {
-    cells = await aggregateHour(hour, block ? Date.now() + HEAVY_RETRY_MS : deadline, {
+    cells = await aggregateHour(hour, block ? Date.now() + retryBudgetMs : deadline, {
       byWorkspace: Boolean(block),
     })
   } catch (error) {
@@ -541,8 +545,15 @@ export async function runActivityRollupPass(
       Date.now() - state.housekeepingAt.getTime() >= HOUSEKEEPING_INTERVAL_MS
     const housekeeping = housekeepingDue && Date.now() < deadline
     if (housekeeping) await runHousekeeping(state, deadline, result)
+    /**
+     * The heartbeat moves only if the last one was still within the gap when this pass ends: one
+     * that expired while the pass ran means writers already stopped marking, so it is left to
+     * expire and the next pass rebuilds.
+     */
     state = await updateLeasedState(owner, {
-      maintainedAt: sql`now()`,
+      maintainedAt: sql`CASE
+        WHEN ${activityRollupState.maintainedAt} > now() - ${msInterval(MAINTENANCE_GAP_MS)}
+        THEN now() ELSE ${activityRollupState.maintainedAt} END`,
       ...(housekeeping ? { housekeepingAt: sql`now()` } : {}),
     })
     const [blocked] = await db.select({ count: count() }).from(activityRollupBlocked)

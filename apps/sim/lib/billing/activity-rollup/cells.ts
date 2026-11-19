@@ -186,7 +186,10 @@ export async function aggregateHour(
       return await readers.span({ from: hour, to: new Date(hour.getTime() + HOUR_MS) })
     } catch (error) {
       if (!isBoundedCancellation(error)) throw error
-      logger.warn('Activity rollup hour read in slices', { hour: hour.toISOString() })
+      logger.warn('Activity rollup hour read in slices', {
+        hour: hour.toISOString(),
+        reason: getPostgresCancellationReason(error),
+      })
     }
   }
   const sliceMs = HOUR_MS / SLICES_PER_HOUR
@@ -202,7 +205,10 @@ export async function aggregateHour(
         continue
       } catch (error) {
         if (!isBoundedCancellation(error)) throw error
-        logger.warn('Activity rollup slice read by workspace', { from: from.toISOString() })
+        logger.warn('Activity rollup slice read by workspace', {
+          from: from.toISOString(),
+          reason: getPostgresCancellationReason(error),
+        })
         byWorkspace = true
       }
     }
