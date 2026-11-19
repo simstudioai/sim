@@ -449,8 +449,6 @@ export async function archiveWorkflowsInTransaction(
       and(inArray(workflowMcpTool.workflowId, workflowIds), isNull(workflowMcpTool.archivedAt))
     )
 
-  await archiveBuildNotesForWorkflows(tx, workflowIds, now)
-
   await tx
     .update(workflowDeploymentVersion)
     .set({
@@ -472,6 +470,9 @@ export async function archiveWorkflowsInTransaction(
       isPublicApi: false,
     })
     .where(and(inArray(workflow.id, workflowIds), isNull(workflow.archivedAt)))
+
+  // After the workflow rows, in the lock order every build-notes path shares.
+  await archiveBuildNotesForWorkflows(tx, workflowIds, now)
 }
 
 /** Best-effort external notifications run only after durable archive state commits. */

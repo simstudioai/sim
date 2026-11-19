@@ -5,7 +5,7 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { db } from '@sim/db'
+import { db, runOutsideTransactionContext } from '@sim/db'
 import {
   auditLog,
   folder,
@@ -26,10 +26,11 @@ import {
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import type { BlockState } from '@sim/workflow-types/workflow'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 import {
   applyBuildNotes,
@@ -40,7 +41,8 @@ import {
   listBuildNotesStates,
   rebaseBuildNotes,
 } from '@/lib/build-notes/application/build-notes'
-import { readBuildNotesFileText } from '@/lib/build-notes/files'
+import { loadCurrentBaselineState } from '@/lib/build-notes/baseline'
+import { readBuildNotesFileText, writeBaseline } from '@/lib/build-notes/files'
 import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import { deleteFolder, restoreFolder } from '@/lib/folders/orchestration'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
@@ -330,6 +332,9 @@ check('the agent writes its notes but never the baseline Sim keeps', async () =>
   await expect(agentWrites(row.notesFileId, 'x'.repeat(256 * 1024 + 1))).rejects.toMatchObject({
     code: 'payload_too_large',
   })
+  await expect(agentWrites(row.notesFileId, 'before\u0000after')).rejects.toMatchObject({
+    code: 'validation',
+  })
 })
 
 check(
@@ -357,6 +362,11 @@ check(
     await expect(
       getBuildNotesStatus.execute({ principal: agent, input: target(workflowId) })
     ).resolves.toMatchObject({ exists: true, evaluated: true })
+
+    // The same notes fail once the block the batch wires from is gone; that withdraws the pass.
+    await apply(person, workflowId, [{ operation_type: 'delete', block_id: startId }])
+    expect((await evaluate(workflowId)).passed).toBe(false)
+    expect((await notesRow(workflowId)).evaluatedNotesHash).toBeNull()
   }
 )
 
@@ -530,7 +540,11 @@ check(
       credential: { id: 'credential', type: 'oauth-input' as const, value },
     })
     const { workflowId } = await seedWorkflow({
-      [gmailId]: block(gmailId, 'gmail', 'Send mail', credential('cred-original')),
+      [gmailId]: {
+        ...block(gmailId, 'gmail', 'Send mail', credential('cred-original')),
+        // A legacy credential kept on the block's data, which sanitization also clears.
+        data: { apiKey: 'key-original' } as BlockState['data'],
+      },
     })
     await createNotes(workflowId)
     const row = await notesRow(workflowId)
@@ -539,17 +553,32 @@ check(
       maxBytes: 16 * 1024 * 1024,
     })
     expect(baselineText).not.toContain('cred-original')
+    expect(baselineText).not.toContain('key-original')
 
     await db
       .update(workflowBlocks)
-      .set({ subBlocks: credential('cred-switched') })
+      .set({ subBlocks: credential('cred-switched'), data: { apiKey: 'key-switched' } })
       .where(eq(workflowBlocks.id, gmailId))
     const changes = await changesSince(workflowId)
     expect(changes.hasChanges).toBe(true)
-    expect(changes.changedWithheldFields).toEqual([{ blockId: gmailId, field: 'credential' }])
-    expect(JSON.stringify(changes)).not.toContain('cred-')
+    expect(changes.changedWithheldFields).toEqual([
+      { blockId: gmailId, field: 'credential' },
+      { blockId: gmailId, field: 'data.apiKey' },
+    ])
+    expect(JSON.stringify(changes)).not.toMatch(/cred-|key-/)
   }
 )
+
+check('a baseline read before a newer one was recorded never replaces it', async () => {
+  const { workflowId, startId } = await seedWorkflow()
+  await createNotes(workflowId)
+  const stale = await loadCurrentBaselineState(workflowId)
+  await apply(person, workflowId, functionBatch(startId, 'later'))
+  await rebaseBuildNotes.execute({ principal: agent, input: target(workflowId) })
+
+  await writeBaseline(await notesRow(workflowId), stale, { userId: ownerId, source: 'copilot' })
+  await expect(changesSince(workflowId)).resolves.toMatchObject({ hasChanges: false })
+})
 
 check("restoring a deleted folder brings its workflows' notes and files back", async () => {
   const { workflowId } = await seedWorkflow()
@@ -597,6 +626,50 @@ check('with the feature off, agent writes go unchecked and the notes are unreach
     })
   ).resolves.toEqual(new Map())
 })
+
+/** Waits until a session is queued behind the given backend's locks. */
+function waitForBlockedBehind(holderPid: number): Promise<void> {
+  return runOutsideTransactionContext(async () => {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const [row] = await db.execute<{ blocked: number }>(sql`
+        SELECT count(*)::int AS blocked FROM pg_stat_activity
+        WHERE ${holderPid} = ANY(pg_blocking_pids(pid))`)
+      if ((row?.blocked ?? 0) > 0) return
+      await sleep(25)
+    }
+    throw new Error(`Expected a session blocked behind backend ${holderPid}`)
+  })
+}
+
+check(
+  'an archive waits behind a build holding the workflow instead of deadlocking on the notes',
+  async () => {
+    const { workflowId } = await seedWorkflow()
+    await createNotes(workflowId)
+    const notesId = (await notesRow(workflowId)).id
+    let archived: Promise<unknown> | undefined
+    await db.transaction(async (tx) => {
+      // A build's lock order: the workflow row, then the notes row.
+      await tx
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .for('update')
+      const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      if (!backend) throw new Error('No backend pid')
+      archived = runOutsideTransactionContext(() =>
+        archiveWorkflow(workflowId, { requestId: generateId(), notifySocket: false })
+      )
+      await waitForBlockedBehind(backend.pid)
+      await tx
+        .update(workflowBuildNotes)
+        .set({ updatedAt: new Date() })
+        .where(eq(workflowBuildNotes.id, notesId))
+    })
+    await expect(archived).resolves.toMatchObject({ archived: true })
+    expect((await notesRow(workflowId)).deletedAt).not.toBeNull()
+  }
+)
 
 check('archiving takes the notes and files down; restoring brings exactly them back', async () => {
   const { workflowId } = await seedWorkflow()

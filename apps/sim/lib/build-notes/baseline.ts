@@ -54,14 +54,15 @@ function toWorkflowState(value: unknown): WorkflowState {
   }
 }
 
-function subBlockValues(block: unknown): Record<string, unknown> {
-  const subBlocks = isRecordLike(block) ? toRecord(block.subBlocks) : {}
-  return Object.fromEntries(
-    Object.entries(subBlocks).map(([id, subBlock]) => [
-      id,
-      isRecordLike(subBlock) ? subBlock.value : undefined,
-    ])
-  )
+/** A block's values sanitization may clear: each subblock's value, and each `data` entry as `data.<key>`. */
+function withheldCandidates(block: unknown): Record<string, unknown> {
+  if (!isRecordLike(block)) return {}
+  const values: Record<string, unknown> = {}
+  for (const [id, subBlock] of Object.entries(toRecord(block.subBlocks))) {
+    values[id] = isRecordLike(subBlock) ? subBlock.value : undefined
+  }
+  for (const [key, value] of Object.entries(toRecord(block.data))) values[`data.${key}`] = value
+  return values
 }
 
 /** Hashes each subblock value the sanitized graph no longer carries, salted by its place. */
@@ -72,8 +73,8 @@ function clearedFieldHashes(
 ): ClearedFieldHashes {
   const hashes: ClearedFieldHashes = {}
   for (const [blockId, block] of Object.entries(stored.blocks)) {
-    const kept = subBlockValues(sanitized.blocks[blockId])
-    for (const [field, value] of Object.entries(subBlockValues(block))) {
+    const kept = withheldCandidates(sanitized.blocks[blockId])
+    for (const [field, value] of Object.entries(withheldCandidates(block))) {
       if (value === undefined || value === null || value === '') continue
       if (JSON.stringify(kept[field]) === JSON.stringify(value)) continue
       hashes[blockId] ??= {}

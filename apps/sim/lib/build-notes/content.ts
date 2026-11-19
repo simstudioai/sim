@@ -30,8 +30,11 @@ export async function prepareBuildNotesWrite(input: {
       `Build notes can be at most ${MAX_BUILD_NOTES_BYTES / 1024}KB`
     )
   }
-  if (!isUtf8(input.content)) {
-    throw new OrchestrationError('validation', 'Build notes must be UTF-8 text')
+  if (!isUtf8(input.content) || input.content.includes(0)) {
+    throw new OrchestrationError(
+      'validation',
+      'Build notes must be UTF-8 text without NUL bytes, which would make the file unreadable as text'
+    )
   }
   return (tx) => clearBuildNotesEvaluation(notes.id, tx)
 }

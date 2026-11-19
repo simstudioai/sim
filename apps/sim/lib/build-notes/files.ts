@@ -17,6 +17,13 @@ import {
   updateWorkspaceFileContent,
 } from '@/lib/uploads/contexts/workspace/file-manager'
 
+/** A baseline older than the one already recorded; its file write is rolled back. */
+class StaleBaselineError extends OrchestrationError {
+  constructor() {
+    super('conflict', 'A newer build-notes baseline is already recorded')
+  }
+}
+
 /** A baseline is a whole graph; anything larger is not one this feature keeps. */
 const MAX_BASELINE_BYTES = 16 * 1024 * 1024
 
@@ -83,12 +90,13 @@ export async function writeBaseline(
       content,
       contentType: 'application/json',
       fileName: () => buildNotesFileName(notes.workflowId, 'baseline'),
-      insertOwner: (tx, baselineFileId) =>
-        setBuildNotesBaseline(
+      insertOwner: async (tx, baselineFileId) => {
+        await setBuildNotesBaseline(
           notes.id,
           { baselineFileId, baselineWorkflowUpdatedAt: baseline.workflowUpdatedAt },
           tx
-        ),
+        )
+      },
     })
     return {
       ...notes,
@@ -96,24 +104,32 @@ export async function writeBaseline(
       baselineWorkflowUpdatedAt: baseline.workflowUpdatedAt,
     }
   }
-  await updateWorkspaceFileContent(
-    notes.workspaceId,
-    notes.baselineFileId,
-    author.userId,
-    Buffer.from(content, 'utf-8'),
-    'application/json',
-    {
-      version: { source: author.source, authorUserId: author.userId },
-      syncLiveDoc: false,
-      secretProvenancePolicy: { mode: 'preserve' },
-      commitOwner: (tx) =>
-        setBuildNotesBaseline(
-          notes.id,
-          { baselineWorkflowUpdatedAt: baseline.workflowUpdatedAt },
-          tx
-        ),
-    }
-  )
+  try {
+    await updateWorkspaceFileContent(
+      notes.workspaceId,
+      notes.baselineFileId,
+      author.userId,
+      Buffer.from(content, 'utf-8'),
+      'application/json',
+      {
+        version: { source: author.source, authorUserId: author.userId },
+        syncLiveDoc: false,
+        secretProvenancePolicy: { mode: 'preserve' },
+        commitOwner: async (tx) => {
+          const recorded = await setBuildNotesBaseline(
+            notes.id,
+            { baselineWorkflowUpdatedAt: baseline.workflowUpdatedAt },
+            tx
+          )
+          if (!recorded) throw new StaleBaselineError()
+        },
+      }
+    )
+  } catch (error) {
+    // A newer baseline already describes a later graph; keeping it is the right outcome.
+    if (error instanceof StaleBaselineError) return notes
+    throw error
+  }
   return { ...notes, baselineWorkflowUpdatedAt: baseline.workflowUpdatedAt }
 }
 

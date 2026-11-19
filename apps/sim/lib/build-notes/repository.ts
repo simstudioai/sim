@@ -1,9 +1,15 @@
 import { db } from '@sim/db'
 import { workflow, workflowBuildNotes, workspaceFiles } from '@sim/db/schema'
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 export type BuildNotesRow = typeof workflowBuildNotes.$inferSelect
+
+function fileIdsOf(rows: readonly { notesFileId: string; baselineFileId: string | null }[]) {
+  return rows.flatMap((row) =>
+    row.baselineFileId ? [row.notesFileId, row.baselineFileId] : [row.notesFileId]
+  )
+}
 
 /** Live notes belong to a live row on a workflow that is not archived. */
 const liveOwner = and(isNull(workflowBuildNotes.deletedAt), isNull(workflow.archivedAt))
@@ -58,15 +64,29 @@ export async function getLiveBuildNotesByFileId(
   return row?.notes ?? null
 }
 
+/**
+ * Records a baseline only if it is not older than the one recorded, so a rebase that read the
+ * graph before a build committed cannot replace that build's baseline. False when it is older.
+ */
 export async function setBuildNotesBaseline(
   notesId: string,
   baseline: { baselineFileId?: string; baselineWorkflowUpdatedAt: Date },
   executor: DbOrTx = db
-): Promise<void> {
-  await executor
+): Promise<boolean> {
+  const set = await executor
     .update(workflowBuildNotes)
     .set({ ...baseline, updatedAt: new Date() })
-    .where(eq(workflowBuildNotes.id, notesId))
+    .where(
+      and(
+        eq(workflowBuildNotes.id, notesId),
+        or(
+          isNull(workflowBuildNotes.baselineWorkflowUpdatedAt),
+          lte(workflowBuildNotes.baselineWorkflowUpdatedAt, baseline.baselineWorkflowUpdatedAt)
+        )
+      )
+    )
+    .returning({ id: workflowBuildNotes.id })
+  return set.length === 1
 }
 
 export async function recordBuildNotesEvaluation(
@@ -118,9 +138,13 @@ export async function readBuildNotesStates(
 
 /**
  * Takes archived workflows' notes and both their files down with the archive's stamp, so a
- * restore brings back exactly these rows. Workspace archive also runs inside the project
- * membership script migration, against a schema migrated only to that point, where this table
- * does not exist yet and there are no notes to archive.
+ * restore brings back exactly these rows. Called after the workflow rows are archived, and
+ * archives the files before the notes rows: every path that locks more than one of these takes
+ * them in that order (a build: workflow, then notes; a notes write: file, then notes), so none
+ * can wait on another in a cycle.
+ *
+ * Workspace archive also runs inside the project membership script migration, against a schema
+ * migrated only to that point, where this table does not exist yet and there is nothing to archive.
  */
 export async function archiveBuildNotesForWorkflows(
   tx: DbTransaction,
@@ -132,64 +156,89 @@ export async function archiveBuildNotesForWorkflows(
     sql`SELECT to_regclass('public.workflow_build_notes') IS NOT NULL AS present`
   )
   if (!table?.present) return
-  const archived = await tx
-    .update(workflowBuildNotes)
-    .set({ deletedAt: at, updatedAt: at })
+  const live = await tx
+    .select({
+      id: workflowBuildNotes.id,
+      notesFileId: workflowBuildNotes.notesFileId,
+      baselineFileId: workflowBuildNotes.baselineFileId,
+    })
+    .from(workflowBuildNotes)
     .where(
       and(
         inArray(workflowBuildNotes.workflowId, [...workflowIds]),
         isNull(workflowBuildNotes.deletedAt)
       )
     )
-    .returning({
-      notesFileId: workflowBuildNotes.notesFileId,
-      baselineFileId: workflowBuildNotes.baselineFileId,
-    })
-  const fileIds = archived.flatMap((row) => [row.notesFileId, row.baselineFileId ?? []].flat())
-  if (fileIds.length === 0) return
+  if (live.length === 0) return
   await tx
     .update(workspaceFiles)
     .set({ deletedAt: at, updatedAt: at })
     .where(
       and(
-        inArray(workspaceFiles.id, fileIds),
+        inArray(workspaceFiles.id, fileIdsOf(live)),
         eq(workspaceFiles.context, 'build_notes'),
         isNull(workspaceFiles.deletedAt)
       )
     )
+  await tx
+    .update(workflowBuildNotes)
+    .set({ deletedAt: at, updatedAt: at })
+    .where(
+      and(
+        inArray(
+          workflowBuildNotes.id,
+          live.map((row) => row.id)
+        ),
+        isNull(workflowBuildNotes.deletedAt)
+      )
+    )
 }
 
-/** Brings back the notes and files an archive stamped `archivedAt`, for each workflow restored. */
+/**
+ * Brings back the notes and files an archive stamped `archivedAt`, for each workflow restored,
+ * files before notes rows like the archive.
+ */
 export async function restoreBuildNotesForWorkflows(
-  tx: Pick<typeof db, 'update'>,
+  tx: Pick<typeof db, 'select' | 'update'>,
   workflowIds: readonly string[],
   archivedAt: Date,
   now: Date
 ): Promise<void> {
   if (workflowIds.length === 0) return
-  const restored = await tx
-    .update(workflowBuildNotes)
-    .set({ deletedAt: null, updatedAt: now })
+  const archived = await tx
+    .select({
+      id: workflowBuildNotes.id,
+      notesFileId: workflowBuildNotes.notesFileId,
+      baselineFileId: workflowBuildNotes.baselineFileId,
+    })
+    .from(workflowBuildNotes)
     .where(
       and(
         inArray(workflowBuildNotes.workflowId, [...workflowIds]),
         eq(workflowBuildNotes.deletedAt, archivedAt)
       )
     )
-    .returning({
-      notesFileId: workflowBuildNotes.notesFileId,
-      baselineFileId: workflowBuildNotes.baselineFileId,
-    })
-  const fileIds = restored.flatMap((row) => [row.notesFileId, row.baselineFileId ?? []].flat())
-  if (fileIds.length === 0) return
+  if (archived.length === 0) return
   await tx
     .update(workspaceFiles)
     .set({ deletedAt: null, updatedAt: now })
     .where(
       and(
-        inArray(workspaceFiles.id, fileIds),
+        inArray(workspaceFiles.id, fileIdsOf(archived)),
         eq(workspaceFiles.context, 'build_notes'),
         eq(workspaceFiles.deletedAt, archivedAt)
+      )
+    )
+  await tx
+    .update(workflowBuildNotes)
+    .set({ deletedAt: null, updatedAt: now })
+    .where(
+      and(
+        inArray(
+          workflowBuildNotes.id,
+          archived.map((row) => row.id)
+        ),
+        eq(workflowBuildNotes.deletedAt, archivedAt)
       )
     )
 }
