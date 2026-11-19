@@ -7,6 +7,7 @@
 import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { toRecord } from '@sim/utils/object'
+import type { WorkflowInput } from '@sim/workflow-code'
 import {
   SDK_GUIDE_FILE,
   SOURCE_COMPILER_OPTIONS,
@@ -111,14 +112,14 @@ A resource's key is its file or folder name (in \`${KIND_DIRS.secret}\` and \`${
 
 ${APPLY_ORDER.map((kind) => `- ${WORKSPACE_KIND_SPECS[kind].guide}`).join('\n')}
 
-One apply creates resources before the workflows that use them, so a workflow may name a key this directory declares before it exists. \`.sim/sdk/workspace.d.ts\` types the keys the server held and this directory declared at the last get, so \`tsc\` flags a key added since then until it is applied and read again (\`sim workspaces source get --dir .\`); the dry run is the authority for it.
+One apply creates resources before the workflows that use them, so a workflow may name a key this directory declares before it exists. \`.sim/sdk/workspace.d.ts\` types the keys the server held at the last get and the ones this directory declares, with each workflow's inputs: \`sim workspaces source check\` regenerates it from the files, so run it before \`tsc\` after adding a resource. The dry run is the authority.
 
 Secrets never appear in source: a workflow reads an environment variable as \`env.NAME\` and tool code as \`$env.NAME\`, both by name, and a saved credential is \`credential('<key>')\`. Declare the ones workflows use in \`${KIND_DIRS.secret}\` and \`${KIND_DIRS.credential}\`: a workflow using a declared secret the workspace has no value for, or a declared credential key nothing binds to, is held back (exit 1, with the command that fixes it) while the rest of the apply is written. The same directory applied to another workspace binds each credential key to that workspace's own credential.
 
 ## Edit loop (run from this directory)
 
 1. Edit the files.
-2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key or table column, and an env name \`${KIND_DIRS.secret}\` lacks (a warning). It fails (exit 1) on errors and on a missing required field, an unknown option or output path, a wrong value kind, an out-of-range value or a literal secret in a block you added (\`--strict\`: in every block), and adds the blocks the workflows now use to \`tsconfig.json\`. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
+2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key (skills included) or table column, a child workflow's inputs, and an env name \`${KIND_DIRS.secret}\` lacks (a warning); and checks each \`${KIND_DIRS.table}/<key>.rows.jsonl\` line against its table as the apply would. It fails (exit 1) on errors and on a missing required field, an unknown option or output path, a wrong value kind, an out-of-range value or a literal secret in a block you added (\`--strict\`: in every block), regenerates \`.sim/sdk/workspace.d.ts\` and adds the blocks the workflows now use to \`tsconfig.json\`. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
 3. \`${typecheckCommand()}\` type-checks the files with the TypeScript release the declarations are built for. \`tsconfig.json\` includes only the blocks the workflows used at the last check or get, which keeps it fast: a builder from another block fails with \`has no exported member\` until you run step 2 (or check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). \`${SOURCE_SDK_DIR}/${SDK_GUIDE_FILE}\` lists every builder with its file and params type; \`grep\` it rather than reading the declarations. The dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
 4. \`sim workspaces source status --dir .\` before applying: your changes by resource (\`sim workspaces source diff --dir .\` shows the edits), what changed on the server since the get (a workflow edited in the editor included), the conflicts, and the command to run next. Exit 0 nothing changed, 11 only your edits, 12 the server changed since (\`--offline\`: skip the server). Then \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
 5. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored.
@@ -226,12 +227,14 @@ function declaredKeys(
 }
 
 /**
- * The kinds whose keys an offline check holds a workflow's references to. A skill is left out:
- * a built-in skill has no declaration, so an undeclared skill key may still be valid.
+ * The kinds whose keys an offline check holds a workflow's references to. A skill counts too: a
+ * built-in skill is stored by id and never printed as `skill('<key>')`, so a key names a
+ * workspace skill, which a managed `skills/` folder declares.
  */
 const CHECKED_REFERENCE_KINDS: readonly WorkspaceKind[] = [
   'credential',
   'custom-tool',
+  'skill',
   'mcp-server',
   'table',
   'knowledge-base',
@@ -265,6 +268,13 @@ export interface WorkspaceDeclarations {
    * lines share, and a row the write refuses (`refusedTableRows`).
    */
   rowFindings: readonly RowFinding[]
+  /** What `workspace.d.ts` types from the directory's declarations (`localDeclarations`). */
+  local: LocalDeclarations
+  /**
+   * Each workflow's inputs (`startInputs`: its Start trigger's fields, `null` without one), by
+   * key, for the workflows that compiled; set by a check, which compiles them.
+   */
+  workflowInputs?: ReadonlyMap<string, readonly WorkflowInput[] | null>
 }
 
 /** A finding about a line of a table's rows file (`E_TABLE_ROWS`, an error). */
@@ -317,7 +327,13 @@ export async function readWorkspaceDeclarations(root: string): Promise<Workspace
     tables.set(key, declaredColumns(decl))
     rowFindings.push(...tableRowFindings(key, decl, files[rowsPath]))
   }
-  return { ...(secrets ? { envNames: new Set(secrets) } : {}), keys, tables, rowFindings }
+  return {
+    ...(secrets ? { envNames: new Set(secrets) } : {}),
+    keys,
+    tables,
+    rowFindings,
+    local: localDeclarations(files),
+  }
 }
 
 /**

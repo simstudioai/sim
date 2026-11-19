@@ -52,6 +52,11 @@ export const TSCONFIG_FULL_FILE = 'tsconfig.full.json'
 const SDK_INDEX_PATH = `${SDK_DIR}/${SDK_INDEX_FILE}`
 /** The workspace's resources as types (`generateWorkspaceTypes`), beside the SDK. */
 export const WORKSPACE_TYPES_FILE = `${SDK_DIR}/workspace.d.ts`
+/**
+ * The stored resources `workspace.d.ts` was generated from (the server's manifest at the last get),
+ * so a check regenerates the file with what the directory declares now, without a request.
+ */
+const WORKSPACE_MANIFEST_FILE = `${SDK_DIR}/workspace.manifest.json`
 /** A cached catalog is a few megabytes of JSON; a larger file was not written by this CLI. */
 const MAX_CATALOG_CACHE_BYTES = 32 * 1024 * 1024
 
@@ -200,53 +205,95 @@ export type LocalDeclarations = Pick<
   | 'workflows'
 >
 
+/** `workspace.d.ts`, and the stored manifest it was generated from (`null` when none was read). */
+export interface WorkspaceTypes {
+  text: string
+  stored: WorkspaceManifest | null
+}
+
 /**
- * The workspace's resources as `workspace.d.ts`, with what a workspace directory declares typed
- * too: its tables, secrets and credentials from their declarations, and its knowledge base, skill,
- * custom tool and workflow keys beside the stored ones (a stored workflow keeps its typed inputs). When the resources
- * cannot be listed (a `403` for a caller the manifest does not admit, a `404` from a server that
- * predates the route) only the declared resources are typed, or `null` without any: the source
- * still writes and type-checks, with every other key a plain string.
+ * `workspace.d.ts` for the `stored` resources with what a workspace directory declares typed too:
+ * its tables, secrets and credentials from their declarations, and its knowledge base, skill,
+ * custom tool and workflow keys beside the stored ones (a declared workflow's inputs win, since the
+ * directory's `workflow.ts` is what an apply writes). `null` without either.
+ */
+export function workspaceTypesFrom(
+  stored: WorkspaceManifest | null,
+  local: LocalDeclarations
+): WorkspaceTypes | null {
+  if (!stored) {
+    const declared = Object.entries(local).some(
+      ([list, keys]) =>
+        list !== 'declarationModules' && keys !== undefined && Object.keys(keys).length > 0
+    )
+    return declared ? { text: generateWorkspaceTypes(local).text, stored: null } : null
+  }
+  const both = (key: 'knowledgeBases' | 'skills' | 'customTools') => [
+    ...(stored[key] ?? []),
+    ...(local[key] ?? []),
+  ]
+  const text = generateWorkspaceTypes({
+    ...stored,
+    ...(local.declarationModules ? { declarationModules: local.declarationModules } : {}),
+    ...(local.tableDeclarations ? { tableDeclarations: local.tableDeclarations } : {}),
+    ...(local.mcpServerDeclarations ? { mcpServerDeclarations: local.mcpServerDeclarations } : {}),
+    ...(local.secretDeclarations ? { secretDeclarations: local.secretDeclarations } : {}),
+    ...(local.credentialDeclarations
+      ? { credentialDeclarations: local.credentialDeclarations }
+      : {}),
+    knowledgeBases: both('knowledgeBases'),
+    skills: both('skills'),
+    customTools: both('customTools'),
+    workflows: { ...stored.workflows, ...local.workflows },
+  }).text
+  return { text, stored }
+}
+
+/**
+ * The workspace's resources as `workspace.d.ts` ({@link workspaceTypesFrom}), read from the
+ * server. When the resources cannot be listed (a `403` for a caller the manifest does not admit, a
+ * `404` from a server that predates the route) only the declared resources are typed, or `null`
+ * without any: the source still writes and type-checks, with every other key a plain string.
  */
 export async function loadWorkspaceTypes(
   client: OperationClient<'getSourceResources'>,
   workspaceId: string,
   local: LocalDeclarations = {}
-): Promise<string | null> {
+): Promise<WorkspaceTypes | null> {
   try {
     const { data } = await client.request<GetSourceResourcesResponse>('getSourceResources', {
       params: { workspaceId },
     })
-    const stored = workspaceManifestFrom(data)
-    const both = (key: 'knowledgeBases' | 'skills' | 'customTools') => [
-      ...(stored[key] ?? []),
-      ...(local[key] ?? []),
-    ]
-    return generateWorkspaceTypes({
-      ...stored,
-      ...(local.declarationModules ? { declarationModules: local.declarationModules } : {}),
-      ...(local.tableDeclarations ? { tableDeclarations: local.tableDeclarations } : {}),
-      ...(local.mcpServerDeclarations
-        ? { mcpServerDeclarations: local.mcpServerDeclarations }
-        : {}),
-      ...(local.secretDeclarations ? { secretDeclarations: local.secretDeclarations } : {}),
-      ...(local.credentialDeclarations
-        ? { credentialDeclarations: local.credentialDeclarations }
-        : {}),
-      knowledgeBases: both('knowledgeBases'),
-      skills: both('skills'),
-      customTools: both('customTools'),
-      workflows: { ...local.workflows, ...stored.workflows },
-    }).text
+    return workspaceTypesFrom(workspaceManifestFrom(data), local)
   } catch (error) {
     if (!(error instanceof SimApiError) || (error.status !== 403 && error.status !== 404)) {
       throw error
     }
-    const declared = Object.entries(local).some(
-      ([list, keys]) =>
-        list !== 'declarationModules' && keys !== undefined && Object.keys(keys).length > 0
-    )
-    return declared ? generateWorkspaceTypes(local).text : null
+    return workspaceTypesFrom(null, local)
+  }
+}
+
+/**
+ * Regenerates `workspace.d.ts` from the stored manifest the last get kept beside it and what the
+ * directory declares now (`local`), so `tsc` types a key added since without a request. A
+ * directory with no kept manifest (written by an older CLI) is left as it is.
+ */
+export async function refreshWorkspaceTypes(dir: string, local: LocalDeclarations): Promise<void> {
+  const [manifest, current] = await Promise.all([
+    readSourceText(dir, WORKSPACE_MANIFEST_FILE),
+    readSourceText(dir, WORKSPACE_TYPES_FILE),
+  ])
+  if (manifest === null) return
+  let stored: unknown
+  try {
+    stored = JSON.parse(manifest)
+  } catch {
+    return
+  }
+  if (!isRecordLike(stored)) return
+  const types = workspaceTypesFrom(stored, local)
+  if (types && types.text !== current) {
+    await updateSourceDir(dir, { write: [[WORKSPACE_TYPES_FILE, types.text]] })
   }
 }
 
@@ -305,7 +352,7 @@ export interface SourceTree {
 export function finishTree(
   dir: string,
   written: number,
-  workspaceTypes: string | null,
+  workspaceTypes: WorkspaceTypes | null,
   ownsTsconfig: boolean
 ): SourceTree {
   if (!ownsTsconfig) {
@@ -459,7 +506,7 @@ export interface SourceTreeUse {
 export async function sourceTreeChange(
   dir: string,
   catalog: BlockCatalog,
-  workspaceTypes: string | null,
+  workspaceTypes: WorkspaceTypes | null,
   profile: SourceTreeProfile,
   use: SourceTreeUse,
   options: { incremental?: boolean } = {}
@@ -501,7 +548,12 @@ export async function sourceTreeChange(
     write.push(...sdkTypeFiles(catalog))
   }
   if (workspaceTypes === null) remove.push(WORKSPACE_TYPES_FILE)
-  else write.push([WORKSPACE_TYPES_FILE, workspaceTypes])
+  else write.push([WORKSPACE_TYPES_FILE, workspaceTypes.text])
+  if (workspaceTypes?.stored) {
+    write.push([WORKSPACE_MANIFEST_FILE, `${JSON.stringify(workspaceTypes.stored, null, 2)}\n`])
+  } else {
+    remove.push(WORKSPACE_MANIFEST_FILE)
+  }
   return { change: { write, remove }, ownsTsconfig }
 }
 

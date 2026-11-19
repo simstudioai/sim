@@ -7,7 +7,7 @@ import { profileFrom } from '../../context'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
 import { readSourceJson, SOURCE_DIR_BUSY_HELP, withSourceDirLock } from './source-dir'
-import { cachedCatalog, loadCatalog } from './source-tree'
+import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
 import {
   type CheckFinding,
   checkWorkflowDir,
@@ -18,6 +18,8 @@ import {
   type StrictOptions,
   strictFlags,
   strictMode,
+  withWorkflowInputs,
+  workspaceWorkflowInputs,
   workspaceWorkflowKeys,
 } from './workflow-source-check'
 import { assertWorkspaceDir, readWorkspaceDeclarations } from './workspace-source-dir'
@@ -25,13 +27,23 @@ import { assertWorkspaceDir, readWorkspaceDeclarations } from './workspace-sourc
 const CHECK_HELP = `
 Compiles every workflows/<key>/workflow.ts (and the function files each names) with the compiler
 the server runs, against the workspace's block catalog the last get cached (in a fresh clone with
-no cache, such as CI, it downloads the catalog once with the profile's credentials), and checks each
-against what the directory declares: env names (secrets.ts), credential keys (credentials.ts),
-the keys of its tables, knowledge bases, custom tools, MCP servers and workflows, and the columns
-and select options of a table row write. No other request is made. The dry run still checks what only
-the server knows (stored values, resource files, deployment), so run it before applying. A check
-also adds the blocks the workflows now use to the CLI's tsconfig.json, so tsc type-checks a block
-an edit added.
+no cache, such as CI, it downloads the catalog once with the profile's credentials). No other
+request is made. It checks, against what the directory declares:
+  - env names (secrets.ts), with a did-you-mean
+  - credential keys (credentials.ts)
+  - the keys of tables, knowledge bases, skills, custom tools, MCP servers and workflows, with a
+    did-you-mean, and a key holding a look-alike letter (a Cyrillic а) named by its code point
+  - the columns and select options of a table row write
+  - a child workflow call: an inputMapping key the child's Start trigger does not declare, and a
+    child with no Start trigger
+  - each tables/<key>.rows.jsonl: a malformed line, an undeclared column, a managed key two lines
+    share, an empty required cell, a repeated unique value, a value its column's type or options
+    cannot hold
+  - block names whose words mix Latin with Cyrillic, Greek, Armenian or Cherokee letters
+The dry run still checks what only the server knows (stored values, MCP tool names, model ids,
+deployments, credential bindings), so run it before applying. A check also regenerates
+.sim/sdk/workspace.d.ts from the declarations (so tsc types a key added since the get, and each
+workflow's inputs) and adds the blocks the workflows now use to the CLI's tsconfig.json.
 
 ${STRICT_HELP}`
 
@@ -87,7 +99,11 @@ export function attachWorkspaceSourceCheck(source: Command): void {
       await withSourceDirLock(options.dir, async () => {
         const catalog =
           cachedCatalog(workspaceId) ?? (await fetchedCatalog(connect, workspaceId, options.dir))
-        const declarations = await readWorkspaceDeclarations(options.dir)
+        const workflowInputs = await workspaceWorkflowInputs(options.dir, catalog)
+        const declarations = {
+          ...(await readWorkspaceDeclarations(options.dir)),
+          workflowInputs,
+        }
         const keys = await workspaceWorkflowKeys(options.dir)
         const findings: CheckFinding[] = []
         for (const key of keys) {
@@ -113,6 +129,10 @@ export function attachWorkspaceSourceCheck(source: Command): void {
             column,
           })
         }
+        await refreshWorkspaceTypes(
+          options.dir,
+          withWorkflowInputs(declarations.local, workflowInputs)
+        )
         await refreshWorkspaceTsconfigs(options.dir, workspaceId)
         reportCheck(profile.output, findings, { workflows: keys.length, catalogHash: catalog.hash })
       })

@@ -642,6 +642,18 @@ describe('workspaces source get', () => {
 
     expect(typecheck(uses('tone'))).toBe('')
     expect(typecheck(uses('tnoe'))).toContain('"tnoe"')
+
+    writeFileSync(
+      join(dir, 'skills/fresh.md'),
+      '---\nname: fresh\ndescription: New\n---\nAdded after the get.\n'
+    )
+    expect(typecheck(uses('fresh'))).toContain('"fresh"')
+    contextMockFns.mockProfileFrom.mockReturnValue({ output: 'json' })
+    request.mockClear()
+    await runWorkspaceSource('check', dir)
+    expect(request).not.toHaveBeenCalled()
+    expect(typecheck(uses('fresh'))).toBe('')
+    expect(typecheck(uses('tnoe'))).toContain('"tnoe"')
   })
 
   it('keeps the block types workflows on disk use when a get refreshes only tables', async () => {
