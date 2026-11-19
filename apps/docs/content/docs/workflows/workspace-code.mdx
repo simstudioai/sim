@@ -65,6 +65,12 @@ The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resou
 
 `status` shows what would happen if you applied, without writing anything: the files you created, edited, or deleted, grouped by resource; what changed in Sim since the `get` (a resource edited, added, or deleted there, a workflow edited in the editor included); the conflicts, where a resource changed on both sides; and the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unapplied, and `12` when something changed in Sim since the `get`, so a script or an agent can branch on it. Without a connection it shows your edits only and says so; `--offline` skips the server. `diff [paths or kind:key…]` prints the edits as unified diffs (a binary file by its sizes), and `diff --server` compares the directory with what Sim holds now. Both take `--json` (or `--output json`).
 
+## Workspace API keys [#workspace-api-keys]
+
+A personal API key or an OAuth login can apply every kind its workspace role allows. A workspace API key cannot create or change workflows, skills, secrets or deployments. An apply with one that would is refused with `E_APPLY_FORBIDDEN`, naming each resource, before anything is written. A `get` with a workspace key leaves out the kinds it cannot read, such as `secrets.ts`, and names them with the same code.
+
+To apply the rest with a workspace key, such as in CI, narrow the apply to the kinds it can write: `sim workspaces source apply --dir ./my-workspace --only tables,knowledge,files,tools,mcp --yes`.
+
 ## Deletes
 
 - A kind is managed only when its folder exists. A directory without `skills/` never touches a skill.

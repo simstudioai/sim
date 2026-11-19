@@ -191,7 +191,7 @@ Run `sim workflows source apply <workflowId> --dir <dir> --dry-run` in CI to cat
 
 - **Commit** `workflow.ts`, `functions/`, `.sim/lock.json`, `.sim/base.json`, `tsconfig.json` and `.gitattributes`. CI finds the workflow from `workflowId` in `.sim/base.json`.
 - **Gitignore** `.sim/sdk/` (the generated type declarations, thousands of files) and `.sim/written.json` (the CLI's local record of what it last wrote). The CLI does not write a `.gitignore`, so add these two lines yourself.
-- **Credentials:** CI needs `SIM_API_KEY`, and `SIM_WORKSPACE` unless you pass `--workspace`. Set `SIM_ENDPOINT` too if you use a self-hosted Sim.
+- **Credentials:** use a personal API key (**Settings → Sim API keys**, passed as `SIM_API_KEY`) or an OAuth login, not a workspace API key. Saving and dry-running source act as a person, so a workspace key is refused with `403`. Set `SIM_WORKSPACE` unless you pass `--workspace`, and `SIM_ENDPOINT` if you use a self-hosted Sim. See [Authenticating CI](/cli/authentication#authenticating-ci).
 
 ## Working with other people
 
