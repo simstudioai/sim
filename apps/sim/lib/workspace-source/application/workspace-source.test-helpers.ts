@@ -235,7 +235,7 @@ END $$ LANGUAGE plpgsql`)
   )
   await db.execute(
     sql.raw(
-      `CREATE TRIGGER ${name} BEFORE INSERT OR UPDATE ON workspace_resource_key FOR EACH ROW EXECUTE FUNCTION ${name}()`
+      `CREATE OR REPLACE TRIGGER ${name} BEFORE INSERT OR UPDATE ON workspace_resource_key FOR EACH ROW EXECUTE FUNCTION ${name}()`
     )
   )
   return async () => {
