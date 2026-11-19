@@ -55,6 +55,20 @@ describe('mapWithConcurrency', () => {
     expect(started).toEqual([0, 1])
   })
 
+  it('throws the failure that happened first, not the one in the lowest slot', async () => {
+    const slowFailure = deferred()
+    const run = mapWithConcurrency([0, 1], 2, async (item) => {
+      if (item === 0) {
+        await slowFailure.promise
+        throw new Error('later failure')
+      }
+      throw new Error('earlier failure')
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    slowFailure.resolve()
+    await expect(run).rejects.toThrow('earlier failure')
+  })
+
   it('rejects a limit below one instead of running nothing', async () => {
     await expect(mapWithConcurrency([1], 0, async (item) => item)).rejects.toThrow(
       'positive integer'

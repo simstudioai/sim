@@ -25,22 +25,20 @@ export async function mapWithConcurrency<T, R>(
   }
   const results = new Array<R>(items.length)
   let next = 0
-  let failed = false
+  let failure: { error: unknown } | undefined
   const slot = async (): Promise<void> => {
-    while (!failed && next < items.length) {
+    while (!failure && next < items.length) {
       const index = next++
       try {
         results[index] = await fn(items[index], index)
       } catch (error) {
-        failed = true
-        throw error
+        failure ??= { error }
+        return
       }
     }
   }
-  const settled = await Promise.allSettled(
-    Array.from({ length: Math.min(limit, items.length) }, slot)
-  )
-  for (const outcome of settled) if (outcome.status === 'rejected') throw outcome.reason
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, slot))
+  if (failure) throw failure.error
   return results
 }
 
