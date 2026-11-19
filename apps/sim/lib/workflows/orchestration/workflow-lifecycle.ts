@@ -35,6 +35,17 @@ const WORKFLOW_NAME_UNIQUE_INDEX = 'workflow_workspace_folder_name_active_unique
 const WORKFLOW_PRIMARY_KEY = 'workflow_pkey'
 const WORKFLOW_NAME_DEDUPLICATION_ATTEMPTS = 8
 
+/**
+ * Whether `error` is the unique violation of two live workflows taking one name in one folder: a
+ * concurrent write claimed the name after the `SELECT` that checked it.
+ */
+export function isWorkflowNameUniqueViolation(error: unknown): boolean {
+  return (
+    getPostgresErrorCode(error) === '23505' &&
+    getPostgresConstraintName(error) === WORKFLOW_NAME_UNIQUE_INDEX
+  )
+}
+
 export interface PerformCreateWorkflowParams {
   userId: string
   workspaceId: string

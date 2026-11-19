@@ -1697,6 +1697,38 @@ export default workflow('', {}, () => {
   )
 
   check(
+    'a rename racing another onto one name in one folder is a name-taken 409, not a fault',
+    async () => {
+      const seeded = await seedWorkflow()
+      const other = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const name = await storedName(seeded.workflowId)
+      const contested = `Contested ${generateId()}`
+      const files = edit(source.files, `'${name}'`, `'${contested}'`)
+      let outcome: Promise<unknown> = Promise.resolve()
+      let settled = false
+
+      await db.transaction(async (tx) => {
+        const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        await tx.update(workflow).set({ name: contested }).where(eq(workflow.id, other.workflowId))
+        outcome = runOutsideTransactionContext(() =>
+          apply(source, files).finally(() => {
+            settled = true
+          })
+        )
+        await waitForBlocked(Number(self?.pid), () => settled)
+      })
+
+      await expect(outcome).rejects.toMatchObject({
+        name: 'WorkflowSourceNameTakenError',
+        code: 'conflict',
+      })
+      expect(await storedName(seeded.workflowId)).toBe(name)
+      expect(await storedName(other.workflowId)).toBe(contested)
+    }
+  )
+
+  check(
     'removing blocks refuses the apply without allowDelete, naming them, and applies with it',
     async () => {
       const start = seedBlock('start_trigger', 'Start')

@@ -33,6 +33,7 @@ import { assertLockedBlocksPreserved } from '@/lib/workflows/code/apply/locked'
 import { type StoredSource, storedSourceFingerprint } from '@/lib/workflows/code/print-stored'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import {
+  isWorkflowNameUniqueViolation,
   performCreateWorkflowTransition,
   updateWorkflowRecord,
   workflowNameExistsInFolder,
@@ -143,7 +144,8 @@ async function loadMutableStoredSourceIn(
 /**
  * Gives the workflow the name and description its source declares, in the commit's transaction
  * after the freshness check: a rename since the read is already a 409, and a name taken in the
- * folder meanwhile refuses the whole commit ({@link WorkflowSourceNameTakenError}).
+ * folder meanwhile, before the check or racing it, refuses the whole commit
+ * ({@link WorkflowSourceNameTakenError}).
  */
 async function writePlannedMeta(
   tx: DbOrTx,
@@ -151,6 +153,7 @@ async function writePlannedMeta(
   { current, folderId }: LockedDraft
 ): Promise<void> {
   if (plan.metaChanged.length === 0) return
+  // The name check is a SELECT: a rename committing meanwhile surfaces as the unique violation.
   const transition = await updateWorkflowRecord({
     tx,
     workflowId: scope.workflowId,
@@ -162,6 +165,9 @@ async function writePlannedMeta(
     ...(plan.metaChanged.includes('description')
       ? { description: plan.meta.description ?? null }
       : {}),
+  }).catch((error: unknown) => {
+    if (isWorkflowNameUniqueViolation(error)) throw new WorkflowSourceNameTakenError(plan.meta.name)
+    throw error
   })
   if (!transition.success && transition.errorCode === 'conflict') {
     throw new WorkflowSourceNameTakenError(plan.meta.name)

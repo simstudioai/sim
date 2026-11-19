@@ -38,6 +38,7 @@ vi.mock('@/lib/workflows/application/apply-workflow-source', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  WorkflowSourceNameTakenError,
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
@@ -221,6 +222,16 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
 
     expect(response.status).toBe(409)
     expect(body.error.details).toEqual({ code: 'SOURCE_STALE', currentFingerprint: current })
+  })
+
+  it('answers 409 with SOURCE_NAME_TAKEN when a rename lands on a name taken meanwhile', async () => {
+    mocks.apply.mockRejectedValue(new WorkflowSourceNameTakenError('Triage'))
+
+    const response = await POST(applyRequest(applyBody), context)
+    const body = await response.json()
+
+    expect(response.status).toBe(409)
+    expect(body.error.details).toEqual({ code: 'SOURCE_NAME_TAKEN', name: 'Triage' })
   })
 
   it('answers 423 for a locked workflow', async () => {
