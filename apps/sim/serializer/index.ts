@@ -623,6 +623,7 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
     if (
       params[id] == null &&
       subBlockConfig.value &&
+      subBlockConfig.valueScope !== 'viewer' &&
       shouldSerializeSubBlock(
         subBlockConfig,
         allValues,

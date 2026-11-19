@@ -426,8 +426,8 @@ export interface SubBlockConfig {
   /**
    * Where `value()` may run. `'viewer'` marks a default read from the viewer's own environment
    * (the schedule timezone is the person's browser zone): only the editor evaluates it. Server-side
-   * creation and the source catalog leave the field unset rather than freeze the host's
-   * environment into a block or into the catalog hash.
+   * creation, the serializer's null fallback and the source catalog leave the field unset rather
+   * than freeze the host's environment into a block, its run params or the catalog hash.
    */
   valueScope?: 'viewer'
   grouped?: boolean
