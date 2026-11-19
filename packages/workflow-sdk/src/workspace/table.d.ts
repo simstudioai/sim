@@ -74,7 +74,7 @@ export declare const column: {
   date<const N extends string | undefined = undefined, const R extends boolean = false>(
     options?: ColumnOptions<N, R>
   ): Column<string, N, R>
-  /** A time to live: a date-time after which the row expires. */
+  /** A time to live: a date-time after which the row expires. A table holds at most one. */
   ttl<const N extends string | undefined = undefined, const R extends boolean = false>(
     options?: ColumnOptions<N, R>
   ): Column<string, N, R>

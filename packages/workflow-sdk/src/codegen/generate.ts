@@ -35,6 +35,7 @@ import {
   legacyOnlyBlockTypes,
   SDK_GUIDE_FILE,
   SDK_INDEX_FILE,
+  SDK_MODELS_FILE,
 } from './layout'
 import { mapParamType, mapSubBlock } from './map-subblock'
 import { type BuilderEntry, builderEntries, TOOL_NAMESPACE } from './names'
@@ -401,7 +402,7 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
     : outputRef
   const method = entry.path[entry.path.length - 1]
   const label = entry.builder.operation ? operationLabel(block, entry.builder.operation) : undefined
-  const summary = [
+  const jsdocSummary = [
     `${block.name}${label ? `: ${label}` : ''}`,
     entry.builder.operation ? `(operation \`${entry.builder.operation}\`)` : '',
     entry.builder.triggerMode ? '(trigger mode)' : '',
@@ -411,13 +412,13 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
   const signature = entry.special
     ? []
     : [
-        ...jsdoc([summary], ''),
+        ...jsdoc([jsdocSummary], ''),
         `export function ${method}${typeParameterList(plan, true)}(name: string, params: ${paramsName}${genericArgs}, meta?: BlockMeta): Block<${outputType}>`,
       ]
   const tool =
     !entry.special && hasToolForm(entry.key, entry.builder, block)
       ? [
-          ...jsdoc([`${summary}, as an agent tool`], ''),
+          ...jsdoc([`${jsdocSummary}, as an agent tool`], ''),
           `export function ${method}(params?: Partial<${paramsName}>, options?: ToolOpts): Tool`,
         ]
       : null
@@ -591,7 +592,7 @@ function generateBlockFile(
   ].join('\n')
   const imports = coreImports(`${declarations}\n${augmentation}`).trimEnd()
   return {
-    path: `blocks/${type}.d.ts`,
+    path: blockTypesFile(type),
     text: [
       header(catalog.sdkMajor),
       imports,
@@ -623,7 +624,7 @@ function generateModelsFile(catalog: BlockCatalog): SdkTypeFile {
   const body =
     members.length > 0 ? ['  interface ModelIds {', ...members, '  }'] : ['  interface ModelIds {}']
   return {
-    path: 'models.d.ts',
+    path: SDK_MODELS_FILE,
     text: [
       header(catalog.sdkMajor),
       'export {}',
@@ -674,12 +675,16 @@ function generateSdkIndex(catalog: BlockCatalog, entries: readonly IndexEntry[])
       '',
       ...current.map(line),
       '',
-      '## Legacy builders',
-      '',
-      'Older block versions, kept so stored workflows still print. Write the current builder instead.',
-      '',
-      ...legacy.map(line),
-      '',
+      ...(legacy.length > 0
+        ? [
+            '## Legacy builders',
+            '',
+            'Older block versions, kept so stored workflows still print. Write the current builder instead.',
+            '',
+            ...legacy.map(line),
+            '',
+          ]
+        : []),
     ].join('\n'),
   }
 }
@@ -704,8 +709,10 @@ export const generateSdkTypes: GenerateSdkTypesFn = (catalog) => {
     path: SDK_INDEX_FILE,
     text: [
       sdkIndexHeader(catalog),
-      `import './models'`,
-      ...types.filter((type) => !legacyOnly.has(type)).map((type) => `import './blocks/${type}'`),
+      `import './${SDK_MODELS_FILE.replace(/\.d\.ts$/, '')}'`,
+      ...types
+        .filter((type) => !legacyOnly.has(type))
+        .map((type) => `import './${blockTypesFile(type).replace(/\.d\.ts$/, '')}'`),
       '',
       'export {}',
       '',

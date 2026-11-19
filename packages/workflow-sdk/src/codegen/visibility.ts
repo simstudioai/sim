@@ -59,7 +59,8 @@ export interface ParamVisibility {
   when?: string
 }
 
-function clauseFields(clause: ConditionClause): string[] {
+/** The fields a clause reads: its own, and its `and` clause's. */
+export function clauseFields(clause: ConditionClause): string[] {
   return clause.and ? [clause.field, clause.and.field] : [clause.field]
 }
 

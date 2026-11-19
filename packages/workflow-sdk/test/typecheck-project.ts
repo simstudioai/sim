@@ -106,14 +106,7 @@ export function typecheckSdkDirectory(
       'tsconfig.json',
       JSON.stringify({
         compilerOptions: {
-          target: 'ES2022',
-          lib: ['ES2022'],
-          module: 'ESNext',
-          moduleResolution: 'bundler',
-          moduleDetection: 'force',
-          types: [],
-          strict: true,
-          noEmit: true,
+          ...SOURCE_COMPILER_OPTIONS,
           skipLibCheck: false,
           paths: {
             '@sim/workflow-sdk': ['./.sim/sdk/core.d.ts'],

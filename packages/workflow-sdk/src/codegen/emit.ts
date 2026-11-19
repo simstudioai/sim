@@ -18,7 +18,7 @@ export function union(members: readonly string[]): string {
   return distinct.length === 0 ? 'never' : distinct.join(' | ')
 }
 
-/** Parenthesises a union so it can take `[]`. */
+/** The array of `type`: `T[]` for a simple name, else `Array<…>` so a union needs no parentheses. */
 export function arrayOf(type: string): string {
   return /^[A-Za-z0-9_.<>]+$/.test(type) ? `${type}[]` : `Array<${type}>`
 }
