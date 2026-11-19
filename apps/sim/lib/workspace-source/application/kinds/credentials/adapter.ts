@@ -319,7 +319,8 @@ export const credentialAdapter: KindAdapter<'credential', StoredCredential> = {
   async authorize(change, ctx) {
     if (change.action === 'noop') return
     const workspaceId = ctx.workspace.workspaceId
-    const credentialId = change.storedId ?? ''
+    const credentialId = change.storedId
+    if (!credentialId) throw new Error('A credential binding needs the credential id')
     if (change.action === 'delete') {
       await releaseCredentialKey.authorize({
         principal: ctx.principal,

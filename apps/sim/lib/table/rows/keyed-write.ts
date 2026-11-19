@@ -9,6 +9,7 @@
 
 import { isDeepStrictEqual } from 'node:util'
 import { userTableRows } from '@sim/db/schema'
+import { rowKeyText } from '@sim/workspace-code/kinds/table-rows'
 import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -59,13 +60,6 @@ function isEmpty(value: unknown): boolean {
   )
 }
 
-/** The text a row is matched by: its key cell, case folded as a unique column compares. */
-function keyText(value: unknown): string | undefined {
-  if (typeof value === 'string') return value.trim() === '' ? undefined : value.toLowerCase()
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  return undefined
-}
-
 /** `row` coerced to the stored form of each column, refusing a value its column cannot hold. */
 function coerced(row: RowData, table: TableDefinition, index: number): RowData {
   const copy = structuredClone(row)
@@ -99,7 +93,7 @@ export async function writeKeyedRowsWithTx(
   const storedByKey = new Map<string, { id: string; data: RowData }>()
   for (const row of stored) {
     const data = row.data as RowData
-    const key = keyText(data[keyColumnId])
+    const key = rowKeyText(data[keyColumnId])
     if (key !== undefined) storedByKey.set(key, { id: row.id, data })
   }
 
@@ -108,10 +102,10 @@ export async function writeKeyedRowsWithTx(
   const matched = new Set<string>()
   declared.rows.forEach((row, index) => {
     const desired = coerced(row, table, index)
-    const key = keyText(desired[keyColumnId])
+    const key = rowKeyText(desired[keyColumnId])
     const existing = key !== undefined ? storedByKey.get(key) : undefined
     if (!existing) {
-      inserts.push(row)
+      inserts.push(desired)
       return
     }
     matched.add(existing.id)
