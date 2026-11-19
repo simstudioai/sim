@@ -22,7 +22,7 @@ import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility
 import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { getBlock } from '@/blocks/registry'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
 import { logSkippedItem } from './types'
@@ -223,7 +223,7 @@ export function createBlockFromParams(
         return
       }
 
-      let sanitizedValue = normalizeSubblockValue(key, value)
+      let sanitizedValue = normalizeSubblockValue(key, value, params.type)
 
       sanitizedValue = normalizeConditionRouterIds(blockId, key, sanitizedValue)
 
@@ -474,12 +474,26 @@ function shouldNormalizeArrayIds(key: string): boolean {
   return ARRAY_WITH_ID_SUBBLOCK_TYPES.has(key)
 }
 
+/** Subblock types whose value is a list of rows each carrying an `id`. */
+const ARRAY_WITH_ID_TYPES = new Set<SubBlockType>([
+  'input-format',
+  'table',
+  'variables-input',
+  'knowledge-tag-filters',
+  'document-tag-entry',
+  'eval-input',
+  'condition-input',
+  'router-input',
+])
+
 /**
  * Normalizes an array-with-id subblock value, re-serializing it to a JSON string for the
  * subblock keys whose UI components read a string rather than a raw array.
  *
  * Every write path that persists LLM-supplied subblock values must route through this so the
- * two concerns cannot drift apart; returns non-array-with-id values untouched.
+ * two concerns cannot drift apart; returns non-array-with-id values untouched. The key names a
+ * row list only where `blockType` declares it as one: another type can use the same id for a
+ * different kind of field (a JSON code field named `params`), whose value is not rows.
  *
  * @remarks
  * A nullish value passes through unchanged. `validateValueForSubBlockType` treats null as an
@@ -487,8 +501,12 @@ function shouldNormalizeArrayIds(key: string): boolean {
  * for none -- leaving `sanitizeForCopilot` to show the agent an empty filter rather than an
  * absent one, and callers that branch on the field's presence to see it as set.
  */
-export function normalizeSubblockValue(key: string, value: unknown): unknown {
+export function normalizeSubblockValue(key: string, value: unknown, blockType?: string): unknown {
   if (!shouldNormalizeArrayIds(key)) return value
+  const declared = blockType
+    ? getBlock(blockType)?.subBlocks.find((subBlock) => subBlock.id === key)
+    : undefined
+  if (declared && !ARRAY_WITH_ID_TYPES.has(declared.type)) return value
   if (value === null || value === undefined) return value
   const normalized = normalizeArrayWithIds(value)
   return JSON_STRING_SUBBLOCK_KEYS.has(key) ? JSON.stringify(normalized) : normalized
