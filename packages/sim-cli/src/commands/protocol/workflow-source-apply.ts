@@ -24,6 +24,8 @@ import {
   readSourceText,
   SOURCE_AGENTS_FILE,
   sourceRelativePath,
+  WORKSPACE_FOLDER_BUSY_HELP,
+  withWorkspaceFolderLock,
   writeBack,
 } from './source-dir'
 import {
@@ -294,30 +296,32 @@ export function attachWorkflowSourceApply(source: Command): void {
     )
     .allowExcessArguments(false)
     .description('Apply a workflow source directory to a workflow draft')
-    .addHelpText('after', APPLY_EXIT_CODES_HELP)
-    .action(async (named: string | undefined, options: SourceWriteOptions) => {
-      requireConsent(options, 'writes the workflow draft', 'apply')
-      const { client, profile } = connectApply()
-      const lock = await readLock(options.dir)
-      const base = await readBase(options.dir, named)
-      const workflowId = base.workflowId
-      const files = await readSourceFiles(options.dir, lock)
-      await runSourceWrite({
-        options,
-        creating: false,
-        question: `Apply these changes to workflow ${workflowId}?`,
-        output: profile.output,
-        client,
-        operation: 'applyWorkflowSource',
-        params: { workflowId },
-        body: { files, lock, base, provenance: { client: 'cli' } },
-        save: async (data) => {
-          await writeBack(options.dir, data, lock)
-          await refreshWorkflowTsconfigs(options.dir, data)
-        },
-        ifAnswerLost: `It may have been saved. Run \`sim workflows source apply ${workflowId} --dir ${options.dir} --dry-run\`: exit 5 (stale) means the draft changed since this directory was read, by this apply or by someone else. Run \`sim workflows source get ${workflowId} --dir <fresh dir>\` and compare it with ${options.dir}: if it holds your edit, \`sim workflows source get ${workflowId} --dir ${options.dir} --force\` brings this directory up to date; if not, reapply your edit in the fresh directory. Any other outcome means it was not saved: apply again.`,
+    .addHelpText('after', `${APPLY_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}`)
+    .action(async (named: string | undefined, options: SourceWriteOptions) =>
+      withWorkspaceFolderLock(options.dir, async () => {
+        requireConsent(options, 'writes the workflow draft', 'apply')
+        const { client, profile } = connectApply()
+        const lock = await readLock(options.dir)
+        const base = await readBase(options.dir, named)
+        const workflowId = base.workflowId
+        const files = await readSourceFiles(options.dir, lock)
+        await runSourceWrite({
+          options,
+          creating: false,
+          question: `Apply these changes to workflow ${workflowId}?`,
+          output: profile.output,
+          client,
+          operation: 'applyWorkflowSource',
+          params: { workflowId },
+          body: { files, lock, base, provenance: { client: 'cli' } },
+          save: async (data) => {
+            await writeBack(options.dir, data, lock)
+            await refreshWorkflowTsconfigs(options.dir, data)
+          },
+          ifAnswerLost: `It may have been saved. Run \`sim workflows source apply ${workflowId} --dir ${options.dir} --dry-run\`: exit 5 (stale) means the draft changed since this directory was read, by this apply or by someone else. Run \`sim workflows source get ${workflowId} --dir <fresh dir>\` and compare it with ${options.dir}: if it holds your edit, \`sim workflows source get ${workflowId} --dir ${options.dir} --force\` brings this directory up to date; if not, reapply your edit in the fresh directory. Any other outcome means it was not saved: apply again.`,
+        })
       })
-    })
+    )
 }
 
 /**
@@ -343,47 +347,49 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .option('-y, --yes', 'Create without asking for confirmation')
     .allowExcessArguments(false)
     .description('Create a workflow from a workflow source directory')
-    .addHelpText('after', CREATE_EXIT_CODES_HELP)
-    .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) => {
-      if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
-        if (options.dryRun || options.yes) {
-          throw new SimApiError(
-            `${options.dir} has no ${ENTRY_FILE}, so there is nothing to ${options.dryRun ? 'check' : 'create'}. Write ${ENTRY_FILE} there, or run \`sim workflows source create --dir ${options.dir}\` without --dry-run and --yes to write a starter.`,
-            0
+    .addHelpText('after', `${CREATE_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}`)
+    .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) =>
+      withWorkspaceFolderLock(options.dir, async () => {
+        if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
+          if (options.dryRun || options.yes) {
+            throw new SimApiError(
+              `${options.dir} has no ${ENTRY_FILE}, so there is nothing to ${options.dryRun ? 'check' : 'create'}. Write ${ENTRY_FILE} there, or run \`sim workflows source create --dir ${options.dir}\` without --dry-run and --yes to write a starter.`,
+              0
+            )
+          }
+          const { client, profile } = connectCreate()
+          const tree = await writeSourceScaffold(client, options.dir, client.requireWorkspace())
+          printError(
+            `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, then run \`sim workflows source create --dir ${options.dir} --yes\`.`
           )
+          printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
+          return
         }
+        requireConsent(options, 'creates a workflow', 'create')
         const { client, profile } = connectCreate()
-        const tree = await writeSourceScaffold(client, options.dir, client.requireWorkspace())
-        printError(
-          `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, then run \`sim workflows source create --dir ${options.dir} --yes\`.`
-        )
-        printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
-        return
-      }
-      requireConsent(options, 'creates a workflow', 'create')
-      const { client, profile } = connectCreate()
-      const workspaceId = client.requireWorkspace()
-      const files = await readSourceFiles(options.dir, null)
-      await runSourceWrite<'createWorkflowFromSource'>({
-        options,
-        creating: true,
-        question: 'Create this workflow?',
-        output: profile.output,
-        client,
-        operation: 'createWorkflowFromSource',
-        params: { workspaceId },
-        ifAnswerLost: `It may have been created. Run this command again: a SOURCE_NAME_TAKEN refusal means it was, so find its id with \`sim workflows list\` and run \`sim workflows source get <workflowId> --dir ${options.dir} --force\`.`,
-        save: async (data) => {
-          await writeSourceDirectory(client, options.dir, data, [])
-        },
-        body: {
-          files,
-          ...(options.name !== undefined ? { name: options.name } : {}),
-          ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
-          provenance: { client: 'cli' },
-        },
+        const workspaceId = client.requireWorkspace()
+        const files = await readSourceFiles(options.dir, null)
+        await runSourceWrite<'createWorkflowFromSource'>({
+          options,
+          creating: true,
+          question: 'Create this workflow?',
+          output: profile.output,
+          client,
+          operation: 'createWorkflowFromSource',
+          params: { workspaceId },
+          ifAnswerLost: `It may have been created. Run this command again: a SOURCE_NAME_TAKEN refusal means it was, so find its id with \`sim workflows list\` and run \`sim workflows source get <workflowId> --dir ${options.dir} --force\`.`,
+          save: async (data) => {
+            await writeSourceDirectory(client, options.dir, data, [])
+          },
+          body: {
+            files,
+            ...(options.name !== undefined ? { name: options.name } : {}),
+            ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
+            provenance: { client: 'cli' },
+          },
+        })
       })
-    })
+    )
 }
 
 /** A create that did not apply stored nothing, so its provisional workflow id names no workflow. */

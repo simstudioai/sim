@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { compileWorkflow } from '@sim/workflow-code'
 import { fingerprintOf } from '@sim/workspace-code'
@@ -542,6 +542,47 @@ describe('sim workflows source apply in a workflow folder of a workspace directo
       'workflow:w': { id: WORKFLOW_ID, fingerprint: fingerprintOf({ source: 'sf1:b' }) },
       'table:leads': { id: 'tbl_1', fingerprint: 'rf1:t' },
     })
+  })
+  it('refuses while a command holds the workspace directory, reading and writing nothing', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome())
+    mkdirSync(join(dir, '.sim/command.lock'))
+    writeFileSync(
+      join(dir, '.sim/command.lock/owner.json'),
+      JSON.stringify({ pid: process.pid, host: hostname() })
+    )
+    const records = ['.sim/written.json', '.sim/base.json'].map((path) =>
+      readFileSync(join(dir, path), 'utf8')
+    )
+
+    const busy = await apply('--dir', folder(), '--yes').then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    expect(busy).toBeInstanceOf(SimApiError)
+    expect(busy).toMatchObject({ code: 'SOURCE_DIR_BUSY', exitCode: 10 })
+    expect(request).not.toHaveBeenCalled()
+    expect(
+      ['.sim/written.json', '.sim/base.json'].map((path) => readFileSync(join(dir, path), 'utf8'))
+    ).toEqual(records)
+    expect(readFileSync(join(folder(), '.sim/base.json'), 'utf8')).toBe(
+      FOLDER_FILES['.sim/base.json']
+    )
+  })
+
+  it('holds the workspace directory while it writes, and lets go after', async () => {
+    setTerminal(false)
+    let lockedDuringWrite = false
+    request.mockImplementation(async () => {
+      lockedDuringWrite = existsSync(join(dir, '.sim/command.lock'))
+      return outcome()
+    })
+
+    await apply('--dir', folder(), '--yes')
+
+    expect(lockedDuringWrite).toBe(true)
+    expect(existsSync(join(dir, '.sim/command.lock'))).toBe(false)
   })
 })
 

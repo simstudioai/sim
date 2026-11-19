@@ -857,3 +857,20 @@ export async function withSourceDirLock<T>(dir: string, run: () => Promise<T>): 
     if (createdDir) await rmdir(dir).catch(() => {})
   }
 }
+
+/**
+ * Runs a single-workflow command on `dir` holding the command lock of the workspace directory it
+ * is a workflow folder of, if any: such a command rewrites the workspace's own records (see
+ * {@link writeBack}), so it must not interleave with a workspace command, or with another workflow
+ * command in a sibling folder. Refused like a workspace command (`SOURCE_DIR_BUSY`, exit 10), with
+ * nothing read or written.
+ */
+export async function withWorkspaceFolderLock<T>(dir: string, run: () => Promise<T>): Promise<T> {
+  const folder = await workspaceFolderOf(dir)
+  return folder ? withSourceDirLock(folder.root, run) : run()
+}
+
+/** The help line every single-workflow command that writes a directory adds to its exit codes. */
+export const WORKSPACE_FOLDER_BUSY_HELP = `
+Exit 10 (busy, retry): --dir is a workflow folder of a workspace directory another sim command is
+using (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.`
