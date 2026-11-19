@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   type ActivityCell,
   aggregateHour,
-  HeavyHourError,
   type HourReaders,
+  PassDeadlineError,
 } from '@/lib/billing/activity-rollup/cells'
 import type { InstantRange } from '@/lib/billing/activity-rollup/source'
 
@@ -76,9 +76,9 @@ describe('aggregateHour', () => {
     }
   )
 
-  it('reads a slice that still times out a page of workspaces at a time', async () => {
+  it('pages the rest of the hour once after a slice times out, not slice by slice', async () => {
     const span = vi.fn(async (range: InstantRange) => {
-      if (isWholeHour(range) || quarter(range) === 3) throw timeout()
+      if (isWholeHour(range) || quarter(range) === 1) throw timeout()
       return [cell('a', 1, 5)]
     })
     const workspacePage = vi.fn(async (_range: InstantRange, after: string | null) =>
@@ -91,14 +91,23 @@ describe('aggregateHour', () => {
       readers: readers({ span, workspacePage }),
     })
 
-    expect(workspacePage.mock.calls.map(([range, after]) => [quarter(range), after])).toEqual([
-      [3, null],
-      [3, 'ws-500'],
+    expect(
+      span.mock.calls.map(([range]) => (isWholeHour(range) ? 'hour' : quarter(range)))
+    ).toEqual(['hour', 0, 1])
+    expect(
+      workspacePage.mock.calls.map(([range, after]) => [
+        range.from.toISOString(),
+        range.to.toISOString(),
+        after,
+      ])
+    ).toEqual([
+      ['2026-05-01T10:15:00.000Z', '2026-05-01T11:00:00.000Z', null],
+      ['2026-05-01T10:15:00.000Z', '2026-05-01T11:00:00.000Z', 'ws-500'],
     ])
-    expect(cells).toEqual([cell('a', 5, 22), cell('b', 1, 1)])
+    expect(cells).toEqual([cell('a', 3, 12), cell('b', 1, 1)])
   })
 
-  it('gives the hour up as too heavy rather than page workspaces past the pass budget', async () => {
+  it('gives up before paging once the pass budget has run out, without calling the hour heavy', async () => {
     const span = vi.fn(async () => {
       throw timeout()
     })
@@ -106,7 +115,7 @@ describe('aggregateHour', () => {
 
     await expect(
       aggregateHour(hour, Date.now() - 1, { readers: readers({ span, workspacePage }) })
-    ).rejects.toBeInstanceOf(HeavyHourError)
+    ).rejects.toBeInstanceOf(PassDeadlineError)
     expect(workspacePage).not.toHaveBeenCalled()
   })
 
@@ -120,8 +129,8 @@ describe('aggregateHour', () => {
     })
 
     expect(span).not.toHaveBeenCalled()
-    expect(workspacePage).toHaveBeenCalledTimes(4)
-    expect(cells).toEqual([cell('a', 4, 8)])
+    expect(workspacePage.mock.calls.map(([range]) => isWholeHour(range))).toEqual([true])
+    expect(cells).toEqual([cell('a', 1, 2)])
   })
 
   it('fails without slicing when the read fails for any other reason', async () => {

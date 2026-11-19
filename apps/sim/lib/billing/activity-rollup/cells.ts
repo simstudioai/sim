@@ -1,7 +1,12 @@
 import { db, dbReplica } from '@sim/db'
-import { activityRollupInflight, workflowActivityHourly, workspace } from '@sim/db/schema'
+import {
+  activityRollupInflight,
+  workflowActivityHourly,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresCancellationReason } from '@sim/utils/errors'
+import { chunkArray } from '@sim/utils/helpers'
 import { sql } from 'drizzle-orm'
 import {
   HOUR_MS,
@@ -108,13 +113,17 @@ function sumCells(parts: ActivityCell[][]): ActivityCell[] {
   return [...byKey.values()]
 }
 
-/** Workspaces read per statement once a slice is too heavy to read at once. */
-const WORKSPACE_PAGE = 500
+/** Distinct workspaces with runs a page walks, and how many of them one statement aggregates. */
+const WORKSPACE_WALK = 1000
+const WORKSPACE_CHUNK = 100
 
 /** Reads of an hour's runs, from the whole span down to one page of workspaces at a time. */
 export interface HourReaders {
   span: (range: InstantRange) => Promise<ActivityCell[]>
-  /** The cells of up to a page of workspaces after `after` (by id), and the last one read. */
+  /**
+   * The cells of the next page of workspaces with runs in `range`, after `after` (by id), and the
+   * last workspace the page walked, or null once every workspace with runs was walked.
+   */
   workspacePage: (
     range: InstantRange,
     after: string | null
@@ -126,6 +135,14 @@ export class HeavyHourError extends Error {
   constructor(hour: Date, options: { cause: unknown }) {
     super(`Activity rollup hour ${hour.toISOString()} is too heavy to read`, options)
     this.name = 'HeavyHourError'
+  }
+}
+
+/** The pass ran out of budget while paging an hour: not a sign the hour is too heavy. */
+export class PassDeadlineError extends Error {
+  constructor(hour: Date) {
+    super(`Activity rollup pass budget ran out while paging hour ${hour.toISOString()}`)
+    this.name = 'PassDeadlineError'
   }
 }
 
@@ -146,81 +163,109 @@ function onReplica<T>(read: (tx: DbTransaction) => Promise<T>): Promise<T> {
   )
 }
 
+/**
+ * The next workspaces that have any run, after `after`, by a bounded loose index scan on the
+ * activity index (one descent per workspace, never a scan of runs), each with whether it has runs
+ * in `range` (one more descent: a LATERAL `LIMIT 1`, which the planner cannot turn into a hashed
+ * scan of the whole range).
+ */
+async function walkWorkspaces(
+  tx: DbTransaction,
+  range: InstantRange,
+  after: string | null
+): Promise<{ id: string; active: number }[]> {
+  return tx.execute<{ id: string; active: number }>(sql`
+    WITH RECURSIVE walk AS (
+      (SELECT l.workspace_id AS id, 1 AS n FROM ${workflowExecutionLogs} l
+        ${after === null ? sql`` : sql`WHERE l.workspace_id > ${after}`}
+        ORDER BY l.workspace_id LIMIT 1)
+      UNION ALL
+      SELECT (
+        SELECT l.workspace_id FROM ${workflowExecutionLogs} l
+        WHERE l.workspace_id > walk.id ORDER BY l.workspace_id LIMIT 1
+      ), walk.n + 1
+      FROM walk WHERE walk.id IS NOT NULL AND walk.n < ${WORKSPACE_WALK}
+    )
+    SELECT walk.id, (hit.found IS NOT NULL)::int AS active
+    FROM walk
+    LEFT JOIN LATERAL (
+      SELECT 1 AS found FROM ${workflowExecutionLogs} l
+      WHERE l.workspace_id = walk.id
+        AND l.started_at >= ${utcTimestamp(range.from)} AND l.started_at < ${utcTimestamp(range.to)}
+      LIMIT 1
+    ) hit ON true
+    WHERE walk.id IS NOT NULL
+  `)
+}
+
 const replicaReaders: HourReaders = {
   span: (range) => onReplica((tx) => aggregateRange(tx, range)),
   workspacePage: (range, after) =>
     onReplica(async (tx) => {
-      const page = await tx.execute<{ id: string }>(sql`
-        SELECT id FROM ${workspace} ${after === null ? sql`` : sql`WHERE id > ${after}`}
-        ORDER BY id LIMIT ${WORKSPACE_PAGE}
-      `)
-      const ids = page.map(({ id }) => id)
-      if (ids.length === 0) return { cells: [], last: null }
-      const cells = await aggregateRange(tx, range, ids)
-      return { cells, last: ids.length < WORKSPACE_PAGE ? null : (ids.at(-1) ?? null) }
+      const walked = await walkWorkspaces(tx, range, after)
+      const active = walked.filter((row) => Number(row.active) === 1).map((row) => row.id)
+      /** Chunks hold different workspaces, so their cells never share a key. */
+      const cells: ActivityCell[] = []
+      for (const chunk of chunkArray(active, WORKSPACE_CHUNK)) {
+        cells.push(...(await aggregateRange(tx, range, chunk)))
+      }
+      const last = walked.length < WORKSPACE_WALK ? null : (walked.at(-1)?.id ?? null)
+      return { cells, last }
     }),
 }
 
 /**
  * Every cell of one UTC hour, read on the replica, at the coarsest grain that fits the statement
  * bounds. A span that times out (or that the replica cancels for recovery) is read again in
- * quarter-hour slices, and a slice that still does is read a page of workspaces at a time, each on
- * the workspace activity index. All of these count exactly the same runs, so their cells are
- * summed. Throws {@link HeavyHourError} when even a page of workspaces cannot be read, or the
- * pass's `deadline` passes while paging.
+ * quarter-hour slices; once a slice still does, the rest of the hour is read once, a page of
+ * workspaces with runs at a time, each on the workspace activity index. All of these count exactly
+ * the same runs, so their cells are summed. Throws {@link HeavyHourError} when even a page cannot
+ * be read, and {@link PassDeadlineError} when `deadline` passes while paging.
  */
 export async function aggregateHour(
   hour: Date,
   deadline: number,
   {
     readers = replicaReaders,
-    byWorkspace: startByWorkspace = false,
+    byWorkspace = false,
   }: {
     readers?: HourReaders
-    /** Skips straight to workspace pages: a retry of an hour already known to be too heavy. */
+    /** Skips straight to workspace pages: a retry of an hour a previous pass had to page. */
     byWorkspace?: boolean
   } = {}
 ): Promise<ActivityCell[]> {
-  if (!startByWorkspace) {
-    try {
-      return await readers.span({ from: hour, to: new Date(hour.getTime() + HOUR_MS) })
-    } catch (error) {
-      if (!isBoundedCancellation(error)) throw error
-      logger.warn('Activity rollup hour read in slices', {
-        hour: hour.toISOString(),
-        reason: getPostgresCancellationReason(error),
-      })
-    }
+  const hourEnd = new Date(hour.getTime() + HOUR_MS)
+  const wholeHour = { from: hour, to: hourEnd }
+  if (byWorkspace) return readByWorkspace(hour, wholeHour, deadline, readers)
+  try {
+    return await readers.span(wholeHour)
+  } catch (error) {
+    if (!isBoundedCancellation(error)) throw error
+    logger.warn('Activity rollup hour read in slices', {
+      hour: hour.toISOString(),
+      reason: getPostgresCancellationReason(error),
+    })
   }
   const sliceMs = HOUR_MS / SLICES_PER_HOUR
   const parts: ActivityCell[][] = []
-  // Once one slice needs workspace pages, later slices skip the span read bound to fail.
-  let byWorkspace = startByWorkspace
   for (let slice = 0; slice < SLICES_PER_HOUR; slice++) {
     const from = new Date(hour.getTime() + slice * sliceMs)
-    const range = { from, to: new Date(from.getTime() + sliceMs) }
-    if (!byWorkspace) {
-      try {
-        parts.push(await readers.span(range))
-        continue
-      } catch (error) {
-        if (!isBoundedCancellation(error)) throw error
-        logger.warn('Activity rollup slice read by workspace', {
-          from: from.toISOString(),
-          reason: getPostgresCancellationReason(error),
-        })
-        byWorkspace = true
-      }
+    try {
+      parts.push(await readers.span({ from, to: new Date(from.getTime() + sliceMs) }))
+    } catch (error) {
+      if (!isBoundedCancellation(error)) throw error
+      logger.warn('Activity rollup hour read by workspace', {
+        from: from.toISOString(),
+        reason: getPostgresCancellationReason(error),
+      })
+      parts.push(await readByWorkspace(hour, { from, to: hourEnd }, deadline, readers))
+      break
     }
-    parts.push(await readByWorkspace(hour, range, deadline, readers))
   }
   return sumCells(parts)
 }
 
-/**
- * Reads a slice a page of workspaces at a time. Gives the hour up as too heavy when a page still
- * times out, or when the pass's budget runs out first, so a heavy hour never outlives the lease.
- */
+/** Reads `range` a page of workspaces with runs at a time. */
 async function readByWorkspace(
   hour: Date,
   range: InstantRange,
@@ -230,9 +275,7 @@ async function readByWorkspace(
   const parts: ActivityCell[][] = []
   let after: string | null = null
   for (;;) {
-    if (Date.now() >= deadline) {
-      throw new HeavyHourError(hour, { cause: new Error('Pass budget ran out') })
-    }
+    if (Date.now() >= deadline) throw new PassDeadlineError(hour)
     try {
       const page = await readers.workspacePage(range, after)
       parts.push(page.cells)

@@ -802,10 +802,13 @@ export const activityRollupState = pgTable('activity_rollup_state', {
   leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
   housekeepingAt: timestamp('housekeeping_at', { withTimezone: true }),
   /**
-   * When a pass last completed (or started a coverage). Writers mark changes only while this is
-   * recent, and a pass that finds it older than the maintenance gap rebuilds the rollup.
+   * When a pass last ran at this version past its reset decision (or started a coverage). Writers
+   * mark changes only while this is recent, and a pass that finds it older than the maintenance gap
+   * rebuilds the rollup.
    */
   maintainedAt: timestamp('maintained_at', { withTimezone: true }),
+  /** Passes in a row that failed after taking the lease; reset by the next pass that completes. */
+  failedPasses: integer('failed_passes').notNull().default(0),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

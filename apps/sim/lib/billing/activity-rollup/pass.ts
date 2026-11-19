@@ -14,13 +14,14 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { randomFloat } from '@sim/utils/random'
-import { and, count, eq, gte, inArray, lt, max, sql } from 'drizzle-orm'
+import { and, count, eq, gt, gte, inArray, lt, max, sql } from 'drizzle-orm'
 import {
   type ActivityCell,
   aggregateHour,
   boundedTransaction,
   HeavyHourError,
   inflightBackoffMs,
+  PassDeadlineError,
   recomputeCell,
   writeHour,
 } from '@/lib/billing/activity-rollup/cells'
@@ -146,30 +147,35 @@ const HEAVY_RETRY_MS = 2 * 60 * 1000
 const MAX_HEAVY_RETRY_MS = 6 * 60 * 1000
 
 /**
- * Backs off an hour no read could aggregate, loudly, so passes stop retrying it every tick and
- * their other steps keep running. Each blocked hour keeps its own backoff, so a heavy hour on the
- * finalize side and one on the backfill side never reset each other's delay.
+ * Backs off a heavy hour (before each retry, and when a first read finds it too heavy), so passes stop retrying it every tick and their other
+ * steps keep running. Each blocked hour keeps its own backoff, so a heavy hour on the finalize side
+ * and one on the backfill side never reset each other's delay. Returns the delay.
  */
-async function blockHour(hour: Date, attempts: number, error: HeavyHourError): Promise<void> {
+async function blockHour(hour: Date, attempts: number): Promise<number> {
   const retryInMs = inflightBackoffMs(attempts - 1)
-  logger.error('Activity rollup hour too heavy to read; backing off', {
-    hour: hour.toISOString(),
-    attempts,
-    retryInMs,
-    error: getErrorMessage(error),
-  })
+  const retryAt = new Date(Date.now() + retryInMs)
   await db
     .insert(activityRollupBlocked)
-    .values({ bucketStart: hour, attempts, retryAt: new Date(Date.now() + retryInMs) })
-    .onConflictDoUpdate({
-      target: activityRollupBlocked.bucketStart,
-      set: { attempts, retryAt: new Date(Date.now() + retryInMs) },
-    })
+    .values({ bucketStart: hour, attempts, retryAt })
+    .onConflictDoUpdate({ target: activityRollupBlocked.bucketStart, set: { attempts, retryAt } })
+  return retryInMs
+}
+
+/**
+ * Leaves an hour the pass ran out of budget paging for the next pass to page from the start, with
+ * no backoff and no attempt counted: running out of budget says nothing about the hour.
+ */
+async function deferPaging(hour: Date): Promise<void> {
+  logger.warn('Activity rollup hour left for paging by the next pass', { hour: hour.toISOString() })
+  await db
+    .insert(activityRollupBlocked)
+    .values({ bucketStart: hour, attempts: 0, retryAt: sql`now()` })
+    .onConflictDoNothing()
 }
 
 /**
  * Aggregates and writes `hour` with the progress it completes, or leaves it: still backing off,
- * or found too heavy to read. A retry of a blocked hour skips the reads known to time out and
+ * found too heavy to read, or out of pass budget while paging (left to the next pass). A retry of a blocked hour skips the reads known to time out and
  * pages through workspaces under its own budget, which grows with its attempts (the lease is
  * extended to cover it), and a write that completes it forgets the block in the same transaction.
  */
@@ -190,16 +196,37 @@ async function computeHour(
     .from(activityRollupBlocked)
     .where(eq(activityRollupBlocked.bucketStart, hour))
   if (block && block.retryAt.getTime() > Date.now()) return { state: null, runs: 0 }
-  const retryBudgetMs = block ? Math.min(MAX_HEAVY_RETRY_MS, HEAVY_RETRY_MS * block.attempts) : 0
-  if (block) await extendLease(owner, retryBudgetMs + LEASE_MARGIN_MS)
+  let retryBudgetMs = 0
+  let retryInMs: number | undefined
+  if (block) {
+    /**
+     * The retry's backoff is committed before it starts, so a retry that crashes or loses its
+     * lease is not tried again until the backoff passes.
+     */
+    const attempts = block.attempts + 1
+    retryInMs = await blockHour(hour, attempts)
+    retryBudgetMs = Math.min(MAX_HEAVY_RETRY_MS, HEAVY_RETRY_MS * attempts)
+    await extendLease(owner, retryBudgetMs + LEASE_MARGIN_MS)
+  }
   let cells: ActivityCell[]
   try {
     cells = await aggregateHour(hour, block ? Date.now() + retryBudgetMs : deadline, {
       byWorkspace: Boolean(block),
     })
   } catch (error) {
-    if (!(error instanceof HeavyHourError)) throw error
-    await blockHour(hour, (block?.attempts ?? 0) + 1, error)
+    if (error instanceof PassDeadlineError && !block) {
+      await deferPaging(hour)
+      return { state: null, runs: 0 }
+    }
+    if (!(error instanceof HeavyHourError || error instanceof PassDeadlineError)) throw error
+    const attempts = (block?.attempts ?? 0) + 1
+    retryInMs ??= await blockHour(hour, attempts)
+    logger.error('Activity rollup hour too heavy to read; backing off', {
+      hour: hour.toISOString(),
+      attempts,
+      retryInMs,
+      error: getErrorMessage(error),
+    })
     return { state: null, runs: 0 }
   }
   const state = await write(cells, async (tx, changes) => {
@@ -452,8 +479,8 @@ async function runHousekeeping(
 
 /**
  * Why the rollup must start over, or null: a pass on newer code; coverage with an end missing
- * (cleared by hand to force a rebuild, or never started); or a maintenance gap, no completed pass
- * within {@link MAINTENANCE_GAP_MS}, during which writers stopped marking the deletes and reopened
+ * (cleared by hand to force a rebuild, or never started); or a maintenance gap, no pass past its reset
+ * decision within {@link MAINTENANCE_GAP_MS}, during which writers stopped marking the deletes and reopened
  * runs the cells would need. Read from the state alone, so a pass that fails before its reset
  * commits leaves the next pass the same reason.
  */
@@ -521,6 +548,14 @@ export async function runActivityRollupPass(
         if (Date.now() >= deadline) return { ...result, status: 'truncating' }
       }
       state = await startCoverage(owner, settledThrough, lateEndMarginMs)
+    } else {
+      /**
+       * A pass at this version that got past its reset decision is maintaining the rollup: marks
+       * written from now on will be consumed by it or the next. A step failing later loses no mark
+       * (marks persist until a recompute removes them), so the heartbeat does not wait on the
+       * steps, and a failure is counted and logged instead of forcing rebuilds every gap.
+       */
+      state = await updateLeasedState(owner, { maintainedAt: sql`now()` })
     }
 
     result.lateEndMarks = await captureLateEnds(deadline, {
@@ -545,18 +580,14 @@ export async function runActivityRollupPass(
       Date.now() - state.housekeepingAt.getTime() >= HOUSEKEEPING_INTERVAL_MS
     const housekeeping = housekeepingDue && Date.now() < deadline
     if (housekeeping) await runHousekeeping(state, deadline, result)
-    /**
-     * The heartbeat moves only if the last one was still within the gap when this pass ends: one
-     * that expired while the pass ran means writers already stopped marking, so it is left to
-     * expire and the next pass rebuilds.
-     */
     state = await updateLeasedState(owner, {
-      maintainedAt: sql`CASE
-        WHEN ${activityRollupState.maintainedAt} > now() - ${msInterval(MAINTENANCE_GAP_MS)}
-        THEN now() ELSE ${activityRollupState.maintainedAt} END`,
+      failedPasses: 0,
       ...(housekeeping ? { housekeepingAt: sql`now()` } : {}),
     })
-    const [blocked] = await db.select({ count: count() }).from(activityRollupBlocked)
+    const [blocked] = await db
+      .select({ count: count() })
+      .from(activityRollupBlocked)
+      .where(gt(activityRollupBlocked.attempts, 0))
     result.blockedHours = Number(blocked?.count ?? 0)
 
     result.coverageStart = state.coverageStart?.toISOString() ?? null
@@ -564,7 +595,28 @@ export async function runActivityRollupPass(
     result.backfillComplete = Boolean(state.backfillCompletedAt)
     logger.info('Activity rollup pass finished', { ...result })
     return result
+  } catch (error) {
+    await recordFailedPass(owner, error)
+    throw error
   } finally {
     await releaseLease(owner)
+  }
+}
+
+/** Counts a pass that failed after taking the lease, and logs the run of failures loudly. */
+async function recordFailedPass(owner: string, error: unknown): Promise<void> {
+  try {
+    const state = await updateLeasedState(owner, {
+      failedPasses: sql`${activityRollupState.failedPasses} + 1`,
+    })
+    logger.error('Activity rollup pass failed', {
+      consecutiveFailures: state.failedPasses,
+      error: getErrorMessage(error),
+    })
+  } catch (countError) {
+    logger.error('Activity rollup pass failed and could not be counted', {
+      error: getErrorMessage(error),
+      countError: getErrorMessage(countError),
+    })
   }
 }

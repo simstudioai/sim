@@ -386,6 +386,60 @@ async function oneLog(where: string) {
   return row
 }
 
+/**
+ * Moves `fresh_through` back over the newest settled hour and drops its cells, so the next pass
+ * finalizes it again. Returns that hour as a `timestamp` literal.
+ */
+async function reopenLastSettledHour(): Promise<string> {
+  const [row] = await connection.unsafe<{ hour: string }[]>(`
+    UPDATE activity_rollup_state SET fresh_through = fresh_through - interval '1 hour'
+    RETURNING to_char(fresh_through, 'YYYY-MM-DD HH24:MI:SS') AS hour
+  `)
+  if (!row) throw new Error('No state')
+  await connection.unsafe(
+    `DELETE FROM workflow_activity_hourly WHERE bucket_start = $1::timestamp`,
+    [row.hour]
+  )
+  return row.hour
+}
+
+/**
+ * Puts `workflow_execution_logs` behind a view that runs `action` for every run of `hour` read by a
+ * bounded hour read (the only statements bounded at 20s), until {@link ungateHour}.
+ */
+async function gateHour(hour: string, action: string): Promise<void> {
+  await connection.unsafe(`
+    ALTER TABLE workflow_execution_logs RENAME TO workflow_execution_logs_base;
+    CREATE FUNCTION hour_gate(started timestamp) RETURNS boolean LANGUAGE plpgsql AS $$
+    BEGIN
+      IF current_setting('statement_timeout') = '20s'
+        AND started >= '${hour}'::timestamp AND started < '${hour}'::timestamp + interval '1 hour' THEN
+        ${action}
+      END IF;
+      RETURN true;
+    END $$;
+    CREATE VIEW workflow_execution_logs AS
+      SELECT * FROM workflow_execution_logs_base WHERE hour_gate(started_at);
+  `)
+}
+
+/** The backoff attempts recorded for `hour`, or null when it is not blocked. */
+async function blockedAttempts(hour: string): Promise<number | null> {
+  const [row] = await connection.unsafe<{ attempts: number }[]>(
+    `SELECT attempts FROM activity_rollup_blocked WHERE bucket_start = $1::timestamp`,
+    [hour]
+  )
+  return row?.attempts ?? null
+}
+
+async function ungateHour(): Promise<void> {
+  await connection.unsafe(`
+    DROP VIEW workflow_execution_logs;
+    DROP FUNCTION hour_gate(timestamp);
+    ALTER TABLE workflow_execution_logs_base RENAME TO workflow_execution_logs;
+  `)
+}
+
 beforeAll(async () => {
   await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await connection.unsafe(`
@@ -751,30 +805,74 @@ describe('organization activity rollup', () => {
     await expectEquivalent()
   }, 300_000)
 
-  it('rebuilds when the maintenance heartbeat expired while a pass was running', async () => {
-    // The pass's first hour write ages the heartbeat past the gap, as a pass straddling it would.
+  it('keeps the heartbeat through a failing step and counts the failures instead of rebuilding', async () => {
+    const state = await readRollupState()
+    if (!state?.freshThrough) throw new Error('No coverage')
+    await connection`UPDATE activity_rollup_state SET maintained_at = now() - interval '5 hours'`
+    await connection`INSERT INTO activity_rollup_dirty
+      VALUES ('ws1', ${state.freshThrough.toISOString()}::timestamptz AT TIME ZONE 'UTC' - interval '1 hour', now())
+      ON CONFLICT (workspace_id, bucket_start) DO UPDATE SET due_at = excluded.due_at`
     await connection.unsafe(`
-      UPDATE activity_rollup_state
-        SET fresh_through = fresh_through - interval '1 hour', maintained_at = now();
-      DELETE FROM workflow_activity_hourly
-        WHERE bucket_start >= (SELECT fresh_through FROM activity_rollup_state);
-      CREATE FUNCTION age_rollup_heartbeat() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        UPDATE activity_rollup_state SET maintained_at = now() - interval '7 hours';
-        RETURN NULL;
-      END $$;
-      CREATE TRIGGER age_rollup_heartbeat AFTER INSERT ON workflow_activity_hourly
-        FOR EACH STATEMENT EXECUTE FUNCTION age_rollup_heartbeat();
+      CREATE FUNCTION fail_mark_consume() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'Synthetic step failure'; END $$;
+      CREATE TRIGGER fail_mark_consume BEFORE DELETE ON activity_rollup_dirty
+        FOR EACH STATEMENT EXECUTE FUNCTION fail_mark_consume();
     `)
     try {
-      expect((await runPass()).finalizedHours).toBe(1)
+      await expect(runPass()).rejects.toThrow()
+      const failed = await readRollupState()
+      expect(failed?.failedPasses).toBe(1)
+      expect(Date.now() - (failed?.maintainedAt?.getTime() ?? 0)).toBeLessThan(60 * 1000)
     } finally {
       await connection.unsafe(`
-        DROP TRIGGER age_rollup_heartbeat ON workflow_activity_hourly;
-        DROP FUNCTION age_rollup_heartbeat();
+        DROP TRIGGER fail_mark_consume ON activity_rollup_dirty;
+        DROP FUNCTION fail_mark_consume();
       `)
     }
-    expect((await runPass()).reset).toBe('maintenance-gap')
+    await runPass()
+    expect((await readRollupState())?.failedPasses).toBe(0)
+    await expectEquivalent()
+  }, 300_000)
+
+  it('leaves an hour the pass ran out of budget paging for the next pass, without a backoff', async () => {
+    const hour = await reopenLastSettledHour()
+    // Every bounded hour read of that hour takes a second and then times out.
+    await gateHour(
+      hour,
+      `PERFORM pg_sleep(1);
+      RAISE EXCEPTION 'canceling statement due to statement timeout' USING ERRCODE = '57014';`
+    )
+    try {
+      const deferred = await runPass(NOW, { budgetMs: 1500 })
+      expect(deferred).toMatchObject({ finalizedHours: 0, blockedHours: 0 })
+      expect(await blockedAttempts(hour)).toBe(0)
+    } finally {
+      await ungateHour()
+    }
+    expect(await runPass()).toMatchObject({ finalizedHours: 1, blockedHours: 0 })
+    await expectEquivalent()
+  }, 300_000)
+
+  it('commits a retry backoff before the retry, so a retry that dies still backs off', async () => {
+    const hour = await reopenLastSettledHour()
+    await connection.unsafe(
+      `INSERT INTO activity_rollup_blocked VALUES ($1::timestamp, 1, now())`,
+      [hour]
+    )
+    await gateHour(hour, `RAISE EXCEPTION 'Synthetic connection loss';`)
+    try {
+      await expect(runPass()).rejects.toThrow()
+    } finally {
+      await ungateHour()
+    }
+    const [row] = await connection.unsafe<{ attempts: number; waiting: boolean }[]>(
+      `SELECT attempts, retry_at > now() + interval '15 minutes' AS waiting
+       FROM activity_rollup_blocked WHERE bucket_start = $1::timestamp`,
+      [hour]
+    )
+    expect(row).toEqual({ attempts: 2, waiting: true })
+    await connection.unsafe(`UPDATE activity_rollup_blocked SET retry_at = now()`)
+    expect(await runPass()).toMatchObject({ finalizedHours: 1, blockedHours: 0 })
     await expectEquivalent()
   }, 300_000)
 
@@ -786,50 +884,30 @@ describe('organization activity rollup', () => {
          ORDER BY 1 DESC OFFSET 2 LIMIT 1
        ) hours`
     )
-    // Every hour read (the only statements bounded at 20s) touching a run in that hour fails as a
-    // statement timeout would, at any grain.
-    await connection.unsafe(`
-      ALTER TABLE workflow_execution_logs RENAME TO workflow_execution_logs_base;
-      CREATE FUNCTION heavy_hour_gate(started timestamp) RETURNS boolean LANGUAGE plpgsql AS $$
-      BEGIN
-        IF current_setting('statement_timeout') = '20s'
-          AND started >= '${hour}'::timestamp AND started < '${hour}'::timestamp + interval '1 hour' THEN
-          RAISE EXCEPTION 'canceling statement due to statement timeout' USING ERRCODE = '57014';
-        END IF;
-        RETURN true;
-      END $$;
-      CREATE VIEW workflow_execution_logs AS
-        SELECT * FROM workflow_execution_logs_base WHERE heavy_hour_gate(started_at);
-      UPDATE activity_rollup_state SET version = ${ACTIVITY_ROLLUP_VERSION - 1}, housekeeping_at = NULL;
-    `)
-    const blockedAttempts = async () => {
-      const [row] = await connection.unsafe<{ attempts: number }[]>(
-        `SELECT attempts FROM activity_rollup_blocked WHERE bucket_start = $1::timestamp`,
-        [hour]
-      )
-      return row?.attempts ?? null
-    }
+    await gateHour(
+      hour,
+      `RAISE EXCEPTION 'canceling statement due to statement timeout' USING ERRCODE = '57014';`
+    )
+    await connection.unsafe(
+      `UPDATE activity_rollup_state SET version = ${ACTIVITY_ROLLUP_VERSION - 1}, housekeeping_at = NULL`
+    )
     try {
       const blocked = await runPass()
       expect(blocked).toMatchObject({ status: 'ran', blockedHours: 1 })
-      expect(await blockedAttempts()).toBe(1)
+      expect(await blockedAttempts(hour)).toBe(1)
       const state = await readRollupState()
       expect(state?.housekeepingAt).not.toBeNull()
       expect(state?.coverageStart?.getTime()).toBeGreaterThan(new Date(`${hour}Z`).getTime())
 
       expect((await runPass()).blockedHours).toBe(1)
-      expect(await blockedAttempts()).toBe(1)
+      expect(await blockedAttempts(hour)).toBe(1)
     } finally {
-      await connection.unsafe(`
-        DROP VIEW workflow_execution_logs;
-        DROP FUNCTION heavy_hour_gate(timestamp);
-        ALTER TABLE workflow_execution_logs_base RENAME TO workflow_execution_logs;
-      `)
+      await ungateHour()
     }
     await connection.unsafe(`UPDATE activity_rollup_blocked SET retry_at = now()`)
     const recovered = await runPass()
     expect(recovered).toMatchObject({ blockedHours: 0, backfillComplete: true })
-    expect(await blockedAttempts()).toBeNull()
+    expect(await blockedAttempts(hour)).toBeNull()
     await expectEquivalent()
   }, 300_000)
 })
