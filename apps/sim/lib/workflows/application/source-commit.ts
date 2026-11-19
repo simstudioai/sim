@@ -7,7 +7,6 @@ import {
   canonicalize,
   type SourceFingerprint,
   setOrDelete,
-  sourceFingerprint,
 } from '@sim/workflow-code'
 import { BLOCK_LAYOUT_DATA_FIELDS, BLOCK_LAYOUT_FIELDS } from '@sim/workflow-code/layout'
 import {
@@ -31,7 +30,7 @@ import {
 import type { SourcePlan } from '@/lib/workflows/application/source-evaluate'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import { assertLockedBlocksPreserved } from '@/lib/workflows/code/apply/locked'
-import type { StoredSource } from '@/lib/workflows/code/print-stored'
+import { type StoredSource, storedSourceFingerprint } from '@/lib/workflows/code/print-stored'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import {
   performCreateWorkflowTransition,
@@ -218,12 +217,10 @@ async function recheckAndWriteSourceMeta(
   const locked = await loadMutableStoredSourceIn(tx, scope.workflowId, options.raw)
   const { current } = locked
   if (!isEqual(current, stored)) {
-    const { workflow, identity } = canonicalize(current.state, {
-      catalog,
-      meta: current.meta,
-      resources: plan.resources,
-    })
-    const fingerprint = sourceFingerprint(workflow, identity)
+    const fingerprint = storedSourceFingerprint(
+      canonicalize(current.state, { catalog, meta: current.meta, resources: plan.resources }),
+      plan.resources
+    )
     if (fingerprint !== args.storedFingerprint) throw new WorkflowSourceStaleError(fingerprint)
     if (options.layoutOnly && !isEqual(withoutBlockLayout(current), withoutBlockLayout(stored))) {
       throw new WorkflowSourceStaleError(fingerprint)

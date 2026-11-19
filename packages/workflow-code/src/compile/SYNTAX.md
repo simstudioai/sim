@@ -502,6 +502,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_APPLY_DUPLICATE_TRIGGER`, `E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK` | A second trigger or single-instance block. |
 | `E_APPLY_DISABLED_ANCESTOR` | An enabled block inside a disabled container. |
 | `E_APPLY_CREDENTIAL_UNREACHABLE` | A credential the acting user cannot use. |
+| `W_APPLY_CREDENTIAL_KEPT` | A credential key the caller cannot resolve stands where the workflow stores a credential the caller cannot see; the stored one is kept, whatever the key. |
 | `E_APPLY_SANDBOX_PLAN_REQUIRED` | The sandbox needs a plan the workspace does not have. |
 | `W_APPLY_HOSTED_KEY_DROPPED` | A hosted key that does not apply was cleared. |
 | `W_APPLY_VALUE_NORMALIZED` | Validation rewrote a value; the returned files show it. |

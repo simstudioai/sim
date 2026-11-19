@@ -267,21 +267,73 @@ check(
   }
 )
 
-check('a reader who names the hidden credential by its key is refused', async () => {
-  const credentialId = await seedHiddenCredential()
-  const { workflowId, mailId } = await seedWorkflow(credentialId)
-  await getSource(owner, workflowId)
-  const source = await getSource(reader, workflowId)
-  const unresolved = source.files['workflow.ts'].match(/raw\(\{[^}]*\}\)/)?.[0]
-  expect(unresolved).toContain(credentialId)
+check(
+  'a key a reader names where a credential they cannot see is stored keeps it, alike whether or not it is its key',
+  async () => {
+    const credentialId = await seedHiddenCredential()
+    const { workflowId, mailId } = await seedWorkflow(credentialId)
+    const ownerSource = await getSource(owner, workflowId)
+    const key = ownerSource.files['workflow.ts'].match(/credential\('([^']+)'\)/)?.[1] ?? ''
+    expect(key).toContain(hiddenKey)
+    const source = await getSource(reader, workflowId)
+    const unresolved = source.files['workflow.ts'].match(/raw\(\{[^}]*\}\)/)?.[0]
+    expect(unresolved).toContain(credentialId)
+    const naming = (named: string) => {
+      const files = edit(source.files, unresolved ?? '', `credential('${named}')`)
+      files['workflow.ts'] = files['workflow.ts'].replace(/^import \{ /m, 'import { credential, ')
+      return files
+    }
 
-  const named = edit(source.files, unresolved ?? '', `credential('${hiddenKey}')`)
-  named['workflow.ts'] = named['workflow.ts'].replace(/^import \{ /m, 'import { credential, ')
+    const right = await apply(reader, source, naming(key))
+    const guess = await apply(reader, source, naming(`${key}-guess`))
 
-  await expect(apply(reader, source, named)).rejects.toMatchObject({
-    diagnostics: expect.arrayContaining([
-      expect.objectContaining({ code: 'E_MAT_UNKNOWN_RESOURCE' }),
-    ]),
-  })
-  expect(await storedCredential(workflowId, mailId)).toBe(credentialId)
-})
+    const codes = (answer: typeof right) => answer.diagnostics.map((finding) => finding.code)
+    expect(right.applied).toBe(false)
+    expect(guess.applied).toBe(false)
+    expect(codes(right)).toContain('W_APPLY_CREDENTIAL_KEPT')
+    expect(codes(guess)).toEqual(codes(right))
+    expect(await storedCredential(workflowId, mailId)).toBe(credentialId)
+
+    const elsewhere = naming(key)
+    elsewhere['workflow.ts'] = elsewhere['workflow.ts'].replace(
+      'score.to(mail)',
+      `score.to(mail)\n  const copy = legacy.gmail.readEmail('Copy', { credential: credential('${key}') })\n  mail.to(copy)`
+    )
+    await expect(apply(reader, source, elsewhere)).rejects.toMatchObject({
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: 'E_APPLY_CREDENTIAL_UNREACHABLE' }),
+      ]),
+    })
+    expect(await storedCredential(workflowId, mailId)).toBe(credentialId)
+  }
+)
+
+check(
+  'a member who cannot see a credential applies source an admin read: unchanged it writes nothing, edited it writes',
+  async () => {
+    const credentialId = await seedHiddenCredential()
+    const { workflowId, mailId } = await seedWorkflow(credentialId)
+    const ownerSource = await getSource(owner, workflowId)
+    expect(ownerSource.files['workflow.ts']).toContain(`credential('${hiddenKey}`)
+
+    const unchanged = await apply(reader, ownerSource, ownerSource.files)
+    expect(unchanged.applied).toBe(false)
+    expect((await getSource(reader, workflowId)).base.fingerprint).toBe(
+      ownerSource.base.fingerprint
+    )
+    expect(unchanged.base.fingerprint).toBe(ownerSource.base.fingerprint)
+
+    const submitted = edit(ownerSource.files, 'js`return 1`', 'js`return 2`')
+    const edited = await apply(reader, ownerSource, submitted)
+
+    expect(edited.applied).toBe(true)
+    expect(edited.files['workflow.ts']).toBe(submitted['workflow.ts'])
+    expect(await storedCredential(workflowId, mailId)).toBe(credentialId)
+    const readerSource = await getSource(reader, workflowId)
+    expect(readerSource.files['workflow.ts']).not.toContain(hiddenKey)
+    expect(readerSource.base.fingerprint).toBe(edited.base.fingerprint)
+    const ownerAfter = await getSource(owner, workflowId)
+    expect(ownerAfter.base.fingerprint).toBe(edited.base.fingerprint)
+    expect(ownerAfter.files['workflow.ts']).toBe(submitted['workflow.ts'])
+  }
+)

@@ -517,7 +517,10 @@ async function runSourceApply(
         meta: stored.meta,
         catalog,
       })
-      const storedFingerprint = storedSourceFingerprint(storedCanonical.canonical)
+      const storedFingerprint = storedSourceFingerprint(
+        storedCanonical.canonical,
+        storedCanonical.resources
+      )
       /**
        * Refuses a commit; a dry run reports the same findings with a 200 instead. The dry run
        * echoes the caller's own base fingerprint, so applying its response after a stale or

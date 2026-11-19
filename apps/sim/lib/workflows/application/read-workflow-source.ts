@@ -179,7 +179,7 @@ async function printLoadedSource(
       storedTypes: storedCatalogTypes(Object.values(state.blocks)),
     })
     const { canonical, resources } = await canonicalizeStored({ prefetched, state, meta, catalog })
-    const canonicalHash = storedCanonicalHash(canonical)
+    const canonicalHash = storedCanonicalHash(canonical, resources)
     const printed = printStoredSource({
       state,
       meta,
