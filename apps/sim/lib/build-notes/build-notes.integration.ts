@@ -42,7 +42,12 @@ import {
   rebaseBuildNotes,
 } from '@/lib/build-notes/application/build-notes'
 import { loadCurrentBaselineState } from '@/lib/build-notes/baseline'
-import { readBuildNotesFileText, writeBaseline } from '@/lib/build-notes/files'
+import {
+  createBuildNotesFiles,
+  readBuildNotesFileText,
+  writeBaseline,
+} from '@/lib/build-notes/files'
+import { recordBuildNotesEvaluation } from '@/lib/build-notes/repository'
 import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import { deleteFolder, restoreFolder } from '@/lib/folders/orchestration'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
@@ -568,6 +573,62 @@ check(
     expect(JSON.stringify(changes)).not.toMatch(/cred-|key-/)
   }
 )
+
+check(
+  'a verdict reached before a build finished cannot revive the approval that build spent',
+  async () => {
+    const { workflowId, startId } = await seedWorkflow()
+    await createNotes(workflowId)
+    await writeNotes(workflowId, notesWith(functionBatch(startId, 'score')))
+    expect((await evaluate(workflowId)).passed).toBe(true)
+    const evaluatedOn = await notesRow(workflowId)
+    await applyNotes(workflowId)
+
+    const revived = await recordBuildNotesEvaluation(
+      evaluatedOn.id,
+      {
+        evaluatedNotesHash: evaluatedOn.evaluatedNotesHash ?? '',
+        evaluatedOperationsHash: evaluatedOn.evaluatedOperationsHash ?? '',
+      },
+      { baselineWorkflowUpdatedAt: evaluatedOn.baselineWorkflowUpdatedAt }
+    )
+    expect(revived).toBe(false)
+    expect((await notesRow(workflowId)).evaluatedNotesHash).toBeNull()
+  }
+)
+
+check('notes created while their workflow is archived roll back with their files', async () => {
+  const { workflowId } = await seedWorkflow()
+  await archiveWorkflow(workflowId, { requestId: generateId(), notifySocket: false })
+  const liveNotesFiles = async () =>
+    (
+      await db
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(
+          and(
+            eq(workspaceFiles.workspaceId, workspaceId),
+            eq(workspaceFiles.context, 'build_notes')
+          )
+        )
+    ).length
+  const before = await liveNotesFiles()
+  await expect(
+    createBuildNotesFiles({
+      workspaceId,
+      workflowId,
+      workflowName: 'Archived',
+      userId: ownerId,
+      baseline: await loadCurrentBaselineState(workflowId),
+    })
+  ).rejects.toMatchObject({ code: 'not_found' })
+  expect(await liveNotesFiles()).toBe(before)
+  const rows = await db
+    .select({ id: workflowBuildNotes.id })
+    .from(workflowBuildNotes)
+    .where(eq(workflowBuildNotes.workflowId, workflowId))
+  expect(rows).toEqual([])
+})
 
 check('a baseline read before a newer one was recorded never replaces it', async () => {
   const { workflowId, startId } = await seedWorkflow()

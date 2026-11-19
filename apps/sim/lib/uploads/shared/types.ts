@@ -104,6 +104,7 @@ export const WORKSPACE_SHARED_FILE_CONTEXTS = [
   'execution',
   'chat',
   'workspace-logos',
+  'build_notes',
 ] as const
 
 export type WorkspaceScopedContext = (typeof WORKSPACE_SCOPED_CONTEXTS)[number]

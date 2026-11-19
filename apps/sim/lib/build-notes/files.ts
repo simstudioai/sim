@@ -7,6 +7,7 @@ import { buildNotesFileName, buildNotesPath } from '@/lib/build-notes/paths'
 import {
   type BuildNotesRow,
   insertBuildNotesInTx,
+  requireLiveWorkflowInTx,
   setBuildNotesBaseline,
 } from '@/lib/build-notes/repository'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -45,14 +46,16 @@ export async function createBuildNotesFiles(params: {
       content: buildNotesTemplate(params.workflowName),
       contentType: 'text/markdown',
       fileName: () => buildNotesFileName(workflowId, 'notes'),
-      insertOwner: (tx, notesFileId) =>
-        insertBuildNotesInTx(tx, {
+      insertOwner: async (tx, notesFileId) => {
+        await requireLiveWorkflowInTx(tx, workflowId)
+        return insertBuildNotesInTx(tx, {
           id: generateId(),
           workspaceId,
           workflowId,
           notesFileId,
           createdByUserId: userId,
-        }),
+        })
+      },
     }))
   } catch (error) {
     if (getPostgresErrorCode(error) === '23505') {
@@ -91,6 +94,7 @@ export async function writeBaseline(
       contentType: 'application/json',
       fileName: () => buildNotesFileName(notes.workflowId, 'baseline'),
       insertOwner: async (tx, baselineFileId) => {
+        await requireLiveWorkflowInTx(tx, notes.workflowId)
         await setBuildNotesBaseline(
           notes.id,
           { baselineFileId, baselineWorkflowUpdatedAt: baseline.workflowUpdatedAt },

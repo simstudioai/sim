@@ -265,13 +265,20 @@ export const evaluateBuildNotes = defineAuthorizedWorkflowUseCase({
       problems.push(`Placeholder still open: <<open:${placeholder}>>`)
     for (const item of reading.blockingOpenItems)
       problems.push(`Open item marked [${item.mark}]: ${item.text || '(no text)'}`)
-    const passed = batch !== null && problems.length === 0
+    let passed = batch !== null && problems.length === 0
     // A failing evaluation also withdraws an earlier pass: the latest verdict is the one a build trusts.
     if (passed && batch) {
-      await recordBuildNotesEvaluation(notes.id, {
-        evaluatedNotesHash: notesHash(text),
-        evaluatedOperationsHash: batchHash(batch),
-      })
+      const recorded = await recordBuildNotesEvaluation(
+        notes.id,
+        { evaluatedNotesHash: notesHash(text), evaluatedOperationsHash: batchHash(batch) },
+        { baselineWorkflowUpdatedAt: notes.baselineWorkflowUpdatedAt }
+      )
+      if (!recorded) {
+        passed = false
+        problems.push(
+          'The workflow was built or rebased while this evaluation ran. Evaluate again against the current graph.'
+        )
+      }
     } else await clearBuildNotesEvaluation(notes.id)
     return {
       workflowId: context.workflowId,
