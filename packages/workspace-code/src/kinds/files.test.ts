@@ -101,10 +101,10 @@ describe('fileCodec', () => {
   it('groups 20,000 deeply nested paths in linear time, refusing those nested past the cap', () => {
     const deep = (index: number, depth: number) =>
       `files/k${index}/${Array.from({ length: depth }, () => 'a').join('/')}`
-    const started = performance.now()
+    const started = Date.now()
     const tooDeep = fileCodec.group(Array.from({ length: 20_000 }, (_, index) => deep(index, 500)))
     const nested = fileCodec.group(Array.from({ length: 20_000 }, (_, index) => deep(index, 60)))
-    expect(performance.now() - started).toBeLessThan(3_000)
+    expect(Date.now() - started).toBeLessThan(3_000)
     expect(tooDeep.groups.size).toBe(0)
     expect(new Set(tooDeep.diagnostics.map((finding) => finding.code))).toEqual(
       new Set(['E_FILE_PATH'])

@@ -151,9 +151,9 @@ describe('hostile sources produce diagnostics only', () => {
 
   it('scans a 400 KB value of overlapping token prefixes for secrets in linear time', () => {
     const value = '-eyJ'.repeat(100_000)
-    const started = performance.now()
+    const started = Date.now()
     const result = run(wrap(`const a = api('A', { url: 'https://x', body: '${value}' })`))
-    expect(performance.now() - started).toBeLessThan(3_000)
+    expect(Date.now() - started).toBeLessThan(3_000)
     expect(result.workflow).not.toBeNull()
     expect(codes(result)).not.toContain('W_LITERAL_SECRET')
     const segment = 'A'.repeat(12)
@@ -163,11 +163,11 @@ describe('hostile sources produce diagnostics only', () => {
   })
 
   it('checks the precision of a 100 KB numeric literal in linear time', () => {
-    const started = performance.now()
+    const started = Date.now()
     const result = run(
       wrap(`const a = api('A', { url: 'x', timeout: 0.1${'0'.repeat(100_000)}1 })`)
     )
-    expect(performance.now() - started).toBeLessThan(3_000)
+    expect(Date.now() - started).toBeLessThan(3_000)
     expect(codes(result)).toContain('W_NUMBER_PRECISION')
   })
 
