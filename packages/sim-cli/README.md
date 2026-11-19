@@ -315,6 +315,16 @@ sim secrets set API_KEY --scope workspace --value @secret.txt
 printf '%s' "$API_KEY" | sim secrets set API_KEY --scope workspace --value @-
 ```
 
+## Exit codes
+
+Success exits 0 and most failures exit 1. Two failures any command can hit have their own codes:
+13 (`AUTH_REQUIRED`) when the profile has no login, its OAuth login expired, or the server answered
+`401` (run `sim login`), and 9 when the API answered `429`. Every `GET`, and the source applies,
+creates and dry runs, are resent up to 6 times first, each wait the longer of `Retry-After` (up to
+60 seconds) and a backoff of about 1 to 30 seconds; any other write exits 9 at once. Before this
+release both exited 1. Command-specific codes:
+[Exit codes](https://docs.sim.ai/cli/scripting#exit-codes).
+
 ## Workflows and workspaces as code
 
 A workflow can be read and saved as a TypeScript file, and a whole workspace as a
