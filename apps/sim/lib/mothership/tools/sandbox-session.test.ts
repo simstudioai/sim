@@ -1,4 +1,4 @@
-import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
 import { setEnv } from '@sim/testing/mocks/env.mock'
 import {
   mothershipAgentUrlMock,
@@ -29,6 +29,7 @@ vi.mock('@/lib/mothership/request/headers', () => ({
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 vi.mock('@/lib/mothership/entitlements', () => ({ computeEntitlements: entitlements }))
 
+import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
 
 const fetchBootstrap = mothershipGoFetchMockFns.mockFetchGo
@@ -37,7 +38,11 @@ const baseURL = mothershipAgentUrlMockFns.mockGetMothershipBaseURL
 urlsMockFns.mockGetBaseUrl.mockReturnValue('https://unused.test')
 setEnv({ MOTHERSHIP_SANDBOX_CLI_ENDPOINT: 'https://sim.test', ENCRYPTION_KEY: 'a'.repeat(64) })
 
-const principal = createSessionPrincipal({ userId: 'user' })
+const principal = createDelegatedPrincipal({
+  subjectUserId: 'user',
+  workspaceId: 'workspace',
+  audience: 'sim:function-executions',
+})
 const request = { sessionKey: 'chat', workspaceId: 'workspace', userId: 'user', principal }
 
 describe('deployment-owned workbench tooling', () => {
@@ -109,7 +114,15 @@ describe('deployment-owned workbench tooling', () => {
     expect(first.envs).toMatchObject({ SIM_ENTITLEMENTS: 'dashboards,workflow-code' })
     expect(second.envs).toMatchObject({ SIM_ENTITLEMENTS: 'dashboards' })
     expect(entitlements).toHaveBeenCalledWith(
-      expect.objectContaining({ principal, workspaceId: 'workspace' })
+      expect.objectContaining({
+        principal: expect.objectContaining({
+          subjectUserId: 'user',
+          workspaceId: 'workspace',
+          delegationId: principal.delegationId,
+          audience: 'sim:workspaces',
+        }),
+        workspaceId: 'workspace',
+      })
     )
   })
 
@@ -120,13 +133,19 @@ describe('deployment-owned workbench tooling', () => {
       sessionKey: 'chat',
       organizationId: 'org',
       userId: 'user',
-      principal,
+      principal: createTrustedOrganizationCopilotPrincipal(
+        { userId: 'user', organizationId: 'org', chatId: 'chat', delegationId: 'run' },
+        { audience: 'sim:function-executions', ttlMs: 60_000 }
+      ),
     })
     expect(session.envs).toMatchObject({
       SIM_ORGANIZATION_ID: 'org',
       SIM_ENTITLEMENTS: 'workflow-code',
     })
-    expect(entitlements.mock.calls[0][0]).not.toHaveProperty('workspaceId')
+    expect(entitlements.mock.calls[0][0]).toMatchObject({
+      principal: { organizationId: 'org', delegationId: 'run', audience: 'sim:workspaces' },
+      workspaceId: undefined,
+    })
   })
 
   it('omits SIM_ENTITLEMENTS when none are granted or they cannot be read', async () => {

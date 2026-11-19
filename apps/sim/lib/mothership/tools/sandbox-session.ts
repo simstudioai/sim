@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import type { Principal } from '@sim/auth/principal'
+import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -14,6 +14,11 @@ import {
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
 } from '@/lib/execution/durable-secret-provenance'
 import type { SandboxSessionRequest } from '@/lib/execution/remote-sandbox/types'
+import {
+  COPILOT_APPLICATION_DELEGATION_TTL_MS,
+  createTrustedCopilotPrincipal,
+  createTrustedOrganizationCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
 import { computeEntitlements } from '@/lib/mothership/entitlements'
 import { WorkbenchBootstrap } from '@/lib/mothership/generated/workbench'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
@@ -104,18 +109,62 @@ async function workbenchCli(
   }
 }
 
+type ExecutionPrincipal = DelegatedPrincipal | OrganizationDelegatedPrincipal
+
+/**
+ * The execution's own Copilot delegation, re-scoped from the Function audience to the
+ * `sim:workspaces` audience the availability use cases accept. Same actor, chat and delegation,
+ * never a longer lifetime; any other service keeps its principal and is refused there.
+ */
+function workspacesDelegation(principal: ExecutionPrincipal): ExecutionPrincipal | null {
+  if (principal.serviceId !== 'copilot') return null
+  const options = {
+    audience: 'sim:workspaces',
+    ttlMs: Math.max(
+      1,
+      Math.min(COPILOT_APPLICATION_DELEGATION_TTL_MS, principal.expiresAt.getTime() - Date.now())
+    ),
+  }
+  const chatId = principal.resourceScope?.chatId
+  if (principal.kind === 'organization_delegated') {
+    if (!chatId) return null
+    return createTrustedOrganizationCopilotPrincipal(
+      {
+        userId: principal.subjectUserId,
+        organizationId: principal.organizationId,
+        chatId,
+        delegationId: principal.delegationId,
+      },
+      options
+    )
+  }
+  return createTrustedCopilotPrincipal(
+    {
+      userId: principal.subjectUserId,
+      workspaceId: principal.workspaceId,
+      delegationId: principal.delegationId,
+      chatId,
+      executionId: principal.resourceScope?.executionId,
+    },
+    options
+  )
+}
+
 /**
  * The owner's entitlements, read fresh for each execution, for the workbench CLI's
  * `SIM_ENTITLEMENTS`. Visibility only: each gated use case re-checks its flag, so a
  * failed read hides the gated commands rather than failing the execution.
  */
 async function sandboxEntitlements(args: {
-  principal: Principal
+  principal: ExecutionPrincipal
   workspaceId?: string
   organizationId?: string
 }): Promise<string> {
   try {
-    return (await computeEntitlements(args)).join(',')
+    const principal = workspacesDelegation(args.principal)
+    if (!principal) return ''
+    const { workspaceId, organizationId } = args
+    return (await computeEntitlements({ principal, workspaceId, organizationId })).join(',')
   } catch (error) {
     logger.warn('Session sandbox entitlements unavailable', {
       workspaceId: args.workspaceId,
@@ -144,7 +193,7 @@ export async function buildMothershipSandboxSession(args: {
   workspaceId?: string
   organizationId?: string
   userId: string
-  principal: Principal
+  principal: ExecutionPrincipal
   signal?: AbortSignal
 }): Promise<SandboxSessionRequest> {
   args.signal?.throwIfAborted()
