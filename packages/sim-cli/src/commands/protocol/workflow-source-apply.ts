@@ -21,7 +21,6 @@ import { printProtocolResult } from './result'
 import {
   FILE_CONCURRENCY,
   lockCodeFiles,
-  readPreviousLock,
   readSourceText,
   SOURCE_AGENTS_FILE,
   sourceRelativePath,
@@ -200,27 +199,23 @@ type SourceWriteOperation = 'applyWorkflowSource' | 'createWorkflowFromSource'
 /**
  * The shared write flow of `apply` and `create`: refuse a write without consent when no terminal
  * can ask, preview and ask on a terminal, send, print the diagnostics, and after a successful
- * write save the re-printed files, the lock and the base back into the directory, pruning the
- * function files the new lock no longer names.
+ * write save it into the directory with the caller's `save`.
  */
 async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
-  directory: string
   options: SourceWriteOptions
   creating: boolean
   question: string
-  /** The lock the directory held before the write: the record of the files the CLI wrote. */
-  previousLock: unknown
   client: OperationClient<Operation>
   operation: Operation
   params: Record<string, string>
   body: ApplyWorkflowSourceBody | CreateWorkflowFromSourceBody
   output: Parameters<typeof printProtocolResult>[0]
-  /** Saves a successful write into the directory; by default the files, lock and base. */
-  save?: (data: SourceApplyData) => Promise<void>
+  /** Saves a successful write into the directory. */
+  save: (data: SourceApplyData) => Promise<void>
   /** The next step when the write's answer never came back, so it may have been stored. */
   ifAnswerLost: string
 }): Promise<void> {
-  const { directory, options, creating } = args
+  const { options, creating } = args
   /** Sends the write (or its dry run); a refusal prints its diagnostics and rethrows. */
   const send = async (dryRun: boolean): Promise<SourceApplyData> => {
     try {
@@ -262,10 +257,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
   if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
 
-  if (!data.dryRun && !refused && (data.applied || !creating)) {
-    if (args.save) await args.save(data)
-    else await writeBack(directory, data, args.previousLock)
-  }
+  if (!data.dryRun && !refused && (data.applied || !creating)) await args.save(data)
 
   printProtocolResult(args.output, {
     ...summarize(data, creating),
@@ -311,11 +303,9 @@ export function attachWorkflowSourceApply(source: Command): void {
       const workflowId = base.workflowId
       const files = await readSourceFiles(options.dir, lock)
       await runSourceWrite({
-        directory: options.dir,
         options,
         creating: false,
         question: `Apply these changes to workflow ${workflowId}?`,
-        previousLock: lock,
         output: profile.output,
         client,
         operation: 'applyWorkflowSource',
@@ -374,13 +364,10 @@ export function attachWorkflowSourceCreate(source: Command): void {
       const { client, profile } = connectCreate()
       const workspaceId = client.requireWorkspace()
       const files = await readSourceFiles(options.dir, null)
-      const previousLock = await readPreviousLock(options.dir)
       await runSourceWrite<'createWorkflowFromSource'>({
-        directory: options.dir,
         options,
         creating: true,
         question: 'Create this workflow?',
-        previousLock,
         output: profile.output,
         client,
         operation: 'createWorkflowFromSource',

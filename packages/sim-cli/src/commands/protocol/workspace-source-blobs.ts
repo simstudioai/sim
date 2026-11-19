@@ -415,7 +415,7 @@ export function appliedBlobDigests(
  * server needs beyond them is refused by name (`E_BLOB_MISSING`), and the CLI stages it and
  * applies once more.
  */
-export function blobsToCarry(submission: {
+export function blobsToStage(submission: {
   kinds: readonly WorkspaceKind[]
   blobs: ReadonlyArray<BlobEntry>
   base?: unknown

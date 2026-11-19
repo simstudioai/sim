@@ -23,7 +23,13 @@ import { SOURCE_ENTRY_FILE } from '../limits'
 import type { SourceHintBlock, SourceHints } from '../lock'
 import type { AnchorKey, BlockKey, CanonicalBlock, Json } from '../model'
 import { getOwn, setOwn } from '../records'
-import { type BlockMetaKey, GENERIC_BUILDER, RESPONSE_BLOCK_TYPE, SDK_MODULE } from '../sdk'
+import {
+  type BlockMetaKey,
+  GENERIC_BUILDER,
+  RESPONSE_BLOCK_TYPE,
+  SDK_MODULE,
+  type TemplateTag,
+} from '../sdk'
 import { type AttachedComments, anchors, withComments } from './comments'
 import type { PrintContext } from './context'
 import { createPrintContext, type PrintInput } from './context'
@@ -37,11 +43,10 @@ import {
   responseFormParams,
   stringParam,
 } from './params'
-import { layout } from './scope'
+import { orderDeclarations } from './scope'
 import { printKey } from './strings'
 import { arrowExpr, type Expr, objectExpr, type Property, type StatementList } from './syntax'
 import { findBuilder } from './tools'
-import type { Tag } from './values'
 
 /** biome.json's line width. */
 const LINE_WIDTH = 100
@@ -217,7 +222,7 @@ function containerCall(ctx: PrintContext, block: CanonicalBlock): Expr {
   const config: Property[] = []
   for (const item of printedConfig(spec)) {
     if (item.value === undefined || !item.printed) continue
-    const tag: Tag = item.kind === 'text' ? 'js' : 't'
+    const tag: TemplateTag = item.kind === 'text' ? 'js' : 't'
     config.push({ key: item.key, value: ctx.values.value(item.value, { tag, from: block.key }) })
   }
   const callee =
@@ -302,7 +307,7 @@ function scopeStatements(ctx: PrintContext, scope: BlockKey | null): StatementLi
 }
 
 function printSource(ctx: PrintContext): PrintResult {
-  layout(ctx)
+  orderDeclarations(ctx)
   const body = scopeStatements(ctx, null)
   const options: Property[] = []
   const { description } = ctx.workflow.meta

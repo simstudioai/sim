@@ -422,11 +422,11 @@ describe('table rows as workspace source', () => {
   check('refuses a row write whose version moved after the plan read it', async () => {
     const workspaceId = await newWorkspace()
     const read = await managedPlans(workspaceId)
-    const check = tableAdapter.fingerprintNow
+    const check = tableAdapter.storedFingerprintNow
     if (!check) throw new Error('The table adapter checks fingerprints before writing')
     // Another client's row write lands between the plan and the apply's pre-write check.
     const moved = vi
-      .spyOn(tableAdapter, 'fingerprintNow')
+      .spyOn(tableAdapter, 'storedFingerprintNow')
       .mockImplementation(async (change, ctx) => {
         await editStoredSeats(workspaceId, 'team', 7)
         return check.call(tableAdapter, change, ctx)
@@ -455,11 +455,11 @@ describe('table rows as workspace source', () => {
   check('refuses a row write whose version moved after the check, under the lock', async () => {
     const workspaceId = await newWorkspace()
     const read = await managedPlans(workspaceId)
-    const check = tableAdapter.fingerprintNow
+    const check = tableAdapter.storedFingerprintNow
     if (!check) throw new Error('The table adapter checks fingerprints before writing')
     // The pre-write check passes, then a teammate's row edit commits before the reshape locks.
     const moved = vi
-      .spyOn(tableAdapter, 'fingerprintNow')
+      .spyOn(tableAdapter, 'storedFingerprintNow')
       .mockImplementation(async (change, ctx) => {
         const fingerprint = await check.call(tableAdapter, change, ctx)
         await editStoredSeats(workspaceId, 'team', 7)

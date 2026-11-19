@@ -99,7 +99,7 @@ const PASSWORD_ENV = 'x-passwordEnv'
 const PARTS = 'x-parts'
 
 /** What an apply carries out for one deployment, decided at plan time. */
-interface DeploymentPlan {
+export interface DeploymentPlan {
   /** The workflow, when it exists at plan time (not one this apply creates). */
   workflowId?: string
   /** Publish the draft: a first deploy, or `live: 'draft'` with a draft that differs. */
@@ -108,18 +108,18 @@ interface DeploymentPlan {
   publicApi?: boolean
   /** Whether the chat is written or removed. */
   chat?: 'replace' | 'delete'
-  /** The variable the base recorded the stored chat password under (for `fingerprintNow`). */
+  /** The variable the base recorded the stored chat password under (for `storedFingerprintNow`). */
   basePasswordEnv?: string
   /**
    * The stored chat's output block names at plan time, by the block id the chat stores. The
-   * workflow writes first, and may rename or re-create those blocks, so `fingerprintNow` reads each
+   * workflow writes first, and may rename or re-create those blocks, so `storedFingerprintNow` reads each
    * output by this name, as the plan did: the check compares the block ids the chat stores, and an
    * output re-pointed at another block since the plan still moves the fingerprint.
    */
   plannedOutputNames?: Record<string, string>
 }
 
-type DeploymentChange = PlannedChange<DeploymentDecl, DeploymentPlan>
+type DeploymentChange = PlannedChange<'deployment'>
 
 /** The variable a base entry records the chat password under. */
 function passwordEnvOf(base: BaseResource | undefined): string | undefined {
@@ -446,7 +446,7 @@ async function planDeployment(
     next = { ...change, action: 'update', storedId: planned.stored.id, fields }
   }
   if (state) {
-    next.serverFingerprint = storedFingerprint(state, basePasswordEnv)
+    next.storedFingerprint = storedFingerprint(state, basePasswordEnv)
     const plannedOutputNames = Object.fromEntries(
       (state.chat?.outputs ?? []).flatMap((output) =>
         output.block === undefined ? [] : [[output.blockId, output.block]]
@@ -676,7 +676,7 @@ function listAllDeployedWorkflows(ctx: SourceContext) {
   })
 }
 
-export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, DeploymentPlan> = {
+export const deploymentAdapter: KindAdapter<'deployment', StoredDeployment> = {
   codec: deploymentCodec,
 
   async load(ctx, { allocate }) {
@@ -691,20 +691,14 @@ export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, De
   async plan(desired, stored, ctx) {
     const changes: DeploymentChange[] = []
     for (const [key, decl] of desired) changes.push(await planDeployment(key, decl, stored, ctx))
-    const undeclared = planUndeclared<StoredDeployment, DeploymentDecl, DeploymentPlan>(
-      'deployment',
-      desired,
-      stored,
-      ctx,
-      {
-        fingerprint: (record, base) => storedFingerprint(record.state, passwordEnvOf(base)),
-        detail: (record, base) => ({
-          workflowId: record.id,
-          deploy: false,
-          ...(passwordEnvOf(base) ? { basePasswordEnv: passwordEnvOf(base) } : {}),
-        }),
-      }
-    )
+    const undeclared = planUndeclared('deployment', desired, stored, ctx, {
+      fingerprint: (record, base) => storedFingerprint(record.state, passwordEnvOf(base)),
+      detail: (record, base) => ({
+        workflowId: record.id,
+        deploy: false,
+        ...(passwordEnvOf(base) ? { basePasswordEnv: passwordEnvOf(base) } : {}),
+      }),
+    })
     // Undeploying stops the workflow's triggers: the plan says which, deleting or refusing to.
     for (const change of undeclared) {
       const record = change.storedId ? stored.bound.get(change.key) : undefined
@@ -769,7 +763,7 @@ export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, De
     }
   },
 
-  async fingerprintNow(change, ctx) {
+  async storedFingerprintNow(change, ctx) {
     const workflowId = change.detail?.workflowId
     if (!workflowId) throw new Error('A deployment check needs the workflow id')
     const read = await readDeployment(ctx, workflowId)

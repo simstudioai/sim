@@ -28,7 +28,7 @@ import {
   planWorkspaceSource,
   type WorkspaceSourceSubmission,
 } from '@/lib/workspace-source/application/plan'
-import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
+import { adapterOf } from '@/lib/workspace-source/application/registry'
 import type {
   AppliedResource,
   ApplyContext,
@@ -178,9 +178,9 @@ function failureOf(
  * (`keyClaimed`).
  */
 async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedResource> {
-  const adapter = KIND_ADAPTERS[change.kind]
-  if (change.action !== 'create' && change.serverFingerprint !== undefined) {
-    const now = await adapter.fingerprintNow?.(change, ctx)
+  const adapter = adapterOf(change.kind)
+  if (change.action !== 'create' && change.storedFingerprint !== undefined) {
+    const now = await adapter.storedFingerprintNow?.(change, ctx)
     if (now !== undefined) assertUnchanged(change, now)
   }
   const written = await adapter.apply(change, ctx)

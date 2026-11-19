@@ -27,25 +27,29 @@ import { pendingOf } from '@/lib/workspace-source/application/keys'
 import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
+  DeclOf,
+  KindChange,
   PlanContext,
-  PlannedChange,
   StoredResource,
   StoredSet,
 } from '@/lib/workspace-source/application/types'
 
+/** The kinds whose resource is one record under a unique display name. */
+type NamedKindName = Extract<WorkspaceKind, 'custom-tool' | 'skill'>
+
 /** How one named kind reads its stored records as declarations. */
-export interface NamedKind<D, S> {
-  kind: Extract<WorkspaceKind, 'custom-tool' | 'skill'>
-  codec: KindCodec<D>
+export interface NamedKind<K extends NamedKindName, S> {
+  kind: K
+  codec: KindCodec<DeclOf<K>>
   /** The unique display name a declaration gives its resource. */
-  nameOf(decl: D): string
+  nameOf(decl: DeclOf<K>): string
   /** A stored record as the declaration it prints as. */
-  declOf(state: S): D
+  declOf(state: S): DeclOf<K>
   /**
    * A declaration read back with what it keeps of the stored record `state` resolved (a tool's
    * `stored()` code), so it compares with {@link declOf}; a kind without it keeps nothing.
    */
-  resolve?(decl: D, state: S): D
+  resolve?(decl: DeclOf<K>, state: S): DeclOf<K>
 }
 
 /** What the apply carries out for an existing record, decided at plan time. */
@@ -55,7 +59,10 @@ export interface NamedPlan {
 }
 
 /** A stored record's fingerprint: of the declaration it prints as. */
-export function storedFingerprint<D, S>(named: NamedKind<D, S>, state: S): ResourceFingerprint {
+export function storedFingerprint<K extends NamedKindName, S>(
+  named: NamedKind<K, S>,
+  state: S
+): ResourceFingerprint {
   return fingerprintOf(named.codec.canonical(named.declOf(state)))
 }
 
@@ -63,14 +70,14 @@ export function storedFingerprint<D, S>(named: NamedKind<D, S>, state: S): Resou
  * The named kind's resources the directory no longer declares (see {@link planUndeclared}): one a
  * declared change targets stays, and a delete of one changed on the server since the base is stale.
  */
-export function planNamedUndeclared<D, S>(
-  named: NamedKind<D, S>,
-  desired: ReadonlyMap<string, D>,
+export function planNamedUndeclared<K extends NamedKindName, S>(
+  named: NamedKind<K, S>,
+  desired: ReadonlyMap<string, DeclOf<K>>,
   stored: StoredSet<S>,
   ctx: PlanContext,
-  declared: ReadonlyArray<PlannedChange<D, NamedPlan>>
-): PlannedChange<D, NamedPlan>[] {
-  return planUndeclared<S, D, NamedPlan>(named.kind, desired, stored, ctx, {
+  declared: ReadonlyArray<KindChange<K>>
+): KindChange<K>[] {
+  return planUndeclared(named.kind, desired, stored, ctx, {
     declared,
     fingerprint: (record) => storedFingerprint(named, record.state),
   })
@@ -88,19 +95,19 @@ function changedFields(before: Json, after: Json): string[] {
  * Plans one declared resource. `claimed` maps each name the directory declares so far to its key,
  * so two declarations of one name refuse; `file` is where findings about it point.
  */
-export function planNamed<D, S>(
-  named: NamedKind<D, S>,
+export function planNamed<K extends NamedKindName, S>(
+  named: NamedKind<K, S>,
   key: string,
-  decl: D,
+  decl: DeclOf<K>,
   stored: StoredSet<S>,
-  desired: ReadonlyMap<string, D>,
+  desired: ReadonlyMap<string, DeclOf<K>>,
   ctx: PlanContext,
   file: string,
   claimed: Map<string, string>
-): PlannedChange<D, NamedPlan> {
+): KindChange<K> {
   const { kind } = named
   const name = named.nameOf(decl)
-  const change: PlannedChange<D, NamedPlan> = { kind, key, action: 'noop', decl, diagnostics: [] }
+  const change: KindChange<K> = { kind, key, action: 'noop', decl, diagnostics: [] }
   refuseDeclaredTwice(claimed, change, name, name, file)
 
   const resolution = resolveDeclared({
@@ -146,14 +153,17 @@ export function planNamed<D, S>(
           ? { pending: pendingOf({ ...change, action: 'adopt', storedId: id }, { name }) }
           : {}),
         ...(changed.length > 0 ? { fields: changed } : {}),
-        serverFingerprint: storedFingerprint(named, state),
+        storedFingerprint: storedFingerprint(named, state),
         detail: { changed },
       }
     }
   }
 }
 
-function baseOf<D, S>(named: NamedKind<D, S>, record: StoredResource<S>): BaseResource {
+function baseOf<K extends NamedKindName, S>(
+  named: NamedKind<K, S>,
+  record: StoredResource<S>
+): BaseResource {
   return { id: record.id, fingerprint: storedFingerprint(named, record.state) }
 }
 
@@ -162,7 +172,7 @@ function baseOf<D, S>(named: NamedKind<D, S>, record: StoredResource<S>): BaseRe
  * of an update or adopt. A kind checks its write rules on these alone, so a stored value an older
  * rule admitted stays as it is until a declaration changes it.
  */
-export function writtenFields<D extends object>(change: PlannedChange<D, NamedPlan>): string[] {
+export function writtenFields(change: KindChange<NamedKindName>): string[] {
   if (change.action === 'create') return change.decl ? Object.keys(change.decl) : []
   return change.detail?.changed ?? []
 }
@@ -175,9 +185,9 @@ interface NamedChecks<D> {
 }
 
 /** Authorizes a planned change through the kind's use case checks, before anything is written. */
-export async function authorizeNamed<D>(
-  change: PlannedChange<D, NamedPlan>,
-  checks: NamedChecks<D>
+export async function authorizeNamed<K extends NamedKindName>(
+  change: KindChange<K>,
+  checks: NamedChecks<DeclOf<K>>
 ): Promise<void> {
   if (change.action === 'create') {
     if (change.decl) await checks.create(change.decl)
@@ -200,10 +210,10 @@ interface NamedWrites<D, S> {
  * Carries out a planned change (the apply already refused a record that moved since the plan).
  * An update sends only the changed fields, so the rest stay as the plan saw them.
  */
-export async function applyNamed<D extends object, S>(
-  named: NamedKind<D, S>,
-  change: PlannedChange<D, NamedPlan>,
-  writes: NamedWrites<D, S>
+export async function applyNamed<K extends NamedKindName, S>(
+  named: NamedKind<K, S>,
+  change: KindChange<K>,
+  writes: NamedWrites<DeclOf<K>, S>
 ): Promise<AppliedResource> {
   if (change.action === 'delete') {
     if (!change.storedId)
@@ -220,14 +230,14 @@ export async function applyNamed<D extends object, S>(
   const changed = writtenFields(change)
   const fields = Object.fromEntries(
     Object.entries(decl).filter(([field]) => changed.includes(field))
-  ) as Partial<D>
+  ) as Partial<DeclOf<K>>
   const state = changed.length === 0 ? await writes.get(id) : await writes.update(id, fields)
   return writtenRecord(named, change.key, { id, state })
 }
 
 /** The base entry and reprinted files of a record as stored after a write. */
-function writtenRecord<D, S>(
-  named: NamedKind<D, S>,
+function writtenRecord<K extends NamedKindName, S>(
+  named: NamedKind<K, S>,
   key: string,
   record: { id: string; state: S }
 ): AppliedResource {
@@ -243,7 +253,10 @@ function writtenRecord<D, S>(
  * record (a stored value the declaration grammar cannot hold), so a get never writes a file an
  * apply would change.
  */
-export function readRecord<D, S>(named: NamedKind<D, S>, record: StoredResource<S>) {
+export function readRecord<K extends NamedKindName, S>(
+  named: NamedKind<K, S>,
+  record: StoredResource<S>
+) {
   const decl = named.declOf(record.state)
   const printed = named.codec.print(record.key, decl)
   const parsed = named.codec.parse(record.key, printed.text, [])

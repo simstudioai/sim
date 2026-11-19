@@ -14,6 +14,7 @@ import {
 } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type {
+  KindChange,
   PlanContext,
   PlannedChange,
   StoredResource,
@@ -255,13 +256,13 @@ export function nameTakenFinding(
  * refuses it as `E_KEY_RENAMED`, targeting the resource so the plan never deletes it as
  * undeclared; `undefined` when `holder` is no such resource.
  */
-export function keyRenamedChange<D, P>(
-  change: PlannedChange<D, P>,
+export function keyRenamedChange<K extends WorkspaceKind>(
+  change: KindChange<K>,
   holder: StoredResource<unknown>,
   desired: ReadonlyMap<string, unknown>,
   ctx: PlanContext,
   file?: string
-): PlannedChange<D, P> | undefined {
+): KindChange<K> | undefined {
   const { kind, key } = change
   if (!holder.key || desired.has(holder.key)) return undefined
   if (ctx.base?.resources[resourceAddress(kind, holder.key)]?.id !== holder.id) return undefined
@@ -326,7 +327,7 @@ export function refuseDeclaredTwice(
 }
 
 /** A kind's hooks for {@link planUndeclared}. */
-interface UndeclaredOptions<S, P> {
+interface UndeclaredOptions<K extends WorkspaceKind, S> {
   /** The kind's planned changes for declared resources: a resource one of them targets stays. */
   declared?: ReadonlyArray<Pick<PlannedChange, 'storedId'>>
   /**
@@ -338,7 +339,7 @@ interface UndeclaredOptions<S, P> {
   /** What deleting the resource loses, beyond the resource itself (`{ rows: 12 }`). */
   counts?: (resource: StoredResource<S>) => Record<string, number>
   /** The plan data the kind's delete carries out. */
-  detail?: (resource: StoredResource<S>, base: BaseResource) => P | undefined
+  detail?: (resource: StoredResource<S>, base: BaseResource) => KindChange<K>['detail']
   /**
    * Why the resource is locked against deletion (`Table "x" is delete-locked.`), if it is: the
    * delete is refused at plan time, as the delete use case would refuse it mid-apply.
@@ -353,22 +354,22 @@ interface UndeclaredOptions<S, P> {
  * folder) is not undeclared, and a delete of a resource that changed on the server since the base
  * is `E_APPLY_STALE`, as an edit of it would be.
  */
-export function planUndeclared<S, D, P>(
-  kind: WorkspaceKind,
-  desired: ReadonlyMap<string, D>,
+export function planUndeclared<K extends WorkspaceKind, S>(
+  kind: K,
+  desired: ReadonlyMap<string, unknown>,
   stored: StoredSet<S>,
   ctx: PlanContext,
-  options: UndeclaredOptions<S, P>
-): PlannedChange<D, P>[] {
+  options: UndeclaredOptions<K, S>
+): KindChange<K>[] {
   const claimed = new Set((options.declared ?? []).map((change) => change.storedId))
-  const changes: PlannedChange<D, P>[] = []
+  const changes: KindChange<K>[] = []
   for (const [key, resource] of stored.bound) {
     if (desired.has(key) || claimed.has(resource.id)) continue
     const entry = ctx.base?.resources[resourceAddress(kind, key)]
     const managed = entry?.id === resource.id
     if (managed && ctx.allowDelete) {
-      const serverFingerprint = options.fingerprint(resource, entry)
-      if (serverFingerprint !== entry.fingerprint) {
+      const storedFingerprint = options.fingerprint(resource, entry)
+      if (storedFingerprint !== entry.fingerprint) {
         changes.push({
           kind,
           key,
@@ -389,7 +390,7 @@ export function planUndeclared<S, D, P>(
           what: WORKSPACE_KIND_SPECS[kind].noun,
           counts: options.counts?.(resource) ?? {},
         },
-        serverFingerprint,
+        storedFingerprint,
         ...(detail !== undefined ? { detail } : {}),
         diagnostics: locked
           ? [

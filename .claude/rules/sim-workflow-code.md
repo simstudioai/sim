@@ -44,13 +44,18 @@ server unchanged.
 
 ## Naming: "code" and "source"
 
-Both words name the same feature; the split is historical, so follow it rather than rename:
+Both words name the same feature, split by role; follow the split rather than rename:
 
 - **code** names the feature and its engines: the packages (`workflow-code`, `workspace-code`), the
   server glue folder `lib/workflows/code/`, the `workflow-code` flag, the Code tab.
 - **source** names the artifact and the operations on it: the files themselves, the use cases
   (`readWorkflowSource`, `applyWorkspaceSource`), the routes (`/source`), the CLI
   (`sim workflows source get`), `lib/workspace-source/`.
+
+A fingerprint of what the server stores now is a **stored fingerprint**: `storedFingerprint`
+(`rf1:`, a resource) and `storedSourceFingerprint` (`sf1:`, a workflow); a plan records it as
+`PlannedChange.storedFingerprint` and the apply re-reads it with `storedFingerprintNow`. The base
+records the fingerprint the directory last read (`base.fingerprint`).
 
 A new module goes where its neighbours are: an engine or engine glue under a `code` folder, a use
 case or surface under a `source` name.
@@ -163,9 +168,9 @@ Add it to the declaration type and to the kind's field table (`DeclFields`,
 `declaration/field-table.ts`: `KNOWLEDGE_FIELDS`, `MCP_FIELDS`, `SECRET_FIELDS`, …). The table is
 typed over every field of the declaration, so tsc fails until the field has an entry, and that one
 entry is how the kind reads, prints and fingerprints it. Then the server's stored → declaration
-mapping and diff, and the SDK `.d.ts`. Custom tools and skills are the exception: their fingerprint
-walks a `CanonicalFields` table, but the reader and printer handle each field by hand, so a new
-field there needs the reader, the printer **and** the table. A field left out of the fingerprint
+mapping and diff, and the SDK `.d.ts`. Custom tools (`TOOL_FIELDS`) and skills
+(`FRONTMATTER_FIELDS`) use the same tables; only a tool's `code` and a skill's `content` are read,
+printed and fingerprinted by hand. A field left out of the fingerprint
 makes an edit fingerprint as unchanged and silently drops it; the kind's test fixture must set the
 field so the "reads back every declaration it prints" test covers it. A default mirrored from
 `apps/sim` (`DEFAULT_CHUNKING`) must match the server's, or every undeclared resource reads as

@@ -79,7 +79,7 @@ const PAGE_SIZE = 200
 const DISCOVERY_TIMEOUT_MS = 10_000
 
 /** What the apply carries out for an existing server, decided at plan time. */
-interface McpPlan {
+export interface McpPlan {
   /** The declaration fields that differ from the stored server. */
   changed: string[]
   /** The URL changed its id: create the server at the new URL and delete the stored one. */
@@ -91,7 +91,7 @@ interface McpPlan {
   replacement?: string
 }
 
-type McpChange = PlannedChange<McpServerDecl, McpPlan>
+type McpChange = PlannedChange<'mcp-server'>
 type StoredServer = StoredResource<McpServerRow>
 
 /** The id the server at `url` has in this workspace. */
@@ -204,7 +204,7 @@ async function planServer(
       ? { pending: pendingOf({ ...change, action: 'adopt', storedId: record.id }) }
       : {}),
     ...(changed.length > 0 ? { fields: changed } : {}),
-    serverFingerprint: storedFingerprint(record.state),
+    storedFingerprint: storedFingerprint(record.state),
     detail: { changed },
   }
   // A URL that keeps the id is set in place (see `apply`); only a new id replaces the server.
@@ -437,7 +437,7 @@ function fileOf(change: PlannedChange): { file?: string } {
     : {}
 }
 
-export const mcpAdapter: KindAdapter<McpServerDecl, McpServerRow, McpPlan> = {
+export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
   codec: mcpCodec,
   keys: 'every-write',
 
@@ -467,13 +467,10 @@ export const mcpAdapter: KindAdapter<McpServerDecl, McpServerRow, McpPlan> = {
     for (const [key, decl] of desired) {
       changes.push(await planServer(key, decl, stored, ctx, claimed))
     }
-    const undeclared = planUndeclared<McpServerRow, McpServerDecl, McpPlan>(
-      'mcp-server',
-      desired,
-      stored,
-      ctx,
-      { declared: changes, fingerprint: (record) => storedFingerprint(record.state) }
-    )
+    const undeclared = planUndeclared('mcp-server', desired, stored, ctx, {
+      declared: changes,
+      fingerprint: (record) => storedFingerprint(record.state),
+    })
     return [...changes, ...undeclared]
   },
 
@@ -505,7 +502,7 @@ export const mcpAdapter: KindAdapter<McpServerDecl, McpServerRow, McpPlan> = {
     }
   },
 
-  async fingerprintNow(change, ctx) {
+  async storedFingerprintNow(change, ctx) {
     if (!change.storedId) throw new Error('An MCP server check needs the stored id')
     return storedFingerprint(await getServer(ctx, change.storedId))
   },

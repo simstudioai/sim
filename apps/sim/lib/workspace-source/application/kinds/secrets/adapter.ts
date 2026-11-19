@@ -45,7 +45,7 @@ interface StoredSecret {
 }
 
 /** A secret change carries the declared entry it writes. */
-type SecretChange = PlannedChange<SecretsDecl, SecretDecl>
+type SecretChange = PlannedChange<'secret'>
 
 /** Secrets per page while listing a workspace's secrets. */
 const LIST_PAGE = 200
@@ -127,7 +127,7 @@ function planSecret(
     storedId: secret.id,
     fields: ['description'],
     detail: entry,
-    serverFingerprint: storedFingerprint(secret),
+    storedFingerprint: storedFingerprint(secret),
   }
   const local = secretFingerprint(entry)
   const base = ctx.base?.resources[resourceAddress('secret', name)]
@@ -156,7 +156,7 @@ function planSecret(
   return 'settled' in settled ? settled.settled : update
 }
 
-export const secretAdapter: KindAdapter<SecretsDecl, StoredSecret, SecretDecl> = {
+export const secretAdapter: KindAdapter<'secret', StoredSecret> = {
   codec: secretCodec,
 
   async load(ctx) {
@@ -184,7 +184,7 @@ export const secretAdapter: KindAdapter<SecretsDecl, StoredSecret, SecretDecl> =
     })
   },
 
-  async fingerprintNow(change, ctx) {
+  async storedFingerprintNow(change, ctx) {
     const secret = (await listWorkspaceSecrets(ctx, change.key)).find(
       (candidate) => candidate.key === change.key
     )

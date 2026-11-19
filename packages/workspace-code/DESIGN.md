@@ -43,7 +43,7 @@ A kind has two halves:
   fingerprints a blob kind exactly as the server does. The table codec needs the server's column
   type catalog, so only its layout lives in the registry (`createTableCodec` takes the catalog).
 - **Adapter** (server, `apps/sim/lib/workspace-source/application/kinds/<kind>/adapter.ts`):
-  `KindAdapter` (`application/types.ts`) with `load`, `plan`, `authorize`, `fingerprintNow`,
+  `KindAdapter` (`application/types.ts`) with `load`, `plan`, `authorize`, `storedFingerprintNow`,
   `apply` and `read`. Every protected read and write goes through the use case that owns the
   resource, so its authorization, audit and notifications apply unchanged. `KIND_ADAPTERS`
   (`application/registry.ts`) is the total registry. Tools and skills share `kinds/named.ts`.
@@ -99,9 +99,8 @@ flag passes through to each workflow folder's apply, which refuses deleting a bl
 **`canonical()` is load-bearing.** A field missing from it fingerprints an edit as equal to the
 base, so the rule calls it `noop` and drops the edit with no finding. Most kinds declare their
 fields in one `DeclFields` table (`declaration/field-table.ts`) that the reader, the printer and
-`canonical()` all walk, so tsc refuses a field without an entry. Custom tools and skills still read
-and print their fields by hand beside a `CanonicalFields` fingerprint table, so a field there needs
-the reader, the printer and the table. Either way a fixture in the kind's test must set it.
+`canonical()` all walk, so tsc refuses a field without an entry; only a tool's `code` and a
+skill's `content` are handled by hand. A fixture in the kind's test must set every field.
 
 **Changing canonical output breaks every checkout.** Any change to a kind's `canonical()` (or to
 `@sim/workflow-code` canonicalize, for workflows) changes stored fingerprints, so every directory
@@ -266,14 +265,8 @@ Staging (`apps/sim/lib/workspace-source/staging/store.ts`, use cases in
 share one scope; a workspace API key has its own), capped per scope at `maxStagedBlobs` and
 `maxStagedBytes`, and expires a day after a blob was last staged, asked for or planned with; an
 hourly cron (`/api/cron/cleanup-source-staging`) deletes expired rows and objects. Both staging
-calls need write access, as the apply does, and draw on their own rate bucket.
-
-This replaced a round protocol in which every request resent the text, base and manifest with up
-to 24 MB of base64 blob content and the server re-planned the workspace each round. Nothing
-outside this repository spoke that protocol (workspace source never shipped with it), so it was
-removed rather than kept beside staging: the CLI and server move together, and an older CLI build
-that still sends `content` in the manifest is refused by the contract (`blobs[].content` is not
-a field).
+calls need write access, as the apply does, and draw on their own rate bucket. A manifest entry
+never carries bytes: the contract refuses `blobs[].content`.
 
 **One correlation id per apply.** An apply that writes mints an `applyId` and runs its writes
 inside `withAuditCorrelation` (`@sim/audit`): every audit entry a child use case records then
@@ -351,7 +344,7 @@ refusal until a migration is written.
   `packages/workflow-sdk/scripts/generate-embedded-text.ts`; the `*-text.test.ts` drift tests fail
   until it is re-run.
 - The CLI side is `packages/sim-cli/src/commands/protocol/workspace-source-*.ts`.
-  `workspace-source-dir.ts` writes the directory's `tsconfig.json` (`TSCONFIG`), the agent guide
+  `workspace-source-dir.ts` writes the directory's `tsconfig.json` (`workspaceTsconfig`), the agent guide
   (`AGENTS_GUIDE`) and the local declarations a get types (`localDeclarations`).
 - `cookbook/workspace/` in the SDK package is the example directory.
 

@@ -12,7 +12,7 @@ import { workflowAdapter } from '@/lib/workspace-source/application/kinds/workfl
 import type { KindAdapter } from '@/lib/workspace-source/application/types'
 
 /** Every kind's adapter, by kind; each lives in its own folder under `kinds/`. */
-export const KIND_ADAPTERS: { readonly [K in WorkspaceKind]: KindAdapter<unknown, unknown> } = {
+const KIND_ADAPTERS: { readonly [K in WorkspaceKind]: KindAdapter<K, unknown> } = {
   secret: secretAdapter,
   credential: credentialAdapter,
   'custom-tool': toolAdapter,
@@ -23,4 +23,9 @@ export const KIND_ADAPTERS: { readonly [K in WorkspaceKind]: KindAdapter<unknown
   file: fileAdapter,
   workflow: workflowAdapter,
   deployment: deploymentAdapter,
+}
+
+/** The adapter of `kind`, typed by it, so its methods take that kind's changes. */
+export function adapterOf<K extends WorkspaceKind>(kind: K): KindAdapter<K, unknown> {
+  return KIND_ADAPTERS[kind]
 }

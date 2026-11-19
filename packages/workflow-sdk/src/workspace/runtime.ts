@@ -8,32 +8,44 @@ function notExecutable(exportName: string): never {
   throw new SimSdkNotExecutable(exportName)
 }
 
+/** Throws `SimSdkNotExecutable`: `defineSecrets` is read statically, never run. */
+export function defineSecrets(): never {
+  return notExecutable('defineSecrets')
+}
+
+/** Throws `SimSdkNotExecutable`: `defineCredentials` is read statically, never run. */
+export function defineCredentials(): never {
+  return notExecutable('defineCredentials')
+}
+
+/** Throws `SimSdkNotExecutable`: `defineTable` is read statically, never run. */
 export function defineTable(): never {
   return notExecutable('defineTable')
 }
 
+/** Throws `SimSdkNotExecutable`: `defineTool` is read statically, never run. */
 export function defineTool(): never {
   return notExecutable('defineTool')
 }
 
-export function codeFile(): never {
-  return notExecutable('codeFile')
-}
-
+/** Throws `SimSdkNotExecutable`: `defineKnowledgeBase` is read statically, never run. */
 export function defineKnowledgeBase(): never {
   return notExecutable('defineKnowledgeBase')
 }
 
+/** Throws `SimSdkNotExecutable`: `defineMcpServer` is read statically, never run. */
 export function defineMcpServer(): never {
   return notExecutable('defineMcpServer')
 }
 
+/** Throws `SimSdkNotExecutable`: `defineDeployment` is read statically, never run. */
 export function defineDeployment(): never {
   return notExecutable('defineDeployment')
 }
 
-export { env, stored } from '../runtime'
+export { codeFile, env, stored } from '../runtime'
 
+/** Throws `SimSdkNotExecutable` for every `column.<type>()` call. */
 export const column = new Proxy(
   {},
   {

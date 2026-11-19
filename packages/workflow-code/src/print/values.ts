@@ -14,11 +14,9 @@ import type { RefPrinter } from './refs'
 import { escapeTemplateText, printKey, printMember, printNumber, quoteString } from './strings'
 import { arrayExpr, callExpr, type Expr, objectExpr, type Property, pathDepth } from './syntax'
 
-/** The template tag a string field prints with; `t` prints untagged when it holds no refs. */
-export type Tag = TemplateTag
-
 export interface FieldContext {
-  tag: Tag
+  /** The template tag the field prints with; `t` prints untagged when it holds no refs. */
+  tag: TemplateTag
   /** The block whose param is printed, for scope; `null` at workflow level. */
   from: BlockKey | null
   /**
@@ -179,7 +177,7 @@ export function refExpr(expr: string): Expr {
   return { doc: expr, shape: /[.[]/.test(expr) ? 'member' : 'identifier', depth: pathDepth(expr) }
 }
 
-function nestedTag(context: FieldContext): Tag {
+function nestedTag(context: FieldContext): TemplateTag {
   return context.tag === 'json' ? 't' : context.tag === 'md' ? 't' : context.tag
 }
 
