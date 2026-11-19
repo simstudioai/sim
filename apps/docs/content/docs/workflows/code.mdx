@@ -11,6 +11,18 @@ Every workflow can be read and written as a TypeScript file. The file and the wo
 Workflows as code is in preview. When it is enabled on your Sim deployment, the workflow builder shows a read-only **Code** tab and the [CLI](/cli) gains the `sim workflows source` commands.
 </Callout>
 
+## For coding agents [#for-coding-agents]
+
+Claude Code, Cursor, Codex and other coding agents work from a directory that `get` writes. Point the agent at `.sim/AGENTS.md` in it, which walks through the loop:
+
+1. `sim workflows source get <workflowId> --dir <dir>` writes the workflow and the guide.
+2. Edit `workflow.ts`.
+3. `sim workflows source check --dir <dir>` compiles it offline.
+4. `sim workflows source status --dir <dir>` shows what changed and what to run next.
+5. `sim workflows source apply --dir <dir> --dry-run`, then `--yes`, saves the draft.
+
+For a whole workspace, use `sim workspaces source` with the same steps; see [Workspace as code](/workflows/workspace-code).
+
 ## What the file holds
 
 The file states what the workflow runs: its blocks, their settings, the connections between them, branches, loops, and variables. Layout and other builder-only details stay in the stored workflow, so the file stays short and a change to one setting is a one-line diff.
