@@ -456,6 +456,11 @@ const APPLY_DIAGNOSTIC_CODES = [
   'E_APPLY_BLOCK_DELETE',
   /** The source renames the workflow to a name another workflow in its folder holds. */
   'E_NAME_TAKEN',
+  /**
+   * The source sets a workflow name or description the workflow API refuses: an empty name, a name
+   * over 255 characters, or a description over 50,000.
+   */
+  'E_WORKFLOW_META_INVALID',
 ] as const
 export type ApplyDiagnosticCode = (typeof APPLY_DIAGNOSTIC_CODES)[number]
 

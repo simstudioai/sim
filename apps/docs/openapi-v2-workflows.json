@@ -18918,7 +18918,8 @@
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
-                        "E_NAME_TAKEN"
+                        "E_NAME_TAKEN",
+                        "E_WORKFLOW_META_INVALID"
                       ],
                       "description": "Diagnostic code, e.g. `W_CANON_UNRESOLVED_ID`."
                     },
@@ -19351,7 +19352,8 @@
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
-                        "E_NAME_TAKEN"
+                        "E_NAME_TAKEN",
+                        "E_WORKFLOW_META_INVALID"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -20301,7 +20303,8 @@
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
-                        "E_NAME_TAKEN"
+                        "E_NAME_TAKEN",
+                        "E_WORKFLOW_META_INVALID"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -25334,7 +25337,8 @@
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
-                        "E_APPLY_BLOCK_DELETE"
+                        "E_APPLY_BLOCK_DELETE",
+                        "E_WORKFLOW_META_INVALID"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },
@@ -25893,7 +25897,8 @@
                       "W_APPLY_LINT",
                       "W_TABLE_UNKNOWN_COLUMN",
                       "E_APPLY_INVALID_SCHEDULE",
-                      "E_APPLY_BLOCK_DELETE"
+                      "E_APPLY_BLOCK_DELETE",
+                      "E_WORKFLOW_META_INVALID"
                     ],
                     "description": "Diagnostic code."
                   },
@@ -26295,7 +26300,8 @@
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
-                        "E_APPLY_BLOCK_DELETE"
+                        "E_APPLY_BLOCK_DELETE",
+                        "E_WORKFLOW_META_INVALID"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },

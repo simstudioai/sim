@@ -29,6 +29,10 @@ import { WORKFLOW_RESOURCE_KINDS } from '@sim/workflow-types/resources'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import type { WorkspaceKind } from '@sim/workspace-code'
 import { and, inArray, ne } from 'drizzle-orm'
+import {
+  V2_WORKFLOW_DESCRIPTION_MAX_LENGTH,
+  V2_WORKFLOW_NAME_MAX_LENGTH,
+} from '@/lib/api/contracts/v2/workflows'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { layoutChangedBlocks } from '@/lib/workflows/application/graph-write'
 import { snapshotMcpToolOutputSchemas } from '@/lib/workflows/application/mcp-output-schemas'
@@ -348,6 +352,36 @@ function boundLock(identity: LockIdentity, submitted: WorkflowLockV1): WorkflowL
 }
 
 /**
+ * The name and description fields among `fields` that v2 create and update would refuse: an empty
+ * name, or a name or description over its limit. Only the fields a write sets are checked, so a
+ * stored workflow the source keeps as it is never refuses.
+ */
+function metaLimitRefusals(
+  meta: CanonicalWorkflowMeta,
+  fields: readonly (keyof CanonicalWorkflowMeta)[]
+): Diagnostic[] {
+  const refusals: Diagnostic[] = []
+  const refuse = (message: string, hint: string) =>
+    refusals.push({ code: 'E_WORKFLOW_META_INVALID', severity: 'error', message, hint })
+  if (fields.includes('name') && meta.name.trim() === '') {
+    refuse('The workflow name is empty.', "Name the workflow: workflow('Name', ...).")
+  } else if (fields.includes('name') && meta.name.length > V2_WORKFLOW_NAME_MAX_LENGTH) {
+    refuse(
+      `The workflow name is ${meta.name.length} characters, over the ${V2_WORKFLOW_NAME_MAX_LENGTH}-character limit.`,
+      `Shorten the name to ${V2_WORKFLOW_NAME_MAX_LENGTH} characters or fewer.`
+    )
+  }
+  const description = meta.description ?? ''
+  if (fields.includes('description') && description.length > V2_WORKFLOW_DESCRIPTION_MAX_LENGTH) {
+    refuse(
+      `The workflow description is ${description.length} characters, over the ${V2_WORKFLOW_DESCRIPTION_MAX_LENGTH}-character limit.`,
+      `Shorten the description to ${V2_WORKFLOW_DESCRIPTION_MAX_LENGTH} characters or fewer.`
+    )
+  }
+  return refusals
+}
+
+/**
  * Evaluates submitted source against a stored draft without writing it: compile against the live
  * catalog, parse the lock, materialize onto the stored graph (keeping every unchanged value's
  * stored bytes and every id the lock binds), then every gate (locked blocks, engine gates,
@@ -595,6 +629,12 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       ...(headerSpan ? { span: headerSpan } : {}),
     })
   }
+  sourceRefusals.push(
+    ...metaLimitRefusals(meta, isNew ? META_FIELDS : metaChanged).map((refusal) => ({
+      ...refusal,
+      ...(headerSpan ? { span: headerSpan } : {}),
+    }))
+  )
   const removedKeys = isNew ? [] : canonicalDiff.blocks.removed
   if (removedKeys.length > 0 && !input.allowDelete) {
     const names = removedKeys.map((key) => storedCanonical.workflow.blocks[key]?.name ?? key)

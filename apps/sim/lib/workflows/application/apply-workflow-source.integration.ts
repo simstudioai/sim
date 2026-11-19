@@ -1581,6 +1581,68 @@ describe('source apply edge cases', () => {
     }
   )
 
+  check(
+    'a name or description the workflow API refuses is refused at the header, on an update and a create',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const name = await storedName(seeded.workflowId)
+      const before = await snapshot(seeded.workflowId)
+
+      for (const refused of ['', '   ', 'n'.repeat(256)]) {
+        const error = await expectRejected(
+          apply(source, edit(source.files, `'${name}'`, `'${refused}'`)),
+          'E_WORKFLOW_META_INVALID'
+        )
+        expect(error.diagnostics.find((d) => d.code === 'E_WORKFLOW_META_INVALID')).toMatchObject({
+          file: 'workflow.ts',
+          line: expect.any(Number),
+          hint: expect.any(String),
+        })
+      }
+      await expectRejected(
+        apply(
+          source,
+          edit(source.files, '{ variables:', `{ description: '${'d'.repeat(50_001)}', variables:`)
+        ),
+        'E_WORKFLOW_META_INVALID'
+      )
+      const dryRun = await apply(source, edit(source.files, `'${name}'`, "''"), { dryRun: true })
+      expect(dryRun.diagnostics.map((d) => d.code)).toContain('E_WORKFLOW_META_INVALID')
+      expect(await snapshot(seeded.workflowId)).toEqual(before)
+
+      const longest = 'n'.repeat(255)
+      const renamed = await apply(
+        source,
+        edit(
+          edit(source.files, `'${name}'`, `'${longest}'`),
+          '{ variables:',
+          `{ description: '${'d'.repeat(50_000)}', variables:`
+        )
+      )
+      expect(renamed.workflowName).toBe(longest)
+
+      const created = withPermissionGroupScope(() =>
+        createWorkflowFromSource.execute({
+          principal,
+          input: {
+            workspaceId,
+            files: {
+              'workflow.ts': `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('', {}, () => {
+  trigger.start('Start', {})
+})
+`,
+            },
+          },
+        })
+      )
+      await expectRejected(created, 'E_WORKFLOW_META_INVALID')
+    }
+  )
+
   /** A `planOnly` evaluation of `files`, to commit after a concurrent write lands. */
   async function planned(source: ReadWorkflowSourceResult, files: Record<string, string>) {
     const plan = await apply(source, files, { planOnly: true })

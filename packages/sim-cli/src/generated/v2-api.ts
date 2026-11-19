@@ -934,6 +934,7 @@ export type ApplyWorkflowSourceResponse = {
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -1405,6 +1406,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
       message: string
     }
     needBlobs: Array<string>
@@ -1676,6 +1678,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -5326,6 +5329,7 @@ export type CreateWorkflowFromSourceResponse = {
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -10403,6 +10407,7 @@ export type GetWorkflowSourceResponse = {
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -11073,6 +11078,7 @@ export type GetWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
