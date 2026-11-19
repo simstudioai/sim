@@ -801,6 +801,14 @@ export const activityRollupState = pgTable('activity_rollup_state', {
   leaseOwner: text('lease_owner'),
   leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
   housekeepingAt: timestamp('housekeeping_at', { withTimezone: true }),
+  /**
+   * An hour no read could aggregate within its statement bounds, retried with backoff so it never
+   * holds up the rest of the pass.
+   */
+  blockedHour: timestamp('blocked_hour'),
+  blockedAttempts: integer('blocked_attempts').notNull().default(0),
+  blockedUntil: timestamp('blocked_until', { withTimezone: true }),
+  /** Written by every pass; marks are only written while a pass ran recently enough to use them. */
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

@@ -1,11 +1,12 @@
 import { db, dbReplica } from '@sim/db'
-import { activityRollupInflight, workflowActivityHourly } from '@sim/db/schema'
+import { activityRollupInflight, workflowActivityHourly, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresCancellationReason } from '@sim/utils/errors'
 import { sql } from 'drizzle-orm'
 import {
   HOUR_MS,
   type InstantRange,
+  msInterval,
   utcTimestamp,
   workflowRunCounters,
   workflowRunsStartedIn,
@@ -43,7 +44,7 @@ type CellRow = Record<string, unknown> & {
   duration_count: string | number
 }
 
-/** How long a whole-hour aggregate may run on the replica before the hour is read in slices. */
+/** Bounds every hour read on the replica; a read that hits it is retried at a finer grain. */
 const HOUR_STATEMENT_TIMEOUT = '20s'
 const SLICES_PER_HOUR = 4
 
@@ -61,12 +62,12 @@ const INFLIGHT_MAX_CHECK_MS = 6 * HOUR_MS
 async function aggregateRange(
   executor: Pick<DbTransaction, 'execute'>,
   range: InstantRange,
-  workspaceId?: string
+  workspaceIds?: string[]
 ): Promise<ActivityCell[]> {
   const rows = await executor.execute<CellRow>(sql`
     SELECT a.workspace_id, coalesce(a.workflow_id, '') AS workflow_id, a.trigger,
       ${workflowRunCounters}
-    FROM (${workflowRunsStartedIn(range, workspaceId)}) a
+    FROM (${workflowRunsStartedIn(range, workspaceIds)}) a
     GROUP BY 1, 2, 3
   `)
   return rows.map((row) => ({
@@ -107,43 +108,124 @@ function sumCells(parts: ActivityCell[][]): ActivityCell[] {
   return [...byKey.values()]
 }
 
-/**
- * Reads one span on the replica in its own read-only transaction, bounded so a heavy hour gives
- * up rather than running until the replica cancels it.
- */
-function aggregateOnReplica(range: InstantRange): Promise<ActivityCell[]> {
+/** Workspaces read per statement once a slice is too heavy to read at once. */
+const WORKSPACE_PAGE = 500
+
+/** Reads of an hour's runs, from the whole span down to one page of workspaces at a time. */
+export interface HourReaders {
+  span: (range: InstantRange) => Promise<ActivityCell[]>
+  /** The cells of up to a page of workspaces after `after` (by id), and the last one read. */
+  workspacePage: (
+    range: InstantRange,
+    after: string | null
+  ) => Promise<{ cells: ActivityCell[]; last: string | null }>
+}
+
+/** An hour that could not be read within the statement bounds, even a page of workspaces at a time. */
+export class HeavyHourError extends Error {
+  constructor(hour: Date, options: { cause: unknown }) {
+    super(`Activity rollup hour ${hour.toISOString()} is too heavy to read`, options)
+    this.name = 'HeavyHourError'
+  }
+}
+
+/** Whether a read gave up on its own statement bound, or the replica cancelled it for recovery. */
+function isBoundedCancellation(error: unknown): boolean {
+  const reason = getPostgresCancellationReason(error)
+  return reason === 'statement_timeout' || reason === 'recovery_conflict'
+}
+
+/** Runs `read` on the replica in a read-only transaction bounded like every hour read. */
+function onReplica<T>(read: (tx: DbTransaction) => Promise<T>): Promise<T> {
   return dbReplica.transaction(
     async (tx) => {
       await tx.execute(sql`SELECT set_config('statement_timeout', ${HOUR_STATEMENT_TIMEOUT}, true)`)
-      return aggregateRange(tx, range)
+      return read(tx)
     },
     { accessMode: 'read only' }
   )
 }
 
+const replicaReaders: HourReaders = {
+  span: (range) => onReplica((tx) => aggregateRange(tx, range)),
+  workspacePage: (range, after) =>
+    onReplica(async (tx) => {
+      const page = await tx.execute<{ id: string }>(sql`
+        SELECT id FROM ${workspace} ${after === null ? sql`` : sql`WHERE id > ${after}`}
+        ORDER BY id LIMIT ${WORKSPACE_PAGE}
+      `)
+      const ids = page.map(({ id }) => id)
+      if (ids.length === 0) return { cells: [], last: null }
+      const cells = await aggregateRange(tx, range, ids)
+      return { cells, last: ids.length < WORKSPACE_PAGE ? null : (ids.at(-1) ?? null) }
+    }),
+}
+
 /**
- * Every cell of one UTC hour, read on the replica. An hour too heavy for one statement (it timed
- * out, or the replica cancelled it for recovery) is read again in slices whose cells are summed,
- * which counts exactly the same runs. `read` is the span reader, replaceable to exercise a heavy
- * hour.
+ * Every cell of one UTC hour, read on the replica, at the coarsest grain that fits the statement
+ * bounds. A span that times out (or that the replica cancels for recovery) is read again in
+ * quarter-hour slices, and a slice that still does is read a page of workspaces at a time, each on
+ * the workspace activity index. All of these count exactly the same runs, so their cells are
+ * summed. Throws {@link HeavyHourError} when even a page of workspaces cannot be read, or the
+ * pass's `deadline` passes while paging.
  */
 export async function aggregateHour(
   hour: Date,
-  read: (range: InstantRange) => Promise<ActivityCell[]> = aggregateOnReplica
+  deadline: number,
+  readers: HourReaders = replicaReaders
 ): Promise<ActivityCell[]> {
   try {
-    return await read({ from: hour, to: new Date(hour.getTime() + HOUR_MS) })
+    return await readers.span({ from: hour, to: new Date(hour.getTime() + HOUR_MS) })
   } catch (error) {
-    const reason = getPostgresCancellationReason(error)
-    if (reason !== 'statement_timeout' && reason !== 'recovery_conflict') throw error
-    logger.warn('Activity rollup hour read in slices', { hour: hour.toISOString(), reason })
-    const sliceMs = HOUR_MS / SLICES_PER_HOUR
-    const parts: ActivityCell[][] = []
-    for (let slice = 0; slice < SLICES_PER_HOUR; slice++) {
-      const from = new Date(hour.getTime() + slice * sliceMs)
-      parts.push(await read({ from, to: new Date(from.getTime() + sliceMs) }))
+    if (!isBoundedCancellation(error)) throw error
+    logger.warn('Activity rollup hour read in slices', { hour: hour.toISOString() })
+  }
+  const sliceMs = HOUR_MS / SLICES_PER_HOUR
+  const parts: ActivityCell[][] = []
+  // Once one slice needs workspace pages, later slices skip the span read bound to fail.
+  let byWorkspace = false
+  for (let slice = 0; slice < SLICES_PER_HOUR; slice++) {
+    const from = new Date(hour.getTime() + slice * sliceMs)
+    const range = { from, to: new Date(from.getTime() + sliceMs) }
+    if (!byWorkspace) {
+      try {
+        parts.push(await readers.span(range))
+        continue
+      } catch (error) {
+        if (!isBoundedCancellation(error)) throw error
+        logger.warn('Activity rollup slice read by workspace', { from: from.toISOString() })
+        byWorkspace = true
+      }
     }
-    return sumCells(parts)
+    parts.push(await readByWorkspace(hour, range, deadline, readers))
+  }
+  return sumCells(parts)
+}
+
+/**
+ * Reads a slice a page of workspaces at a time. Gives the hour up as too heavy when a page still
+ * times out, or when the pass's budget runs out first, so a heavy hour never outlives the lease.
+ */
+async function readByWorkspace(
+  hour: Date,
+  range: InstantRange,
+  deadline: number,
+  readers: HourReaders
+): Promise<ActivityCell[]> {
+  const parts: ActivityCell[][] = []
+  let after: string | null = null
+  for (;;) {
+    if (Date.now() >= deadline) {
+      throw new HeavyHourError(hour, { cause: new Error('Pass budget ran out') })
+    }
+    try {
+      const page = await readers.workspacePage(range, after)
+      parts.push(page.cells)
+      if (page.last === null) return sumCells(parts)
+      after = page.last
+    } catch (error) {
+      throw isBoundedCancellation(error) ? new HeavyHourError(hour, { cause: error }) : error
+    }
   }
 }
 
@@ -216,7 +298,7 @@ async function writeCells(
   if (unfinished.length > 0) {
     await tx.execute(sql`
       INSERT INTO ${activityRollupInflight} (workspace_id, bucket_start, next_check_at, attempts)
-      SELECT ws, ${bucket}, now() + ${`${INFLIGHT_FIRST_CHECK_MS} milliseconds`}::interval, 0
+      SELECT ws, ${bucket}, now() + ${msInterval(INFLIGHT_FIRST_CHECK_MS)}, 0
       FROM jsonb_array_elements_text(${JSON.stringify(unfinished)}::jsonb) AS ws
       ON CONFLICT (workspace_id, bucket_start) DO NOTHING
     `)
@@ -251,11 +333,9 @@ export async function recomputeCell(
 ): Promise<void> {
   await boundedTransaction(async (tx) => {
     await lockHour(tx, hour)
-    const cells = await aggregateRange(
-      tx,
-      { from: hour, to: new Date(hour.getTime() + HOUR_MS) },
-      workspaceId
-    )
+    const cells = await aggregateRange(tx, { from: hour, to: new Date(hour.getTime() + HOUR_MS) }, [
+      workspaceId,
+    ])
     const inFlight = await writeCells(tx, hour, cells, workspaceId)
     await settle(tx, inFlight)
   })

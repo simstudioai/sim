@@ -50,6 +50,7 @@ vi.mock('@/lib/billing/core/usage-segment-cache', () => ({
 
 import {
   type ActivityRollupPassOptions,
+  markStaleHours,
   runActivityRollupPass,
 } from '@/lib/billing/activity-rollup/pass'
 import { ACTIVITY_ROLLUP_VERSION, readRollupState } from '@/lib/billing/activity-rollup/state'
@@ -211,15 +212,24 @@ async function insertLogs(rows: object[]) {
   )
 }
 
+/**
+ * Nothing writes while a test's pass runs, so the late-end scan needs no margin for commits still
+ * in flight, and an end stamped now is consumed by the next pass, as one five minutes old is in
+ * production.
+ */
 const PASS_OPTIONS: ActivityRollupPassOptions = {
+  lateEndMarginMs: 0,
   budgetMs: 10 * 60 * 1000,
   backfillRowsPerSecond: 1e12,
   backfillMinGapMs: 0,
 }
 
-function runPass(now = NOW) {
-  return runActivityRollupPass({ ...PASS_OPTIONS, now: () => now })
+function runPass(now = NOW, options: Partial<ActivityRollupPassOptions> = {}) {
+  return runActivityRollupPass({ ...PASS_OPTIONS, ...options, now: () => now })
 }
+
+/** An end stamped as writers stamp one. */
+const SCANNABLE_END = `(now() AT TIME ZONE 'UTC')`
 
 function stripePeriod(start: number, end: number): ResolvedUsagePeriod {
   return {
@@ -496,7 +506,7 @@ describe('organization activity rollup', () => {
     )
     await connection.unsafe(
       `UPDATE workflow_execution_logs SET status = 'completed', total_duration_ms = 4242,
-         ended_at = (now() AT TIME ZONE 'UTC') WHERE id = $1`,
+         ended_at = ${SCANNABLE_END} WHERE id = $1`,
       [run.id]
     )
     await runPass()
@@ -632,6 +642,140 @@ describe('organization activity rollup', () => {
       `DROP TRIGGER fail_rollup_write ON workflow_activity_hourly; DROP FUNCTION fail_rollup_write()`
     )
     expect((await runPass()).backfillComplete).toBe(true)
+    await expectEquivalent()
+  }, 300_000)
+  it('rebuilds when the coverage is cleared by hand, even after a completed backfill', async () => {
+    await connection.unsafe(`UPDATE activity_rollup_state SET coverage_start = NULL`)
+    expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).toBeNull()
+    const rebuilt = await runPass()
+    expect(rebuilt).toMatchObject({ reset: 'coverage', backfillComplete: true })
+    await expectEquivalent()
+  }, 300_000)
+
+  it('finds no stale hours in a workflow deleted after its cells were computed', async () => {
+    await connection.unsafe(`
+      DELETE FROM workflow WHERE id = 'wf1';
+      UPDATE workflow_execution_logs SET workflow_id = NULL WHERE workflow_id = 'wf1';
+    `)
+    const state = await readRollupState()
+    if (!state?.coverageStart || !state.freshThrough) throw new Error('No coverage')
+    const covered = { from: state.coverageStart, to: state.freshThrough }
+    expect(await markStaleHours('ws1', covered)).toBe(0)
+  }, 300_000)
+
+  it('leaves a stale hour already marked dirty to its pending recompute', async () => {
+    const state = await readRollupState()
+    if (!state?.coverageStart || !state.freshThrough) throw new Error('No coverage')
+    const covered = { from: state.coverageStart, to: state.freshThrough }
+    const [cell] = await connection.unsafe<{ hour: string }[]>(
+      `UPDATE workflow_activity_hourly SET runs = runs + 1
+       WHERE ctid = (SELECT ctid FROM workflow_activity_hourly WHERE workspace_id = 'ws2' LIMIT 1)
+       RETURNING bucket_start::text AS hour`
+    )
+    if (!cell) throw new Error('No ws2 cell')
+    await connection.unsafe(
+      `INSERT INTO activity_rollup_dirty VALUES ('ws2', $1::timestamp, now() + interval '1 hour')`,
+      [cell.hour]
+    )
+    expect(await markStaleHours('ws2', covered)).toBe(0)
+    await connection.unsafe(`UPDATE activity_rollup_dirty SET due_at = now()`)
+    await runPass()
+    expect(await markStaleHours('ws2', covered)).toBe(0)
+    await expectEquivalent()
+  }, 300_000)
+
+  it('marks every late end tied at a scan boundary when the scan catches up in batches', async () => {
+    const state = await readRollupState()
+    if (!state?.coverageStart) throw new Error('No coverage')
+    const end = stamp(Date.now() - 10 * 60 * 1000, 123)
+    await insertLogs(
+      Array.from({ length: 7 }, (_, i) => ({
+        id: `tied-${i}`,
+        workspace_id: i % 2 ? 'ws1' : 'ws2',
+        workflow_id: null,
+        trigger: 'api',
+        status: 'completed',
+        started_at: stamp(NOW_HOUR - (20 + i) * DAY + 1000, i),
+        total_duration_ms: 100 + i,
+        ended_at: end,
+      }))
+    )
+    await connection.unsafe(
+      `UPDATE activity_rollup_state SET last_end_scan = $1::timestamp - interval '1 hour'`,
+      [end]
+    )
+    await runPass(NOW, { lateEndBatchRows: 3 })
+    await expectEquivalent()
+  }, 300_000)
+
+  it('stops marking during a maintenance gap and rebuilds when maintenance resumes', async () => {
+    await connection.unsafe(
+      `UPDATE activity_rollup_state SET updated_at = now() - interval '7 hours'`
+    )
+    await connection.unsafe(`DELETE FROM activity_rollup_dirty`)
+    await runCleanupLogs({
+      workspaceIds: ['ws4'],
+      retentionHours: 60 * 24,
+      label: 'rollup-gap-test',
+      plan: 'pro',
+      runGlobalHousekeeping: false,
+    })
+    const [{ marks }] = await connection.unsafe<{ marks: number }[]>(
+      `SELECT count(*)::int AS marks FROM activity_rollup_dirty`
+    )
+    expect(marks).toBe(0)
+    expect((await runPass()).reset).toBe('maintenance-gap')
+    await expectEquivalent()
+  }, 300_000)
+
+  it('backs off an hour too heavy to read and keeps the rest of the pass running', async () => {
+    const [{ hour }] = await connection.unsafe<{ hour: string }[]>(
+      `SELECT to_char(h, 'YYYY-MM-DD HH24:MI:SS') AS hour FROM (
+         SELECT DISTINCT date_trunc('hour', started_at) AS h FROM workflow_execution_logs
+         WHERE started_at < (now() AT TIME ZONE 'UTC') - interval '30 days'
+         ORDER BY 1 DESC OFFSET 2 LIMIT 1
+       ) hours`
+    )
+    // Every hour read (the only statements bounded at 20s) touching a run in that hour fails as a
+    // statement timeout would, at any grain.
+    await connection.unsafe(`
+      ALTER TABLE workflow_execution_logs RENAME TO workflow_execution_logs_base;
+      CREATE FUNCTION heavy_hour_gate(started timestamp) RETURNS boolean LANGUAGE plpgsql AS $$
+      BEGIN
+        IF current_setting('statement_timeout') = '20s'
+          AND started >= '${hour}'::timestamp AND started < '${hour}'::timestamp + interval '1 hour' THEN
+          RAISE EXCEPTION 'canceling statement due to statement timeout' USING ERRCODE = '57014';
+        END IF;
+        RETURN true;
+      END $$;
+      CREATE VIEW workflow_execution_logs AS
+        SELECT * FROM workflow_execution_logs_base WHERE heavy_hour_gate(started_at);
+      UPDATE activity_rollup_state SET version = ${ACTIVITY_ROLLUP_VERSION - 1}, housekeeping_at = NULL;
+    `)
+    try {
+      const blocked = await runPass()
+      expect(blocked).toMatchObject({
+        status: 'ran',
+        blockedHour: new Date(`${hour}Z`).toISOString(),
+      })
+      const state = await readRollupState()
+      expect(state?.blockedAttempts).toBe(1)
+      expect(state?.housekeepingAt).not.toBeNull()
+      expect(state?.coverageStart?.getTime()).toBeGreaterThan(new Date(`${hour}Z`).getTime())
+
+      const waiting = await runPass()
+      expect(waiting.blockedHour).toBe(blocked.blockedHour)
+      expect((await readRollupState())?.blockedAttempts).toBe(1)
+    } finally {
+      await connection.unsafe(`
+        DROP VIEW workflow_execution_logs;
+        DROP FUNCTION heavy_hour_gate(timestamp);
+        ALTER TABLE workflow_execution_logs_base RENAME TO workflow_execution_logs;
+      `)
+    }
+    await connection.unsafe(`UPDATE activity_rollup_state SET blocked_until = now()`)
+    const recovered = await runPass()
+    expect(recovered).toMatchObject({ blockedHour: null, backfillComplete: true })
     await expectEquivalent()
   }, 300_000)
 })

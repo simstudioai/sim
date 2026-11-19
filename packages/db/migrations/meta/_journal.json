@@ -3242,6 +3242,13 @@
       "when": 1795059338803,
       "tag": "0463_workflow_execution_logs_late_end_index",
       "breakpoints": true
+    },
+    {
+      "idx": 464,
+      "version": "7",
+      "when": 1795067739421,
+      "tag": "0464_activity_rollup_blocked_hour",
+      "breakpoints": true
     }
   ]
 }
