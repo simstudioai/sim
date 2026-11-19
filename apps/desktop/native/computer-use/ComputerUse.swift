@@ -100,7 +100,7 @@ func dueComponents(_ text: String) throws -> DateComponents {
         throw ComputerError("invalid_arguments", "Due must be YYYY-MM-DD or an ISO 8601 date-time.", dispatchState: "not_started")
     }
     calendar.timeZone = .current
-    return calendar.dateComponents([.year, .month, .day, .hour, .minute, .timeZone], from: date)
+    return calendar.dateComponents([.year, .month, .day, .hour, .minute, .second, .timeZone], from: date)
 }
 /// Reminders or Calendar access as the status reports it, read without prompting.
 func eventKitAuthorization(_ type: EKEntityType) -> String {

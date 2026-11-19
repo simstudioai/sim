@@ -38,8 +38,8 @@ import AppKit
         for bundle in ["com.apple.TextEdit", "com.apple.finder", "com.apple.Safari"] { precondition(!isProtectedApp(bundle), bundle) }
         let dateOnly = try dueComponents("2027-05-04")
         precondition(dateOnly.year == 2027 && dateOnly.month == 5 && dateOnly.day == 4 && dateOnly.hour == nil)
-        let timed = try dueComponents("2027-05-04T09:30:00Z")
-        precondition(timed.hour != nil && timed.minute != nil)
+        let timed = try dueComponents("2027-05-04T09:30:45Z")
+        precondition(timed.hour != nil && timed.minute != nil && timed.second == 45)
         let localDue = try dueComponents("2027-05-04T09:30")
         precondition(localDue.hour == 9 && localDue.minute == 30)
         for due in ["2027-02-30", "2027-05-04T25:30:00", "May 4", "2027-5-4"] {
