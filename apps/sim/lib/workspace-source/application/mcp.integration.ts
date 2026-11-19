@@ -660,6 +660,19 @@ describe('MCP servers as workspace source', () => {
       expect(findings(missing.diagnostics, 'error')).toEqual([
         `E_MCP_STORED_MISSING mcp-server:${path.slice(4, -3)}`,
       ])
+
+      // Deleted on the server, the unchanged declaration stays deleted rather than refusing.
+      const [stored] = await liveServers(workspaceId)
+      await deleteMcpServerUseCase.execute({
+        principal: owner,
+        input: { workspaceId, serverId: stored?.id ?? '' },
+      })
+      const gone = await apply(workspaceId, edited.files, { base: edited.base })
+      expect(findings(gone.diagnostics, 'error')).toEqual([])
+      expect(findings(gone.diagnostics, 'info')).toEqual([
+        `I_SERVER_DELETED mcp-server:${path.slice(4, -3)}`,
+      ])
+      expect(gone.applied).toEqual([])
     }
   )
 

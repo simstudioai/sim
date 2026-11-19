@@ -1,10 +1,11 @@
 /**
  * Stored workflows that still use a resource a plan deletes. The check reads the workflows as the
  * server stores them, by resource id, never the text the directory sent: a workflow folder sent
- * unchanged carries no files (its codec's `isUnchanged`), so its text names nothing.
+ * unchanged carries no files (its codec's `isUnchanged`), so its text names nothing. A deployed
+ * workflow's live version runs apart from its draft, so the check reads it too.
  */
 import { db } from '@sim/db'
-import { workflow, workflowBlocks } from '@sim/db/schema'
+import { workflow, workflowBlocks, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import type { WorkspaceKind } from '@sim/workspace-code'
@@ -20,7 +21,14 @@ const NAMED_WORKFLOWS = 5
 interface UsingWorkflow {
   id: string
   name: string
+  /** The workflow's draft uses the resource. */
+  draft: boolean
+  /** The live version of the workflow's deployment uses the resource. */
+  live: boolean
 }
+
+/** One row of the scan: a workflow using one of the scanned resources. */
+type ScanRow = { resourceId: string; id: string; name: string; draft: boolean; live: boolean }
 
 /** How long the scan may run before a plan gives up on it and warns instead. */
 const SCAN_TIMEOUT_MS = 5_000
@@ -34,15 +42,16 @@ function containing(id: string): string {
 }
 
 /**
- * The live workflows of the workspace whose blocks name any of `ids`, by resource id; `null` when
- * the scan did not finish within {@link SCAN_TIMEOUT_MS}, which every caller must treat as refusing
- * the delete. A block names a resource by its id as a
- * whole sub-block value, as an item of a list, or as one part of a comma-joined value, at any
- * depth (a tool's parameters included), the forms a workflow source read lifts to resource keys.
- * An id that only appears inside other text, such as a prompt that mentions it, names nothing.
- * The workspace's blocks are streamed through one text match against every id (each block's
- * sub-blocks cast to text once), so only the few that mention one are kept and walked value by
- * value; nothing is materialized for the rest.
+ * The live workflows of the workspace whose blocks name any of `ids`, by resource id, in their
+ * draft or in the live version of their deployment (`draft`, `live`);
+ * `null` when the scan did not finish within {@link SCAN_TIMEOUT_MS}, which every caller must
+ * treat as refusing the delete. A block names a resource by its id as a whole sub-block value, as
+ * an item of a list, or as one part of a comma-joined value, at any depth (a tool's parameters
+ * included), the forms a workflow source read lifts to resource keys. An id that only appears
+ * inside other text, such as a prompt that mentions it, names nothing. The workspace's blocks and
+ * live versions are streamed through one text match against every id (each cast to text once), so
+ * only the few that mention one are kept and walked value by value; nothing is materialized for
+ * the rest.
  */
 export async function workflowsUsing(
   workspaceId: string,
@@ -58,20 +67,31 @@ export async function workflowsUsing(
     ids.map((id) => sql`${containing(id)}`),
     sql`, `
   )}]::text[]`
-  let rows: Array<{ resourceId: string; id: string; name: string }>
+  let rows: ScanRow[]
   try {
     rows = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('statement_timeout', ${`${SCAN_TIMEOUT_MS}ms`}, true)`)
-      return tx.execute<{ resourceId: string; id: string; name: string }>(sql`
+      return tx.execute<ScanRow>(sql`
         WITH candidates AS MATERIALIZED (
           SELECT ${workflow.id} AS id, ${workflow.name} AS name, ${workflowBlocks.subBlocks} AS doc,
-            ${workflowBlocks.subBlocks}::text AS text
+            ${workflowBlocks.subBlocks}::text AS text, false AS live
           FROM ${workflowBlocks}
           INNER JOIN ${workflow} ON ${workflow.id} = ${workflowBlocks.workflowId}
           WHERE ${workflow.workspaceId} = ${workspaceId} AND ${workflow.archivedAt} IS NULL
             AND ${workflowBlocks.subBlocks}::text LIKE ANY (${patterns})
+          UNION ALL
+          SELECT ${workflow.id}, ${workflow.name}, sub_blocks.doc, sub_blocks.doc::text, true
+          FROM ${workflowDeploymentVersion}
+          INNER JOIN ${workflow} ON ${workflow.id} = ${workflowDeploymentVersion.workflowId}
+          CROSS JOIN LATERAL (
+            SELECT jsonb_path_query_array(${workflowDeploymentVersion.state}::jsonb, '$.blocks.*.subBlocks') AS doc
+          ) AS sub_blocks
+          WHERE ${workflow.workspaceId} = ${workspaceId} AND ${workflow.archivedAt} IS NULL
+            AND ${workflow.isDeployed} AND ${workflowDeploymentVersion.isActive}
+            AND ${workflowDeploymentVersion.state}::text LIKE ANY (${patterns})
         )
-        SELECT DISTINCT referenced.id AS "resourceId", candidates.id, candidates.name
+        SELECT referenced.id AS "resourceId", candidates.id, candidates.name,
+          bool_or(NOT candidates.live) AS draft, bool_or(candidates.live) AS live
         FROM candidates
         INNER JOIN unnest(${idList}) AS referenced(id) ON strpos(candidates.text, referenced.id) > 0
         WHERE EXISTS (
@@ -82,6 +102,7 @@ export async function workflowsUsing(
               SELECT btrim(part) FROM unnest(string_to_array(leaf.value #>> '{}', ',')) AS part
             )
         )
+        GROUP BY referenced.id, candidates.id, candidates.name
       `)
     })
   } catch (error) {
@@ -91,7 +112,7 @@ export async function workflowsUsing(
   }
   for (const row of rows) {
     const list = using.get(row.resourceId) ?? []
-    list.push({ id: row.id, name: row.name })
+    list.push({ id: row.id, name: row.name, draft: row.draft, live: row.live })
     using.set(row.resourceId, list)
   }
   return using
@@ -112,12 +133,30 @@ export function inUseUncheckedFinding(change: Pick<PlannedChange, 'kind' | 'key'
 }
 
 /**
- * Checks every delete the plan makes against the stored workflows that use the resource. A workflow the directory declares unchanged (`unchanged` lists
- * the keys of each kind sent without files) keeps using it, so the delete is
- * `E_PLAN_REF_DELETED`; one the directory does not declare is named in a warning and counted in
- * the delete's destructive line. A workflow the apply deletes too is no user, and an edited one is
- * judged by the references its compiled source makes (the change's `refs`), unless it is held back
- * (`held`, so the plan must decide holds first): its stored references stay.
+ * The workflows whose live version this plan replaces or stops before its deletes run: a
+ * deployment it writes that publishes the draft, or one it undeploys. Held changes write nothing.
+ */
+function liveVersionsReplaced(changes: readonly PlannedChange[]): Set<string> {
+  const replaced = new Set<string>()
+  for (const change of changes) {
+    if (change.kind !== 'deployment' || change.held) continue
+    const workflowId = change.detail?.workflowId ?? change.storedId
+    if (workflowId === undefined) continue
+    if (change.action === 'delete' || change.detail?.deploy === true) replaced.add(workflowId)
+  }
+  return replaced
+}
+
+/**
+ * Checks every delete the plan makes against the stored workflows that use the resource. A
+ * workflow the directory declares unchanged (`unchanged` lists the keys of each kind sent without
+ * files) keeps using it, so the delete is `E_PLAN_REF_DELETED`; one the directory does not declare
+ * is named in a warning and counted in the delete's destructive line. A workflow the apply deletes
+ * too is no user, and an edited one is judged by the references its compiled source makes (the
+ * change's `refs`), unless it is held back (`held`, so the plan must decide holds first): its
+ * stored references stay. A deployed workflow whose live version uses the resource keeps running
+ * it whatever its draft says, so it is named in the warning too, unless the apply publishes its
+ * draft or undeploys it first.
  */
 export async function checkDeletesInUse(
   changes: PlannedChange[],
@@ -161,32 +200,33 @@ export async function checkDeletesInUse(
       declared.set(change.storedId, { key: change.key, edited })
     }
   }
+  const replacedLive = liveVersionsReplaced(changes)
   for (const change of deleting) {
-    const undeclared: UsingWorkflow[] = []
+    const broken: string[] = []
     for (const user of using.get(change.storedId ?? '') ?? []) {
       if (deletedWorkflows.has(user.id)) continue
       const folder = declared.get(user.id)
-      if (folder?.edited) continue
-      if (folder && change.action === 'delete') {
-        change.diagnostics.push(refDeletedFinding({ kind: 'workflow', key: folder.key }, change))
+      if (user.draft && !folder?.edited) {
+        if (folder) {
+          change.diagnostics.push(refDeletedFinding({ kind: 'workflow', key: folder.key }, change))
+        } else {
+          broken.push(`"${user.name}"`)
+        }
         continue
       }
-      undeclared.push(user)
+      if (user.live && !replacedLive.has(user.id)) broken.push(`"${user.name}" (live version)`)
     }
-    if (undeclared.length === 0) continue
-    if (change.destructive) change.destructive.counts.workflows = undeclared.length
-    const listed = undeclared
-      .slice(0, NAMED_WORKFLOWS)
-      .map((user) => `"${user.name}"`)
-      .join(', ')
+    if (broken.length === 0) continue
+    if (change.destructive) change.destructive.counts.workflows = broken.length
+    const listed = broken.slice(0, NAMED_WORKFLOWS).join(', ')
     const more =
-      undeclared.length > NAMED_WORKFLOWS ? ` and ${undeclared.length - NAMED_WORKFLOWS} more` : ''
+      broken.length > NAMED_WORKFLOWS ? ` and ${broken.length - NAMED_WORKFLOWS} more` : ''
     change.diagnostics.push(
       kindFinding(
         change.kind,
         change.key,
         'W_RESOURCE_IN_USE',
-        `Deleting ${where(change.kind, change.key)} breaks ${undeclared.length} stored workflow(s) that use it: ${listed}${more}.`,
+        `Deleting ${where(change.kind, change.key)} breaks ${broken.length} stored workflow(s) that use it: ${listed}${more}.`,
         { hint: 'Remove it from those workflows, or keep its declaration.' }
       )
     )

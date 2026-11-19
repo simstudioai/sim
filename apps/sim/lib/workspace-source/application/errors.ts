@@ -22,12 +22,16 @@ import { ResourceKeyTakenError } from '@/lib/workspaces/resource-keys'
 
 /**
  * Workspace source an apply refused before writing anything. The status follows the most
- * specific error: a resource changed since the directory was read is `409` (`SOURCE_STALE`), a
- * locked one `423`, a size limit `413`, anything else `400`.
+ * specific error of those that refuse it (`refusing`, by default every error in `diagnostics`;
+ * a plan leaves out those of changes it holds back): a resource changed since the directory was
+ * read is `409` (`SOURCE_STALE`), a locked one `423`, a size limit `413`, anything else `400`.
  */
 export class WorkspaceSourceRejectedError extends OrchestrationError {
-  constructor(readonly diagnostics: WorkspaceSourceDiagnostic[]) {
-    const errors = diagnostics.filter((finding) => finding.severity === 'error')
+  constructor(
+    readonly diagnostics: WorkspaceSourceDiagnostic[],
+    refusing: readonly WorkspaceSourceDiagnostic[] = diagnostics
+  ) {
+    const errors = refusing.filter((finding) => finding.severity === 'error')
     super(
       refusalClass(errors.map((finding) => finding.code)),
       `The workspace source has ${errors.length} error(s); nothing was written. See details.diagnostics.`

@@ -384,7 +384,13 @@ describe('workspace source: secrets and credentials', () => {
           { base: created.base, allowDelete: true }
         )
       )
-      expect(findings(refused.diagnostics)).toContain('E_APPLY_REFUSED workflow:plain')
+      expect(findings(refused.diagnostics).sort()).toEqual([
+        'E_APPLY_REFUSED workflow:plain',
+        'E_SECRET_MISSING workflow:ask',
+      ])
+      // The held create's error refuses nothing, so the refusal neither counts nor classes it.
+      expect(refused.message).toContain('has 1 error(s)')
+      expect(refused.code).toBe('validation')
       expect(await liveWorkflowNames(workspaceId)).toEqual(['Plain'])
     }
   )
