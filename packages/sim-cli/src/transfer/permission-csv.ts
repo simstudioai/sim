@@ -58,7 +58,9 @@ export async function stagePermissionCsvs(
   signal?: AbortSignal
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'sim-permissions-')).catch((error: unknown) => {
-    throw new SimApiError(`Cannot stage permission CSVs: ${getErrorMessage(error)}`, 0)
+    const failure = new SimApiError(`Cannot stage permission CSVs: ${getErrorMessage(error)}`, 0)
+    failure.cause = error
+    throw failure
   })
   const parts: { field: CsvField; path: string }[] = []
   const manifest = {} as Record<CsvField, CsvManifest>
@@ -143,7 +145,12 @@ export async function stagePermissionCsvs(
           parts.push({ field, path: partPath })
           totalBytes += partBytes
         }
-        const parser = parse({ bom: true, skip_empty_lines: true, max_record_size: 8192 })
+        const parser = parse({
+          bom: true,
+          trim: true,
+          skip_empty_lines: true,
+          max_record_size: 8192,
+        })
         const decoded = Readable.from(decode())
         decoded.on('error', (error) => parser.destroy(error))
         decoded.pipe(parser)
@@ -203,8 +210,11 @@ export async function stagePermissionCsvs(
   } catch (error) {
     await dispose()
     if (error instanceof SimApiError) throw error
-    if (error instanceof Error && 'code' in error && typeof error.code === 'string')
-      throw new SimApiError(`Cannot stage permission CSVs: ${error.message}`, 0)
+    if (error instanceof Error && 'code' in error && typeof error.code === 'string') {
+      const failure = new SimApiError(`Cannot stage permission CSVs: ${error.message}`, 0)
+      failure.cause = error
+      throw failure
+    }
     throw error
   }
 }

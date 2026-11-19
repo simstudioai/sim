@@ -180,8 +180,8 @@ describe('Search permission CSV upload', () => {
   it('stages immutable bounded parts, preserves CSV records, and activates only after both files', async () => {
     const requests: { path: string; body: Record<string, unknown> }[] = []
     const released: string[] = []
-    const users = '\ufeffuser_id,email\r\n42,"person@example.com"\r\n'
-    const grants = `project_path,user_id\n${'team/repo,42\n'.repeat(5001)}`
+    const users = '\ufeff user_id , email \r\n \t\r\n 42 , "person@example.com" \r\n'
+    const grants = `project_path,user_id\n${' "team/repo" , 42 \n'.repeat(5001)}`
     const result = await runEmbeddedCli(
       args,
       {
@@ -212,6 +212,7 @@ describe('Search permission CSV upload', () => {
       projectPermissions: { rowCount: 5001, parts: 2 },
     })
     const parts = requests.slice(1, -1)
+    expect(parts[0].body.content).toBe('user_id,email\n42,person@example.com\n')
     expect(parts.map(({ body }) => body.field)).toEqual([
       'userMapping',
       'projectPermissions',
