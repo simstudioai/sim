@@ -1,7 +1,13 @@
 import { omit, toRecord } from '@sim/utils/object'
 import { z } from 'zod'
 import type { ApiSchema } from '@/lib/api/contracts/types'
-import { jsonSchemaToTypeScript, pascal, schemaToTypeScript } from '@/lib/api/contracts/typescript'
+import {
+  contractJsonSchema,
+  isJsonSchemaRequired,
+  jsonSchemaToTypeScript,
+  pascal,
+  schemaToTypeScript,
+} from '@/lib/api/contracts/typescript'
 import { V2_MCP_OPERATIONS, type V2McpOperationName } from '@/lib/api/mcp/generated/v2-operations'
 import type { V2McpOperation } from '@/lib/api/mcp/types'
 import { v2RouteOperation } from '@/lib/api/server/routes/v2-json-route'
@@ -235,7 +241,7 @@ export async function searchOperations(options: {
 }
 
 function toJsonSchema(schema: ApiSchema): JsonSchema {
-  const { $schema: _, ...json } = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' })
+  const { $schema: _, ...json } = contractJsonSchema(schema, 'input')
   return json
 }
 
@@ -304,7 +310,7 @@ function renderSignature(name: V2McpOperationName): string | null {
     if (!schema) continue
     const generated = jsonSchemaToTypeScript(schema, `${Name}${pascal(slot)}`)
     declarations.push(...generated.declarations)
-    const required = Array.isArray(schema.required) && schema.required.length > 0
+    const required = isJsonSchemaRequired(schema)
     anyRequired ||= required
     fields.push(`  ${slot}${required ? '' : '?'}: ${generated.type.replace(/\n/g, '\n  ')}`)
   }

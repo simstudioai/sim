@@ -10,6 +10,7 @@ import { apiKey, permissions, user, userTableDefinitions, workspace } from '@sim
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { authMock } from '@sim/testing/mocks/auth.mock'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
@@ -301,6 +302,30 @@ describe('Sim MCP code mode in PostgreSQL and the isolate pool', () => {
     })
     expect(value.globals).not.toContain(writeKey)
     expect(value.globals).not.toContain(hashApiKey(writeKey))
+  })
+
+  it('sends no queued call once the program has ended, and marks every call’s outcome', async () => {
+    const prefix = `cm_q_${generateId().slice(0, 8)}`
+    const failed = failureOf(
+      await runCode(
+        'execute_write_code',
+        `
+        for (let i = 0; i < 40; i++) {
+          sim.api.createTable({ body: { workspaceId: ${JSON.stringify(workspaceId)}, name: '${prefix}_' + i, schema: ${JSON.stringify(TABLE_SCHEMA)} } }).catch(() => {})
+        }
+        throw new Error('stopped while writes were queued')
+        `
+      )
+    )
+    expect(failed.error.message).toBe('stopped while writes were queued')
+    await sleep(3000)
+    const created = (await tableNames()).filter((name) => name.startsWith(prefix))
+    expect(created.length).toBeLessThan(40)
+    for (const call of failed.calls) {
+      expect(
+        call.status !== undefined || call.refused !== undefined || call.unreadable !== undefined
+      ).toBe(true)
+    }
   })
 
   it('reports an uncaught error with the calls that already ran', async () => {

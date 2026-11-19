@@ -52,7 +52,16 @@ function toTypeScript(schema: JsonSchema, indent: number, refs?: Map<string, str
   if (variants) return variants.map((v) => toTypeScript(v, indent, refs)).join(' | ')
 
   const parts = schemaList(schema.allOf)
-  if (parts) return parts.map((v) => toTypeScript(v, indent, refs)).join(' & ')
+  if (parts) {
+    return parts
+      .map((part) => {
+        const type = toTypeScript(part, indent, refs)
+        return schemaList(part.anyOf) || schemaList(part.oneOf) || Array.isArray(part.enum)
+          ? `(${type})`
+          : type
+      })
+      .join(' & ')
+  }
 
   switch (schema.type) {
     case 'string':
@@ -126,14 +135,45 @@ export function jsonSchemaToTypeScript(schema: JsonSchema, name: string): Genera
   return { type: toTypeScript(root, 0, refs), declarations }
 }
 
+/**
+ * A contract schema as JSON Schema, the way it crosses the wire: a date is the
+ * ISO string JSON carries, rather than the unconstrained schema Zod falls back
+ * to for a type JSON Schema cannot represent.
+ */
+export function contractJsonSchema(schema: z.ZodType, io: 'input' | 'output'): JsonSchema {
+  return z.toJSONSchema(schema, {
+    io,
+    unrepresentable: 'any',
+    override: ({ zodSchema, jsonSchema }) => {
+      if (zodSchema._zod.def.type === 'date') {
+        jsonSchema.type = 'string'
+        jsonSchema.format = 'date-time'
+      }
+    },
+  }) as JsonSchema
+}
+
 /** Renders a contract schema as a TypeScript type; see {@link jsonSchemaToTypeScript}. */
 export function schemaToTypeScript(
   schema: z.ZodType,
   io: 'input' | 'output',
   name: string
 ): GeneratedType {
-  return jsonSchemaToTypeScript(
-    z.toJSONSchema(schema, { io, unrepresentable: 'any' }) as JsonSchema,
-    name
-  )
+  return jsonSchemaToTypeScript(contractJsonSchema(schema, io), name)
+}
+
+/**
+ * Whether a request part must be sent: its object requires a field, or every
+ * branch of its union does.
+ */
+export function isJsonSchemaRequired(schema: JsonSchema, defs = toRecord(schema.$defs)): boolean {
+  if (typeof schema.$ref === 'string') {
+    const target = defs[schema.$ref.replace('#/$defs/', '')]
+    return isRecordLike(target) && isJsonSchemaRequired(target, defs)
+  }
+  if (Array.isArray(schema.required) && schema.required.length > 0) return true
+  const variants = schemaList(schema.anyOf) ?? schemaList(schema.oneOf)
+  if (variants) return variants.every((variant) => isJsonSchemaRequired(variant, defs))
+  const parts = schemaList(schema.allOf)
+  return parts ? parts.some((part) => isJsonSchemaRequired(part, defs)) : false
 }

@@ -14,6 +14,9 @@ const SIM_API_CODE_MAX_RESULT_CHARS = 1024 * 1024
  */
 const MAX_LOG_CHARS = 64 * 1024
 
+/** Each text field of a failed program's error (message, stack, details as JSON) is cut to this. */
+const MAX_ERROR_FIELD_CHARS = 16 * 1024
+
 /**
  * Installs the program's view of Sim: a frozen `sim.api` whose every property
  * is an operation that round-trips through the `simApi` broker, a
@@ -29,6 +32,9 @@ const BOOTSTRAP = `
   const call = globalThis.__brokers.simApi;
   const MAX_LOG_CHARS = ${MAX_LOG_CHARS};
   const MAX_RESULT_CHARS = ${SIM_API_CODE_MAX_RESULT_CHARS};
+  const MAX_ERROR_FIELD_CHARS = ${MAX_ERROR_FIELD_CHARS};
+  const cap = (text) =>
+    text.length > MAX_ERROR_FIELD_CHARS ? text.slice(0, MAX_ERROR_FIELD_CHARS) + ' [truncated]' : text;
   const logs = [];
   let logChars = 0;
   let logsTruncated = false;
@@ -90,12 +96,26 @@ const BOOTSTRAP = `
   lock('sim', Object.freeze({ api }));
   lock('SimApiError', SimApiError);
 
+  const boundedDetails = (details) => {
+    if (details === undefined) return undefined;
+    let json;
+    try {
+      json = JSON.stringify(details);
+    } catch {
+      return undefined;
+    }
+    return json === undefined || json.length <= MAX_ERROR_FIELD_CHARS ? details : cap(json);
+  };
   const describeError = (error) => {
-    if (!(error instanceof Error)) return { name: 'Error', message: String(error) };
-    const info = { name: error.name, message: error.message, stack: error.stack };
+    if (!(error instanceof Error)) return { name: 'Error', message: cap(String(error)) };
+    const info = {
+      name: cap(String(error.name)),
+      message: cap(String(error.message)),
+      stack: typeof error.stack === 'string' ? cap(error.stack) : undefined,
+    };
     if (error instanceof SimApiError) {
-      const { status, code, details, requestId } = error;
-      Object.assign(info, { status, code, details, requestId });
+      const { status, code, requestId } = error;
+      Object.assign(info, { status, code, requestId, details: boundedDetails(error.details) });
     }
     return info;
   };
@@ -109,6 +129,7 @@ const BOOTSTRAP = `
     let resultJson;
     try {
       resultJson = JSON.stringify(value === undefined ? null : value);
+      if (resultJson === undefined) throw new TypeError(typeof value + ' has no JSON form');
     } catch (error) {
       outcome = {
         ok: false,

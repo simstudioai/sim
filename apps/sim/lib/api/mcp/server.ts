@@ -233,7 +233,13 @@ export function createSimMcpServer(
     toolSignal: AbortSignal
   ): Promise<CallToolResult> {
     const signal = AbortSignal.any([context.inbound.signal, toolSignal])
-    return runCodeMode(kind, input, { ...context, signal }, ownerKey)
+    try {
+      return await runCodeMode(kind, input, { ...context, signal }, ownerKey)
+    } catch (error) {
+      if (signal.aborted) return toolError('The program was cancelled.')
+      logger.error('Sim MCP code run failed', { tool: CODE_TOOL_NAMES[kind], error })
+      return toolError('Unable to run the program. Please try again.')
+    }
   }
 
   server.registerTool(

@@ -60,7 +60,9 @@ const callRecord = z.object({
   unreadable: z
     .string()
     .optional()
-    .describe('The operation ran, but its answer could not be returned, such as one too large.'),
+    .describe(
+      'The operation ran, or may still be running, but its answer could not be returned: too large, not JSON, or not back before the program ended.'
+    ),
 })
 
 export const codeModeOutput = z.object({
@@ -221,11 +223,13 @@ export async function runCodeMode(
         )
       }
       if (!isRead) writes++
-      const outcome = await limit(() =>
-        dispatchMcpRequest(
-          { ...parsed.data.input, operation: resolved.operation },
-          { ...context, signal, logMetadata: { codeRunId: runId, callIndex } }
-        )
+      const outcome = await limit(async () =>
+        signal.aborted
+          ? { rejected: 'The program ended before this call was sent.' }
+          : dispatchMcpRequest(
+              { ...parsed.data.input, operation: resolved.operation },
+              { ...context, signal, logMetadata: { codeRunId: runId, callIndex } }
+            )
       )
       if ('rejected' in outcome) {
         record.refused = outcome.rejected
@@ -234,7 +238,11 @@ export async function runCodeMode(
       record.status = outcome.status
       if ('unreadable' in outcome) {
         record.unreadable = outcome.unreadable
-        return apiFailure(outcome.status, 'UNREADABLE_RESPONSE', outcome.unreadable)
+        return apiFailure(
+          outcome.status,
+          'UNREADABLE_RESPONSE',
+          `${resolved.operation} ran (HTTP ${outcome.status}), but its answer cannot be returned: ${outcome.unreadable} Do not repeat it; read the resource to see its state.`
+        )
       }
       return outcome.ok ? { dataJson: outcome.text } : envelopeFailure(outcome.status, outcome.text)
     } finally {
@@ -242,7 +250,8 @@ export async function runCodeMode(
     }
   }
 
-  let bytes: Buffer
+  let bytes: Buffer | undefined
+  let runError: unknown
   try {
     bytes = await runSandboxTask(
       'sim-api-code',
@@ -255,22 +264,30 @@ export async function runCodeMode(
       }
     )
   } catch (error) {
+    runError = error
+  }
+  runEnded.abort()
+  for (const record of calls) {
+    if (record.status === undefined && record.refused === undefined) {
+      record.unreadable = 'The program ended before this call answered; it may still complete.'
+    }
+  }
+
+  if (!bytes) {
     if (context.signal.aborted) {
       summary('cancelled')
       return failure({ name: 'AbortError', message: 'The program was cancelled.' }, calls)
     }
-    if (error instanceof SandboxUserCodeError) {
-      summary(error.name === 'TimeoutError' ? 'timeout' : 'error')
-      return failure({ name: error.name, message: error.message }, calls)
+    if (runError instanceof SandboxUserCodeError) {
+      summary(runError.name === 'TimeoutError' ? 'timeout' : 'error')
+      return failure({ name: runError.name, message: runError.message }, calls)
     }
     summary('system_error')
-    logger.error('Sim MCP code run failed', { codeRunId: runId, error: getErrorMessage(error) })
+    logger.error('Sim MCP code run failed', { codeRunId: runId, error: getErrorMessage(runError) })
     return failure(
       { name: 'Error', message: 'Unable to run the program. Please try again.' },
       calls
     )
-  } finally {
-    runEnded.abort()
   }
 
   const outcome = outcomeSchema.parse(JSON.parse(bytes.toString('utf8')))
