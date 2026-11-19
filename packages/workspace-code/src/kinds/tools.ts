@@ -21,8 +21,13 @@
  * tool runs outside any workflow, so `$ref.<block>` has nothing to name and a code file holding one
  * is refused. Code that form cannot hold exactly (it does not parse, already names `$env`, or holds
  * a `<block.output>` token) prints inline as a string, so every stored tool reads back unchanged.
+ *
+ * Code holding what looks like a literal credential (the detection function code uses,
+ * `holdsSecret`) never lands in source: a get prints it as `code: stored()`, which keeps the code
+ * the server holds, with `W_TOOL_LITERAL_SECRET`; code written with one applies with the same
+ * warning.
  */
-import { checkCodeFileBijection, fromCodeFile, type Json } from '@sim/workflow-code'
+import { checkCodeFileBijection, fromCodeFile, holdsSecret, type Json } from '@sim/workflow-code'
 import {
   asDeclared,
   canonicalFields,
@@ -52,11 +57,38 @@ export interface ToolDecl {
   /** The function declaration as stored: `{ type: 'function', function: { name, parameters } }`. */
   schema: Record<string, Json>
   /** The stored code, references as their stored tokens (`{{NAME}}`, `<block.field>`). */
-  code: string
+  code: ToolCode
+}
+
+/**
+ * The code kept as the server holds it: `stored()` in source. `stored` is the server's keyed hash
+ * of the stored code, `null` until the server resolves a declaration's `stored()` against it.
+ */
+export interface StoredToolCode {
+  stored: string | null
+}
+
+/** A tool's code: the text, or the stored code kept. */
+export type ToolCode = string | StoredToolCode
+
+/** Whether `code` keeps the stored code. */
+export function isStoredToolCode(code: ToolCode): code is StoredToolCode {
+  return typeof code !== 'string'
+}
+
+/** The message and hint of `W_TOOL_LITERAL_SECRET`, for a get that printed `stored()` or code a directory holds. */
+export function toolLiteralSecret(printedStored: boolean): { message: string; hint: string } {
+  return {
+    message: printedStored
+      ? 'The code holds what looks like a literal credential; get prints it as stored() so it never lands in a file.'
+      : 'The code holds what looks like a literal credential, which travels with every copy of the directory.',
+    hint: 'Store the credential as a workspace secret and read it as $env.NAME in the code, so the key never sits in the tool.',
+  }
 }
 
 const CALLEE = 'defineTool'
 const CODE_FILE_CALL = 'codeFile'
+const STORED_CALL = 'stored'
 /** The field the codec reads, prints and fingerprints itself: it may name the tool's code file. */
 const CODE_FIELD = 'code' satisfies keyof ToolDecl
 const CODE_EXTENSION = '.js'
@@ -194,7 +226,7 @@ function parseTool(
   }
   const read = readDeclaration(file, source, {
     callee: CALLEE,
-    calls: new Set([CODE_FILE_CALL]),
+    calls: new Set([CODE_FILE_CALL, STORED_CALL]),
   })
   const diagnostics = read.diagnostics.map((finding) => ({ ...finding, ...resource }))
   if (read.value === undefined) return { diagnostics }
@@ -202,7 +234,7 @@ function parseTool(
   const value = readObject(read.value, '', report, `${CALLEE}()`)
   if (!value) return { diagnostics }
   const { title, schema } = readFields(TOOL_FIELDS, value, '', report, [CODE_FIELD])
-  let code: string | undefined
+  let code: ToolCode | undefined
   const rawCode = value[CODE_FIELD]
   const expected = `./${key}${CODE_EXTENSION}`
   if (rawCode === undefined) report('E_DECL_SHAPE', '', '"code" is required.')
@@ -223,13 +255,31 @@ function parseTool(
     rawCode.args[0] === expected
   ) {
     code = readCodeFile(key, text, diagnostics)
+  } else if (
+    isDeclarationCall(rawCode) &&
+    rawCode.$call === STORED_CALL &&
+    rawCode.args.length === 0
+  ) {
+    code = { stored: null }
+    if (text[codePath(key)] !== undefined) {
+      report(
+        'E_TOOL_CODE',
+        '/code',
+        `The code is \`stored()\`, so ${codePath(key)} is unused.`,
+        `Write \`code: codeFile('${expected}')\`, or remove ${codePath(key)}.`
+      )
+    }
   } else {
     report(
       'E_TOOL_CODE',
       '/code',
-      `The code is \`codeFile('${expected}')\` or a string.`,
+      `The code is \`codeFile('${expected}')\`, a string or \`stored()\`.`,
       `A tool's code file is named after its key: ${codePath(key)}.`
     )
+  }
+  if (typeof code === 'string' && holdsSecret(undefined, code)) {
+    const { message, hint } = toolLiteralSecret(false)
+    report('W_TOOL_LITERAL_SECRET', '/code', message, hint)
   }
   if (
     diagnostics.some((finding) => finding.severity === 'error') ||
@@ -248,11 +298,15 @@ export const toolCodec: KindCodec<ToolDecl> = {
     groupByFile(KIND_DIRS['custom-tool'], [DECLARATION_EXTENSION, CODE_EXTENSION], paths),
   parse: (key, text) => parseTool(key, text),
   print(key, decl) {
-    const file = codeFileOf(decl.code)
+    const code = decl.code
+    const file = isStoredToolCode(code) ? undefined : codeFileOf(code)
     const value: Record<string, Json> = {
       ...printFields(TOOL_FIELDS, decl),
-      [CODE_FIELD]:
-        file === undefined ? decl.code : call(CODE_FILE_CALL, `./${key}${CODE_EXTENSION}`),
+      [CODE_FIELD]: isStoredToolCode(code)
+        ? call(STORED_CALL)
+        : file === undefined
+          ? code
+          : call(CODE_FILE_CALL, `./${key}${CODE_EXTENSION}`),
     }
     return {
       text: {
@@ -262,5 +316,8 @@ export const toolCodec: KindCodec<ToolDecl> = {
       blobs: [],
     }
   },
-  canonical: (decl) => ({ ...canonicalFields(TOOL_FIELDS, decl), [CODE_FIELD]: decl.code }),
+  canonical: (decl) => ({
+    ...canonicalFields(TOOL_FIELDS, decl),
+    [CODE_FIELD]: isStoredToolCode(decl.code) ? { stored: decl.code.stored } : decl.code,
+  }),
 }

@@ -41,6 +41,11 @@ export interface NamedKind<D, S> {
   nameOf(decl: D): string
   /** A stored record as the declaration it prints as. */
   declOf(state: S): D
+  /**
+   * A declaration read back with what it keeps of the stored record `state` resolved (a tool's
+   * `stored()` code), so it compares with {@link declOf}; a kind without it keeps nothing.
+   */
+  resolve?(decl: D, state: S): D
 }
 
 /** What the apply carries out for an existing record, decided at plan time. */
@@ -243,7 +248,8 @@ export function readRecord<D, S>(named: NamedKind<D, S>, record: StoredResource<
   const printed = named.codec.print(record.key, decl)
   const parsed = named.codec.parse(record.key, printed.text, [])
   const fingerprint = storedFingerprint(named, record.state)
-  if (!parsed.decl || fingerprintOf(named.codec.canonical(parsed.decl)) !== fingerprint) {
+  const readBack = parsed.decl && (named.resolve?.(parsed.decl, record.state) ?? parsed.decl)
+  if (!readBack || fingerprintOf(named.codec.canonical(readBack)) !== fingerprint) {
     throw new OrchestrationError(
       'validation',
       `This ${WORKSPACE_KIND_SPECS[named.kind].noun} holds a value source files cannot express, so it is left out.`

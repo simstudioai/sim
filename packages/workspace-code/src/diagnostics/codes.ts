@@ -108,10 +108,17 @@ const TOOL_CODES = [
   /** The schema is not a function declaration a custom tool may store. */
   'E_TOOL_SCHEMA',
   /**
-   * `code` is not `codeFile('./<key>.js')` or a string, or its code file is missing or does not
+   * `code` is not `codeFile('./<key>.js')`, a string or `stored()`, or its code file is missing or does not
    * parse.
    */
   'E_TOOL_CODE',
+  /** `code: stored()` for a tool the server holds no code of (none stored under the key or title). */
+  'E_TOOL_STORED_MISSING',
+  /**
+   * The code holds what looks like a literal credential (`holdsSecret`, as for function code): a
+   * get prints it as `stored()`, and code a directory writes with one applies with this warning.
+   */
+  'W_TOOL_LITERAL_SECRET',
 ] as const
 
 /** Skills. */
