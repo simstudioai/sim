@@ -1026,7 +1026,7 @@ describe('workspace source: deployments', () => {
       const read = await getAll(workspaceId, kinds)
       const { 'tables/leads.ts': _leads, ...withoutTable } = read.files
       // The draft stops writing to the table, which the live version still does.
-      const dropped = {
+      const dropped: Files = {
         ...withoutTable,
         'workflows/ingest/workflow.ts': INGEST_NOTHING,
       }

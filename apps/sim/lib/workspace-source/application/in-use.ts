@@ -27,6 +27,9 @@ interface UsingWorkflow {
   live: boolean
 }
 
+/** One row of the scan: a workflow using one of the scanned resources. */
+type ScanRow = { resourceId: string; id: string; name: string; draft: boolean; live: boolean }
+
 /** How long the scan may run before a plan gives up on it and warns instead. */
 const SCAN_TIMEOUT_MS = 5_000
 
@@ -64,11 +67,11 @@ export async function workflowsUsing(
     ids.map((id) => sql`${containing(id)}`),
     sql`, `
   )}]::text[]`
-  let rows: Array<{ resourceId: string } & UsingWorkflow>
+  let rows: ScanRow[]
   try {
     rows = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('statement_timeout', ${`${SCAN_TIMEOUT_MS}ms`}, true)`)
-      return tx.execute<{ resourceId: string } & UsingWorkflow>(sql`
+      return tx.execute<ScanRow>(sql`
         WITH candidates AS MATERIALIZED (
           SELECT ${workflow.id} AS id, ${workflow.name} AS name, ${workflowBlocks.subBlocks} AS doc,
             ${workflowBlocks.subBlocks}::text AS text, false AS live
