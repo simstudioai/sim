@@ -17,7 +17,12 @@ import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 const logger = createLogger('FileArchiveCleanup')
 /** Billing deletion retains the default pool; selection and unbilled cleanup use the cleanup pool. */
 const cleanupDb = dbFor('cleanup')
-const BILLED_FILE_CONTEXTS: readonly StorageContext[] = ['workspace', 'test', 'changelog']
+const BILLED_FILE_CONTEXTS: readonly StorageContext[] = [
+  'workspace',
+  'test',
+  'changelog',
+  'build_notes',
+]
 
 interface WorkspaceFileScope {
   /** Rows from `workspace_file` (singular, legacy workspace-context only). */

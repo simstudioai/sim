@@ -440,10 +440,11 @@ interface WorkflowLintSection {
   label: string
   count: number
   text: string
+  findings: string[]
 }
 
 function lintSection(label: string, findings: string[], separator = ', '): WorkflowLintSection {
-  return { label, count: findings.length, text: findings.join(separator) }
+  return { label, count: findings.length, text: findings.join(separator), findings }
 }
 
 function blockLabel(ref: WorkflowLintBlockRef): string {
@@ -526,6 +527,16 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
       )
     ),
   ].filter((found) => found.count > 0)
+}
+
+/**
+ * Each finding that must be fixed, one line apiece, so two lints of the same workflow can be
+ * compared. Run-button advice is left out: it never blocks the caller.
+ */
+export function listWorkflowLintFindings(lint: WorkflowLintIssueView): string[] {
+  return collectBlockingSections(lint).flatMap((section) =>
+    section.findings.map((finding) => `${section.label}: ${finding}`)
+  )
 }
 
 const RUN_BUTTON_REFUSAL = "The editor's Run button would fail"

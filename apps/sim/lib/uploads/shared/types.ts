@@ -72,6 +72,7 @@ export type StorageContext =
   | 'project'
   | 'test'
   | 'changelog'
+  | 'build_notes'
   | 'table-import'
   | 'knowledge-import'
   | 'profile-pictures'

@@ -13,6 +13,10 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import {
+  archiveBuildNotesForWorkflows,
+  restoreBuildNotesForWorkflow,
+} from '@/lib/build-notes/repository'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -224,6 +228,8 @@ export async function restoreWorkflow(
       .where(
         and(eq(workflowMcpTool.workflowId, workflowId), eq(workflowMcpTool.archivedAt, archivedAt))
       )
+
+    if (archivedAt) await restoreBuildNotesForWorkflow(tx, workflowId, archivedAt, now)
   })
 
   logger.info(`Restored workflow ${workflowId}`, { requestId: options.requestId })
@@ -442,6 +448,8 @@ export async function archiveWorkflowsInTransaction(
     .where(
       and(inArray(workflowMcpTool.workflowId, workflowIds), isNull(workflowMcpTool.archivedAt))
     )
+
+  await archiveBuildNotesForWorkflows(tx, workflowIds, now)
 
   await tx
     .update(workflowDeploymentVersion)

@@ -8,6 +8,7 @@ import {
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
+import { assertBuildNotesAllowWrite, recordBuildNotesWrite } from '@/lib/build-notes/guard'
 import { principalAuditSource } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
@@ -108,6 +109,14 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
   resolveContext: resolvePrincipalWorkflowContext<ReplaceWorkflowStateInput>,
   async execute({ principal, input, context }): Promise<ReplaceWorkflowStateResult> {
     await requireMutableWorkflow(context.workflowId)
+    const buildNotes = input.dryRun
+      ? null
+      : await assertBuildNotesAllowWrite({
+          principal,
+          workflowId: context.workflowId,
+          workspaceId: context.workspaceId,
+          workspaceOrganizationId: context.workspaceOrganizationId,
+        })
 
     return withWorkflowBlockScope(context, async () => {
       const candidate = {
@@ -262,6 +271,9 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
               : normalizeWorkflowVariables(input.variables, { coerceValues: true }),
         },
       })
+      if (buildNotes) {
+        await recordBuildNotesWrite(buildNotes, attribution.attributedUserId)
+      }
 
       logger.info('Replaced workflow state', {
         workflowId: context.workflowId,

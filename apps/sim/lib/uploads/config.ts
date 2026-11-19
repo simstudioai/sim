@@ -223,6 +223,7 @@ function getS3Config(context: StorageContext): StorageConfig {
     case 'project':
     case 'test':
     case 'changelog':
+    case 'build_notes':
     case 'table-import':
     case 'knowledge-import':
     case 'organization-logos':
@@ -291,6 +292,7 @@ function getBlobConfig(context: StorageContext): StorageConfig {
     case 'project':
     case 'test':
     case 'changelog':
+    case 'build_notes':
     case 'table-import':
     case 'knowledge-import':
     case 'organization-logos':
@@ -356,6 +358,7 @@ function getGcsConfig(context: StorageContext): StorageConfig {
     case 'project':
     case 'test':
     case 'changelog':
+    case 'build_notes':
     case 'table-import':
     case 'knowledge-import':
     case 'organization-logos':

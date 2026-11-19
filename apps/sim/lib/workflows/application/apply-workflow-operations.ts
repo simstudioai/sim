@@ -11,6 +11,7 @@ import {
 } from '@sim/workflow-persistence/subflow-helpers'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
+import { assertBuildNotesAllowWrite, recordBuildNotesWrite } from '@/lib/build-notes/guard'
 import { ForbiddenOperationError, principalAuditSource } from '@/lib/core/application'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -301,6 +302,15 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       throw new OrchestrationError('validation', 'operations cannot be empty')
     }
     await requireMutableWorkflow(context.workflowId)
+    const buildNotes = input.dryRun
+      ? null
+      : await assertBuildNotesAllowWrite({
+          principal,
+          workflowId: context.workflowId,
+          workspaceId: context.workspaceId,
+          workspaceOrganizationId: context.workspaceOrganizationId,
+          batch: { operations: input.operations, blockEnabledChanges: input.blockEnabledChanges },
+        })
 
     return withWorkflowBlockScope(context, async () => {
       if (
@@ -520,6 +530,10 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
                 return nextState
               },
       })
+
+      if (buildNotes) {
+        await recordBuildNotesWrite(buildNotes, subjectUserId)
+      }
 
       logger.info('Applied workflow operations', {
         workflowId: context.workflowId,

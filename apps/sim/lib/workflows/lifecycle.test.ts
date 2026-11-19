@@ -65,7 +65,7 @@ describe('workflow lifecycle', () => {
     const result = await archiveWorkflow('workflow-1', { requestId: 'req-1' })
 
     expect(result.archived).toBe(true)
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(7)
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(8)
     expect(dbChainMockFns.set.mock.calls[0][0]).toEqual(
       expect.objectContaining({ status: 'superseded' })
     )

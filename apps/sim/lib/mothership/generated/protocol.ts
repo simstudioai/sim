@@ -67,7 +67,13 @@ const InventoryNamed = z.object({ id: z.string(), name: z.string() });
 const WorkspaceInventorySchema = z.object({
   workspaceName: z.string().optional(),
   workflows: z.array(
-    z.object({ id: z.string(), name: z.string(), folder: z.string().optional(), deployed: z.boolean() }),
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      folder: z.string().optional(),
+      deployed: z.boolean(),
+      buildNotes: z.enum(["current", "changed"]).optional(),
+    }),
   ),
   tables: z.array(InventoryNamed),
   knowledgeBases: z.array(InventoryNamed),
@@ -142,7 +148,12 @@ export type DesktopContext = z.infer<typeof DesktopContextSchema>;
  * the list travels in a forgeable payload. The wire accepts any name, so Sim can add one
  * before the worker learns it.
  */
-export const ENTITLEMENTS = { dashboards: "dashboards", tests: "tests", changelog: "changelog" } as const;
+export const ENTITLEMENTS = {
+  dashboards: "dashboards",
+  tests: "tests",
+  changelog: "changelog",
+  build_notes: "build_notes",
+} as const;
 export type Entitlement = (typeof ENTITLEMENTS)[keyof typeof ENTITLEMENTS];
 export const Entitlements = z.array(z.string().min(1).max(64)).max(32);
 
@@ -411,7 +422,17 @@ export interface ChatRequest extends StreamResponseReceipt {
 
 export interface WorkspaceInventory {
   workspaceName?: string | undefined;
-  workflows: { id: string; name: string; folder?: string | undefined; deployed: boolean }[];
+  workflows: {
+    id: string;
+    name: string;
+    folder?: string | undefined;
+    deployed: boolean;
+    /**
+     * Present when the workflow has build notes (build_notes entitlement): "changed" when it
+     * was saved after the notes' baseline, so edits made outside the agent may need reconciling.
+     */
+    buildNotes?: "current" | "changed" | undefined;
+  }[];
   tables: { id: string; name: string }[];
   knowledgeBases: { id: string; name: string }[];
   /** `files/...` paths as the CLI prints them. */

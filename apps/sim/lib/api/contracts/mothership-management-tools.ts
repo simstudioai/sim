@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { mothershipBuildNotesInputSchema } from '@/lib/api/contracts/mothership-build-notes'
 import { mothershipChangelogInputSchema } from '@/lib/api/contracts/mothership-changelog'
 import { mothershipDashboardsInputSchema } from '@/lib/api/contracts/mothership-dashboards'
 import { mothershipTestsInputSchema } from '@/lib/api/contracts/mothership-tests'
@@ -35,6 +36,14 @@ export const managementToolContracts = [
     description:
       'Publish and edit the selected workspace\u2019s changelog. publish takes a title, a markdown body, the changes (one line each, with the workflowId, deploymentVersionId, and chatId they came from when known), and bump: major, minor, or patch for how significant the release is, with a one-line bumpReason. The server computes the version from the workspace\u2019s highest one; never write a version number on publish. It returns the release with its revision and changelog/<id>.md, the body file: edit the body there with the file tools, for example to add impact charts once there is data. update changes the title, bumpReason, version label, or the whole change list, and requires expectedRevision from get, list, or publish so a concurrent edit is never overwritten. A deployment ships in one release: a deploymentVersionId already in another release is rejected. list pages newest first; get returns one release with its revision and its changelog/<id>.md path.',
     inputSchema: mothershipChangelogInputSchema,
+  },
+  {
+    id: 'build_notes',
+    route: 'sim',
+    scope: 'all',
+    description:
+      'A workflow\u2019s build notes: the hidden scratchpad the agent drafts a build in before changing the graph. Nobody else sees or edits it; a later chat reads it to explain how the workflow was built. create writes build-notes/<workflowId>.md from a template and records the current graph as build-notes/<workflowId>.baseline.json; edit the notes with the file tools, never the baseline. evaluate dry-runs the notes\u2019 operations block and lists what still blocks a build: open placeholders, items marked [gather] or [ask], dry-run skips, input errors and lint. Once evaluate passes, apply builds from exactly that block, atomically; a workflows operations apply of a different batch, notes edited since, or a graph changed outside the agent is refused until the notes pass evaluation again. Each build spends the evaluation. status says whether notes exist, passed evaluation, and whether the workflow was saved since the baseline; changes lists what changed since the baseline; after reconciling the notes, rebase records the current graph as the new baseline.',
+    inputSchema: mothershipBuildNotesInputSchema,
   },
   {
     id: 'workspaces',
