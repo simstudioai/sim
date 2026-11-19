@@ -12,7 +12,11 @@ import {
   operationRequestInput,
   resolveOperation,
 } from '@/lib/api/mcp/catalog'
-import { dispatchMcpRequest, type McpDispatchContext } from '@/lib/api/mcp/dispatch'
+import {
+  dispatchMcpRequest,
+  type McpDispatchContext,
+  unreadableMessage,
+} from '@/lib/api/mcp/dispatch'
 import { createConcurrencyLimit } from '@/lib/core/utils/concurrency'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { loadTypeScript } from '@/lib/execution/typescript'
@@ -27,6 +31,7 @@ const MAX_CALLS_PER_RUN = 200
 /** Calls one program may have in flight at once, so a `Promise.all` cannot fan out a whole page of requests. */
 const MAX_CONCURRENT_CALLS = 8
 const MAX_CODE_CHARS = 100_000
+const NOT_SENT = 'The program ended before this call was sent.'
 
 export const codeModeInput = z
   .object({
@@ -164,6 +169,8 @@ export async function runCodeMode(
   const startedAt = performance.now()
   const runId = generateShortId(12)
   const calls: CallRecord[] = []
+  /** Calls handed to the dispatcher; the rest of an unfinished run's calls were never sent. */
+  const sent = new Set<CallRecord>()
   let writes = 0
   const limit = createConcurrencyLimit(MAX_CONCURRENT_CALLS)
   /** Ends the run's in-flight calls once the program is over, whether it returned, threw, or timed out. */
@@ -223,14 +230,14 @@ export async function runCodeMode(
         )
       }
       if (!isRead) writes++
-      const outcome = await limit(async () =>
-        signal.aborted
-          ? { rejected: 'The program ended before this call was sent.' }
-          : dispatchMcpRequest(
-              { ...parsed.data.input, operation: resolved.operation },
-              { ...context, signal, logMetadata: { codeRunId: runId, callIndex } }
-            )
-      )
+      const outcome = await limit(async () => {
+        if (signal.aborted) return { rejected: NOT_SENT }
+        sent.add(record)
+        return dispatchMcpRequest(
+          { ...parsed.data.input, operation: resolved.operation },
+          { ...context, signal, logMetadata: { codeRunId: runId, callIndex } }
+        )
+      })
       if ('rejected' in outcome) {
         record.refused = outcome.rejected
         return apiFailure(400, 'INVALID_CALL', outcome.rejected)
@@ -241,7 +248,7 @@ export async function runCodeMode(
         return apiFailure(
           outcome.status,
           'UNREADABLE_RESPONSE',
-          `${resolved.operation} ran (HTTP ${outcome.status}), but its answer cannot be returned: ${outcome.unreadable} Do not repeat it; read the resource to see its state.`
+          unreadableMessage(resolved.operation, outcome, isRead)
         )
       }
       return outcome.ok ? { dataJson: outcome.text } : envelopeFailure(outcome.status, outcome.text)
@@ -268,8 +275,11 @@ export async function runCodeMode(
   }
   runEnded.abort()
   for (const record of calls) {
-    if (record.status === undefined && record.refused === undefined) {
+    if (record.status !== undefined || record.refused !== undefined) continue
+    if (sent.has(record)) {
       record.unreadable = 'The program ended before this call answered; it may still complete.'
+    } else {
+      record.refused = NOT_SENT
     }
   }
 
