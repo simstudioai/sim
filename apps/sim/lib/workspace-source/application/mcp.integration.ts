@@ -560,7 +560,7 @@ describe('MCP servers as workspace source', () => {
         `E_APPLY_FORBIDDEN mcp-server:${key}`,
       ])
       expect(
-        (await liveServers(workspaceId)).map((server) => server.url).sort(compareStrings)
+        (await liveServers(workspaceId)).map((server) => server.url ?? '').sort(compareStrings)
       ).toEqual([url, `${url}/v2`].sort(compareStrings))
 
       const resumed = await apply(workspaceId, moved, { base: read.base, allowDelete: true })
