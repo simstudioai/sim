@@ -78,6 +78,8 @@ export async function markWorkflowActivityDirty(
           SELECT 1 FROM ${activityRollupState}
           WHERE maintained_at > now() - ${msInterval(MAINTENANCE_GAP_MS)}
         )
+        -- Writers of several marks lock them in key order, so two can never deadlock.
+        ORDER BY 1, 2
         ON CONFLICT (workspace_id, bucket_start) DO UPDATE SET due_at = excluded.due_at
       `)
     })
@@ -147,6 +149,7 @@ export async function captureLateEnds(
           FROM ${workflowExecutionLogs} l, bound
           WHERE l.ended_at >= l.started_at + interval '2 hours'
             AND l.ended_at > bound.cursor AND l.ended_at <= bound.boundary
+          ORDER BY 1, 2
           ON CONFLICT (workspace_id, bucket_start) DO NOTHING
           RETURNING 1
         ), moved AS (

@@ -472,6 +472,7 @@ export function markStaleHours(workspaceId: string, range: InstantRange): Promis
         SELECT 1 FROM ${activityRollupInflight} q
         WHERE q.workspace_id = ${workspaceId} AND q.bucket_start = d.hour
       )
+      ORDER BY d.hour
       ON CONFLICT (workspace_id, bucket_start) DO NOTHING
     `)
     return marked.count
