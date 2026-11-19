@@ -169,7 +169,7 @@ function collectEntries(
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
     if (entry.isDirectory()) collectEntries(full, matches, found)
-    else if (matches(entry.name, full)) found.push(relative(APP, full))
+    else if (matches(entry.name, full)) found.push(relative(APP, full).replaceAll('\\', '/'))
   }
   return found
 }
