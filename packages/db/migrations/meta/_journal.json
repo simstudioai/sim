@@ -3232,8 +3232,22 @@
     {
       "idx": 462,
       "version": "7",
-      "when": 1795058081679,
-      "tag": "0462_workspace_source",
+      "when": 1795059305210,
+      "tag": "0462_workflow_activity_rollup",
+      "breakpoints": true
+    },
+    {
+      "idx": 463,
+      "version": "7",
+      "when": 1795059338803,
+      "tag": "0463_workflow_execution_logs_late_end_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 464,
+      "version": "7",
+      "when": 1795067645327,
+      "tag": "0464_workspace_source",
       "breakpoints": true
     }
   ]

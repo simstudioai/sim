@@ -173,6 +173,7 @@ Create a workflow with a Schedule trigger set to every minute, deploy it, and wa
 | Outbox processing | `/api/webhooks/outbox/process` | `*/1 * * * *` | Transactional-outbox retries for billing, membership, enterprise issuance, and workflow-deployment side effects |
 | Workspace file search dispatch | `/api/cron/workspace-file-search-dispatch` | `*/1 * * * *` | Dispatches indexing work for workspace file search |
 | Knowledge projection | `/api/cron/knowledge-projection` | `*/1 * * * *` | Brings knowledge base search up to date with document, permission, and chunk changes |
+| Activity rollup | `/api/cron/activity-rollup` | `*/2 * * * *` | Maintains the hourly workflow activity rollup that serves organization activity; idle unless `ACTIVITY_ROLLUP_MAINTENANCE` is set |
 | Table row-change fold | `/api/cron/fold-table-row-changes` | `*/1 * * * *` | Folds the table row-change log into each table's stored row count and version |
 | Connector sync | `/api/knowledge/connectors/sync` | `*/5 * * * *` | Knowledge base connector syncs |
 | Connector member sync | `/api/knowledge/connectors/member-sync` | `*/5 * * * *` | Per-member content/access sync for indexed connectors; live Search sources are skipped |
