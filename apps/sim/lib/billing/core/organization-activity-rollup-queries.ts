@@ -48,8 +48,8 @@ const MAX_FRESHNESS_LAG_MS = 6 * HOUR_MS
 /**
  * Reads use the rollup only while the late-end scan is this recent: a run that ends late leaves
  * its stored cell stale until the scan marks it. The scan trails now by its margin plus the time
- * between passes, minutes in all, so this bound is only crossed when the scan is failing or
- * catching up a backlog.
+ * between passes (longer while a heavy-hour retry holds the lease), a quarter hour at most, so
+ * this bound is only crossed when the scan is failing or catching up a backlog.
  */
 const MAX_LATE_END_SCAN_LAG_MS = HOUR_MS / 2
 
@@ -118,7 +118,7 @@ function readInSnapshot<T>(
       )
       if (!plan) return null
       if (plan.rollup && (await exceedsLiveMarkedCells(tx, scope, plan.rollup))) {
-        logger.warn('Organization activity read too many marked cells; using the legacy read', {
+        logger.info('Organization activity read too many marked cells; using the legacy read', {
           organizationId: scope.organizationId,
           maxLiveMarkedCells: MAX_LIVE_MARKED_CELLS,
         })

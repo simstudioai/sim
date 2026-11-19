@@ -55,7 +55,8 @@ export async function readRollupState(
  *
  * Every pass releases the lease on its way out, so one taken over after it expired belonged to a
  * pass that died holding it (killed, or out of memory) and is counted as a failed pass, like one
- * that threw.
+ * that threw. A lease left behind for any other reason (its release failing) counts the same way,
+ * which at worst backs off a deferred hour one failure early.
  */
 export async function acquireLease(owner: string): Promise<ActivityRollupState | null> {
   await db
