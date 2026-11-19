@@ -7,7 +7,6 @@ import {
   type CanonicalWorkflow,
   type CanonicalWorkflowMeta,
   canonicalizeUnderLock,
-  compileWorkflow,
   type Diagnostic,
   diffCanonical,
   encodeAnchor,
@@ -46,6 +45,7 @@ import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-d
 import { findLiveTriggerRemovals } from '@/lib/workflows/code/apply/live-triggers'
 import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
 import { findInvalidSchedules } from '@/lib/workflows/code/apply/schedules'
+import { compileSource } from '@/lib/workflows/code/compile-source'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import type { StoredSource } from '@/lib/workflows/code/print-stored'
 import { loadAvailableResourceKeys, loadResourceKeyResolver } from '@/lib/workflows/code/resources'
@@ -375,7 +375,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     input.storedCanonical.canonical,
     lock
   )
-  const compiled = compileWorkflow({
+  const compiled = compileSource({
     entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
     files: new Map(Object.entries(files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
     catalog,
@@ -385,6 +385,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       ...Object.keys(storedCanonical.identity.blocks),
     ]),
     stored: storedCanonical.workflow,
+    lock,
     envNames: input.envNames,
   })
   const compiledWorkflow = compiled.workflow

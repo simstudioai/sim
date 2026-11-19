@@ -364,7 +364,9 @@ export function collectParams(
         continue
       }
       if (inactiveIds.has(sb.id) || isDefault(sb.id)) continue
-      const printed = printParamValue(ctx, block, declared, sb.id, sb, true)
+      // A JSON code field prints as an object literal only as a builder param: compile reads
+      // `extra` verbatim, so there the stored text is written as text.
+      const printed = printParamValue(ctx, block, declared, sb.id, sb, typed)
       if (printed) {
         if (typed) push(params, field.name, printed)
         else push(extra, sb.id, printed)

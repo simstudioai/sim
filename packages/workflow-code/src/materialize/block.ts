@@ -253,7 +253,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
   }
 
   if (target.subflow && (!before || !deepEqual(before.subflow, target.subflow))) {
-    writeSubflowData(data, target.subflow, new Set(Object.keys(nextExtra)))
+    writeSubflowData(data, target.subflow, new Set(Object.keys(nextExtra)), before?.subflow)
   }
 
   const prevExtra = before?.extra ?? {}

@@ -258,7 +258,7 @@ function mergeNestedNodesForParent(
         Object.entries(childValidation.validInputs).forEach(([key, value]) => {
           if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) return
           if (!isInputAllowed(key, value)) return
-          let sanitizedValue = normalizeSubblockValue(key, value)
+          let sanitizedValue = normalizeSubblockValue(key, value, existingBlock.type)
           sanitizedValue = normalizeConditionRouterIds(existingId, key, sanitizedValue)
           sanitizedValue = gateToolInputValue(
             { blockId: existingId, blockType: existingBlock.type, key, value, sanitizedValue },
@@ -527,7 +527,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
 
       explicitInputKeys.add(key)
-      let sanitizedValue = normalizeSubblockValue(key, value)
+      let sanitizedValue = normalizeSubblockValue(key, value, block.type)
 
       sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 
@@ -943,7 +943,7 @@ export function handleInsertIntoSubflowOperation(
           return
         }
 
-        let sanitizedValue = normalizeSubblockValue(key, value)
+        let sanitizedValue = normalizeSubblockValue(key, value, existingBlock.type)
 
         sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 

@@ -17,7 +17,7 @@ import {
   PARALLEL_BATCH_MAX,
   SUBFLOW_DATA_KEYS,
 } from '../canonicalize/subflows'
-import { canonicalActivityInputs, isInactive } from '../catalog/activity'
+import { canonicalActivityInputs, isInactive, withStoredValue } from '../catalog/activity'
 import { editorDefaults } from '../catalog/defaults'
 import {
   builderPins,
@@ -1206,8 +1206,13 @@ function keepStoredInactiveParams(
   if (!stored || stored.type !== block.type) return
   const inputs = canonicalActivityInputs(block, catalogBlock, ctx.catalog)
   for (const id of defaulted) {
-    if (!isInactive(id, inputs)) continue
     const kept = getOwn(stored.params, id)
+    // Judged with the stored value in place: the printer left the field out because it is
+    // inactive as stored, and the default can make it active (a standalone advanced field runs
+    // once non-empty, so a stored '' choice would turn into the default).
+    const storedValue =
+      kept === undefined ? undefined : kept.kind === 'value' ? kept.value : kept.tools
+    if (!isInactive(id, withStoredValue(ctx.catalog, inputs, id, storedValue))) continue
     if (kept) setOwn(block.params, id, kept)
     else delete block.params[id]
   }

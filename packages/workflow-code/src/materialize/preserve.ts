@@ -54,13 +54,20 @@ function members(group: CanonicalGroup): SubBlockId[] {
   return [group.basicId, ...group.advancedIds].filter((id): id is string => id !== undefined)
 }
 
-/** The value a pair sends: its one active member's, or none. */
+/**
+ * The value a pair sends: its one active member's under the block's mode, or none. The mode
+ * decides it even where every member is active: deploy reads both members of a trigger-mode pair,
+ * but the pair runs (and source writes) the member its mode selects, so the other one is
+ * preserved state.
+ */
 function pairValue(
   block: CanonicalBlock,
   group: CanonicalGroup,
   inactive: (id: SubBlockId) => boolean
 ): CanonicalParam | undefined {
+  const mode = getOwn(block.modes, group.canonicalId)
   for (const id of members(group)) {
+    if (mode !== undefined && (mode === 'advanced') !== group.advancedIds.includes(id)) continue
     const param = getOwn(block.params, id)
     if (param && !inactive(id)) return param
   }
@@ -96,6 +103,14 @@ function restorePairs(
       if (prevMode === undefined) delete next.modes[cid]
       else setOwn(next.modes, cid, prevMode)
       continue
+    }
+    // The canvas edits one member at a time: a member the mode does not select keeps its stored
+    // value. Off the trigger surface that member is inactive and `restoreInactive` restores it;
+    // deploy reads every member of a trigger-mode pair, so it is restored here.
+    const mode: ParamMode | undefined = getOwn(next.modes, cid)
+    for (const id of members(group)) {
+      if (mode === undefined || (mode === 'advanced') === group.advancedIds.includes(id)) continue
+      if (getOwn(next.params, id) === undefined) setParam(next.params, id, getOwn(prev.params, id))
     }
     const basicId = group.basicId
     const basic = basicId === undefined ? undefined : declarationsOf(declared, basicId)[0]

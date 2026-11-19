@@ -25,6 +25,7 @@ import {
   mapAnchorIds,
   readIdent,
   type SourceHints,
+  setOwn,
   sourceMetaExtensions,
   type WorkflowLockBlock,
   type WorkflowLockV1,
@@ -77,10 +78,10 @@ export function hintsFromSourceMeta(
   for (const [key, block] of Object.entries(canonical.identity.blocks)) {
     const ident = sourceMeta.idents[block.id]
     const order = sourceMeta.order[block.id]
-    hints.blocks[key] = {
+    setOwn(hints.blocks, key, {
       ...(ident !== undefined && { ident }),
       ...(order !== undefined && { order }),
-    }
+    })
   }
   return {
     hints,
@@ -140,7 +141,7 @@ export function buildLockFromState(
   for (const key of keys) {
     const entry = identity.blocks[key]
     const codeFile = printed?.blocks[key]?.codeFile
-    blocks[key] = {
+    setOwn(blocks, key, {
       id: entry.id,
       parent: entry.parent,
       ...(entry.branches && { branches: { ...entry.branches } }),
@@ -149,7 +150,7 @@ export function buildLockFromState(
       order: orderOf.get(key) ?? 0,
       ...(layout[key] && { layout: { ...layout[key] } }),
       ...(codeFile && { codeFile }),
-    }
+    })
   }
   return { version: 1, blocks, variables: { ...identity.variables } }
 }

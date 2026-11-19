@@ -4,6 +4,7 @@
  */
 
 import { compareStrings } from '@sim/utils/string'
+import { getWorkflowSubflowHandleIds } from '@sim/workflow-types/workflow'
 import { portKey } from '../anchors'
 import { catalogBlock } from '../catalog/view'
 import type { AnchorKey, BlockKey, CanonicalEdge, PortKey } from '../model'
@@ -129,7 +130,9 @@ export function wiringStatements(
 
   if (scope !== null) {
     const container = ctx.blocks.get(scope)
-    const starts = (ctx.edgesFrom.get(scope) ?? []).filter((e) => e.port.kind === 'subflowStart')
+    const starts = (ctx.edgesFrom.get(scope) ?? []).filter(
+      (e) => e.port.kind === 'subflowStart' && ctx.parentOf.get(e.to) === scope
+    )
     if (container?.subflow && starts.length > 0) {
       statements.push({
         expr: call(ctx.paramNames.get(scope) ?? 'p', starts, 'to'),
@@ -172,13 +175,37 @@ export function wiringStatements(
       return ga - gb || ia - ib || compareStrings(ka, kb)
     })
     for (const port of ports) {
-      const targets = groups.get(port) ?? []
+      let targets = groups.get(port) ?? []
       const anchor = anchors.edges(source, port)
       const first = targets[0]
       if (!first) continue
       const kind = first.port
+      if (block.subflow) {
+        // A container edge whose handle does not match where its target sits (a start edge out
+        // of the container, any other into its own child) has no fluent form; `edge()` keeps
+        // its stored handle (W_SUBFLOW_HANDLE_SCOPE).
+        const handles = getWorkflowSubflowHandleIds(block.subflow.kind)
+        const mismatched = targets.filter(
+          (edge) => (ctx.parentOf.get(edge.to) === source) !== (kind.kind === 'subflowStart')
+        )
+        const handle =
+          kind.kind === 'subflowStart'
+            ? handles.start
+            : kind.kind === 'subflowEnd'
+              ? handles.end
+              : kind.kind === 'raw'
+                ? kind.handle
+                : kind.kind === 'error'
+                  ? 'error'
+                  : 'source'
+        for (const edge of [...mismatched].sort(byTarget)) {
+          statements.push({ expr: raw(source, handle, edge.to), anchor, source })
+        }
+        if (kind.kind === 'subflowStart') continue
+        targets = targets.filter((edge) => !mismatched.includes(edge))
+        if (targets.length === 0) continue
+      }
       if (kind.kind === 'subflowStart') {
-        if (isContainer) continue
         for (const edge of targets) {
           statements.push({ expr: raw(source, 'loop-start-source', edge.to), anchor, source })
         }

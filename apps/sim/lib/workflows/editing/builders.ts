@@ -22,7 +22,7 @@ import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility
 import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { getBlock } from '@/blocks/registry'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
 import { logSkippedItem } from './types'
@@ -223,7 +223,7 @@ export function createBlockFromParams(
         return
       }
 
-      let sanitizedValue = normalizeSubblockValue(key, value)
+      let sanitizedValue = normalizeSubblockValue(key, value, params.type)
 
       sanitizedValue = normalizeConditionRouterIds(blockId, key, sanitizedValue)
 
@@ -474,12 +474,26 @@ function shouldNormalizeArrayIds(key: string): boolean {
   return ARRAY_WITH_ID_SUBBLOCK_TYPES.has(key)
 }
 
+/** Subblock types whose value is a list of rows each carrying an `id`. */
+const ARRAY_WITH_ID_TYPES = new Set<SubBlockType>([
+  'input-format',
+  'table',
+  'variables-input',
+  'knowledge-tag-filters',
+  'document-tag-entry',
+  'eval-input',
+  'condition-input',
+  'router-input',
+])
+
 /**
  * Normalizes an array-with-id subblock value, re-serializing it to a JSON string for the
  * subblock keys whose UI components read a string rather than a raw array.
  *
  * Every write path that persists LLM-supplied subblock values must route through this so the
- * two concerns cannot drift apart; returns non-array-with-id values untouched.
+ * two concerns cannot drift apart; returns non-array-with-id values untouched. The key names a
+ * row list only where `blockType` declares it as one: another type can use the same id for a
+ * different kind of field (a JSON code field named `params`), whose value is not rows.
  *
  * @remarks
  * A nullish value passes through unchanged. `validateValueForSubBlockType` treats null as an
@@ -487,8 +501,12 @@ function shouldNormalizeArrayIds(key: string): boolean {
  * for none -- leaving `sanitizeForCopilot` to show the agent an empty filter rather than an
  * absent one, and callers that branch on the field's presence to see it as set.
  */
-export function normalizeSubblockValue(key: string, value: unknown): unknown {
+export function normalizeSubblockValue(key: string, value: unknown, blockType?: string): unknown {
   if (!shouldNormalizeArrayIds(key)) return value
+  const declared = blockType
+    ? getBlock(blockType)?.subBlocks.find((subBlock) => subBlock.id === key)
+    : undefined
+  if (declared && !ARRAY_WITH_ID_TYPES.has(declared.type)) return value
   if (value === null || value === undefined) return value
   const normalized = normalizeArrayWithIds(value)
   return JSON_STRING_SUBBLOCK_KEYS.has(key) ? JSON.stringify(normalized) : normalized
@@ -573,7 +591,8 @@ export function createValidatedEdge(
   targetHandle: string,
   operationType: string,
   logger: ReturnType<typeof createLogger>,
-  skippedItems?: SkippedItem[]
+  skippedItems?: SkippedItem[],
+  storedErrorEdges?: ReadonlySet<string>
 ): boolean {
   if (!modifiedState.blocks[targetBlockId]) {
     // The target doesn't exist yet. It may be created by a later operation in
@@ -645,7 +664,11 @@ export function createValidatedEdge(
   }
 
   const sourceValidation = validateSourceHandleForBlock(sourceHandle, sourceBlockType, sourceBlock)
-  if (!sourceValidation.valid) {
+  // An error edge the graph already stored is kept even where the engine no longer adds one
+  // (from a loop or parallel): re-sending a block's connections must not drop it.
+  const restated =
+    sourceHandle === 'error' && storedErrorEdges?.has(errorEdgeKey(sourceBlockId, targetBlockId))
+  if (!sourceValidation.valid && !restated) {
     logger.warn(`Invalid source handle. Edge skipped.`, {
       sourceBlockId,
       targetBlockId,
@@ -733,13 +756,30 @@ const CONNECTION_ARRAY_ENTRY_SHAPES = 'a target block id or {block, handle?}'
  * block type does not have is already reported by {@link createValidatedEdge}
  * as an `invalid_source_handle` skip.
  */
+/** The key of an error edge in {@link storedErrorEdgeKeys}. */
+function errorEdgeKey(source: string, target: string): string {
+  return `${source}\u0000${target}`
+}
+
+/** The error edges a graph stores, for {@link createValidatedEdge}'s `storedErrorEdges`. */
+export function storedErrorEdgeKeys(
+  edges: ReadonlyArray<{ source: string; target: string; sourceHandle?: string | null }>
+): Set<string> {
+  return new Set(
+    edges
+      .filter((edge) => edge.sourceHandle === 'error')
+      .map((edge) => errorEdgeKey(edge.source, edge.target))
+  )
+}
+
 export function addConnectionsAsEdges(
   modifiedState: any,
   blockId: string,
   connections: Record<string, any>,
   logger: ReturnType<typeof createLogger>,
   skippedItems?: SkippedItem[],
-  validationErrors?: ValidationError[]
+  validationErrors?: ValidationError[],
+  storedErrorEdges?: ReadonlySet<string>
 ): void {
   const normalizeHandle = (handle: string): string => {
     if (handle === 'success') return 'source'
@@ -776,7 +816,8 @@ export function addConnectionsAsEdges(
         targetHandle || 'target',
         'add_edge',
         logger,
-        skippedItems
+        skippedItems,
+        storedErrorEdges
       )
     }
 

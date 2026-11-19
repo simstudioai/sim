@@ -325,7 +325,10 @@ printer writes it for a condition, router or container), `'error'` the error por
 `'loop-start-source'`/`'loop-end-source'` (a parallel's `'parallel-…'`) its start and end ports.
 Anything else stays a raw port, a subflow handle on another kind of block included. The start and
 end child checks do not apply to `edge()`. The printer writes an `edge()` into a container's child
-inside the container's callback, where both names are visible.
+inside the container's callback, where both names are visible. A stored container edge whose
+handle does not match where its target sits (a start edge to a block outside the container,
+which the executor runs as the exit, or an end edge into its own child) prints as `edge()` with its
+stored handle and compiles with `W_SUBFLOW_HANDLE_SCOPE`.
 
 Refused: `.to()` on a condition or router (`E_NO_DEFAULT_OUTPUT`), an unknown branch
 (`E_UNKNOWN_BRANCH`), an edge into a trigger (`E_TARGET_TRIGGER`), `onError` on a block with no
@@ -399,11 +402,13 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_NO_DEFAULT_OUTPUT` | `.to()` on a condition or router; wire a branch. |
 | `E_DUPLICATE_EDGE` | The same edge twice. |
 | `E_ERROR_PORT_UNSUPPORTED` | `onError` on a block with no error port. |
+| `W_ERROR_PORT_STORED` | `onError` on a block with no error port (a loop or parallel) that the stored workflow already wires; kept so it round-trips. |
 | `E_UNKNOWN_BRANCH` | `x.key.to()` where `key` is not a branch of `x`. |
 | `E_DUPLICATE_BRANCH_KEY` | Two rows with one key. |
 | `E_BRANCH_KEY_COLLIDES` | A branch key equal to an output name, `to` or `onError`. |
 | `E_BRANCH_ELSE_LAST` | Two or more condition rows that do not end with `else`. |
 | `W_RAW_HANDLE` | `edge()` with a handle kept verbatim. |
+| `W_SUBFLOW_HANDLE_SCOPE` | `edge()` from a loop or parallel's start handle to a block outside it (the executor runs it as the container's exit), or from another of its handles into its own child. The canvas never draws one; stored ones print this way so they round-trip. |
 | `E_EDGE_CYCLE` | Wiring that closes a cycle among enabled blocks, a self-loop included: no block on it ever runs. Framed at the edge back to a block declared earlier, the one to remove; repeat work with `loop()`/`parallel()`. |
 | `W_EDGE_CYCLE` | A cycle the stored workflow already holds, kept so it round-trips; none of it runs. |
 | `E_UNKNOWN_BUILDER` | A builder path the catalog does not have, a bare builder-shaped call (`apii('Name', …)`) nothing binds, or a namespace the SDK lacks or the file did not import; `hint` prefers a synonymous verb (`postMessage` → `sendMessage`), then the closest path, then the namespace's builders. |
