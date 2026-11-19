@@ -575,6 +575,23 @@ describe('native computer use authority and lifecycle', () => {
     await expect(click('s1')).rejects.toThrow('stale')
   })
 
+  it('revoking an app stops its app command while the write waits for confirmation', async () => {
+    const { service, native, confirmAppCommand } = setup()
+    let confirm: (answer: boolean) => void = () => {}
+    confirmAppCommand.mockImplementation(
+      () => new Promise<boolean>((resolve) => (confirm = resolve))
+    )
+    const pending = service.execute('revoked', 'chat', {
+      action: 'app_command',
+      command: { name: 'create_reminder', title: 'Pay rent' },
+    })
+    await vi.waitFor(() => expect(confirmAppCommand).toHaveBeenCalledOnce())
+    service.revokeApp('com.apple.reminders')
+    confirm(true)
+    await expect(pending).rejects.toThrow('stopped')
+    expect(native.request.mock.calls.map(([method]) => method)).not.toContain('app_command')
+  })
+
   it('blocks self-automation before showing an approval', async () => {
     const { service, approveApp, native } = setup()
     await expect(

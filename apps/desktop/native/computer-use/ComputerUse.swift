@@ -129,6 +129,11 @@ func contactStore() throws -> CNContactStore {
     }
     return CNContactStore()
 }
+/// The Gregorian calendar in this Mac's time zone, so `YYYY-MM-DD` means the same day whatever calendar the user prefers.
+func localGregorian() -> Calendar {
+    var calendar = Calendar(identifier: .gregorian); calendar.timeZone = .current
+    return calendar
+}
 /// An ISO 8601 date-time; without an offset it is this Mac's local time.
 func isoDateTime(_ text: String) -> Date? {
     let zoned = ISO8601DateFormatter(); zoned.formatOptions = [.withInternetDateTime]
@@ -144,7 +149,7 @@ func eventDate(_ text: String?, _ field: String, allDay: Bool) throws -> Date {
     let text = try commandText(text, field, max: 64)
     if allDay {
         let parts = try dueComponents(text)
-        guard parts.hour == nil, let date = Calendar.current.date(from: parts) else { throw invalidCommand("All-day \(field) must be YYYY-MM-DD.") }
+        guard parts.hour == nil, let date = localGregorian().date(from: parts) else { throw invalidCommand("All-day \(field) must be YYYY-MM-DD.") }
         return date
     }
     guard let date = isoDateTime(text) else { throw invalidCommand("\(field) must be an ISO 8601 date-time.") }
@@ -178,6 +183,7 @@ func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
         let reminder = EKReminder(eventStore: store)
         reminder.calendar = list; reminder.title = title; reminder.notes = command.notes
         reminder.priority = command.priority ?? 0; reminder.dueDateComponents = due
+        try checkCancellation()
         inputDispatched = true
         try store.save(reminder, commit: true)
         return ["kind": "command", "command": command.name, "created": ["id": reminder.calendarItemIdentifier, "title": title, "list": list.title]]
@@ -192,7 +198,10 @@ func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
         let start = try eventDate(command.start, "Start", allDay: allDay)
         let end = try eventDate(command.end, "End", allDay: allDay)
         guard allDay ? end >= start : end > start else { throw invalidCommand("End must be after start.") }
-        guard end.timeIntervalSince(start) <= 31 * 86_400 else { throw invalidCommand("An event can last at most 31 days.") }
+        // Calendar days, so a daylight-saving change inside the event does not shorten the limit.
+        guard let limit = localGregorian().date(byAdding: .day, value: 31, to: start), end <= limit else {
+            throw invalidCommand("An event can last at most 31 days.")
+        }
         let location = try optionalText(command.location, "Location")
         let notes = try optionalText(command.notes, "Notes", max: 8000)
         if let minutes = command.alertMinutesBefore, !(0...40_320).contains(minutes) { throw invalidCommand("alertMinutesBefore must be 0 to 40320.") }
@@ -212,6 +221,7 @@ func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
         event.calendar = calendar; event.title = title; event.isAllDay = allDay
         event.startDate = start; event.endDate = end; event.location = location; event.notes = notes
         if let minutes = command.alertMinutesBefore { event.addAlarm(EKAlarm(relativeOffset: TimeInterval(-minutes * 60))) }
+        try checkCancellation()
         inputDispatched = true
         try store.save(event, span: .thisEvent, commit: true)
         return ["kind": "command", "command": command.name, "created": ["id": event.eventIdentifier ?? event.calendarItemIdentifier, "title": title, "list": calendar.title]]
@@ -229,6 +239,7 @@ func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
         }
         let group = CNMutableGroup(); group.name = name
         let request = CNSaveRequest(); request.add(group, toContainerWithIdentifier: nil)
+        try checkCancellation()
         inputDispatched = true
         try store.execute(request)
         return ["kind": "command", "command": command.name, "created": ["id": group.identifier, "title": name, "list": "Contacts"]]
@@ -253,8 +264,11 @@ func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
         contact.organizationName = organization ?? ""; contact.jobTitle = jobTitle ?? ""
         contact.emailAddresses = emails.map { CNLabeledValue(label: CNLabelWork, value: $0 as NSString) }
         contact.phoneNumbers = phones.map { CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: $0)) }
-        let request = CNSaveRequest(); request.add(contact, toContainerWithIdentifier: nil)
+        // A group's members must live in the group's own account, so the contact is saved there.
+        let container = try group.flatMap { try store.containers(matching: CNContainer.predicateForContainerOfGroup(withIdentifier: $0.identifier)).first?.identifier }
+        let request = CNSaveRequest(); request.add(contact, toContainerWithIdentifier: container)
         if let group { request.addMember(contact, to: group) }
+        try checkCancellation()
         inputDispatched = true
         try store.execute(request)
         let display = [given, family].compactMap { $0 }.joined(separator: " ")

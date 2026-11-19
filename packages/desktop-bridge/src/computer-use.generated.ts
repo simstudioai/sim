@@ -390,31 +390,41 @@ export const ComputerUseSnapshotSchema = z.strictObject({
 });
 export type ComputerUseSnapshot = z.infer<typeof ComputerUseSnapshotSchema>;
 
-export const ComputerUseCommandResultSchema = z.strictObject({
-  kind: z.literal("command"),
-  command: z.enum([
-    "list_reminder_lists",
-    "create_reminder",
-    "list_calendars",
-    "create_event",
-    "list_contact_groups",
-    "create_contact_group",
-    "create_contact",
-  ]),
-  created: z
-    .strictObject({ id: z.string().min(1).max(256), title: z.string().max(1024), list: z.string().max(1024) })
-    .optional(),
-  items: z
-    .array(
-      z.strictObject({
+const CommandItem = z.strictObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(1024),
+  allowsModifications: z.boolean(),
+});
+
+/** A create must return the id it committed, so a lost reply is never retried as a second create. */
+export const ComputerUseCommandResultSchema = z
+  .strictObject({
+    kind: z.literal("command"),
+    command: z.enum([
+      "list_reminder_lists",
+      "create_reminder",
+      "list_calendars",
+      "create_event",
+      "list_contact_groups",
+      "create_contact_group",
+      "create_contact",
+    ]),
+    created: z
+      .strictObject({
         id: z.string().min(1).max(256),
         title: z.string().max(1024),
-        allowsModifications: z.boolean(),
-      }),
-    )
-    .max(200)
-    .optional(),
-});
+        list: z.string().max(1024),
+      })
+      .optional(),
+    items: z.array(CommandItem).max(200).optional(),
+  })
+  .refine(
+    (result) =>
+      result.command.startsWith("create_") ? result.created !== undefined : result.items !== undefined,
+    {
+      message: "A create returns created; a list returns items",
+    },
+  );
 
 export const ComputerUseResultSchema = z.discriminatedUnion("kind", [
   ComputerUseStatusSchema,

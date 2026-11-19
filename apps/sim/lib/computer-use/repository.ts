@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { copilotAsyncToolCalls, copilotChats, copilotRuns } from '@sim/db/schema'
-import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
+import { ComputerUseWithAppCommandsSchema } from '@sim/desktop-bridge/computer-use'
 import { omit, toRecord } from '@sim/utils/object'
 import { and, eq, isNull, notInArray, sql } from 'drizzle-orm'
 import { executableToolPermission } from '@/lib/mothership/async-runs/executable-tool-permission'
@@ -41,7 +41,8 @@ export async function claimComputerUseTool(input: ComputerUseClaim) {
       .limit(1)
     if (
       !pending ||
-      !ComputerUseSchema.safeParse(omit(toRecord(pending.args), ['activity'])).success
+      !ComputerUseWithAppCommandsSchema.safeParse(omit(toRecord(pending.args), ['activity']))
+        .success
     )
       return null
     const now = new Date()
@@ -62,7 +63,7 @@ export async function claimComputerUseTool(input: ComputerUseClaim) {
       )
       .returning({ args: copilotAsyncToolCalls.args })
     return claimed
-      ? { args: ComputerUseSchema.parse(omit(toRecord(claimed.args), ['activity'])) }
+      ? { args: ComputerUseWithAppCommandsSchema.parse(omit(toRecord(claimed.args), ['activity'])) }
       : null
   })
 }

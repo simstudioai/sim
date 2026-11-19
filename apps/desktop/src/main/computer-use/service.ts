@@ -62,12 +62,18 @@ const APP_COMMAND_APPS: Record<AppCommand['name'], string> = {
 
 const PRIORITY_NAMES: Record<number, string> = { 1: 'High', 5: 'Medium', 9: 'Low' }
 
+/** The app a call operates; an app command operates the app its data belongs to. */
+function workBundleId(input: ComputerUseWithAppCommandsInput): string | undefined {
+  if (input.action === 'app_command') return APP_COMMAND_APPS[input.command.name]
+  return 'bundleId' in input ? input.bundleId : undefined
+}
+
 /** The exact fields a write will save, for the user to confirm; null for a read, which needs none. */
 function writeSummary(command: AppCommand): string | null {
   const lines = (entries: Array<[string, string | number | undefined]>) =>
     entries
       .filter(([, value]) => value !== undefined && value !== '')
-      .map(([label, value]) => `${label}: ${String(value).slice(0, 500)}`)
+      .map(([label, value]) => `${label}: ${value}`)
       .join('\n')
   switch (command.name) {
     case 'create_reminder':
@@ -200,7 +206,7 @@ export class ComputerUseService {
     )
     const persisted = this.deps.config.flush()
     for (const work of this.queued.values()) {
-      if ('bundleId' in work.input && work.input.bundleId === bundleId) this.cancel(work.toolCallId)
+      if (workBundleId(work.input) === bundleId) this.cancel(work.toolCallId)
     }
     for (const apps of this.taskGrants.values()) apps.delete(bundleId)
     this.invalidateSnapshots()
