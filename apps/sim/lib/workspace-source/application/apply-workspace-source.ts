@@ -25,6 +25,7 @@ import { claimKey } from '@/lib/workspace-source/application/keys'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
   planWorkspaceSource,
+  type WorkspacePlan,
   type WorkspaceSourceSubmission,
 } from '@/lib/workspace-source/application/plan'
 import { adapterOf } from '@/lib/workspace-source/application/registry'
@@ -54,7 +55,7 @@ export interface ApplyWorkspaceSourceInput extends WorkspaceSourceSubmission {
 }
 
 /** One planned or applied change, as the result reports it. */
-export interface WorkspaceSourceChange {
+interface WorkspaceSourceChange {
   kind: WorkspaceKind
   key: string
   action: ChangeAction
@@ -195,14 +196,32 @@ async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedR
     : written
 }
 
+/** The result of `plan` before anything is written: every planned change, none applied yet. */
+function planned(
+  plan: WorkspacePlan,
+  workspaceId: string,
+  dryRun: boolean
+): ApplyWorkspaceSourceResult {
+  return {
+    workspaceId,
+    dryRun,
+    plan: plan.changes.map((change) => summarize(change)),
+    applied: [],
+    needBlobs: plan.needBlobs,
+    files: {},
+    base: plan.base,
+    diagnostics: plan.diagnostics,
+  }
+}
+
 /**
  * Applies a workspace source directory: plans every managed kind, refuses the whole apply when
  * any change has an error (nothing written) apart from the changes held back for a reference the
  * workspace cannot satisfy, which alone are not written, then writes each change through the use
  * case that owns it, in apply order with deletes last and in reverse. The writes commit one by one, so a
  * failure stops the apply and reports what was written before it (`failed`); re-running the same
- * directory converges. The write phase holds the workspace's apply lease, so a second apply
- * meanwhile is refused with nothing written (`SOURCE_BUSY`); a dry run takes no lease. Each child
+ * directory converges. The plan and the writes hold the workspace's apply lease, so a second apply
+ * meanwhile is refused with nothing read or written (`SOURCE_BUSY`); a dry run takes no lease. Each child
  * use case audits its own write; this records one roll-up.
  */
 export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
@@ -216,72 +235,65 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       ...sourceContext(principal, context),
       ...(input.provenance ? { provenance: input.provenance } : {}),
     }
-    const dryRun = input.dryRun === true
-    const plan = await planWorkspaceSource(input, ctx, { requireBlobs: !dryRun })
+    if (input.dryRun === true) {
+      return planned(await planWorkspaceSource(input, ctx), context.workspaceId, true)
+    }
     const facts = {
       principal,
       client: input.provenance?.client,
       workspaceId: context.workspaceId,
     }
-    if (plan.refused && !dryRun) {
-      recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'rejected' })
-      throw new WorkspaceSourceRejectedError(plan.diagnostics)
-    }
-    const result: ApplyWorkspaceSourceResult = {
-      workspaceId: context.workspaceId,
-      dryRun,
-      plan: plan.changes.map((change) => summarize(change)),
-      applied: [],
-      needBlobs: plan.needBlobs,
-      files: {},
-      base: plan.base,
-      diagnostics: plan.diagnostics,
-    }
-    if (dryRun) return result
-    Object.assign(result.files, plan.reprint)
-
-    const writeCtx: ApplyContext = {
-      ...ctx,
-      blobs: {
-        read(path) {
-          const staged = plan.staged.get(path)
-          if (!staged) throw new Error('A blob write ran without its staged bytes')
-          return readStagedBlob(staged)
-        },
-      },
-    }
-    const base: WorkspaceBaseV1 = { ...plan.base, resources: { ...plan.base.resources } }
-    for (const change of plan.changes) {
-      if (change.action === 'noop' && change.base) {
-        base.resources[resourceAddress(change.kind, change.key)] = change.base
-      }
-    }
-    // One apply writes a workspace at a time: each write's re-check and write are separate
-    // statements, so a second apply is refused (`SOURCE_BUSY`) rather than interleaved.
+    // One apply plans and writes a workspace at a time, under one lease: a plan made before
+    // another apply's writes would write half of itself and then fail (a name taken, a resource
+    // changed, a delete another apply started using). A second apply meanwhile is refused
+    // (`SOURCE_BUSY`) before it reads anything; a dry run takes no lease.
     const lease = await acquireApplyLease(context.workspaceId).catch((error: unknown) => {
       if (error instanceof WorkspaceSourceBusyError) {
-        recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'busy' })
+        recordWorkspaceSourceApplied(facts, [], { refused: 'busy' })
       }
       throw error
     })
-    const applyId = generateId()
-    result.applyId = applyId
     try {
+      const plan = await planWorkspaceSource(input, ctx, { requireBlobs: true })
+      if (plan.refused) {
+        recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'rejected' })
+        throw new WorkspaceSourceRejectedError(plan.diagnostics)
+      }
+      const result = planned(plan, context.workspaceId, false)
+      Object.assign(result.files, plan.reprint)
+      const writeCtx: ApplyContext = {
+        ...ctx,
+        blobs: {
+          read(path) {
+            const staged = plan.staged.get(path)
+            if (!staged) throw new Error('A blob write ran without its staged bytes')
+            return readStagedBlob(staged)
+          },
+        },
+      }
+      const base: WorkspaceBaseV1 = { ...plan.base, resources: { ...plan.base.resources } }
+      for (const change of plan.changes) {
+        if (change.action === 'noop' && change.base) {
+          base.resources[resourceAddress(change.kind, change.key)] = change.base
+        }
+      }
+      const applyId = generateId()
+      result.applyId = applyId
       await withAuditCorrelation(applyId, () =>
         writeAll(plan.changes, writeCtx, lease, base, result)
       )
+      result.base = base
+      recordWorkspaceSourceApplied(facts, plan.changes, result)
+      logger.info('Applied workspace source', {
+        workspaceId: context.workspaceId,
+        applyId,
+        applied: result.applied.length,
+        failed: result.failed !== undefined,
+      })
+      return result
     } finally {
       await lease.release()
     }
-    result.base = base
-    recordWorkspaceSourceApplied(facts, plan.changes, result)
-    logger.info('Applied workspace source', {
-      workspaceId: context.workspaceId,
-      applyId,
-      applied: result.applied.length,
-      failed: result.failed !== undefined,
-    })
-    return result
   },
   projectAudit: ({ principal, input, context, result }) =>
     result.applied.length > 0

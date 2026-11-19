@@ -8540,7 +8540,7 @@ sim workflows source get <workflowId> [options]
 
 </CommandTable>
 
-Exit codes with --dir: 0 written; 1 the command failed, or the directory holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workflow is too large to print as source; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again.
+Exit codes with --dir: 0 written; 1 the command failed, or the directory holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workflow is too large to print as source; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again. Exit 10 (busy, retry): --dir is a workflow folder of a workspace directory another sim command is using (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
 API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
 
@@ -8575,7 +8575,7 @@ sim workflows source apply [workflowId] [options]
 
 </CommandTable>
 
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow or its folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was written: wait a minute and run it again.
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow or its folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was written: wait a minute and run it again. Exit 10 (busy, retry): --dir is a workflow folder of a workspace directory another sim command is using (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
 API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource).
 
@@ -8601,7 +8601,7 @@ sim workflows source create [options]
 
 </CommandTable>
 
-Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflow name is taken (SOURCE_NAME_TAKEN: pass --name), or the command failed; 6 the folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a minute and run it again.
+Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflow name is taken (SOURCE_NAME_TAKEN: pass --name), or the command failed; 6 the folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a minute and run it again. Exit 10 (busy, retry): --dir is a workflow folder of a workspace directory another sim command is using (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
 API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources).
 
