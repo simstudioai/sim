@@ -17,6 +17,7 @@ import {
   addConnectionsAsEdges,
   createValidatedEdge,
   normalizeBlockIdsInOperations,
+  storedErrorEdgeKeys,
 } from './builders'
 import {
   handleAddOperation,
@@ -246,6 +247,7 @@ export function applyOperationsToWorkflowState(
     }
   }
 
+  const storedErrorEdges = storedErrorEdgeKeys(toArray(workflowState.edges))
   // Pass 2: Create all edges from deferred connections
   // All blocks exist at this point, so forward references resolve correctly
   if (ctx.deferredConnections.length > 0) {
@@ -272,7 +274,8 @@ export function applyOperationsToWorkflowState(
         connections,
         logger,
         skippedItems,
-        validationErrors
+        validationErrors,
+        storedErrorEdges
       )
       const origin = deferredConnectionOrigins[connectionIndex]
       if (origin === undefined) continue

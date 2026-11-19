@@ -591,7 +591,8 @@ export function createValidatedEdge(
   targetHandle: string,
   operationType: string,
   logger: ReturnType<typeof createLogger>,
-  skippedItems?: SkippedItem[]
+  skippedItems?: SkippedItem[],
+  storedErrorEdges?: ReadonlySet<string>
 ): boolean {
   if (!modifiedState.blocks[targetBlockId]) {
     // The target doesn't exist yet. It may be created by a later operation in
@@ -663,7 +664,11 @@ export function createValidatedEdge(
   }
 
   const sourceValidation = validateSourceHandleForBlock(sourceHandle, sourceBlockType, sourceBlock)
-  if (!sourceValidation.valid) {
+  // An error edge the graph already stored is kept even where the engine no longer adds one
+  // (from a loop or parallel): re-sending a block's connections must not drop it.
+  const restated =
+    sourceHandle === 'error' && storedErrorEdges?.has(errorEdgeKey(sourceBlockId, targetBlockId))
+  if (!sourceValidation.valid && !restated) {
     logger.warn(`Invalid source handle. Edge skipped.`, {
       sourceBlockId,
       targetBlockId,
@@ -751,13 +756,30 @@ const CONNECTION_ARRAY_ENTRY_SHAPES = 'a target block id or {block, handle?}'
  * block type does not have is already reported by {@link createValidatedEdge}
  * as an `invalid_source_handle` skip.
  */
+/** The key of an error edge in {@link storedErrorEdgeKeys}. */
+function errorEdgeKey(source: string, target: string): string {
+  return `${source}\u0000${target}`
+}
+
+/** The error edges a graph stores, for {@link createValidatedEdge}'s `storedErrorEdges`. */
+export function storedErrorEdgeKeys(
+  edges: ReadonlyArray<{ source: string; target: string; sourceHandle?: string | null }>
+): Set<string> {
+  return new Set(
+    edges
+      .filter((edge) => edge.sourceHandle === 'error')
+      .map((edge) => errorEdgeKey(edge.source, edge.target))
+  )
+}
+
 export function addConnectionsAsEdges(
   modifiedState: any,
   blockId: string,
   connections: Record<string, any>,
   logger: ReturnType<typeof createLogger>,
   skippedItems?: SkippedItem[],
-  validationErrors?: ValidationError[]
+  validationErrors?: ValidationError[],
+  storedErrorEdges?: ReadonlySet<string>
 ): void {
   const normalizeHandle = (handle: string): string => {
     if (handle === 'success') return 'source'
@@ -794,7 +816,8 @@ export function addConnectionsAsEdges(
         targetHandle || 'target',
         'add_edge',
         logger,
-        skippedItems
+        skippedItems,
+        storedErrorEdges
       )
     }
 
