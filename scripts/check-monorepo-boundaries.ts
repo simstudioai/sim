@@ -183,9 +183,10 @@ async function scanImports(
   return offenders
 }
 
-const PURE_PACKAGE_SRCS = ['workflow-code', 'workspace-code'].map((name) =>
-  path.join(PACKAGES_DIR, name, 'src')
-)
+const PURE_PACKAGES = ['workflow-code', 'workspace-code'].map((name) => ({
+  name: `@sim/${name}`,
+  src: path.join(PACKAGES_DIR, name, 'src'),
+}))
 /**
  * Names that reach code execution or the host global object, which leads back to both: `eval`,
  * `Function`, the global object under each of its names, `Reflect` (`Reflect.get(globalThis, k)`)
@@ -239,8 +240,8 @@ function isHostGlobalReference(node: ts.Identifier): boolean {
   return true
 }
 
-/** Rule 3: every way a file in the pure package could reach the host or execute code. */
-async function scanPurePackageFile(file: string): Promise<Offender[]> {
+/** Rule 3: every way a file in pure package `pkg` could reach the host or execute code. */
+async function scanPurePackageFile(file: string, pkg: string): Promise<Offender[]> {
   const content = await readFile(file, 'utf8')
   const source = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true)
   const lines = content.split('\n')
@@ -257,26 +258,26 @@ async function scanPurePackageFile(file: string): Promise<Offender[]> {
 
   for (const { module } of importEdges(source)) {
     if (module.text.startsWith('node:') || isBuiltin(module.text)) {
-      report(module, `@sim/workflow-code imports a Node built-in: ${module.text}`)
+      report(module, `${pkg} imports a Node built-in: ${module.text}`)
     }
   }
   function visit(node: ts.Node): void {
     if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-      report(node, '@sim/workflow-code uses dynamic import()')
+      report(node, `${pkg} uses dynamic import()`)
     }
     if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) {
-      report(node, '@sim/workflow-code uses import.meta')
+      report(node, `${pkg} uses import.meta`)
     }
     if (ts.isIdentifier(node) && isHostGlobalReference(node)) {
-      report(node, `@sim/workflow-code references ${node.text}`)
+      report(node, `${pkg} references ${node.text}`)
     }
     if (ts.isPropertyAccessExpression(node) && node.name.text === 'constructor') {
-      report(node, '@sim/workflow-code reads .constructor')
+      report(node, `${pkg} reads .constructor`)
     }
     if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
       const member = destructuredMember(node)
       if (member && HOST_MEMBERS.has(member)) {
-        report(node, `@sim/workflow-code destructures ${member}`)
+        report(node, `${pkg} destructures ${member}`)
       }
     }
     if (
@@ -284,7 +285,7 @@ async function scanPurePackageFile(file: string): Promise<Offender[]> {
       ts.isStringLiteralLike(node.argumentExpression) &&
       HOST_MEMBERS.has(node.argumentExpression.text)
     ) {
-      report(node, `@sim/workflow-code references ${node.argumentExpression.text}`)
+      report(node, `${pkg} references ${node.argumentExpression.text}`)
     }
     ts.forEachChild(node, visit)
   }
@@ -349,9 +350,9 @@ async function main() {
           forbiddenImport(file, module.text, appNames) ? `import into apps/: ${module.text}` : null
         ))
       )
-      const pure = PURE_PACKAGE_SRCS.some((src) => file.startsWith(`${src}${path.sep}`))
+      const pure = PURE_PACKAGES.find(({ src }) => file.startsWith(`${src}${path.sep}`))
       if (pure && !TEST_FILE.test(file)) {
-        offenders.push(...(await scanPurePackageFile(file)))
+        offenders.push(...(await scanPurePackageFile(file, pure.name)))
       }
     }
   }
@@ -371,7 +372,7 @@ async function main() {
 
   if (offenders.length === 0) {
     console.log(
-      '✅ Monorepo boundaries OK: no package imports from apps/*, application code is surface-neutral, and @sim/workflow-code is pure'
+      '✅ Monorepo boundaries OK: no package imports from apps/*, application code is surface-neutral, and @sim/workflow-code and @sim/workspace-code are pure'
     )
     return
   }
