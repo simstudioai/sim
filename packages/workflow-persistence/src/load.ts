@@ -9,7 +9,7 @@ import {
   SUBFLOW_TYPES,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
-import { and, eq, getTableColumns, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, getTableColumns, inArray, isNull, type SQLWrapper, sql } from 'drizzle-orm'
 import { clampParallelBatchSize } from './subflow-helpers'
 import type { DbOrTx, NormalizedWorkflowData } from './types'
 
@@ -129,8 +129,9 @@ export async function loadWorkflowFromNormalizedTablesRaw(
 }
 
 /**
- * {@link loadWorkflowFromNormalizedTablesRaw} for many workflows of one workspace in one query
- * per table, by workflow id. A workflow that is not in `workspaceId` is left out.
+ * {@link loadWorkflowFromNormalizedTablesRaw} for many live workflows of one workspace in one query
+ * per table, by workflow id. A workflow that is archived or not in `workspaceId` is left out, and
+ * its graph rows are never read: each graph query filters by the live in-workspace ids itself.
  */
 export async function loadWorkflowsFromNormalizedTablesRaw(
   workflowIds: readonly string[],
@@ -140,14 +141,18 @@ export async function loadWorkflowsFromNormalizedTablesRaw(
   const loaded = new Map<string, RawNormalizedWorkflow>()
   if (workflowIds.length === 0) return loaded
   const tx = externalTx ?? db
-  const ids = [...workflowIds]
-  const [graph, workflows] = await Promise.all([
-    selectGraphRows(tx, ids),
+  const liveIds = () =>
     tx
       .select({ id: workflow.id })
       .from(workflow)
-      .where(and(inArray(workflow.id, ids), eq(workflow.workspaceId, workspaceId))),
-  ])
+      .where(
+        and(
+          inArray(workflow.id, [...workflowIds]),
+          eq(workflow.workspaceId, workspaceId),
+          isNull(workflow.archivedAt)
+        )
+      )
+  const [graph, workflows] = await Promise.all([selectGraphRows(tx, liveIds), liveIds()])
   const byWorkflow = <T extends { workflowId: string }>(items: T[]) => {
     const grouped = new Map<string, T[]>()
     for (const item of items) {
@@ -174,8 +179,12 @@ export async function loadWorkflowsFromNormalizedTablesRaw(
   return loaded
 }
 
-/** The block, edge and subflow rows of `workflowIds`. */
-async function selectGraphRows(tx: DbOrTx, workflowIds: string[]) {
+/**
+ * The block, edge and subflow rows of `workflowIds`: a list, or a query of ids that each graph
+ * query embeds as a subquery.
+ */
+async function selectGraphRows(tx: DbOrTx, workflowIds: string[] | (() => SQLWrapper)) {
+  const ids = () => (typeof workflowIds === 'function' ? workflowIds() : workflowIds)
   const [blocks, edges, subflows] = await Promise.all([
     tx
       .select({
@@ -183,9 +192,9 @@ async function selectGraphRows(tx: DbOrTx, workflowIds: string[]) {
         updatedAtText: sql<string | null>`${workflowBlocks.updatedAt}::text`,
       })
       .from(workflowBlocks)
-      .where(inArray(workflowBlocks.workflowId, workflowIds)),
-    tx.select().from(workflowEdges).where(inArray(workflowEdges.workflowId, workflowIds)),
-    tx.select().from(workflowSubflows).where(inArray(workflowSubflows.workflowId, workflowIds)),
+      .where(inArray(workflowBlocks.workflowId, ids())),
+    tx.select().from(workflowEdges).where(inArray(workflowEdges.workflowId, ids())),
+    tx.select().from(workflowSubflows).where(inArray(workflowSubflows.workflowId, ids())),
   ])
   return { blocks, edges, subflows }
 }
