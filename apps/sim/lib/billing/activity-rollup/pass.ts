@@ -143,8 +143,9 @@ function startCoverage(
 }
 
 /**
- * Once this many passes in a row have failed, a deferred hour counts as a retry, so a pass that
- * keeps crashing while paging it backs it off instead of starting it again every tick.
+ * Once this many passes in a row have failed (thrown, or died holding the lease), a deferred hour
+ * counts as a retry, so a pass that keeps crashing while paging it backs it off instead of starting
+ * it again every tick.
  */
 const CRASHING_PASSES = 3
 

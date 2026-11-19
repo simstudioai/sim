@@ -52,6 +52,10 @@ export async function readRollupState(
  * Takes the pass lease, creating the state row on first use, so two passes never run at once:
  * Trigger.dev runs one at a time, but an inline pass and a Trigger.dev pass can meet while a
  * deployment changes how it runs them. Returns the state, or null when another pass holds it.
+ *
+ * Every pass releases the lease on its way out, so one taken over after it expired belonged to a
+ * pass that died holding it (killed, or out of memory) and is counted as a failed pass, like one
+ * that threw.
  */
 export async function acquireLease(owner: string): Promise<ActivityRollupState | null> {
   await db
@@ -63,6 +67,7 @@ export async function acquireLease(owner: string): Promise<ActivityRollupState |
     .set({
       leaseOwner: owner,
       leaseExpiresAt: sql`now() + ${msInterval(LEASE_MS)}`,
+      failedPasses: sql`${activityRollupState.failedPasses} + CASE WHEN ${activityRollupState.leaseOwner} IS NULL THEN 0 ELSE 1 END`,
       updatedAt: sql`now()`,
     })
     .where(

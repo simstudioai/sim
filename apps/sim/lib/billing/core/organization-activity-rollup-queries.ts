@@ -45,6 +45,20 @@ const logger = createLogger('OrganizationActivityRollupQueries')
  */
 const MAX_FRESHNESS_LAG_MS = 6 * HOUR_MS
 
+/**
+ * Reads use the rollup only while the late-end scan is this recent: a run that ends late leaves
+ * its stored cell stale until the scan marks it. The scan trails now by its margin plus the time
+ * between passes, minutes in all, so this bound is only crossed when the scan is failing or
+ * catching up a backlog.
+ */
+const MAX_LATE_END_SCAN_LAG_MS = HOUR_MS / 2
+
+/**
+ * Each marked cell is read live as its own workspace-hour; past this many in a window, those
+ * reads approach the cost of the legacy read itself, so the legacy read serves instead.
+ */
+const MAX_LIVE_MARKED_CELLS = 5_000
+
 /** Which part of a window the rollup serves, and the instants read live from the source. */
 export interface RollupReadPlan {
   /** Whole UTC hours, all computed. */
@@ -56,7 +70,8 @@ export interface RollupReadPlan {
 /**
  * Splits `window` between the rollup and the source, or returns null when the rollup must not
  * serve it at all: another version's cells, no coverage yet, a stalled pass, correction queues
- * (dirty marks and in-flight rechecks) that no pass has run lately, or a window reaching before a
+ * (dirty marks and in-flight rechecks) that no pass has run lately, a late-end scan that has
+ * fallen behind, or a window reaching before a
  * backfill that is still running. Once the backfill is complete, instants before the
  * coverage hold no runs and are read live at the cost of an index probe per workspace.
  */
@@ -70,6 +85,10 @@ export function planRollupRead(
   if (!coverageStart || !freshThrough) return null
   const lagging = (at: Date | null) => !at || now.getTime() - at.getTime() >= MAX_FRESHNESS_LAG_MS
   if (lagging(freshThrough) || lagging(state.correctionsAt)) return null
+  const { lastEndScan } = state
+  if (!lastEndScan || now.getTime() - lastEndScan.getTime() >= MAX_LATE_END_SCAN_LAG_MS) {
+    return null
+  }
   if (window.from < coverageStart && !state.backfillCompletedAt) return null
 
   const from = new Date(Math.max(ceilHour(window.from).getTime(), coverageStart.getTime()))
@@ -84,7 +103,7 @@ export function planRollupRead(
 /**
  * Reads the state and the rows it vouches for in one snapshot of the replica, so a pass that
  * commits mid-request can never pair new progress with old cells. Null when the rollup cannot
- * serve the window.
+ * serve the window, or when more of its cells are marked than are worth reading live.
  */
 function readInSnapshot<T>(
   scope: ActivityScope,
@@ -97,7 +116,15 @@ function readInSnapshot<T>(
         { from: scope.start, to: scope.end },
         new Date()
       )
-      return plan ? read(tx, plan) : null
+      if (!plan) return null
+      if (plan.rollup && (await exceedsLiveMarkedCells(tx, scope, plan.rollup))) {
+        logger.warn('Organization activity read too many marked cells; using the legacy read', {
+          organizationId: scope.organizationId,
+          maxLiveMarkedCells: MAX_LIVE_MARKED_CELLS,
+        })
+        return null
+      }
+      return read(tx, plan)
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' }
   )
@@ -132,6 +159,22 @@ function markedCells(scope: ActivityScope, span: InstantRange): SQL {
       AND d.bucket_start >= ${utcTimestamp(span.from)} AND d.bucket_start < ${utcTimestamp(span.to)}
     WHERE w.organization_id = ${scope.organizationId}
       ${scope.workspaceId ? sql`AND w.id = ${scope.workspaceId}` : sql``}`
+}
+
+/**
+ * Whether the scope has more than {@link MAX_LIVE_MARKED_CELLS} marked cells in `span`, counted
+ * no further than one past the bound.
+ */
+async function exceedsLiveMarkedCells(
+  tx: DbTransaction,
+  scope: ActivityScope,
+  span: InstantRange
+): Promise<boolean> {
+  const [row] = await tx.execute<{ exceeds: boolean }>(sql`
+    SELECT count(*) > ${MAX_LIVE_MARKED_CELLS} AS exceeds
+    FROM (${markedCells(scope, span)} LIMIT ${MAX_LIVE_MARKED_CELLS + 1}) m
+  `)
+  return row?.exceeds === true
 }
 
 /** A stored cell `r` of workspace `w` whose workspace-hour is not among `marked` cells `m`. */

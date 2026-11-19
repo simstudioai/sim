@@ -807,7 +807,10 @@ export const activityRollupState = pgTable('activity_rollup_state', {
    * rebuilds the rollup.
    */
   maintainedAt: timestamp('maintained_at', { withTimezone: true }),
-  /** Passes in a row that failed after taking the lease; reset by the next pass that completes. */
+  /**
+   * Passes in a row that failed after taking the lease, by throwing or by dying with it held;
+   * reset by the next pass that completes.
+   */
   failedPasses: integer('failed_passes').notNull().default(0),
   /**
    * When a pass last ran both correction queues (dirty marks and in-flight rechecks) to the end of
