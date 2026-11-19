@@ -229,11 +229,46 @@ export const ComputerUseSchema = z.union([
 ]);
 export type ComputerUseInput = z.infer<typeof ComputerUseSchema>;
 
+/** Typed app commands: one allowlisted create or list read through the OS's own data frameworks, never a script. */
+export const AppCommandSchema = z.discriminatedUnion("name", [
+  z.strictObject({ name: z.literal("list_reminder_lists") }),
+  z.strictObject({
+    name: z.literal("create_reminder"),
+    title: z.string().min(1).max(1024),
+    notes: z.string().max(8000).optional(),
+    due: z
+      .string()
+      .min(10)
+      .max(64)
+      .optional()
+      .describe("YYYY-MM-DD for a date-only reminder, or an ISO 8601 date-time with an explicit offset."),
+    listId: z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe("An id from list_reminder_lists; omit for the default list."),
+    priority: z
+      .union([z.literal(0), z.literal(1), z.literal(5), z.literal(9)])
+      .optional()
+      .describe("0 none, 1 high, 5 medium, 9 low."),
+  }),
+]);
+export type AppCommand = z.infer<typeof AppCommandSchema>;
+
+/** The computer tool for desktops that support app commands. */
+export const ComputerUseWithAppCommandsSchema = z.union([
+  ...ComputerUseSchema.options,
+  z.strictObject({ action: z.literal("app_command"), command: AppCommandSchema }),
+]);
+export type ComputerUseWithAppCommandsInput = z.infer<typeof ComputerUseWithAppCommandsSchema>;
+
 export const ComputerUseStatusSchema = z.strictObject({
   kind: z.literal("status"),
   platform: z.literal("darwin"),
   accessibility: z.boolean(),
   screenRecording: z.boolean(),
+  reminders: z.enum(["granted", "denied", "not_determined"]).optional(),
 });
 
 export const ComputerUseAppSchema = z.strictObject({
@@ -301,8 +336,27 @@ export const ComputerUseSnapshotSchema = z.strictObject({
 });
 export type ComputerUseSnapshot = z.infer<typeof ComputerUseSnapshotSchema>;
 
+export const ComputerUseCommandResultSchema = z.strictObject({
+  kind: z.literal("command"),
+  command: z.enum(["list_reminder_lists", "create_reminder"]),
+  created: z
+    .strictObject({ id: z.string().min(1).max(256), title: z.string().max(1024), list: z.string().max(1024) })
+    .optional(),
+  items: z
+    .array(
+      z.strictObject({
+        id: z.string().min(1).max(256),
+        title: z.string().max(1024),
+        allowsModifications: z.boolean(),
+      }),
+    )
+    .max(200)
+    .optional(),
+});
+
 export const ComputerUseResultSchema = z.discriminatedUnion("kind", [
   ComputerUseStatusSchema,
+  ComputerUseCommandResultSchema,
   z.strictObject({ kind: z.literal("apps"), apps: z.array(ComputerUseAppSchema).max(1000) }),
   ComputerUseSnapshotSchema,
   z

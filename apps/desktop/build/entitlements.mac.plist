@@ -14,5 +14,9 @@
          Hardened Runtime denies the camera no matter what the user allowed. -->
     <key>com.apple.security.device.camera</key>
     <true/>
+    <!-- Computer Use app commands add confirmed reminders through EventKit;
+         the Hardened Runtime denies EventKit access without this key. -->
+    <key>com.apple.security.personal-information.calendars</key>
+    <true/>
   </dict>
 </plist>

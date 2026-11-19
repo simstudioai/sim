@@ -36,6 +36,16 @@ import AppKit
             precondition(isProtectedApp(bundle), bundle)
         }
         for bundle in ["com.apple.TextEdit", "com.apple.finder", "com.apple.Safari"] { precondition(!isProtectedApp(bundle), bundle) }
+        let dateOnly = try dueComponents("2027-05-04")
+        precondition(dateOnly.year == 2027 && dateOnly.month == 5 && dateOnly.day == 4 && dateOnly.hour == nil)
+        let timed = try dueComponents("2027-05-04T09:30:00Z")
+        precondition(timed.hour != nil && timed.minute != nil)
+        for due in ["2027-02-30", "2027-05-04T09:30:00", "May 4", "2027-5-4"] {
+            expectError("invalid_arguments") { _ = try dueComponents(due) }
+        }
+        expectError("unknown_command") { _ = try runAppCommand(AppCommand(name: "run_script")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "  ")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "Pay rent", priority: 3)) }
         var queue = AXTraversalQueue<String>(limit: 1000)
         queue.append(AXTraversalEntry(element: "menu", parent: nil, depth: 0, menu: true, priority: false))
         queue.append(AXTraversalEntry(element: "content", parent: nil, depth: 0, menu: false, priority: false))

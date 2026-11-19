@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import EventKit
 import ScreenCaptureKit
 
 nonisolated(unsafe) var cancellationRequested: sig_atomic_t = 0
@@ -39,6 +40,85 @@ struct Parameters: Decodable {
     var button: String?
     var clickCount: Int?
     var accessibilityAction: String?
+    var command: AppCommand?
+}
+/// One allowlisted app command. Commands go through EventKit, never Apple Events or scripts, so they
+/// cannot reach a shell; each is a typed create or a list read, with no update, delete or search.
+struct AppCommand: Decodable {
+    var name: String
+    var title: String?
+    var notes: String?
+    var due: String?
+    var listId: String?
+    var priority: Int?
+}
+/// The event store for reminders, available only once the user has granted full Reminders access.
+/// Checking never prompts; the grant happens from settings, outside the tool call.
+func remindersStore() throws -> EKEventStore {
+    guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else {
+        throw ComputerError("reminders_permission_required", "Allow Reminders access for Mothership in System Settings, then retry.", dispatchState: "not_started")
+    }
+    return EKEventStore()
+}
+/// A due date: `YYYY-MM-DD` is date-only; a date-time must be ISO 8601 with an explicit offset or `Z`,
+/// so the reminder never depends on the helper's time zone guess.
+func dueComponents(_ text: String) throws -> DateComponents {
+    var calendar = Calendar(identifier: .gregorian)
+    if text.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil {
+        let parts = text.split(separator: "-").compactMap { Int($0) }
+        let components = DateComponents(calendar: calendar, year: parts[0], month: parts[1], day: parts[2])
+        guard components.isValidDate else { throw ComputerError("invalid_arguments", "Due date is not a real date.", dispatchState: "not_started") }
+        return DateComponents(year: parts[0], month: parts[1], day: parts[2])
+    }
+    let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime]
+    guard let date = formatter.date(from: text) else {
+        throw ComputerError("invalid_arguments", "Due must be YYYY-MM-DD or an ISO 8601 date-time with an offset.", dispatchState: "not_started")
+    }
+    calendar.timeZone = .current
+    return calendar.dateComponents([.year, .month, .day, .hour, .minute, .timeZone], from: date)
+}
+/// Reminders access as the status reports it, read without prompting.
+func remindersAuthorization() -> String {
+    switch EKEventStore.authorizationStatus(for: .reminder) {
+    case .fullAccess: return "granted"
+    case .notDetermined: return "not_determined"
+    default: return "denied"
+    }
+}
+func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
+    switch command.name {
+    case "list_reminder_lists":
+        let lists = try remindersStore().calendars(for: .reminder).prefix(200).map { list -> [String: Any] in
+            ["id": list.calendarIdentifier, "title": String(list.title.prefix(1024)), "allowsModifications": list.allowsContentModifications]
+        }
+        return ["kind": "command", "command": command.name, "items": lists]
+    case "create_reminder":
+        let title = (command.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty, title.count <= 1024 else { throw ComputerError("invalid_arguments", "A reminder needs a title of at most 1024 characters.", dispatchState: "not_started") }
+        guard (command.notes?.count ?? 0) <= 8000 else { throw ComputerError("invalid_arguments", "Notes are limited to 8000 characters.", dispatchState: "not_started") }
+        guard [0, 1, 5, 9].contains(command.priority ?? 0) else { throw ComputerError("invalid_arguments", "Priority must be 0 (none), 1 (high), 5 (medium) or 9 (low).", dispatchState: "not_started") }
+        let due = try command.due.map(dueComponents)
+        let store = try remindersStore()
+        let list: EKCalendar
+        if let listId = command.listId {
+            guard let found = store.calendar(withIdentifier: listId), found.allowedEntityTypes.contains(.reminder) else {
+                throw ComputerError("list_unavailable", "No reminder list has this id; call list_reminder_lists.", dispatchState: "not_started")
+            }
+            list = found
+        } else {
+            guard let fallback = store.defaultCalendarForNewReminders() else { throw ComputerError("list_unavailable", "Reminders has no default list; pass listId.", dispatchState: "not_started") }
+            list = fallback
+        }
+        guard list.allowsContentModifications else { throw ComputerError("list_read_only", "This reminder list is read-only.", dispatchState: "not_started") }
+        let reminder = EKReminder(eventStore: store)
+        reminder.calendar = list; reminder.title = title; reminder.notes = command.notes
+        reminder.priority = command.priority ?? 0; reminder.dueDateComponents = due
+        inputDispatched = true
+        try store.save(reminder, commit: true)
+        return ["kind": "command", "command": command.name, "created": ["id": reminder.calendarItemIdentifier, "title": title, "list": list.title]]
+    default:
+        throw ComputerError("unknown_command", "Unknown app command.", dispatchState: "not_started")
+    }
 }
 struct Request: Decodable { let id: String; let method: String; let params: Parameters }
 func required<T>(_ value: T?, _ name: String) throws -> T {
@@ -798,11 +878,15 @@ final class Driver {
                 let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
                 _ = AXIsProcessTrustedWithOptions(options)
             case "screenCapture": _ = CGRequestScreenCaptureAccess()
+            case "reminders": _ = try? await EKEventStore().requestFullAccessToReminders()
             default: throw ComputerError("invalid_arguments", "Unknown permission.")
             }
-            return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess()]
-        case "status": return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess()]
+            return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess(), "reminders": remindersAuthorization()]
+        case "status": return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess(), "reminders": remindersAuthorization()]
         case "list_apps": return ["kind": "apps", "apps": try discoverApps()]
+        case "app_command":
+            inputDispatched = false
+            return try runAppCommand(required(p.command, "command"))
         case "activate_app":
             try requireAccessibility()
             let app = try await appFor(p.bundleId, launch: true)

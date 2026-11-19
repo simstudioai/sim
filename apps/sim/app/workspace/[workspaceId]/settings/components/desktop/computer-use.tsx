@@ -16,6 +16,15 @@ const ON_OFF_OPTIONS = [
 ]
 
 /** The activity stays visible so an in-flight action can be stopped; the device controls need the permission group's consent. */
+/** Reminders is listed only by shells that support app commands. */
+const PERMISSIONS = ['accessibility', 'screenCapture', 'reminders'] as const
+
+const PERMISSION_LABELS: Record<(typeof PERMISSIONS)[number], string> = {
+  accessibility: 'Accessibility',
+  screenCapture: 'Screen Recording',
+  reminders: 'Reminders',
+}
+
 export function ComputerUseSettings() {
   const { workspaceId, organizationId } = useParams<{
     workspaceId?: string
@@ -102,29 +111,31 @@ function ComputerUseSettingsControls() {
         )}
         {status?.enabled && (
           <>
-            {(['accessibility', 'screenCapture'] as const).map((permission) => {
-              const label = permission === 'accessibility' ? 'Accessibility' : 'Screen Recording'
-              return (
-                <div className='flex items-center justify-between' key={permission}>
-                  <Label>{label}</Label>
-                  {status.permissions[permission] ? (
-                    <span className='text-[var(--text-muted)] text-sm'>Allowed</span>
-                  ) : (
-                    <Chip
-                      aria-label={`Allow ${label} in System Settings`}
-                      disabled={pending}
-                      onClick={() =>
-                        void update(async () =>
-                          setStatus(await bridge.requestPermission(permission))
-                        )
-                      }
-                    >
-                      Allow
-                    </Chip>
-                  )}
-                </div>
-              )
-            })}
+            {PERMISSIONS.filter((permission) => status.permissions[permission] !== undefined).map(
+              (permission) => {
+                const label = PERMISSION_LABELS[permission]
+                return (
+                  <div className='flex items-center justify-between' key={permission}>
+                    <Label>{label}</Label>
+                    {status.permissions[permission] ? (
+                      <span className='text-[var(--text-muted)] text-sm'>Allowed</span>
+                    ) : (
+                      <Chip
+                        aria-label={`Allow ${label} in System Settings`}
+                        disabled={pending}
+                        onClick={() =>
+                          void update(async () =>
+                            setStatus(await bridge.requestPermission(permission))
+                          )
+                        }
+                      >
+                        Allow
+                      </Chip>
+                    )}
+                  </div>
+                )
+              }
+            )}
             {setAskForApps && askForApps !== undefined && (
               <div className='flex items-center justify-between'>
                 <Label asChild>

@@ -108,6 +108,7 @@ export type ModelSelection = z.infer<typeof ModelSelectionSchema>;
 export const DesktopContextSchema = z.object({
   localFiles: z.boolean().optional(),
   computerUse: z.boolean().default(false),
+  computerUseAppCommands: z.boolean().default(false),
   browser: z.boolean().default(false),
   terminal: z.boolean().default(false),
   terminals: z

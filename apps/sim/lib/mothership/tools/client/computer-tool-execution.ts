@@ -1,5 +1,5 @@
 import { COMPUTER_USE_TOOL_TIMEOUT_MS, ComputerUseError } from '@sim/desktop-bridge'
-import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
+import { ComputerUseWithAppCommandsSchema } from '@sim/desktop-bridge/computer-use'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
@@ -148,7 +148,7 @@ export async function executeComputerToolOnClient(
       'This computer action is stale. Inspect the app again before deciding what to do.',
       { doNotRetry: true, outcomeUnknown: true }
     )
-  const parsed = ComputerUseSchema.safeParse(omit(params, ['activity']))
+  const parsed = ComputerUseWithAppCommandsSchema.safeParse(omit(params, ['activity']))
   if (!parsed.success)
     return reject('Computer action arguments are invalid. Inspect the tool schema and try again.')
   if (claim !== 'claimed')
@@ -245,7 +245,9 @@ export async function executeComputerToolOnClient(
                   ? `Input was dispatched, but observation failed: ${result.observationError} Inspect the app without repeating the input.`
                   : result.kind === 'action' && !result.verified
                     ? 'Input was dispatched. Inspect the returned observation or the app to verify its effect.'
-                    : 'Computer observation completed',
+                    : result.kind === 'command' && result.created
+                      ? `Created "${result.created.title}" in ${result.created.list}. It exists now: never repeat this create.`
+                      : 'Computer observation completed',
             data: computerToolResultForModel(result, {
               baseSnapshotId: 'snapshotId' in parsed.data ? parsed.data.snapshotId : undefined,
               stableElementIds: getDesktopBridge()?.computerUse?.stableElementIds === true,

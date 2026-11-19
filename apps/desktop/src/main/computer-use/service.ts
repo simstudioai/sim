@@ -2,13 +2,15 @@ import {
   type ComputerUseActivity,
   type ComputerUseAppPermission,
   ComputerUseError,
+  type ComputerUsePermission,
   type ComputerUseStatus,
 } from '@sim/desktop-bridge'
 import {
-  type ComputerUseInput,
+  type AppCommand,
   type ComputerUseResult,
-  ComputerUseSchema,
   type ComputerUseSnapshot,
+  type ComputerUseWithAppCommandsInput,
+  ComputerUseWithAppCommandsSchema,
 } from '@sim/desktop-bridge/computer-use'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
@@ -23,15 +25,20 @@ interface ComputerUseServiceDeps {
     app: ComputerUseAppPermission,
     signal: AbortSignal
   ) => Promise<'once' | 'always' | 'deny'>
+  /** Confirms one app-command write. It shows the exact fields, since nothing happens on screen. */
+  confirmAppCommand: (
+    request: { appName: string; summary: string },
+    signal: AbortSignal
+  ) => Promise<boolean>
   onActivity: (activity: ComputerUseActivity | null) => void
   setStopShortcutActive?: (active: boolean) => boolean
-  openPermissionSettings?: (permission: 'accessibility' | 'screenCapture') => Promise<void>
+  openPermissionSettings?: (permission: ComputerUsePermission) => Promise<void>
 }
 
 interface ToolWork {
   toolCallId: string
   scopeId: string
-  input: ComputerUseInput
+  input: ComputerUseWithAppCommandsInput
   controller: AbortController
 }
 
@@ -41,6 +48,14 @@ interface SnapshotOwnership {
   windowId: string
   elementWindows: Map<string, string>
 }
+
+/** The app each command writes to; its Computer Use app permission governs the command. */
+const APP_COMMAND_APPS: Record<AppCommand['name'], string> = {
+  list_reminder_lists: 'com.apple.reminders',
+  create_reminder: 'com.apple.reminders',
+}
+
+const PRIORITY_NAMES: Record<number, string> = { 1: 'High', 5: 'Medium', 9: 'Low' }
 
 /** Native snapshots cannot transfer authority between chats or restarted helpers. */
 export class ComputerUseService {
@@ -82,6 +97,7 @@ export class ComputerUseService {
     status.permissions = {
       accessibility: native.accessibility,
       screenCapture: native.screenRecording,
+      reminders: native.reminders === 'granted',
     }
     status.enabled = this.isEnabled()
     status.activeAction = this.activity
@@ -111,9 +127,7 @@ export class ComputerUseService {
     return this.getStatus()
   }
 
-  async requestPermission(
-    permission: 'accessibility' | 'screenCapture'
-  ): Promise<ComputerUseStatus> {
+  async requestPermission(permission: ComputerUsePermission): Promise<ComputerUseStatus> {
     if (!this.deps.supported) return this.getStatus()
     await this.deps.native.request('request_permission', { permission })
     await this.deps.openPermissionSettings?.(permission)
@@ -200,7 +214,7 @@ export class ComputerUseService {
     if (this.queued.has(toolCallId))
       return Promise.reject(new Error('This Computer Use action is already running.'))
     // A newer server can send arguments this build predates; nothing has been queued yet.
-    const parsed = ComputerUseSchema.safeParse(raw)
+    const parsed = ComputerUseWithAppCommandsSchema.safeParse(raw)
     if (!parsed.success)
       return Promise.reject(
         new ComputerUseError({
@@ -240,6 +254,7 @@ export class ComputerUseService {
         stopShortcutAvailable: this.deps.setStopShortcutActive?.(true) ?? false,
       }
       this.deps.onActivity(this.activity)
+      if (input.action === 'app_command') return await this.runAppCommand(input.command, work)
       if ('bundleId' in input) {
         if (/^ai\.sim\.desktop(?:\.|$)/.test(input.bundleId)) {
           throw new Error('Computer Use cannot operate Sim or its own permission controls.')
@@ -347,6 +362,45 @@ export class ComputerUseService {
       this.activity = null
       this.deps.onActivity(null)
     }
+  }
+
+  /**
+   * A typed write through the OS's data frameworks leaves nothing on screen to watch, so each one
+   * needs the app's usual Computer Use permission and its own confirmation of the exact fields.
+   */
+  private async runAppCommand(command: AppCommand, work: ToolWork): Promise<ComputerUseResult> {
+    const appName = await this.authorizeApp(APP_COMMAND_APPS[command.name], work)
+    if (this.activity) {
+      this.activity = { ...this.activity, appName }
+      this.deps.onActivity(this.activity)
+    }
+    if (command.name === 'create_reminder') {
+      const summary = [
+        `Title: ${command.title}`,
+        command.due ? `Due: ${command.due}` : null,
+        command.priority ? `Priority: ${PRIORITY_NAMES[command.priority]}` : null,
+        command.listId ? `List: ${command.listId}` : 'List: default',
+        command.notes ? `Notes: ${command.notes.slice(0, 500)}` : null,
+      ]
+        .filter((line) => line !== null)
+        .join('\n')
+      const confirmed = await this.deps.confirmAppCommand(
+        { appName, summary },
+        work.controller.signal
+      )
+      this.check(work)
+      if (!confirmed)
+        throw new ComputerUseError({
+          code: 'user_declined',
+          message: 'The user declined to create this reminder. Do not retry it.',
+          dispatchState: 'not_started',
+        })
+    }
+    this.check(work)
+    const result = await this.deps.native.request('app_command', { command })
+    if (result.kind !== 'command' || result.command !== command.name)
+      throw new Error('Computer Use returned a result for a different command.')
+    return result
   }
 
   private rememberSnapshot(work: ToolWork, snapshot: ComputerUseSnapshot, windowId?: string): void {
