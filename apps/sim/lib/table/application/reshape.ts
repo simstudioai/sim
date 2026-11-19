@@ -230,10 +230,12 @@ async function updateColumns(
 
 /**
  * Reshapes a table in one transaction: its own name, description and folder, then column drops,
- * updates (renames ordered so each finds its name free) and adds. Each step is the same service
- * write the single-column use cases run, with the same lock checks and validation, joined to one
- * transaction under the table's schema lock: a failure at any step commits nothing. Audits one
- * entry per change, as the single use cases would.
+ * updates (renames ordered so each finds its name free) and adds, then the managed-rows mark and
+ * the rows (`rows`), refused when they changed since `expectedRowsVersion`. Each step is the same
+ * service write the single-column and row use cases run, with the same lock checks and
+ * validation, joined to one transaction under the table's schema lock: a failure at any step
+ * commits nothing. Audits one entry per column change, as the single use cases would, by column
+ * name, and one `source_rows` entry for the rows written.
  */
 export const reshapeTableUseCase = defineAuthorizedTableUseCase({
   operation: tableOperations.reshape,
@@ -420,13 +422,16 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
   },
   projectAudit({ input, context, result }) {
     const before = context.table
+    // The audit names a column, never its id, as the single-column use cases do.
+    const nameOf = (ref: string) =>
+      before.schema.columns.find((column) => columnMatchesRef(column, ref))?.name ?? ref
     return [
       ...tableFieldAudits(before, input.table ?? {}, result.changed, result.table.name),
       ...(input.drop ?? []).map((columnName) =>
-        columnDeletedAudit(before, result.table, columnName)
+        columnDeletedAudit(before, result.table, nameOf(columnName))
       ),
       ...(input.update ?? []).map(({ columnName, updates }) =>
-        columnUpdatedAudit(before, result.table, columnName, updates)
+        columnUpdatedAudit(before, result.table, nameOf(columnName), updates)
       ),
       ...(input.add ?? []).map((column) => columnAddedAudit(before, result.table, column)),
       ...(wroteRows(result.rows)

@@ -1293,6 +1293,17 @@ export default workflow('Notes', {}, () => {
     expect((row.data as Record<string, unknown>)[emailId ?? '']).toBe('a@b.c')
     const again = await apply(workspaceId, { ...files, ...result.files }, { base: result.base })
     expect(again.plan.find((change) => change.key === 'leads')?.action).toBe('noop')
+    // The audit names each column, as the single-column use cases do, never its id.
+    await vi.waitFor(async () => {
+      const descriptions = (
+        await db
+          .select({ description: auditLog.description })
+          .from(auditLog)
+          .where(eq(auditLog.workspaceId, workspaceId))
+      ).map((entry) => entry.description)
+      expect(descriptions).toContain('Deleted column "status" from table "leads"')
+      expect(descriptions).toContain('Updated column "email" in table "leads"')
+    })
   })
 
   check(
