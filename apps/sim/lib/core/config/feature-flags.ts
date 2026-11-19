@@ -127,6 +127,21 @@ const FEATURE_FLAGS = {
       'unreachable the host stays in use.',
     fallback: null,
   },
+  'organization-activity-rollup-reads': {
+    description:
+      'Serve organization activity summaries and breakdowns from the hourly workflow activity ' +
+      'rollup where it covers the window, with identical results. Supports organization rollout; ' +
+      'off by default, which reads the source tables. Off-AppConfig falls back to ' +
+      'ORGANIZATION_ACTIVITY_ROLLUP_READS.',
+    fallback: 'ORGANIZATION_ACTIVITY_ROLLUP_READS',
+  },
+  'activity-rollup-maintenance': {
+    description:
+      'Run the activity rollup pass on its cron: backfill and maintain workflow_activity_hourly. ' +
+      'Global on/off only; off by default, which starts no pass. Off-AppConfig falls back to ' +
+      'ACTIVITY_ROLLUP_MAINTENANCE.',
+    fallback: 'ACTIVITY_ROLLUP_MAINTENANCE',
+  },
   'mothership-abandoned-run-takeover-disabled': {
     description:
       'Kill switch for Sim taking over Chat runs whose controller died (a deploy or a crash) and ' +

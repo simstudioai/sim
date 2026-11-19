@@ -1613,6 +1613,17 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Maintains the hourly workflow activity rollup behind organization activity. Starts no pass
+    # until the activity-rollup-maintenance flag is on.
+    activityRollup:
+      enabled: true
+      name: activity-rollup
+      schedule: "*/2 * * * *"
+      path: "/api/cron/activity-rollup"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     # Folds the table row-change log into each table's stored row count and version.
     foldTableRowChanges:
       enabled: true

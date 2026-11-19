@@ -554,6 +554,9 @@ export function usageHourKey(day: string, hour: number): string {
   return `${day}T${String(hour).padStart(2, '0')}`
 }
 
+/** The most of the viewer's days {@link usageWindowSegments} cuts a window into. */
+export const USAGE_WINDOW_MAX_DAYS = 1000
+
 /**
  * The window cut at the viewer's midnights, and the unsettled days at their hours.
  *
@@ -574,7 +577,7 @@ export function usageWindowSegments(
   const segments: UsageSegment[] = []
   const cursor = civilDate(localCalendarDate(start, timezone))
 
-  for (let days = 0; days < 1000; days++) {
+  for (let days = 0; days < USAGE_WINDOW_MAX_DAYS; days++) {
     const day = civilKey(cursor)
     cursor.setUTCDate(cursor.getUTCDate() + 1)
     const dayStart = zonedWallClockToUtc(`${day}T00:00`, timezone)

@@ -3228,6 +3228,20 @@
       "when": 1795057212936,
       "tag": "0461_permission_import_subject_index",
       "breakpoints": true
+    },
+    {
+      "idx": 462,
+      "version": "7",
+      "when": 1795059305210,
+      "tag": "0462_workflow_activity_rollup",
+      "breakpoints": true
+    },
+    {
+      "idx": 463,
+      "version": "7",
+      "when": 1795059338803,
+      "tag": "0463_workflow_execution_logs_late_end_index",
+      "breakpoints": true
     }
   ]
 }

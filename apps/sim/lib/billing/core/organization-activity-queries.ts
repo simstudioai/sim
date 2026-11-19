@@ -12,6 +12,7 @@ import {
   ACTIVITY_PAGE_SIZE,
   type ActivityAggregate,
   type ActivityDimension,
+  type ActivityMetrics,
   type ActivityScope,
   type ActivitySort,
   type ActivityStretch,
@@ -22,6 +23,7 @@ import {
 import { usageWindowSegments } from '@/lib/billing/core/usage-analytics'
 import { readThroughSegments } from '@/lib/billing/core/usage-segment-cache'
 import { assertValidTimezone } from '@/lib/core/utils/timezone'
+import type { DbTransaction } from '@/lib/db/types'
 
 export async function readActivityWorkspace(organizationId: string, workspaceId: string) {
   const [row] = await dbReplica
@@ -51,6 +53,13 @@ function activitySources(scope: ActivityScope) {
       AND l.started_at >= ${start} AND l.started_at < ${end}
       ${scope.workspaceId ? sql`AND l.workspace_id = ${scope.workspaceId}` : sql``}
   `
+  return { workflows, chats: chatActivityRuns(scope) }
+}
+
+/** Chat runs of the scope's window: one per execution, at its first retained start. */
+function chatActivityRuns(scope: ActivityScope) {
+  const start = sql`(${scope.start.toISOString()}::timestamptz AT TIME ZONE 'UTC')`
+  const end = sql`(${scope.end.toISOString()}::timestamptz AT TIME ZONE 'UTC')`
   /** Separate ownership branches let Postgres use the workspace and organization chat indexes. */
   const workspaceChats = sql`
     SELECT c.id, c.workspace_id FROM ${copilotChats} c
@@ -63,7 +72,7 @@ function activitySources(scope: ActivityScope) {
     : sql`${workspaceChats} UNION ALL
         SELECT c.id, c.workspace_id FROM ${copilotChats} c
         WHERE c.organization_id = ${scope.organizationId}`
-  const chats = sql`
+  return sql`
     SELECT DISTINCT ON (r.execution_id)
       c.workspace_id, r.user_id AS member_id, r.started_at
     FROM ${copilotRuns} r
@@ -75,11 +84,23 @@ function activitySources(scope: ActivityScope) {
       )
     ORDER BY r.execution_id, r.started_at, r.id
   `
-  return { workflows, chats }
+}
+
+/**
+ * Chat runs grouped by a breakdown's keys. `extra` names the columns the caller's workflow groups
+ * add after the counts, as zero for chats.
+ */
+export function chatActivityGroups(scope: ActivityScope, keys: SQL, extra: SQL) {
+  return sql`
+    SELECT ${keys}, 0::bigint AS "workflowRuns", 0::bigint AS completed, 0::bigint AS failed,
+      count(*) AS "chatRuns", count(DISTINCT a.member_id) AS "chatMembers",
+      ${extra}
+    FROM (${chatActivityRuns(scope)}) a GROUP BY 1, 2
+  `
 }
 
 function activityGroups(scope: ActivityScope, keys: SQL, dimension?: ActivityDimension) {
-  const { workflows, chats } = activitySources(scope)
+  const { workflows } = activitySources(scope)
   const workflowGroups = sql`
     SELECT ${keys}, count(*) AS "workflowRuns",
       count(*) FILTER (WHERE a.status = 'completed') AS completed,
@@ -88,12 +109,7 @@ function activityGroups(scope: ActivityScope, keys: SQL, dimension?: ActivityDim
       avg(a.duration_ms) AS "averageDurationMs"
     FROM (${workflows}) a GROUP BY 1, 2
   `
-  const chatGroups = sql`
-    SELECT ${keys}, 0::bigint AS "workflowRuns", 0::bigint AS completed, 0::bigint AS failed,
-      count(*) AS "chatRuns", count(DISTINCT a.member_id) AS "chatMembers",
-      NULL::numeric AS "averageDurationMs"
-    FROM (${chats}) a GROUP BY 1, 2
-  `
+  const chatGroups = chatActivityGroups(scope, keys, sql`NULL::numeric AS "averageDurationMs"`)
   if (dimension === 'member') return chatGroups
   if (dimension === 'workflow' || dimension === 'trigger') return workflowGroups
   return sql`(${workflowGroups}) UNION ALL (${chatGroups})`
@@ -134,19 +150,19 @@ type ActivityHourRow = Record<string, unknown> & {
   inFlight: string | number
 }
 
-/** Workflow and chat activity per local hour of the viewer (`YYYY-MM-DDTHH`), for one range. */
+/**
+ * Activity per local hour of the viewer (`YYYY-MM-DDTHH`), for one range: workflows and chats,
+ * or chats alone for a reader that takes workflow runs from the rollup.
+ */
 async function readActivityByHour(
   scope: ActivityScope,
-  timezone: string
+  timezone: string,
+  { workflows: includeWorkflows = true }: { workflows?: boolean } = {}
 ): Promise<Map<string, ActivityStretch>> {
   assertValidTimezone(timezone)
   const { workflows, chats } = activitySources(scope)
   const hour = sql`date_trunc('hour', (a.started_at AT TIME ZONE 'UTC') AT TIME ZONE ${timezone})`
-  /** Members as JSON: the pool skips type fetching, so a `text[]` would arrive unparsed. */
-  const rows = await dbReplica.execute<ActivityHourRow>(sql`
-    SELECT to_char(g.hour, 'YYYY-MM-DD"T"HH24') AS hour, g."workflowRuns", g.completed, g.failed,
-      g."durationSum", g."durationCount", g."chatRuns", g."chatMembers", g."inFlight"
-    FROM (
+  const workflowHours = sql`
       SELECT ${hour} AS hour, count(*) AS "workflowRuns",
         count(*) FILTER (WHERE a.status = 'completed') AS completed,
         count(*) FILTER (WHERE a.status = 'failed') AS failed,
@@ -154,13 +170,20 @@ async function readActivityByHour(
         count(a.duration_ms) AS "durationCount",
         0::bigint AS "chatRuns", '[]'::jsonb AS "chatMembers",
         count(*) FILTER (WHERE a.status NOT IN ('completed', 'failed', 'cancelled')) AS "inFlight"
-      FROM (${workflows}) a GROUP BY 1
-      UNION ALL
-      SELECT ${hour} AS hour, 0, 0, 0, 0, 0, count(*),
-        coalesce(jsonb_agg(DISTINCT a.member_id) FILTER (WHERE a.member_id IS NOT NULL), '[]'::jsonb),
-        0
-      FROM (${chats}) a GROUP BY 1
-    ) g
+      FROM (${workflows}) a GROUP BY 1`
+  const chatHours = sql`
+      SELECT ${hour} AS hour, 0 AS "workflowRuns", 0 AS completed, 0 AS failed,
+        0 AS "durationSum", 0 AS "durationCount", count(*) AS "chatRuns",
+        coalesce(jsonb_agg(DISTINCT a.member_id) FILTER (WHERE a.member_id IS NOT NULL), '[]'::jsonb)
+          AS "chatMembers",
+        0 AS "inFlight"
+      FROM (${chats}) a GROUP BY 1`
+  const halves = includeWorkflows ? [workflowHours, chatHours] : [chatHours]
+  /** Members as JSON: the pool skips type fetching, so a `text[]` would arrive unparsed. */
+  const rows = await dbReplica.execute<ActivityHourRow>(sql`
+    SELECT to_char(g.hour, 'YYYY-MM-DD"T"HH24') AS hour, g."workflowRuns", g.completed, g.failed,
+      g."durationSum", g."durationCount", g."chatRuns", g."chatMembers", g."inFlight"
+    FROM (${sql.join(halves, sql` UNION ALL `)}) g
   `)
 
   /** The workflow and chat halves of an hour arrive as two rows. */
@@ -208,19 +231,64 @@ export function readActivityDays(
   })
 }
 
-/** Aggregation and pagination happen in Postgres; no run history is materialized in the app. */
-export async function readActivityBreakdown(
+/**
+ * Chat activity alone across the scope's window, as `[day, activity]` entries, through the same
+ * segment cache under its own namespace, for a reader that takes workflow runs from the rollup.
+ */
+export function readChatActivityDays(
   scope: ActivityScope,
-  dimension: ActivityDimension,
-  sort: ActivitySort,
-  page: number
-) {
+  timezone: string
+): Promise<[string, ActivityStretch][]> {
+  return readThroughSegments<ActivityStretch>({
+    namespace: `activity-chat:${scope.organizationId}:${scope.workspaceId ?? '*'}:${timezone}`,
+    segments: usageWindowSegments({ kind: 'range', from: scope.start, to: scope.end }, timezone, {
+      settleMs: ACTIVITY_SETTLE_MS,
+    }),
+    empty: EMPTY_ACTIVITY_STRETCH,
+    combine: combineActivity,
+    ttlMs: ACTIVITY_SEGMENT_TTL_MS,
+    fetchRange: (start, end) =>
+      readActivityByHour({ ...scope, start, end }, timezone, { workflows: false }),
+  })
+}
+
+/** The keys a breakdown groups by: the dimension's id, and the workspace for workspace rows. */
+export function activityBreakdownKeys(dimension: ActivityDimension): SQL {
   const id = {
     workspace: sql`coalesce(a.workspace_id, 'organization')`,
     workflow: sql`coalesce(a.workflow_id, 'deleted:' || a.workspace_id)`,
     member: sql`a.member_id`,
     trigger: sql`a.trigger`,
   }[dimension]
+  const hasWorkspace = dimension === 'workspace' || dimension === 'workflow'
+  const workspaceId = hasWorkspace ? sql`a.workspace_id` : sql`NULL::text`
+  return sql`${id} AS id, ${workspaceId} AS "workspaceId"`
+}
+
+export interface ActivityBreakdownPage {
+  rows: (ActivityMetrics & {
+    id: string
+    label: string
+    workspaceId: string | null
+    workspaceName: string | null
+    image?: string
+  })[]
+  hasMore: boolean
+}
+
+/**
+ * Names, ranks, and pages grouped activity in the same statement: `activity` holds the groups
+ * by {@link activityBreakdownKeys}, and `aggregates` folds a group's rows into the counts and
+ * `"averageDurationMs"`. Ties are ordered by label and id, under the database's collation.
+ */
+export async function pageActivityBreakdown(
+  executor: Pick<DbTransaction, 'execute'>,
+  activity: SQL,
+  aggregates: SQL,
+  dimension: ActivityDimension,
+  sort: ActivitySort,
+  page: number
+): Promise<ActivityBreakdownPage> {
   const label = {
     workspace: sql`coalesce(w.name, 'Organization chats')`,
     workflow: sql`coalesce(f.name, 'Deleted workflows')`,
@@ -228,7 +296,6 @@ export async function readActivityBreakdown(
     trigger: sql`a.id`,
   }[dimension]
   const hasWorkspace = dimension === 'workspace' || dimension === 'workflow'
-  const workspaceId = hasWorkspace ? sql`a.workspace_id` : sql`NULL::text`
   const workspaceName = hasWorkspace ? sql`w.name` : sql`NULL::text`
   const image = dimension === 'member' ? sql`u.image` : sql`NULL::text`
   const order = {
@@ -236,7 +303,7 @@ export async function readActivityBreakdown(
     failures: sql`failed DESC`,
     duration: sql`"averageDurationMs" DESC NULLS LAST`,
   }[sort]
-  const rows = await dbReplica.execute<
+  const rows = await executor.execute<
     ActivityAggregate & {
       id: string
       label: string
@@ -245,11 +312,7 @@ export async function readActivityBreakdown(
       image: string | null
     }
   >(sql`
-    WITH activity AS (${activityGroups(
-      scope,
-      sql`${id} AS id, ${workspaceId} AS "workspaceId"`,
-      dimension
-    )}), grouped AS (
+    WITH activity AS (${activity}), grouped AS (
       SELECT a.id, a."workspaceId", ${aggregates}
       FROM activity a
       GROUP BY 1, 2
@@ -274,4 +337,21 @@ export async function readActivityBreakdown(
     })),
     hasMore: rows.length > ACTIVITY_PAGE_SIZE,
   }
+}
+
+/** Aggregation and pagination happen in Postgres; no run history is materialized in the app. */
+export function readActivityBreakdown(
+  scope: ActivityScope,
+  dimension: ActivityDimension,
+  sort: ActivitySort,
+  page: number
+): Promise<ActivityBreakdownPage> {
+  return pageActivityBreakdown(
+    dbReplica,
+    activityGroups(scope, activityBreakdownKeys(dimension), dimension),
+    aggregates,
+    dimension,
+    sort,
+    page
+  )
 }
