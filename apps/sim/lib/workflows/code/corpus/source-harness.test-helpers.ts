@@ -28,7 +28,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const hooks = createMaterializeHooks()
 
-export const FUZZ_META = { name: 'Fidelity fuzz', description: null }
+const FUZZ_META = { name: 'Fidelity fuzz', description: null }
 
 /** What `source get` answers for a stored state. */
 export interface GotSource {

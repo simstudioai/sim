@@ -573,10 +573,7 @@ export function applyCanvasOp(state: WorkflowState, op: CanvasOp): AppliedCanvas
       return { state: { ...state, blocks: decision.blocks }, declined: false }
     }
     case 'engine': {
-      const result = applyOperationsToWorkflowState(
-        state as unknown as Record<string, unknown>,
-        op.operations
-      )
+      const result = applyOperationsToWorkflowState({ ...state }, op.operations)
       const validation = validateWorkflowState(result.state, { sanitize: true })
       if (!validation.valid) return { state, declined: true }
       const edited = (validation.sanitizedState ?? result.state) as WorkflowState

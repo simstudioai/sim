@@ -489,13 +489,19 @@ function freshIds(state: WorkflowState): WorkflowState {
  */
 function byName(graph: Awaited<ReturnType<typeof readGraph>>) {
   const nameOf = new Map(Object.values(graph.blocks).map((b) => [b.id, b.name]))
-  const swapIds = (value: unknown): unknown =>
-    JSON.parse(
-      JSON.stringify(value ?? null).replace(
-        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
-        (id) => nameOf.get(id) ?? 'id'
-      )
+  const swapText = (text: string) =>
+    text.replace(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
+      (id) => nameOf.get(id) ?? 'id'
     )
+  const swapIds = (value: unknown): unknown => {
+    if (typeof value === 'string') return swapText(value)
+    if (Array.isArray(value)) return value.map(swapIds)
+    if (value === null || typeof value !== 'object') return value
+    return Object.fromEntries(
+      Object.entries(value).map(([key, member]) => [swapText(key), swapIds(member)])
+    )
+  }
   const blocks: Record<string, unknown> = {}
   for (const b of Object.values(graph.blocks)) {
     const data = omit(b.data ?? {}, ['width', 'height'])
