@@ -290,21 +290,29 @@ export const AppCommandSchema = z.discriminatedUnion("name", [
       "Group name; an existing group with this name is returned instead of a duplicate.",
     ),
   }),
-  z.strictObject({
-    name: z.literal("create_contact"),
-    givenName: z.string().max(1024).optional(),
-    familyName: z.string().max(1024).optional(),
-    organization: z.string().max(1024).optional(),
-    jobTitle: z.string().max(1024).optional(),
-    emails: z.array(z.string().min(3).max(320)).max(5).optional(),
-    phones: z.array(z.string().min(1).max(64)).max(5).optional(),
-    groupId: z
-      .string()
-      .min(1)
-      .max(256)
-      .optional()
-      .describe("An id from list_contact_groups or create_contact_group."),
-  }),
+  z
+    .strictObject({
+      name: z.literal("create_contact"),
+      givenName: z.string().max(1024).optional(),
+      familyName: z.string().max(1024).optional(),
+      organization: z.string().max(1024).optional(),
+      jobTitle: z.string().max(1024).optional(),
+      emails: z.array(z.string().min(3).max(320)).max(5).optional(),
+      phones: z.array(z.string().min(1).max(64)).max(5).optional(),
+      groupId: z
+        .string()
+        .min(1)
+        .max(256)
+        .optional()
+        .describe("An id from list_contact_groups or create_contact_group."),
+    })
+    .refine(
+      (contact) =>
+        Boolean(contact.givenName?.trim() || contact.familyName?.trim() || contact.organization?.trim()),
+      {
+        message: "A contact needs a name or an organization",
+      },
+    ),
 ]);
 export type AppCommand = z.infer<typeof AppCommandSchema>;
 
