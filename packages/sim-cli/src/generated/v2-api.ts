@@ -19171,7 +19171,7 @@ export const V2_OPERATIONS = {
       blobs: {
         kind: 'array',
         describe:
-          'Binary files by path, with the SHA-256 and size of their bytes. Stage the bytes a write needs first (Stage Workspace Source Blobs); an apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.',
+          'Binary files by path, with the SHA-256 and size of their bytes. Their bytes must be staged first: `sim workspaces source apply` stages them, or upload them to `POST /api/v2/workspaces/{workspaceId}/source/blobs` (not available over MCP). An apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.',
       },
       base: {
         kind: 'object',
