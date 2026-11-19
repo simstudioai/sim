@@ -112,9 +112,9 @@ export interface DeploymentPlan {
   basePasswordEnv?: string
   /**
    * The stored chat's output block names at plan time, by the block id the chat stores. The
-   * workflow writes first, and may rename or re-create those blocks, so `storedFingerprintNow` reads each
-   * output by this name, as the plan did: the check compares the block ids the chat stores, and an
-   * output re-pointed at another block since the plan still moves the fingerprint.
+   * workflow writes first, and may rename or re-create those blocks, so `storedFingerprintNow`
+   * reads each output by this name, as the plan did: the check compares the block ids the chat
+   * stores, and an output re-pointed at another block since the plan still moves the fingerprint.
    */
   plannedOutputNames?: Record<string, string>
 }
@@ -328,9 +328,10 @@ async function checkChat(
  * outputs by block id, so an edit that deletes a block and adds one under the same name leaves
  * it answering from a block that no longer exists. Every output whose block is still there is
  * fine. One whose block is gone is re-created when exactly one block of the edited graph has its
- * name: counted, so the chat is written again, its outputs resolved to that block. When several share it, it refuses (`E_DEPLOY_CHAT_OUTPUT`). A kept chat
- * declares the names it stores, so one no block has is refused by {@link checkChat}'s name
- * check, which runs as well; both before anything goes live.
+ * name: counted, so the chat is written again, its outputs resolved to that block. When several
+ * share it, it refuses (`E_DEPLOY_CHAT_OUTPUT`). A kept chat declares the names it stores, so one
+ * no block has is refused by {@link checkChat}'s name check, which runs as well; both before
+ * anything goes live.
  */
 function checkKeptOutputs(
   change: DeploymentChange,
@@ -509,8 +510,8 @@ async function planDeployment(
 }
 
 /** The deployment's idempotency key: its fingerprint, workflow and the live version it replaces. */
-function idempotencyKey(change: DeploymentChange, workflowId: string, live: string | null) {
-  const local = change.decl ? fingerprintOf(deploymentCodec.canonical(change.decl)) : null
+function idempotencyKey(decl: DeploymentDecl, workflowId: string, live: string | null) {
+  const local = fingerprintOf(deploymentCodec.canonical(decl))
   return `workspace-source:${sha256Hex(JSON.stringify([workflowId, local, live]))}`
 }
 
@@ -518,7 +519,7 @@ function idempotencyKey(change: DeploymentChange, workflowId: string, live: stri
  * Deploys the draft unless it already is the live version: a re-run after a deploy that
  * succeeded finds nothing to publish, and one after a deploy that failed replays the same key.
  */
-async function deployDraft(change: DeploymentChange, workflowId: string, ctx: ApplyContext) {
+async function deployDraft(decl: DeploymentDecl, workflowId: string, ctx: ApplyContext) {
   const { principal } = ctx
   const status = await readWorkflowDeploymentStatus.execute({ principal, input: { workflowId } })
   if (status.isDeployed && !status.needsRedeployment) return
@@ -528,7 +529,7 @@ async function deployDraft(change: DeploymentChange, workflowId: string, ctx: Ap
       workflowId,
       requestId: generateRequestId(),
       idempotencyKey: idempotencyKey(
-        change,
+        decl,
         workflowId,
         status.activeDeployment?.deploymentVersionId ?? null
       ),
@@ -811,15 +812,20 @@ export const deploymentAdapter: KindAdapter<'deployment', StoredDeployment> = {
         input: { workflowId, isPublicApi: detail.publicApi },
       })
     }
-    if (detail.deploy) await deployDraft(change, workflowId, ctx)
+    if (detail.deploy) await deployDraft(decl, workflowId, ctx)
     if (chatInput) await replaceWorkflowChatDeployment.execute({ principal, input: chatInput })
     if (detail.chat === 'delete') {
       await deleteWorkflowChatDeployment.execute({ principal, input: { workflowId } })
     }
     const state = await readDeployment(ctx, workflowId)
     if (!state) throw new Error('A deployed workflow read back as not deployed')
+    // A deleted chat has no password left for the base to record a variable for.
     const passwordEnv =
-      detail.chat === 'replace' ? declaredPasswordEnv(decl) : detail.basePasswordEnv
+      detail.chat === 'replace'
+        ? declaredPasswordEnv(decl)
+        : detail.chat === 'delete'
+          ? undefined
+          : detail.basePasswordEnv
     const written = declOf(state, { live: decl.live, passwordEnv })
     return {
       id: workflowId,

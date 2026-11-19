@@ -391,6 +391,8 @@ describe('workspace source: deployments', () => {
       { base: renamed.base }
     )
     expect(removed.failed).toBeUndefined()
+    expect(renamed.base.resources['deployment:nightly']).toHaveProperty('x-passwordEnv', 'CHAT_PW')
+    expect(removed.base.resources['deployment:nightly']).not.toHaveProperty('x-passwordEnv')
     expect((await deployState(id)).chat).toBeUndefined()
     expect((await deployState(id)).isDeployed).toBe(true)
   })
