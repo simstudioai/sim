@@ -357,7 +357,7 @@ async function compileWorkflowDir(
     catalog,
     sdkMajor: catalog.sdkMajor,
     knownKeys: new Set(Object.keys(lock?.blocks ?? {})),
-    storedUnread: true,
+    storedUnread: lock ?? undefined,
     ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
   })
   return { lock, files, compiled }

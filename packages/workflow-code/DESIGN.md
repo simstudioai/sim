@@ -325,7 +325,8 @@ Compile also refuses or flags source the runtime would silently mishandle:
   is not in the run graph and breaks one); repetition is `loop()`/`parallel()`. A cycle made only
   of edges the stored workflow holds is `W_EDGE_CYCLE`, so stored state keeps round-tripping
   (`storedUnread`, the CLI's offline check, which has the lock but not the stored workflow, takes
-  every edge between two bound blocks as one it may hold; the same goes for `W_ERROR_PORT_STORED`);
+  every edge between two blocks its lock binds, by key or by ident for a block renamed in source,
+  as one it may hold; the same goes for `W_ERROR_PORT_STORED`);
 - a reference into an agent whose `responseFormat` declares its fields names a declared field or
   a static output (`W_UNKNOWN_OUTPUT_PATH` otherwise); a format with references inside is unread;
 - a dropdown value outside its static options is `W_UNKNOWN_OPTION`, a `model` the catalog does

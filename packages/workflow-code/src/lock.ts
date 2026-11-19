@@ -626,3 +626,28 @@ export type SourceHintBlock = Partial<Pick<WorkflowLockBlock, 'ident' | 'order' 
 export interface SourceHints {
   blocks: Record<BlockKey, SourceHintBlock>
 }
+
+/**
+ * Lock keys the source renamed, old → new: a source block under a key `isStored` rejects whose
+ * ident is that of exactly one lock entry, a stored block's, whose key is gone from the source.
+ * This is materialize's `lock-ident` identity rule, so a compile that pairs source blocks with
+ * stored ones by key agrees with materialize on which stored block a renamed one continues.
+ */
+export function lockIdentRenames(
+  hints: SourceHints,
+  lock: WorkflowLockV1,
+  isStored: (key: BlockKey) => boolean
+): Map<BlockKey, BlockKey> {
+  const vacated = new Map<string, BlockKey[]>()
+  for (const [key, entry] of Object.entries(lock.blocks)) {
+    if (Object.hasOwn(hints.blocks, key) || !isStored(key)) continue
+    vacated.set(entry.ident, [...(vacated.get(entry.ident) ?? []), key])
+  }
+  const renames = new Map<BlockKey, BlockKey>()
+  for (const [key, hint] of Object.entries(hints.blocks)) {
+    if (isStored(key) || hint.ident === undefined) continue
+    const candidates = vacated.get(hint.ident)
+    if (candidates?.length === 1) renames.set(candidates[0], key)
+  }
+  return renames
+}

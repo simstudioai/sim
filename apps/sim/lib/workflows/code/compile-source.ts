@@ -3,37 +3,12 @@ import {
   type CanonicalWorkflow,
   type CompileResult,
   compileWorkflow,
+  lockIdentRenames,
   setOwn,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
 
 type CompileInput = Parameters<typeof compileWorkflow>[0]
-
-/**
- * Stored keys the source renamed, old → new: a source block under a key the stored workflow lacks
- * whose ident is the one lock entry's, while that entry's stored key is gone from the source.
- * This is materialize's `lock-ident` identity rule, so compile and materialize agree on which
- * stored block a renamed one continues.
- */
-function renamedStoredKeys(
-  compiled: CompileResult,
-  lock: WorkflowLockV1,
-  stored: CanonicalWorkflow
-): Map<BlockKey, BlockKey> {
-  const sourceKeys = new Set(Object.keys(compiled.hints.blocks))
-  const vacated = new Map<string, BlockKey[]>()
-  for (const [key, entry] of Object.entries(lock.blocks)) {
-    if (sourceKeys.has(key) || !Object.hasOwn(stored.blocks, key)) continue
-    vacated.set(entry.ident, [...(vacated.get(entry.ident) ?? []), key])
-  }
-  const renames = new Map<BlockKey, BlockKey>()
-  for (const [key, hint] of Object.entries(compiled.hints.blocks)) {
-    if (Object.hasOwn(stored.blocks, key) || hint.ident === undefined) continue
-    const candidates = vacated.get(hint.ident)
-    if (candidates?.length === 1) renames.set(candidates[0], key)
-  }
-  return renames
-}
 
 /** `stored` with each renamed block under its new key, its children and edges following it. */
 function rekeyStored(
@@ -76,7 +51,9 @@ export function compileSource(
 ): SourceCompileResult {
   const { lock, ...compileInput } = input
   const first = compileWorkflow(compileInput)
-  const renames = renamedStoredKeys(first, lock, input.stored)
+  const renames = lockIdentRenames(first.hints, lock, (key) =>
+    Object.hasOwn(input.stored.blocks, key)
+  )
   if (renames.size === 0) return { ...first, stored: input.stored }
   const stored = rekeyStored(input.stored, renames)
   return { ...compileWorkflow({ ...compileInput, stored }), stored }

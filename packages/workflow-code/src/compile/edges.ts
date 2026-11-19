@@ -63,7 +63,12 @@ export class EdgeCollector {
 
   constructor(
     private readonly ctx: CompileContext,
-    private readonly blocks: ReadonlyMap<string, CanonicalBlock>
+    private readonly blocks: ReadonlyMap<string, CanonicalBlock>,
+    /**
+     * Under `CompileInput.storedUnread`, the source keys of the blocks its lock binds, renamed
+     * ones included; `undefined` when the compile holds the stored workflow or continues none.
+     */
+    private readonly unreadBound: ReadonlySet<BlockKey> | undefined
   ) {
     for (const decl of ctx.decls) {
       if (decl.duplicate) continue
@@ -256,7 +261,7 @@ export class EdgeCollector {
         rangeOf(this.ctx, node),
         {
           hint:
-            fresh.length === 0 && this.ctx.storedUnread
+            fresh.length === 0 && this.unreadBound
               ? `An apply keeps this cycle only if the stored workflow already holds each of its edges. To make the blocks run, ${back.charAt(0).toLowerCase()}${back.slice(1)} and repeat work with loop() or parallel() around them.`
               : `${back}, and repeat work with loop() or parallel() around the blocks instead.`,
           blockKey: edge.from,
@@ -300,10 +305,10 @@ export class EdgeCollector {
 
   /**
    * Whether an edge between `from` and `to` may be one the stored workflow holds although this
-   * compile cannot read it (`CompileInput.storedUnread`): both ends are blocks bound to stored ids.
+   * compile cannot read it (`CompileInput.storedUnread`): both ends are blocks its lock binds.
    */
   private maybeStored(from: BlockKey, to: BlockKey): boolean {
-    return this.ctx.storedUnread && this.ctx.knownKeys.has(from) && this.ctx.knownKeys.has(to)
+    return this.unreadBound?.has(from) === true && this.unreadBound.has(to)
   }
 
   /**

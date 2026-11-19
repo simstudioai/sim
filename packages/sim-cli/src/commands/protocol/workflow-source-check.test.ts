@@ -173,6 +173,12 @@ const STORED_SHAPES = [
   '',
 ].join('\n')
 
+/** `STORED_SHAPES` with the loop and the self-wired block renamed, their idents kept. */
+const STORED_SHAPES_RENAMED = STORED_SHAPES.replace(
+  "loop.for('L',",
+  "loop.for('Retry Loop',"
+).replace("api('A',", "api('Alpha',")
+
 function writeLock(keys: readonly string[]): void {
   writeFileSync(
     join(dir, '.sim/lock.json'),
@@ -420,6 +426,32 @@ describe('sim workflows source check', () => {
     await checkIn(dir, '--strict')
     expect(result()).toMatchObject({ errors: 0 })
     expect(process.exitCode).toBeUndefined()
+  })
+
+  it('passes that stored state on blocks renamed in source, which keep their lock ident', async () => {
+    cacheCatalog()
+    writeFileSync(join(dir, 'workflow.ts'), STORED_SHAPES_RENAMED)
+    writeLock(['start', 'l', 'inner', 'fallback', 'a', 'route'])
+
+    await check()
+    expect(stderr()).toMatch(/warning W_ERROR_PORT_STORED/)
+    expect(stderr()).toMatch(/warning W_EDGE_CYCLE/)
+    expect(result()).toMatchObject({ errors: 0 })
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('refuses that stored state on renamed blocks whose ident the lock does not hold', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      STORED_SHAPES_RENAMED.replace(/\bl\b/g, 'retry').replace(/\ba\b/g, 'alpha')
+    )
+    writeLock(['start', 'l', 'inner', 'fallback', 'a', 'route'])
+
+    await check()
+    expect(stderr()).toMatch(/error E_ERROR_PORT_UNSUPPORTED/)
+    expect(stderr()).toMatch(/error E_EDGE_CYCLE/)
+    expect(process.exitCode).toBe(1)
   })
 
   it('refuses a loop error edge and a cycle on blocks the lock does not bind', async () => {

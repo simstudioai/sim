@@ -77,6 +77,7 @@ export {
   jsonInput,
   type LockExtensionKey,
   type LockIdentity,
+  lockIdentRenames,
   parseSourceBase,
   parseWorkflowLock,
   pointerSegment,
