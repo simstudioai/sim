@@ -835,7 +835,9 @@ export const deploymentAdapter: KindAdapter<'deployment', StoredDeployment> = {
     if (!decl) {
       throw new OrchestrationError(
         'validation',
-        'Its chat answers with a block the draft no longer has, which source cannot name.'
+        state.chat?.authType === null
+          ? 'Its chat gates access in a way source cannot name (public, password, emails or SSO).'
+          : 'Its chat answers with a block the draft no longer has, which source cannot name.'
       )
     }
     return {

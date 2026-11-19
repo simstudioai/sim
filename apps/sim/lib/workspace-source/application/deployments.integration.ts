@@ -396,6 +396,43 @@ describe('workspace source: deployments', () => {
   })
 
   check(
+    'a chat stored with an auth type source cannot name is left out of a get and never rewritten as public',
+    async () => {
+      const { workspaceId, id, files, base } = await deployedWorkspace()
+      const created = await apply(
+        workspaceId,
+        { ...files, [DEPLOYMENT]: answerChat('gated-chat') },
+        { base }
+      )
+      expect(created.failed).toBeUndefined()
+      await db.update(chat).set({ authType: 'magic-link' }).where(eq(chat.workflowId, id))
+
+      const read = await runner.get(workspaceId)
+      expect(read.files[DEPLOYMENT]).toBeUndefined()
+      expect(read.skipped).toContainEqual(
+        expect.objectContaining({ kind: 'deployment', key: 'nightly' })
+      )
+
+      const retitled = await refusal(
+        apply(
+          workspaceId,
+          {
+            ...files,
+            ...created.files,
+            [DEPLOYMENT]: created.files[DEPLOYMENT].replace("title: 'Answers'", "title: 'Asked'"),
+          },
+          { base: created.base }
+        )
+      )
+      expect(codes(retitled.diagnostics)).toEqual(['E_APPLY_STALE'])
+      expect((await deployState(id)).chat).toMatchObject({
+        title: 'Answers',
+        authType: 'magic-link',
+      })
+    }
+  )
+
+  check(
     'refuses at plan time a chat output naming a block the edit removes, deploying nothing',
     async () => {
       const answering = withChat(
