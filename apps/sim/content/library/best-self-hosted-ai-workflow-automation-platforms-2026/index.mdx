@@ -5,7 +5,7 @@ description: 'Compare the best self hosted AI workflow automation platforms for 
 seoTitle: 'Best Self Hosted AI Workflow Platforms 2026'
 seoDescription: 'Compare self hosted AI workflow platforms by license, deployment, air gapped fit, controls, local models, data residency, and cost.'
 date: 2026-09-24
-updated: 2026-11-03
+updated: 2026-11-18
 authors:
   - andrew
 readingTime: 17
@@ -142,6 +142,8 @@ Sim's main differentiator is not merely that its core source is visible: [Apache
 [Sim is designed to build, deploy, and monitor AI agents and workflows](https://github.com/simstudioai/sim). Teams can visually compose workflow steps, connect supported model providers and tools, and self-host the platform in infrastructure they control.
 
 [A self hosted Sim deployment](https://docs.sim.ai/platform/self-hosting) can connect to Ollama, vLLM, LM Studio through a compatible endpoint, or LiteLLM without requiring Sim Enterprise, but local or private model access does not make every deployment offline or air gapped. Teams with those requirements should confirm architecture, support, security, and networking details before procurement.
+
+To try Sim on your own infrastructure, follow the [Docker Compose setup](https://docs.sim.ai/platform/self-hosting) and import the [sample routing workflow](#run-the-same-support-routing-workflow-on-sim-and-n8n). Open it from **Workflows** in your workspace sidebar and test a valid and an invalid input. The [workflow builder overview](/workflows) previews how to connect blocks and deploy a workflow.
 
 **Why Sim fits these priorities**
 
@@ -325,6 +327,24 @@ Self hosting is attractive when teams need to control deployment location, netwo
 The tradeoff is that the buyer becomes responsible for platform reliability. Required work can include patching, vulnerability management, backups, database maintenance, scaling, secrets, monitoring, incident response, model provider management, and support for workflow authors.
 
 The selection therefore depends on both product capabilities and the team that will operate them. Sim’s [workflow automation buyer’s checklist](https://www.sim.ai/library/ai-workflow-automation-platform-buyers-checklist) provides a structured way to test those requirements.
+
+## Run the same support routing workflow on Sim and n8n
+
+This example routes a sample request using its priority. It uses two blocks in Sim and two nodes in n8n, with no model calls or external integrations. You can use the same inputs to check a successful run and find the failed step on each platform.
+
+1. In Sim, download the [Sim workflow JSON](/library/best-self-hosted-ai-workflow-automation-platforms-2026/support-routing-sim.json). [Import it into a test workspace](https://docs.sim.ai/cli/workflows#import-workflow), [deploy it](https://docs.sim.ai/workflows/deployment), then [call the execution API](https://docs.sim.ai/api-reference/getting-started#quick-start) with `{"input":{"priority":"urgent"}}`. Read the routing decision at `data.output.result.queue`.
+2. In n8n, download the [n8n workflow JSON](/library/best-self-hosted-ai-workflow-automation-platforms-2026/support-routing-n8n.json). [Import the workflow](https://docs.n8n.io/deploy/host-n8n/configure-n8n/use-the-command-line.md#import-workflows-and-credentials), publish it on a local test instance, and POST `{"priority":"urgent"}` to the [Webhook node's production URL](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook#webhook-urls). Read the decision at `queue`. The bundled webhook is for local testing. Configure authentication before exposing it to a network.
+3. Repeat with `"normal"` and `"invalid"`. On Sim, inspect `data.status` and the **Route request** block in Logs. On n8n, open the matching run under **Executions** and inspect the **Route request** node.
+
+We ran these inputs on local Docker installations of Sim v0.9.62 and n8n 2.48.5.
+
+| Priority | Sim execution API | n8n webhook |
+| --- | --- | --- |
+| `urgent` | Completed, `escalations` | HTTP 200, `escalations` |
+| `normal` | Completed, `support` | HTTP 200, `support` |
+| `invalid` | Run status `failed`, with a Function block error | HTTP 500, with the Code node error in Executions |
+
+This test covers routing and how each platform reports a workflow failure. It uses a small fixed input and makes no claims about AI output quality or throughput.
 
 ## Which self-hosted AI workflow automation platform should you choose?
 

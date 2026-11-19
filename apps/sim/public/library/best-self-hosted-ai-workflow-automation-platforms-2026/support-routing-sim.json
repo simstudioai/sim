@@ -1,0 +1,88 @@
+{
+  "version": "1.0",
+  "state": {
+    "blocks": {
+      "start": {
+        "id": "start",
+        "type": "start_trigger",
+        "name": "Start",
+        "position": {
+          "x": 100,
+          "y": 120
+        },
+        "subBlocks": {
+          "inputFormat": {
+            "id": "inputFormat",
+            "type": "input-format",
+            "value": [
+              {
+                "id": "priority",
+                "name": "priority",
+                "type": "string",
+                "value": "urgent",
+                "collapsed": false
+              }
+            ]
+          }
+        },
+        "outputs": {},
+        "enabled": true,
+        "horizontalHandles": true,
+        "height": 0,
+        "advancedMode": false,
+        "errorEnabled": false,
+        "triggerMode": false,
+        "data": {},
+        "locked": false
+      },
+      "route": {
+        "id": "route",
+        "type": "function",
+        "name": "Route request",
+        "position": {
+          "x": 450,
+          "y": 120
+        },
+        "subBlocks": {
+          "code": {
+            "id": "code",
+            "type": "code",
+            "value": "const priority = <start.priority>.trim().toLowerCase()\nif (priority !== 'normal' && priority !== 'urgent') {\n  throw new Error('Priority must be normal or urgent')\n}\nreturn { queue: priority === 'urgent' ? 'escalations' : 'support' }"
+          },
+          "language": {
+            "id": "language",
+            "type": "dropdown",
+            "value": "javascript"
+          }
+        },
+        "outputs": {},
+        "enabled": true,
+        "horizontalHandles": true,
+        "height": 0,
+        "advancedMode": false,
+        "errorEnabled": false,
+        "triggerMode": false,
+        "data": {},
+        "locked": false
+      }
+    },
+    "edges": [
+      {
+        "id": "start-to-route",
+        "source": "start",
+        "target": "route",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      }
+    ],
+    "loops": {},
+    "parallels": {},
+    "variables": {},
+    "metadata": {
+      "name": "Route a support request",
+      "description": "Route a sample priority without external services."
+    }
+  }
+}
