@@ -3,7 +3,7 @@ import { activityRollupDirty, activityRollupState, workflowExecutionLogs } from 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq, lt, sql } from 'drizzle-orm'
-import { recomputeCell } from '@/lib/billing/activity-rollup/cells'
+import { boundedTransaction, recomputeCell } from '@/lib/billing/activity-rollup/cells'
 import { floorHour, utcTimestamp } from '@/lib/billing/activity-rollup/source'
 import { type ActivityRollupState, WORKFLOW_ROLLUP_ID } from '@/lib/billing/activity-rollup/state'
 import type { DbTransaction } from '@/lib/db/types'
@@ -64,18 +64,6 @@ export async function markWorkflowActivityDirty(
 }
 
 /**
- * Whether the rollup has ever run, so writers on a deployment that never enabled it can skip
- * marking (and its transaction) entirely. A writer that checked before the first pass created the
- * state leaves nothing stale: the backfill reads every hour it covers after that.
- */
-export async function hasActivityRollupStarted(
-  executor: Pick<DbTransaction, 'execute'>
-): Promise<boolean> {
-  const rows = await executor.execute(sql`SELECT 1 FROM ${activityRollupState} LIMIT 1`)
-  return rows.length > 0
-}
-
-/**
  * Marks the cells of runs that ended at least two hours after they started since the last scan,
  * and moves the scan forward, in one transaction. Their hours were computed before they ended
  * (HITL runs resumed later, cancellations, stale-run sweeps, runs terminalized again, late
@@ -83,7 +71,7 @@ export async function hasActivityRollupStarted(
  * covered wait until they are (see {@link processDirtyMarks}). Returns how many cells were marked.
  */
 export async function captureLateEnds(): Promise<number> {
-  return db.transaction(async (tx) => {
+  return boundedTransaction(async (tx) => {
     const marked = await tx.execute(sql`
       INSERT INTO ${activityRollupDirty} (workspace_id, bucket_start, due_at)
       SELECT DISTINCT l.workspace_id, date_trunc('hour', l.started_at), now()

@@ -1,4 +1,4 @@
-import { dbReplica } from '@sim/db'
+import { dbReplica, runOutsideTransactionContext } from '@sim/db'
 import { workflow, workflowActivityHourly, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { type SQL, sql } from 'drizzle-orm'
@@ -198,11 +198,17 @@ export async function readRollupActivityDays(
   if (scope.end.getTime() - scope.start.getTime() >= (USAGE_WINDOW_MAX_DAYS - 1) * 24 * HOUR_MS) {
     return null
   }
-  const [workflowDays, chatDays] = await Promise.all([
-    readInSnapshot(scope, (tx, plan) => readWorkflowDays(tx, scope, timezone, plan)),
-    timedChatDays(scope, timezone),
-  ])
-  return workflowDays && [...workflowDays, ...chatDays]
+  const served = await readInSnapshot(scope, async (tx, plan) => {
+    /**
+     * Chats are read once the plan shows the rollup can serve, in parallel with the workflow days
+     * and outside the snapshot's transaction. Marked handled at once so a snapshot that fails
+     * first leaves no unhandled rejection; awaiting it below still rethrows.
+     */
+    const chatDays = runOutsideTransactionContext(() => timedChatDays(scope, timezone))
+    chatDays.catch(() => undefined)
+    return { workflowDays: await readWorkflowDays(tx, scope, timezone, plan), chatDays }
+  })
+  return served && [...served.workflowDays, ...(await served.chatDays)]
 }
 
 /** Logs how long the chat branch takes per request, to measure whether chats need a rollup too. */

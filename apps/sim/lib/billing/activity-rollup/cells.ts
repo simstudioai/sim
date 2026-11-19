@@ -147,10 +147,20 @@ export async function aggregateHour(
   }
 }
 
-/** Opens a bounded write on the primary that holds the hour's lock until it commits. */
+/**
+ * Runs `work` in a primary transaction whose statements and lock waits are bounded, so no rollup
+ * statement outlives the pass's budget and lease by much.
+ */
+export function boundedTransaction<T>(work: (tx: DbTransaction) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('statement_timeout', ${WRITE_STATEMENT_TIMEOUT}, true),
+      set_config('lock_timeout', ${WRITE_LOCK_TIMEOUT}, true)`)
+    return work(tx)
+  })
+}
+
+/** Holds the hour's lock until the bounded write that takes it commits. */
 async function lockHour(tx: DbTransaction, hour: Date): Promise<void> {
-  await tx.execute(sql`SELECT set_config('statement_timeout', ${WRITE_STATEMENT_TIMEOUT}, true),
-    set_config('lock_timeout', ${WRITE_LOCK_TIMEOUT}, true)`)
   await acquireAdvisoryXactLock(tx, LOCK_TAG, `workflow:${hour.toISOString()}`)
 }
 
@@ -223,7 +233,7 @@ export async function writeHour<T>(
   cells: ActivityCell[],
   advance: (tx: DbTransaction) => Promise<T>
 ): Promise<T> {
-  return db.transaction(async (tx) => {
+  return boundedTransaction(async (tx) => {
     await lockHour(tx, hour)
     await writeCells(tx, hour, cells)
     return advance(tx)
@@ -239,7 +249,7 @@ export async function recomputeCell(
   hour: Date,
   settle: (tx: DbTransaction, inFlight: number) => Promise<void>
 ): Promise<void> {
-  await db.transaction(async (tx) => {
+  await boundedTransaction(async (tx) => {
     await lockHour(tx, hour)
     const cells = await aggregateRange(
       tx,

@@ -13,6 +13,7 @@ import { randomFloat } from '@sim/utils/random'
 import { and, gte, inArray, lt, max, sql } from 'drizzle-orm'
 import {
   aggregateHour,
+  boundedTransaction,
   inflightBackoffMs,
   recomputeCell,
   writeHour,
@@ -79,15 +80,16 @@ export interface ActivityRollupPassResult {
 }
 
 /**
- * The replica's replay lag in seconds. An idle replica that has replayed everything it received
- * is current, however old its last transaction, and a primary (no replica configured) has none.
+ * The replica's replay lag in seconds: the age of the last transaction it replayed. Read right
+ * after the pass commits its lease, so a replica that is streaming has just replayed that commit,
+ * while one whose WAL receiver is disconnected shows its real age however its LSNs compare. A
+ * primary (no replica configured) has none; a replica that has replayed nothing counts as stale.
  */
 async function readReplicaLagSeconds(): Promise<number> {
   const [row] = await dbReplica.execute<{ lag: number }>(sql`
     SELECT CASE
       WHEN NOT pg_is_in_recovery() THEN 0
-      WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 0
-      ELSE coalesce(extract(epoch FROM now() - pg_last_xact_replay_timestamp()), 0)
+      ELSE coalesce(extract(epoch FROM now() - pg_last_xact_replay_timestamp()), 'Infinity')
     END::float8 AS lag
   `)
   return Number(row?.lag ?? 0)
@@ -213,7 +215,8 @@ async function backfill(
  * the primary key rather than scanning every cell.
  */
 async function collectDeletedWorkspaces(): Promise<number> {
-  const gone = await db.execute<{ workspaceId: string }>(sql`
+  return boundedTransaction(async (tx) => {
+    const gone = await tx.execute<{ workspaceId: string }>(sql`
     WITH RECURSIVE ids AS (
       (SELECT workspace_id FROM ${workflowActivityHourly} ORDER BY workspace_id LIMIT 1)
       UNION ALL
@@ -227,15 +230,16 @@ async function collectDeletedWorkspaces(): Promise<number> {
       AND NOT EXISTS (SELECT 1 FROM ${workspace} w WHERE w.id = ids.workspace_id)
     LIMIT ${GC_WORKSPACE_LIMIT}
   `)
-  if (gone.length > 0) {
-    await db.delete(workflowActivityHourly).where(
-      inArray(
-        workflowActivityHourly.workspaceId,
-        gone.map(({ workspaceId }) => workspaceId)
+    if (gone.length > 0) {
+      await tx.delete(workflowActivityHourly).where(
+        inArray(
+          workflowActivityHourly.workspaceId,
+          gone.map(({ workspaceId }) => workspaceId)
+        )
       )
-    )
-  }
-  return gone.length
+    }
+    return gone.length
+  })
 }
 
 /**
@@ -244,22 +248,23 @@ async function collectDeletedWorkspaces(): Promise<number> {
  * that disagrees. Hours whose unfinished runs are queued for a recheck are expected to disagree
  * and are left to that.
  */
-async function sampleStoredDays(state: ActivityRollupState): Promise<number> {
+async function sampleStoredDays(state: ActivityRollupState, deadline: number): Promise<number> {
   const { coverageStart, freshThrough } = state
   if (!coverageStart || !freshThrough || freshThrough <= coverageStart) return 0
   let mismatches = 0
-  for (let sample = 0; sample < SAMPLED_WORKSPACE_DAYS; sample++) {
+  for (let sample = 0; sample < SAMPLED_WORKSPACE_DAYS && Date.now() < deadline; sample++) {
     const span = freshThrough.getTime() - coverageStart.getTime()
     const hour = floorHour(new Date(coverageStart.getTime() + randomFloat() * span))
-    const [picked] = await db.execute<{ workspaceId: string }>(sql`
+    mismatches += await boundedTransaction(async (tx) => {
+      const [picked] = await tx.execute<{ workspaceId: string }>(sql`
       SELECT workspace_id AS "workspaceId" FROM ${workflowActivityHourly}
       WHERE bucket_start = ${utcTimestamp(hour)}
       ORDER BY random() LIMIT 1
     `)
-    if (!picked) continue
-    const dayStart = new Date(Math.max(coverageStart.getTime(), hour.getTime() - 12 * HOUR_MS))
-    const dayEnd = new Date(Math.min(freshThrough.getTime(), hour.getTime() + 12 * HOUR_MS))
-    const differing = await db.execute(sql`
+      if (!picked) return 0
+      const dayStart = new Date(Math.max(coverageStart.getTime(), hour.getTime() - 12 * HOUR_MS))
+      const dayEnd = new Date(Math.min(freshThrough.getTime(), hour.getTime() + 12 * HOUR_MS))
+      const differing = await tx.execute(sql`
       WITH source AS (
         SELECT date_trunc('hour', a.started_at) AS hour, a.workflow_id, a.trigger,
           ${workflowRunCounters}
@@ -290,7 +295,8 @@ async function sampleStoredDays(state: ActivityRollupState): Promise<number> {
       )
       ON CONFLICT (workspace_id, bucket_start) DO UPDATE SET due_at = excluded.due_at
     `)
-    mismatches += differing.count
+      return differing.count
+    })
   }
   if (mismatches > 0) logger.warn('Activity rollup sampler found stale cells', { mismatches })
   return mismatches
@@ -363,7 +369,7 @@ export async function runActivityRollupPass(
       Date.now() - state.housekeepingAt.getTime() >= HOUSEKEEPING_INTERVAL_MS
     if (housekeepingDue && Date.now() < deadline) {
       result.collectedWorkspaces = await collectDeletedWorkspaces()
-      result.samplerMismatches = await sampleStoredDays(state)
+      result.samplerMismatches = await sampleStoredDays(state, deadline)
       state = await updateLeasedState(owner, { housekeepingAt: sql`now()` })
     }
 

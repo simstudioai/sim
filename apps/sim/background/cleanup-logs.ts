@@ -12,10 +12,7 @@ import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { task } from '@trigger.dev/sdk'
 import { and, asc, eq, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
-import {
-  hasActivityRollupStarted,
-  markWorkflowActivityDirty,
-} from '@/lib/billing/activity-rollup/marks'
+import { markWorkflowActivityDirty } from '@/lib/billing/activity-rollup/marks'
 import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
@@ -408,8 +405,6 @@ async function cleanupWorkflowExecutionLogs(
     filesDeleteFailed: 0,
   }
 
-  // Checked once per run, so a deployment that never enabled the rollup deletes exactly as before.
-  const markRollup = await hasActivityRollupStarted(cleanupDb).catch(() => false)
   const dbStats = await chunkedBatchDelete({
     budget,
     tableDef: workflowExecutionLogs,
@@ -446,7 +441,7 @@ async function cleanupWorkflowExecutionLogs(
         if (budget && fileStats.filesDeleteFailed) throw new Error('Log file cleanup failed')
       }
     },
-    afterDelete: markRollup ? (tx, rows) => markWorkflowActivityDirty(tx, rows) : undefined,
+    afterDelete: (tx, rows) => markWorkflowActivityDirty(tx, rows),
     batchSize: WORKFLOW_LOG_CLEANUP_BATCH_SIZE,
     maxBatches: WORKFLOW_LOG_CLEANUP_MAX_BATCHES,
     totalRowLimit: WORKFLOW_LOG_CLEANUP_ROW_LIMIT,

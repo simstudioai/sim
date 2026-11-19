@@ -19,7 +19,12 @@ vi.mock('@sim/db', () => {
       },
     }
   )
-  return { db: pool, dbReplica: pool, dbFor: () => pool }
+  return {
+    db: pool,
+    dbReplica: pool,
+    dbFor: () => pool,
+    runOutsideTransactionContext: <T>(work: () => T) => work(),
+  }
 })
 vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => null }))
 /**
@@ -272,6 +277,13 @@ function cases(timezone: string): Case[] {
   ]
 }
 
+/** The custom 92-day window in UTC, which reaches back past any partial coverage the cases set. */
+function longWindow(): Case {
+  const testCase = cases('UTC').find((candidate) => candidate.name === 'custom 92 days')
+  if (!testCase) throw new Error('Missing the custom 92-day case')
+  return testCase
+}
+
 function scopeOf(testCase: Case): ActivityScope {
   return {
     organizationId: testCase.organizationId ?? 'org-a',
@@ -281,12 +293,21 @@ function scopeOf(testCase: Case): ActivityScope {
 }
 
 /** The rollup read, or the legacy read the use case falls back to when the rollup cannot serve. */
-async function servedSummary(testCase: Case, timezone: string) {
+/**
+ * Whether every compared read must come from the rollup. Off only in the cases that make the
+ * rollup unusable on purpose, where the use case's fallback to the legacy read is what is checked.
+ */
+interface Expectation {
+  served?: boolean
+}
+
+async function servedSummary(testCase: Case, timezone: string, { served = true }: Expectation) {
   const scope = scopeOf(testCase)
   const bucket = resolveUsageBucket(testCase.window)
   const timestamps = usageBucketTimestamps(testCase.window, bucket, timezone)
-  const days =
-    (await readRollupActivityDays(scope, timezone)) ?? (await readActivityDays(scope, timezone))
+  const rollup = await readRollupActivityDays(scope, timezone)
+  if (served) expect(rollup, `${testCase.name} in ${timezone} served`).not.toBeNull()
+  const days = rollup ?? (await readActivityDays(scope, timezone))
   return summarizeActivityDays(days, timestamps, bucket)
 }
 
@@ -297,26 +318,32 @@ async function legacySummary(testCase: Case, timezone: string) {
   return summarizeActivityDays(await readActivityDays(scope, timezone), timestamps, bucket)
 }
 
-async function expectSummariesMatch(timezones: string[], filter = (_: Case) => true) {
+async function expectSummariesMatch(timezones: string[], expectation: Expectation = {}) {
   for (const timezone of timezones) {
-    for (const testCase of cases(timezone).filter(filter)) {
-      expect(await servedSummary(testCase, timezone), `${testCase.name} in ${timezone}`).toEqual(
-        await legacySummary(testCase, timezone)
-      )
+    for (const testCase of cases(timezone)) {
+      expect(
+        await servedSummary(testCase, timezone, expectation),
+        `${testCase.name} in ${timezone}`
+      ).toEqual(await legacySummary(testCase, timezone))
     }
   }
 }
 
-async function expectBreakdownsMatch(timezones: string[], filter = (_: Case) => true) {
+async function expectBreakdownsMatch(
+  timezones: string[],
+  { served: mustServe = true }: Expectation = {}
+) {
   for (const timezone of timezones) {
-    for (const testCase of cases(timezone).filter(filter)) {
+    for (const testCase of cases(timezone)) {
       const scope = scopeOf(testCase)
       for (const dimension of ACTIVITY_DIMENSIONS) {
         for (const sort of ACTIVITY_SORTS) {
           for (let page = 0; ; page++) {
             const legacy = await readActivityBreakdown(scope, dimension, sort, page)
-            const served =
-              (await readRollupActivityBreakdown(scope, dimension, sort, page)) ?? legacy
+            const label = `${testCase.name} ${dimension}/${sort} page ${page} in ${timezone}`
+            const rollup = await readRollupActivityBreakdown(scope, dimension, sort, page)
+            if (mustServe) expect(rollup, `${label} served`).not.toBeNull()
+            const served = rollup ?? legacy
             expect(
               served,
               `${testCase.name} ${dimension}/${sort} page ${page} in ${timezone}`
@@ -329,9 +356,12 @@ async function expectBreakdownsMatch(timezones: string[], filter = (_: Case) => 
   }
 }
 
-async function expectEquivalent(timezones = ['UTC', 'Asia/Kathmandu']) {
-  await expectSummariesMatch(timezones)
-  await expectBreakdownsMatch(timezones)
+async function expectEquivalent(
+  timezones = ['UTC', 'Asia/Kathmandu'],
+  expectation: Expectation = {}
+) {
+  await expectSummariesMatch(timezones, expectation)
+  await expectBreakdownsMatch(timezones, expectation)
 }
 
 /** A seeded run every compared window sees: in the main organization, inside the last 60 days. */
@@ -412,10 +442,11 @@ describe('organization activity rollup', () => {
     const state = await readRollupState()
     expect(state?.backfillCompletedAt).not.toBeNull()
     expect(state?.freshThrough?.getTime()).toBe(NOW_HOUR - 3 * HOUR)
-    const [oldest] = await connection.unsafe<{ hour: Date }[]>(
-      `SELECT date_trunc('hour', min(started_at)) AS hour FROM workflow_execution_logs`
+    const [oldest] = await connection.unsafe<{ hourMs: number }[]>(
+      `SELECT (extract(epoch FROM date_trunc('hour', min(started_at))) * 1000)::float8 AS "hourMs"
+       FROM workflow_execution_logs`
     )
-    expect(state?.coverageStart?.getTime()).toBe(new Date(`${oldest?.hour}Z`).getTime())
+    expect(state?.coverageStart?.getTime()).toBe(Number(oldest?.hourMs))
     const plan = planRollupRead(state, { from: new Date(NOW.getTime() - 30 * DAY), to: NOW }, NOW)
     expect(plan?.rollup).not.toBeNull()
     expect(plan?.live).toHaveLength(2)
@@ -552,10 +583,8 @@ describe('organization activity rollup', () => {
       coverage_start = ${at}::timestamptz AT TIME ZONE 'UTC'`
     await connection`DELETE FROM workflow_activity_hourly
       WHERE bucket_start < ${at}::timestamptz AT TIME ZONE 'UTC'`
-    const longWindow = cases('UTC').find((testCase) => testCase.name === 'custom 92 days')
-    if (!longWindow) throw new Error('missing case')
-    expect(await readRollupActivityDays(scopeOf(longWindow), 'UTC')).toBeNull()
-    await expectEquivalent()
+    expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).toBeNull()
+    await expectEquivalent(undefined, { served: false })
     await runPass()
     expect((await readRollupState())?.backfillCompletedAt).not.toBeNull()
     await expectEquivalent()
@@ -567,7 +596,8 @@ describe('organization activity rollup', () => {
        UPDATE workflow_activity_hourly SET runs = runs * 2, completed = completed + 1`
     )
     expect((await runPass()).status).toBe('newer-version')
-    await expectEquivalent()
+    expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).toBeNull()
+    await expectEquivalent(undefined, { served: false })
     await connection.unsafe(
       `UPDATE activity_rollup_state SET version = ${ACTIVITY_ROLLUP_VERSION - 1}`
     )
