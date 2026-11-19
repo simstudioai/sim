@@ -87,6 +87,8 @@ export async function setBuildNotesBaseline(
     .where(
       and(
         eq(workflowBuildNotes.id, notesId),
+        // A baseline file is attached once; later baselines write through it.
+        baseline.baselineFileId ? isNull(workflowBuildNotes.baselineFileId) : undefined,
         or(
           isNull(workflowBuildNotes.baselineWorkflowUpdatedAt),
           lte(workflowBuildNotes.baselineWorkflowUpdatedAt, baseline.baselineWorkflowUpdatedAt)

@@ -365,7 +365,9 @@ export const getBuildNotesChanges = defineAuthorizedWorkflowUseCase({
 
 /**
  * Records the current graph as the notes' baseline, after the agent reconciled the notes with
- * edits made outside it. The evaluation is spent: the notes describe a different graph now.
+ * edits made outside it. Recording it withdraws the evaluation: the notes describe a different
+ * graph now. When a newer baseline was recorded meanwhile, that one stays, and so does any
+ * evaluation made against it.
  */
 export const rebaseBuildNotes = defineAuthorizedWorkflowUseCase({
   operation: buildNotesOperations.rebase,
@@ -373,16 +375,15 @@ export const rebaseBuildNotes = defineAuthorizedWorkflowUseCase({
   authorizeResource,
   async execute({ principal, context }) {
     const notes = await requireNotes(context)
-    const baseline = await loadCurrentBaselineState(context.workflowId)
-    await writeBaseline(notes, baseline, {
-      userId: requirePrincipalSubjectUserId(principal),
-      source: 'copilot',
-    })
-    await clearBuildNotesEvaluation(notes.id)
+    const recorded = await writeBaseline(
+      notes,
+      await loadCurrentBaselineState(context.workflowId),
+      { userId: requirePrincipalSubjectUserId(principal), source: 'copilot' }
+    )
     return {
       workflowId: context.workflowId,
       baseline: buildNotesPath(context.workflowId, 'baseline'),
-      recordedAt: baseline.workflowUpdatedAt.toISOString(),
+      recordedAt: recorded.baselineWorkflowUpdatedAt?.toISOString() ?? null,
     }
   },
 })

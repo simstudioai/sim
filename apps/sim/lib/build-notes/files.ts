@@ -6,6 +6,7 @@ import { buildNotesTemplate, MAX_BUILD_NOTES_BYTES } from '@/lib/build-notes/not
 import { buildNotesFileName, buildNotesPath } from '@/lib/build-notes/paths'
 import {
   type BuildNotesRow,
+  getLiveBuildNotesForWorkflow,
   insertBuildNotesInTx,
   requireLiveWorkflowInTx,
   setBuildNotesBaseline,
@@ -86,26 +87,36 @@ export async function writeBaseline(
     )
   }
   if (!notes.baselineFileId) {
-    const { fileId } = await createOwnedWorkspaceFile({
-      context: 'build_notes',
-      workspaceId: notes.workspaceId,
-      userId: author.userId,
-      content,
-      contentType: 'application/json',
-      fileName: () => buildNotesFileName(notes.workflowId, 'baseline'),
-      insertOwner: async (tx, baselineFileId) => {
-        await requireLiveWorkflowInTx(tx, notes.workflowId)
-        await setBuildNotesBaseline(
-          notes.id,
-          { baselineFileId, baselineWorkflowUpdatedAt: baseline.workflowUpdatedAt },
-          tx
-        )
-      },
-    })
-    return {
-      ...notes,
-      baselineFileId: fileId,
-      baselineWorkflowUpdatedAt: baseline.workflowUpdatedAt,
+    try {
+      const { fileId } = await createOwnedWorkspaceFile({
+        context: 'build_notes',
+        workspaceId: notes.workspaceId,
+        userId: author.userId,
+        content,
+        contentType: 'application/json',
+        fileName: () => buildNotesFileName(notes.workflowId, 'baseline'),
+        insertOwner: async (tx, baselineFileId) => {
+          await requireLiveWorkflowInTx(tx, notes.workflowId)
+          const recorded = await setBuildNotesBaseline(
+            notes.id,
+            { baselineFileId, baselineWorkflowUpdatedAt: baseline.workflowUpdatedAt },
+            tx
+          )
+          if (!recorded) throw new StaleBaselineError()
+        },
+      })
+      return {
+        ...notes,
+        baselineFileId: fileId,
+        baselineWorkflowUpdatedAt: baseline.workflowUpdatedAt,
+      }
+    } catch (error) {
+      if (!(error instanceof StaleBaselineError)) throw error
+      // Another writer recorded the first baseline file; this file rolled back. Write through
+      // that one instead, which still keeps only the newer of the two.
+      const current = await getLiveBuildNotesForWorkflow(notes.workspaceId, notes.workflowId)
+      if (!current?.baselineFileId) return current ?? notes
+      return writeBaseline(current, baseline, author)
     }
   }
   try {
@@ -130,9 +141,9 @@ export async function writeBaseline(
       }
     )
   } catch (error) {
+    if (!(error instanceof StaleBaselineError)) throw error
     // A newer baseline already describes a later graph; keeping it is the right outcome.
-    if (error instanceof StaleBaselineError) return notes
-    throw error
+    return (await getLiveBuildNotesForWorkflow(notes.workspaceId, notes.workflowId)) ?? notes
   }
   return { ...notes, baselineWorkflowUpdatedAt: baseline.workflowUpdatedAt }
 }

@@ -655,15 +655,63 @@ check('notes created while their workflow is archived roll back with their files
   expect(rows).toEqual([])
 })
 
-check('a baseline read before a newer one was recorded never replaces it', async () => {
-  const { workflowId, startId } = await seedWorkflow()
-  await createNotes(workflowId)
-  const stale = await loadCurrentBaselineState(workflowId)
-  await apply(person, workflowId, functionBatch(startId, 'later'))
-  await rebaseBuildNotes.execute({ principal: agent, input: target(workflowId) })
+check(
+  'a baseline read before a newer one was recorded never replaces it, nor its evaluation',
+  async () => {
+    const { workflowId, startId } = await seedWorkflow()
+    await createNotes(workflowId)
+    const stale = await loadCurrentBaselineState(workflowId)
+    await apply(person, workflowId, functionBatch(startId, 'later'))
+    await rebaseBuildNotes.execute({ principal: agent, input: target(workflowId) })
+    const rebased = await notesRow(workflowId)
+    await recordBuildNotesEvaluation(
+      rebased.id,
+      { evaluatedNotesHash: 'notes', evaluatedOperationsHash: 'batch' },
+      { baselineWorkflowUpdatedAt: rebased.baselineWorkflowUpdatedAt }
+    )
 
-  await writeBaseline(await notesRow(workflowId), stale, { userId: ownerId, source: 'copilot' })
-  await expect(changesSince(workflowId)).resolves.toMatchObject({ hasChanges: false })
+    await writeBaseline(rebased, stale, { userId: ownerId, source: 'copilot' })
+    await expect(changesSince(workflowId)).resolves.toMatchObject({ hasChanges: false })
+    expect((await notesRow(workflowId)).evaluatedNotesHash).toBe('notes')
+  }
+)
+
+check('two writers of a first baseline attach one file and never orphan the other', async () => {
+  const { workflowId } = await seedWorkflow()
+  await createNotes(workflowId)
+  const created = await notesRow(workflowId)
+  // As if the first baseline's commit had failed after the notes were created.
+  await db
+    .update(workflowBuildNotes)
+    .set({ baselineFileId: null, baselineWorkflowUpdatedAt: null })
+    .where(eq(workflowBuildNotes.id, created.id))
+  const withoutBaseline = await notesRow(workflowId)
+  const baselineFiles = async () =>
+    (
+      await db
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(
+          and(
+            eq(workspaceFiles.workspaceId, workspaceId),
+            eq(workspaceFiles.context, 'build_notes')
+          )
+        )
+    ).length
+  const before = await baselineFiles()
+  const snapshot = await loadCurrentBaselineState(workflowId)
+
+  const first = await writeBaseline(withoutBaseline, snapshot, {
+    userId: ownerId,
+    source: 'copilot',
+  })
+  const second = await writeBaseline(withoutBaseline, snapshot, {
+    userId: ownerId,
+    source: 'copilot',
+  })
+  expect(second.baselineFileId).toBe(first.baselineFileId)
+  expect((await notesRow(workflowId)).baselineFileId).toBe(first.baselineFileId)
+  expect(await baselineFiles()).toBe(before + 1)
 })
 
 check("restoring a deleted folder brings its workflows' notes and files back", async () => {
