@@ -654,7 +654,7 @@ check('a canvas drag committed under the row lock survives the apply', async () 
     await waitForBlocked(Number(self?.pid), () => settled)
     await tx
       .update(workflowBlocks)
-      .set({ positionX: '777', positionY: '333' })
+      .set({ updatedAt: new Date(), positionX: '777', positionY: '333' })
       .where(eq(workflowBlocks.id, seeded.scoreId))
   })
 
@@ -687,7 +687,7 @@ check(
       await waitForBlocked(Number(self?.pid), () => settled)
       await tx
         .update(workflowBlocks)
-        .set({ horizontalHandles: false })
+        .set({ updatedAt: new Date(), horizontalHandles: false })
         .where(eq(workflowBlocks.id, seeded.scoreId))
     })
 
@@ -831,7 +831,10 @@ check('a block added to a loop stores the loop resized by the targeted layout', 
 check('a block lock toggled between get and apply is a 409', async () => {
   const seeded = await seedWorkflow()
   const source = await getSource(seeded.workflowId)
-  await db.update(workflowBlocks).set({ locked: true }).where(eq(workflowBlocks.id, seeded.startId))
+  await db
+    .update(workflowBlocks)
+    .set({ updatedAt: new Date(), locked: true })
+    .where(eq(workflowBlocks.id, seeded.startId))
 
   await expect(apply(source, edit(source.files, SCORE_CODE, 'return 10'))).rejects.toMatchObject({
     code: 'conflict',
@@ -841,7 +844,10 @@ check('a block lock toggled between get and apply is a 409', async () => {
 
 check('editing a locked block is refused with diagnostics and writes nothing', async () => {
   const seeded = await seedWorkflow()
-  await db.update(workflowBlocks).set({ locked: true }).where(eq(workflowBlocks.id, seeded.scoreId))
+  await db
+    .update(workflowBlocks)
+    .set({ updatedAt: new Date(), locked: true })
+    .where(eq(workflowBlocks.id, seeded.scoreId))
   const source = await getSource(seeded.workflowId)
   const before = await snapshot(seeded.workflowId)
 
@@ -863,7 +869,7 @@ check('a canvas drag between get and apply survives an edit', async () => {
   const source = await getSource(seeded.workflowId)
   await db
     .update(workflowBlocks)
-    .set({ positionX: '999', positionY: '555' })
+    .set({ updatedAt: new Date(), positionX: '999', positionY: '555' })
     .where(eq(workflowBlocks.id, seeded.scoreId))
 
   const result = await apply(source, edit(source.files, SCORE_CODE, 'return 12'))
@@ -992,7 +998,10 @@ async function canvasSubBlockWrite(tx: DbOrTx, blockId: string, code: string) {
   const subBlocks = row.subBlocks as Record<string, { value: unknown }>
   await tx
     .update(workflowBlocks)
-    .set({ subBlocks: { ...subBlocks, code: { ...subBlocks.code, value: code } } })
+    .set({
+      updatedAt: new Date(),
+      subBlocks: { ...subBlocks, code: { ...subBlocks.code, value: code } },
+    })
     .where(eq(workflowBlocks.id, blockId))
 }
 
@@ -1006,6 +1015,7 @@ async function canvasSubBlockSet(tx: DbOrTx, blockId: string, subBlockId: string
   await tx
     .update(workflowBlocks)
     .set({
+      updatedAt: new Date(),
       subBlocks: { ...subBlocks, [subBlockId]: { id: subBlockId, type: 'short-input', value } },
     })
     .where(eq(workflowBlocks.id, blockId))
@@ -1228,7 +1238,7 @@ describe('apply edges: identity, row lock, live triggers', () => {
     const source = await getSource(seeded.workflowId)
     await db
       .update(workflowBlocks)
-      .set({ locked: true })
+      .set({ updatedAt: new Date(), locked: true })
       .where(eq(workflowBlocks.id, seeded.startId))
 
     await expect(
@@ -1471,7 +1481,7 @@ describe('source apply edge cases', () => {
       const source = await getSource(seeded.workflowId)
       await db
         .update(workflowBlocks)
-        .set({ positionX: '640', positionY: '320' })
+        .set({ updatedAt: new Date(), positionX: '640', positionY: '320' })
         .where(eq(workflowBlocks.id, seeded.scoreId))
       const before = await snapshot(seeded.workflowId)
 
@@ -1882,7 +1892,7 @@ export default workflow('', {}, () => {
         async (tx) => {
           await tx
             .update(workflowBlocks)
-            .set({ name: 'Scorer' })
+            .set({ updatedAt: new Date(), name: 'Scorer' })
             .where(eq(workflowBlocks.id, seeded.scoreId))
         }
       )
@@ -1911,7 +1921,10 @@ export default workflow('', {}, () => {
       const subBlocks = row.subBlocks as Record<string, { value: unknown }>
       await db
         .update(workflowBlocks)
-        .set({ subBlocks: { ...subBlocks, model: { ...subBlocks.model, value: 'gpt-4.1' } } })
+        .set({
+          updatedAt: new Date(),
+          subBlocks: { ...subBlocks, model: { ...subBlocks.model, value: 'gpt-4.1' } },
+        })
         .where(eq(workflowBlocks.id, writer.id))
       const before = await snapshot(workflowId)
 
