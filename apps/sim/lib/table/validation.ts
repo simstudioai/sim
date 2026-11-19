@@ -6,7 +6,6 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { chunkArray } from '@sim/utils/helpers'
 import {
-  type BatchRowErrors,
   type UncoercibleValuePolicy as CellUncoercibleValuePolicy,
   cellOf as cellAt,
   uniqueValueKey as cellUniqueValueKey,
@@ -518,17 +517,6 @@ type UniqueCheckExecutor = Pick<typeof db, 'select' | 'execute'>
  * the table instead, and a much larger OR adds a scan of the table's whole entry in that index.
  */
 const UNIQUE_PROBE_GROUP_SIZE = 25
-
-/** Row errors keyed by the batch row index they belong to. */
-/**
- * The rows of a batch that repeat a unique column's value an earlier row of the batch holds,
- * compared as the unique check compares them. Needs no database: for rows checked before the
- * table that will hold them exists.
- */
-export function findBatchUniqueDuplicates(rows: RowData[], schema: TableSchema): BatchRowErrors {
-  const uniqueColumns = getUniqueColumns(schema)
-  return uniqueColumns.length === 0 ? [] : scanBatchUniqueValues(rows, uniqueColumns).rowErrors
-}
 
 /**
  * Checks unique constraints for a batch of rows using targeted database queries.

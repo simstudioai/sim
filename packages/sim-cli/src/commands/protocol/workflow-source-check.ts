@@ -206,7 +206,7 @@ function inputMappingOf(canonical: CanonicalWorkflow['blocks'][string]): Record<
   const mapping = canonical.params.inputMapping
   if (mapping?.kind !== 'value') return {}
   const value = rowJson(mapping.value)
-  return isRecordLike(value) ? value : {}
+  return toRecord(value)
 }
 
 /**

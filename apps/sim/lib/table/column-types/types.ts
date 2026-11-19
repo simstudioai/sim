@@ -61,7 +61,7 @@ export const TYPE_SPECIFIC_COLUMN_KEYS = ['options', 'multiple', 'currencyCode']
 export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
 
 /** Result of coercing a raw value toward a column's declared type. */
-export type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
+type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
 
 /** Additional format and precision rules for native PostgreSQL timestamp validation. */
 export interface TimestampValidation {

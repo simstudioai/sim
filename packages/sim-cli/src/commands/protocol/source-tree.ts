@@ -217,7 +217,7 @@ export interface WorkspaceTypes {
  * custom tool and workflow keys beside the stored ones (a declared workflow's inputs win, since the
  * directory's `workflow.ts` is what an apply writes). `null` without either.
  */
-export function workspaceTypesFrom(
+function workspaceTypesFrom(
   stored: WorkspaceManifest | null,
   local: LocalDeclarations
 ): WorkspaceTypes | null {

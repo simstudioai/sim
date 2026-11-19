@@ -278,7 +278,7 @@ export interface WorkspaceDeclarations {
 }
 
 /** A finding about a line of a table's rows file (`E_TABLE_ROWS`, an error). */
-export interface RowFinding {
+interface RowFinding {
   code: WorkspaceDiagnosticCode
   message: string
   hint?: string
