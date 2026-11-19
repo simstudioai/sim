@@ -179,14 +179,14 @@ describe('hostile sources produce diagnostics only', () => {
     expect(result.workflow).not.toBeNull()
     expect(codes(result)).not.toContain('W_LITERAL_SECRET')
     const segment = 'A'.repeat(12)
-    const jwt = ['eyJ' + segment, 'eyJ' + segment, segment].join('.')
+    const jwt = [`eyJ${segment}`, `eyJ${segment}`, segment].join('.')
     const detected = run(wrap(`const a = api('A', { url: 'https://x', body: 'token ${jwt}' })`))
     expect(codes(detected)).toContain('W_LITERAL_SECRET')
   })
 
   it('never frames a literal secret, alone or as the warning past the cap', () => {
     const segment = 'A'.repeat(12)
-    const jwt = ['eyJ' + segment, 'eyJ' + segment, segment].join('.')
+    const jwt = [`eyJ${segment}`, `eyJ${segment}`, segment].join('.')
     const detected = run(wrap(`const a = api('A', { url: 'https://x', body: 'token ${jwt}' })`))
     const finding = detected.diagnostics.find((d) => d.code === 'W_LITERAL_SECRET')
     expect(finding?.span.line).toBe(5)

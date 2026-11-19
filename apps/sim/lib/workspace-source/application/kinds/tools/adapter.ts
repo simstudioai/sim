@@ -19,7 +19,6 @@ import { resourceAddress } from '@sim/workspace-code'
 import {
   isStoredToolCode,
   type ToolCode,
-  type ToolDecl,
   toolCodec,
   toolDeclarationPath,
   toolLiteralSecret,
@@ -41,7 +40,6 @@ import {
   applyNamed,
   authorizeNamed,
   type NamedKind,
-  type NamedPlan,
   planNamed,
   planNamedUndeclared,
   readRecord,

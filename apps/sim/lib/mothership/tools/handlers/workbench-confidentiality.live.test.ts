@@ -351,6 +351,10 @@ async function sandboxApi(path: string, handler: () => Promise<Response>, method
   return inResourceScope(async () => {
     const session = await buildMothershipSandboxSession({
       ...scope,
+      principal: createDelegatedPrincipal({
+        subjectUserId: scope.userId,
+        workspaceId: scope.workspaceId,
+      }),
       sessionKey: chatSandboxSessionKey(chatId),
     })
     const endpoint = session.envs!.SIM_ENDPOINT
@@ -750,6 +754,10 @@ describe('persistent workbench output confidentiality', () => {
       await inResourceScope(async () => {
         const session = await buildMothershipSandboxSession({
           ...scope,
+          principal: createDelegatedPrincipal({
+            subjectUserId: scope.userId,
+            workspaceId: scope.workspaceId,
+          }),
           sessionKey: chatSandboxSessionKey(chatId),
         })
         const credential = session.envs!.SIM_API_KEY

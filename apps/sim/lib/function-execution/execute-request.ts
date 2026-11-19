@@ -2397,6 +2397,7 @@ export async function executeFunctionRequest(
               ? { organizationId: admittedChatOwner.organizationId }
               : { workspaceId }),
             userId: auth.attributedUserId,
+            principal: auth.principal,
             signal: executionSignal,
           })
         : undefined
