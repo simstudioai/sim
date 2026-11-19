@@ -9,6 +9,7 @@ import {
 import { literalText } from '../babel'
 import { toolModes } from '../canonicalize/modes'
 import { builderPins, paramAliases } from '../catalog/surface'
+import type { CatalogBuilder } from '../catalog/types'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import { isJson } from '../lock'
 import {
@@ -111,14 +112,14 @@ function isToolRef(value: Value): value is ResourceNode | UnresolvedNode {
 }
 
 /**
- * The builder path a tool call names: `slack.tool.sendMessage(...)` → `slack.sendMessage`,
+ * The builder a tool call names: `slack.tool.sendMessage(...)` → `slack.sendMessage`,
  * `agent.tool(...)` → `agent` (the printer's `printTools` forms).
  */
-function toolBuilderPath(
+function toolBuilder(
   ctx: CompileContext,
   site: ValueSite,
   call: CallExpression
-): string | null {
+): CatalogBuilder | null {
   const path = calleePath(call.callee)
   if (!path) return null
   const binding = lookup(site.scope, path.root)
@@ -127,8 +128,7 @@ function toolBuilderPath(
   const toolIndex = segments.lastIndexOf('tool')
   if (toolIndex < 1 || toolIndex < segments.length - 2) return null
   segments.splice(toolIndex, 1)
-  const builderPath = segments.join('.')
-  return catalogBuilder(ctx.catalog, builderPath) ? builderPath : null
+  return catalogBuilder(ctx.catalog, segments.join('.')) ?? null
 }
 
 /**
@@ -166,8 +166,8 @@ function compileToolCall(
   call: CallExpression,
   site: ValueSite
 ): CompiledToolCall | null {
-  const builderPath = toolBuilderPath(ctx, site, call)
-  if (builderPath === null) {
+  const builder = toolBuilder(ctx, site, call)
+  if (builder === null) {
     const path = calleePath(call.callee)
     ctx.reporter.report(
       'E_UNKNOWN_BUILDER',
@@ -186,8 +186,6 @@ function compileToolCall(
     )
     return null
   }
-  const builder = catalogBuilder(ctx.catalog, builderPath)
-  if (!builder) return null
   const [paramsNode, optionsNode, ...extra] = call.arguments
   for (const node of extra)
     unsupported(ctx, node, 'Too many arguments.', 'Write tool(params, options).', site.decl.key)
