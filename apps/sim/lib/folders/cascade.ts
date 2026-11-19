@@ -207,6 +207,7 @@ export async function restoreFolderChildren(
           and(inArray(dependent.childIdColumn, childIds), eq(dependent.deletedColumn, timestamp))
         )
     }
+    await config.restoreLinkedDependents?.(tx, childIds, timestamp, now)
   }
 
   return childIds.length

@@ -1,3 +1,13 @@
+import { requireBuildNotesEnabled } from '@/lib/build-notes/feature-flag'
+import {
+  buildNotesFileName,
+  parseBuildNotesKey,
+  parseBuildNotesReference,
+} from '@/lib/build-notes/paths'
+import {
+  getLiveBuildNotesByFileId,
+  getLiveBuildNotesForWorkflow,
+} from '@/lib/build-notes/repository'
 import { assertChangelogBody } from '@/lib/changelog/body'
 import { requireChangelogEnabled } from '@/lib/changelog/feature-flag'
 import {
@@ -27,7 +37,7 @@ interface OwnedFileWrite {
  */
 interface OwnedFileKind {
   /** The VFS namespace the file is read under, as `<namespace>/<fileName>`. */
-  namespace: 'tests' | 'changelog'
+  namespace: 'tests' | 'changelog' | 'build-notes'
   /** The owner key in a reference under this namespace; null for any other reference. */
   parseReference(reference: string): string | null
   /** The body file of the live owner a key names; null when there is none. */
@@ -44,6 +54,8 @@ interface OwnedFileKind {
   prepareWrite(write: OwnedFileWrite): Promise<((tx: DbOrTx) => Promise<void>) | undefined>
   /** Why the generic file tool cannot create a file at this path, and what to use instead. */
   createHint(path: string): string
+  /** Only Copilot reaches these files: people never read or write them, through any surface. */
+  agentOnly?: true
 }
 
 const fileNotFound = () => new OrchestrationError('not_found', 'File not found')
@@ -91,6 +103,35 @@ const OWNED_FILE_KINDS = {
     },
     createHint: (path) =>
       `${path} is a release body. Publish a release with the changelog tool (action publish); it returns the ${changelogFilePath('<id>')} path to edit`,
+  },
+  build_notes: {
+    namespace: 'build-notes',
+    agentOnly: true,
+    parseReference: parseBuildNotesReference,
+    async bodyFileIdForKey(workspaceId, key) {
+      const { workflowId, file } = parseBuildNotesKey(key)
+      const notes = await getLiveBuildNotesForWorkflow(workspaceId, workflowId)
+      if (!notes) return null
+      return file === 'notes' ? notes.notesFileId : notes.baselineFileId
+    },
+    async fileName(fileId) {
+      const notes = await getLiveBuildNotesByFileId(fileId)
+      if (!notes) return null
+      return buildNotesFileName(
+        notes.workflowId,
+        notes.baselineFileId === fileId ? 'baseline' : 'notes'
+      )
+    },
+    async assertOwnerAccess(fileId, workspaceOrganizationId, executor) {
+      if (!(await getLiveBuildNotesByFileId(fileId, executor))) throw fileNotFound()
+      await requireBuildNotesEnabled(workspaceOrganizationId)
+    },
+    async prepareWrite(write) {
+      const { prepareBuildNotesWrite } = await import('@/lib/build-notes/content')
+      return prepareBuildNotesWrite(write)
+    },
+    createHint: (path) =>
+      `${path} belongs to a workflow's build notes. Create them with build-notes create <workflowId>, which returns the notes path to edit; Sim keeps the baseline.`,
   },
 } as const satisfies Record<string, OwnedFileKind>
 

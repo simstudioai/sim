@@ -56,6 +56,11 @@ const FEATURE_FLAGS = {
       'Enable workflow tests: the workspace Tests page, tests/<name>.test.js files, and the Sim tests tool. Supports global and organization rollout; disabled by default.',
     fallback: 'WORKFLOW_TESTS',
   },
+  'build-notes': {
+    description:
+      'Enable build notes: the hidden, agent-only build-notes/<workflowId>.md scratchpad and baseline the agent drafts, evaluates and builds from, the Sim build_notes tool, and the apply checks for workflows that have notes. Supports global and organization rollout; disabled by default.',
+    fallback: 'BUILD_NOTES',
+  },
   changelog: {
     description:
       'Enable the workspace Changelog: the Changelog page, changelog/<id>.md release bodies, and the Sim changelog tool. Supports global and organization rollout; disabled by default.',

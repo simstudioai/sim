@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { listBuildNotesStates } from '@/lib/build-notes/application/build-notes'
 import { listWorkspaceCredentials } from '@/lib/credentials/application/list-workspace-credentials'
 import { listWorkspaceCustomToolsUseCase } from '@/lib/custom-tools/application/use-cases'
 import { listKnowledgeBases } from '@/lib/knowledge/application/knowledge-bases'
@@ -71,12 +72,28 @@ export async function buildWorkspaceInventory(
         },
       })
       cut('workflows', page.nextCursorKeys !== null && page.nextCursorKeys !== undefined)
-      return page.workflows.map((w) => ({
-        id: w.id,
-        name: w.name,
-        ...(w.folderPath && w.folderPath !== '/' ? { folder: w.folderPath } : {}),
-        deployed: Boolean(w.isDeployed),
-      }))
+      const buildNotes = await listBuildNotesStates
+        .execute({
+          principal,
+          input: { workspaceId, workflowIds: page.workflows.map((w) => w.id) },
+        })
+        .catch((error: unknown) => {
+          logger.warn('Inventory build-notes states unavailable', {
+            workspaceId,
+            error: getErrorMessage(error),
+          })
+          return new Map<string, 'current' | 'changed'>()
+        })
+      return page.workflows.map((w) => {
+        const notes = buildNotes.get(w.id)
+        return {
+          id: w.id,
+          name: w.name,
+          ...(w.folderPath && w.folderPath !== '/' ? { folder: w.folderPath } : {}),
+          deployed: Boolean(w.isDeployed),
+          ...(notes ? { buildNotes: notes } : {}),
+        }
+      })
     }, []),
     world('tables', async () => {
       const page = await listTablesUseCase.execute({

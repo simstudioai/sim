@@ -440,34 +440,38 @@ interface WorkflowLintSection {
   label: string
   count: number
   text: string
+  findings: string[]
 }
 
 function lintSection(label: string, findings: string[], separator = ', '): WorkflowLintSection {
-  return { label, count: findings.length, text: findings.join(separator) }
+  return { label, count: findings.length, text: findings.join(separator), findings }
 }
 
 function blockLabel(ref: WorkflowLintBlockRef): string {
   return quotedBlockLabel(ref.blockId, ref.blockName)
 }
 
-function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSection[] {
+function collectBlockingSections(
+  lint: WorkflowLintIssueView,
+  label: (ref: WorkflowLintBlockRef) => string = blockLabel
+): WorkflowLintSection[] {
   const fieldIssues = lint.fieldIssues ?? []
   const unresolved = lint.unresolvedReferences ?? []
   const renderRef = (ref: WorkflowLintUnresolvedReference) =>
-    `${blockLabel(ref)}.${ref.field} (${ref.reason})`
+    `${label(ref)}.${ref.field} (${ref.reason})`
 
   return [
     lintSection(
       'Blocks with no incoming edge',
-      lint.orphanBlocks.map((block) => `${blockLabel(block)} (${block.blockType || 'unknown'})`)
+      lint.orphanBlocks.map((block) => `${label(block)} (${block.blockType || 'unknown'})`)
     ),
     lintSection(
       'Unconnected required subflow start ports',
-      lint.emptyOutgoingPorts.map((port) => `${blockLabel(port)}.${port.label}`)
+      lint.emptyOutgoingPorts.map((port) => `${label(port)}.${port.label}`)
     ),
     lintSection(
       'Invalid condition/router branch handles',
-      lint.invalidBranchPorts.map((port) => `${blockLabel(port)} uses "${port.sourceHandle}"`)
+      lint.invalidBranchPorts.map((port) => `${label(port)} uses "${port.sourceHandle}"`)
     ),
     lintSection(
       'Connections pointing at missing blocks',
@@ -477,7 +481,7 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
       'Blocks missing required fields',
       fieldIssues
         .filter((issue) => issue.missingRequiredFields.length > 0)
-        .map((issue) => `${blockLabel(issue)} (${issue.missingRequiredFields.join(', ')})`)
+        .map((issue) => `${label(issue)} (${issue.missingRequiredFields.join(', ')})`)
     ),
     lintSection(
       'Values set on the inactive field mode (they will not resolve)',
@@ -485,7 +489,7 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
         .filter((issue) => issue.inactiveModeValues.length > 0)
         .map(
           (issue) =>
-            `${blockLabel(issue)} (${issue.inactiveModeValues
+            `${label(issue)} (${issue.inactiveModeValues
               .map(
                 (v) =>
                   `${v.inactiveMemberId}: move the value to "${v.activeMemberId ?? v.canonicalId}"`
@@ -513,7 +517,7 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
         .filter((ref) => ref.kind === 'block-output')
         .map(
           (ref) =>
-            `${blockLabel(ref)}.${ref.field} ${
+            `${label(ref)}.${ref.field} ${
               Array.isArray(ref.value) ? ref.value.join(', ') : ref.value
             } (${ref.reason})`
         ),
@@ -522,10 +526,27 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
     lintSection(
       "Table filter/sort fields that are not columns of the referenced table (the run will fail in the block's error edge)",
       (lint.tableFieldIssues ?? []).map(
-        (issue) => `${blockLabel(issue)}.${issue.field} (table "${issue.tableName}")`
+        (issue) => `${label(issue)}.${issue.field} (table "${issue.tableName}")`
       )
     ),
   ].filter((found) => found.count > 0)
+}
+
+/**
+ * Each finding that must be fixed, one apiece, so two lints of the same workflow can be compared:
+ * `key` names blocks by id alone, so renaming a block does not make its finding look new, and
+ * `text` is the readable line. Run-button advice is left out: it never blocks the caller.
+ */
+export function listWorkflowLintFindings(
+  lint: WorkflowLintIssueView
+): { key: string; text: string }[] {
+  const keyed = collectBlockingSections(lint, (ref) => ref.blockId)
+  return collectBlockingSections(lint).flatMap((section, index) =>
+    section.findings.map((finding, position) => ({
+      key: `${section.label}: ${keyed[index]?.findings[position] ?? finding}`,
+      text: `${section.label}: ${finding}`,
+    }))
+  )
 }
 
 const RUN_BUTTON_REFUSAL = "The editor's Run button would fail"

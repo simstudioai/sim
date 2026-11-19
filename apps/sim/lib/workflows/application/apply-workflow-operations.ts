@@ -11,6 +11,12 @@ import {
 } from '@sim/workflow-persistence/subflow-helpers'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
+import { type BaselineSnapshot, loadCurrentBaselineState } from '@/lib/build-notes/baseline'
+import {
+  assertBuildNotesAllowWrite,
+  holdBuildNotesForWrite,
+  recordBuildNotesWrite,
+} from '@/lib/build-notes/guard'
 import { ForbiddenOperationError, principalAuditSource } from '@/lib/core/application'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -301,6 +307,15 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       throw new OrchestrationError('validation', 'operations cannot be empty')
     }
     await requireMutableWorkflow(context.workflowId)
+    const buildNotes = input.dryRun
+      ? null
+      : await assertBuildNotesAllowWrite({
+          principal,
+          workflowId: context.workflowId,
+          workspaceId: context.workspaceId,
+          workspaceOrganizationId: context.workspaceOrganizationId,
+          batch: { operations: input.operations, blockEnabledChanges: input.blockEnabledChanges },
+        })
 
     return withWorkflowBlockScope(context, async () => {
       if (
@@ -497,6 +512,8 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         { workspaceId: context.workspaceId, subjectUserId },
         Object.values(nextState.blocks)
       )
+      /** What this build committed, read under its lock, for the notes' next baseline. */
+      let committedBaseline: BaselineSnapshot | undefined
       const persisted = await replaceWorkflowNormalizedState({
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,
@@ -513,13 +530,26 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
          * runs under it.
          */
         state:
-          storedFingerprint === undefined
+          storedFingerprint === undefined && !buildNotes
             ? nextState
             : async (tx) => {
-                await assertStoredGraphUnchanged(context.workflowId, storedFingerprint, tx)
+                if (storedFingerprint !== undefined)
+                  await assertStoredGraphUnchanged(context.workflowId, storedFingerprint, tx)
+                if (buildNotes) await holdBuildNotesForWrite(buildNotes, tx)
                 return nextState
               },
+        ...(buildNotes
+          ? {
+              afterWrite: async (tx) => {
+                committedBaseline = await loadCurrentBaselineState(context.workflowId, tx)
+              },
+            }
+          : {}),
       })
+
+      if (buildNotes) {
+        await recordBuildNotesWrite(buildNotes, committedBaseline, subjectUserId)
+      }
 
       logger.info('Applied workflow operations', {
         workflowId: context.workflowId,

@@ -623,6 +623,7 @@ export const env = createEnv({
     PROJECTS:                              z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
     WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
     CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
+    BUILD_NOTES:                           z.boolean().optional(),                 // Fallback for the `build-notes` feature flag off AppConfig
     SIM_LINKS:                             z.boolean().optional(),                 // Fallback for the `sim-links` feature flag off AppConfig
     PEOPLE:                                z.boolean().optional(),                 // Fallback for the `people` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),

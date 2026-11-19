@@ -45,6 +45,7 @@ export function resolveFileOwner(file: PersistedFileOwnership): FileOwner | null
     switch (file.context) {
       case 'test':
       case 'changelog':
+      case 'build_notes':
       case 'workspace':
       case 'chat':
       case 'mothership':
