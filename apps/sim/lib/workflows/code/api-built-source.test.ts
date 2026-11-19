@@ -3,6 +3,8 @@
  * applies back unchanged as a no-op: the start block every new workflow is seeded with (one blank,
  * unnamed input row) and a function block added through the operations route.
  */
+
+import { isRecordLike } from '@sim/utils/object'
 import {
   canonicalize,
   compileWorkflow,
@@ -99,8 +101,11 @@ describe('a workflow built by the editor and the API', () => {
     )
     expect(added.errors).toEqual([])
     const start = Object.values(added.state.blocks).find((b) => b.type === 'start_trigger')
-    const fields = start?.subBlocks.inputFormat?.value
-    expect(Array.isArray(fields) && fields.map((field) => field.name)).toEqual(['email'])
+    const fields: unknown = start?.subBlocks.inputFormat?.value
+    const names = Array.isArray(fields)
+      ? fields.map((field: unknown) => (isRecordLike(field) ? field.name : null))
+      : null
+    expect(names).toEqual(['email'])
     const reread = getThenApply(added.state)
     expect(reread.text).toContain("inputFormat: { email: 'string' }")
     expect(reread.noop).toBe(true)
@@ -111,10 +116,10 @@ describe('a workflow built by the editor and the API', () => {
     const start = Object.values(stored.blocks).find((block) => block.type === 'start_trigger')
     const inputFormat = start?.subBlocks.inputFormat
     if (!inputFormat || !Array.isArray(inputFormat.value)) throw new Error('no inputFormat')
-    inputFormat.value = [
+    Reflect.set(inputFormat, 'value', [
       ...inputFormat.value,
       { id: 'field-email', name: 'email', type: 'string', value: '' },
-    ]
+    ])
     const run = getThenApply(stored)
     expect(run.text).toContain("inputFormat: { '': 'string', email: 'string' }")
     expect(run.noop).toBe(true)
