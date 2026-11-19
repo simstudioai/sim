@@ -52,6 +52,10 @@ import AppKit
         let floating = try eventDate("2027-06-09T07:15:00", "Start", allDay: false)
         precondition(local.dateComponents([.hour, .minute], from: floating) == DateComponents(hour: 7, minute: 15))
         expectError("invalid_arguments") { _ = try eventDate("2027-06-09 07:15", "Start", allDay: false) }
+        let fractional = try eventDate("2027-06-09T06:15:00.000Z", "Start", allDay: false)
+        precondition(fractional == Date(timeIntervalSince1970: 1_812_521_700))
+        let localFraction = try eventDate("2027-06-09T07:15:00.250", "Start", allDay: false)
+        precondition(local.dateComponents([.hour, .minute], from: localFraction) == DateComponents(hour: 7, minute: 15))
         expectError("invalid_arguments") { _ = try eventDate("2027-06-09T07:15:00+01:00", "Start", allDay: true) }
         let zoned = try eventDate("2027-06-09T07:15:00+01:00", "Start", allDay: false)
         precondition(zoned == Date(timeIntervalSince1970: 1_812_521_700))

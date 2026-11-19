@@ -136,13 +136,17 @@ func localGregorian() -> Calendar {
 }
 /// An ISO 8601 date-time; without an offset it is this Mac's local time.
 func isoDateTime(_ text: String) -> Date? {
-    let zoned = ISO8601DateFormatter(); zoned.formatOptions = [.withInternetDateTime]
-    if let date = zoned.date(from: text) { return date }
-    guard text.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$"#, options: .regularExpression) != nil else { return nil }
+    for options: ISO8601DateFormatter.Options in [[.withInternetDateTime], [.withInternetDateTime, .withFractionalSeconds]] {
+        let zoned = ISO8601DateFormatter(); zoned.formatOptions = options
+        if let date = zoned.date(from: text) { return date }
+    }
+    // Fractions of a second do not matter to a calendar item, so a local time drops them.
+    guard text.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?$"#, options: .regularExpression) != nil else { return nil }
+    let whole = String(text.prefix(19))
     let local = DateFormatter(); local.locale = Locale(identifier: "en_US_POSIX"); local.timeZone = .current
-    local.dateFormat = text.count == 16 ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd'T'HH:mm:ss"
+    local.dateFormat = whole.count == 16 ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd'T'HH:mm:ss"
     local.isLenient = false
-    return local.date(from: text)
+    return local.date(from: whole)
 }
 /// An event boundary: an ISO 8601 date-time (local without an offset), or `YYYY-MM-DD` for all-day events.
 func eventDate(_ text: String?, _ field: String, allDay: Bool) throws -> Date {
@@ -272,7 +276,8 @@ func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
         inputDispatched = true
         try store.execute(request)
         let display = [given, family].compactMap { $0 }.joined(separator: " ")
-        return ["kind": "command", "command": command.name, "created": ["id": contact.identifier, "title": display.isEmpty ? organization ?? "" : display, "list": group?.name ?? "Contacts"]]
+        let title = String((display.isEmpty ? organization ?? "" : display).prefix(1024))
+        return ["kind": "command", "command": command.name, "created": ["id": contact.identifier, "title": title, "list": String((group?.name ?? "Contacts").prefix(1024))]]
     default:
         throw ComputerError("unknown_command", "Unknown app command.", dispatchState: "not_started")
     }
