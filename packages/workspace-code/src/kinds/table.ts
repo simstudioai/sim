@@ -46,12 +46,15 @@ import { diagnostic, resourceOf, type WorkspaceDiagnostic, wholeFile } from '../
 import { KIND_DIRS, type KindCodec, type KindLayout } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
+import { type BatchRowErrors, refusedRows } from '../table-cells/rows'
+import type { CellColumn, CellRow } from '../table-cells/types'
 import { groupByFile } from './group'
 import {
   parseTableRows,
   printTableRows,
   TABLE_ROWS_EXTENSION,
   TABLE_ROWS_MODES,
+  type TableRowCells,
   type TableRowsDecl,
   tableRowsPath,
 } from './table-rows'
@@ -178,6 +181,35 @@ function tablePath(key: string): string {
 /** The stored name of a declared column. */
 export function columnName(key: string, column: TableColumnDecl): string {
   return column.name ?? key
+}
+
+/**
+ * The declared rows of `decl` a write refuses (`refusedRows`, by row index): a cell its column's
+ * type or options cannot hold, an empty required cell, a unique value two rows share. Rows are
+ * keyed by column key, as `tables/<key>.rows.jsonl` holds them, and are not changed; a select
+ * cell is checked against the option names. The server refuses a dry run on these, and the CLI's
+ * offline check reports each at its line. `sizeErrors` refuses a row over the server's size limit.
+ */
+export function refusedTableRows(
+  decl: TableDecl,
+  rows: readonly TableRowCells[],
+  sizeErrors?: (row: CellRow) => string[]
+): BatchRowErrors {
+  const columns: CellColumn[] = Object.entries(decl.columns).map(([key, column]) => ({
+    id: key,
+    name: columnName(key, column),
+    type: column.type,
+    ...(column.required ? { required: true } : {}),
+    ...(column.unique ? { unique: true } : {}),
+    ...(column.options ? { options: column.options.map((name) => ({ id: name, name })) } : {}),
+    ...(column.multiple ? { multiple: true } : {}),
+    ...(column.currencyCode ? { currencyCode: column.currencyCode } : {}),
+  }))
+  return refusedRows(
+    rows.map((row) => ({ ...row })),
+    columns,
+    sizeErrors
+  )
 }
 
 /** Reads one owned option of a column into `column`, reporting a value the server would refuse. */

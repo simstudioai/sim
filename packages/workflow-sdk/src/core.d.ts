@@ -455,8 +455,14 @@ export interface Group {
   to(...targets: Target[]): Group
 }
 
-/** A block: a node whose outputs can be referenced. */
-export type Block<O> = Node & Ref<O>
+/**
+ * The failure message a block outputs when an error edge leaves it (`x.onError(y)` runs `y` with
+ * `x.error`); a check refuses `x.error` on a block without one, which fails the run instead.
+ */
+type ErrorOutput<O> = [O] extends [{ error: unknown }] ? unknown : { readonly error: Ref<string> }
+
+/** A block: a node whose outputs can be referenced, and `error` after an `onError` edge. */
+export type Block<O> = Node & Ref<O> & ErrorOutput<O>
 
 /** The named ports of a condition or router. */
 export type Branches<K extends string> = { readonly [P in K]: Node }

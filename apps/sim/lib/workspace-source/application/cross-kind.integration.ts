@@ -387,7 +387,8 @@ describe('workspace source across kinds', () => {
         ),
       }
 
-      // The cookbook declares the secrets its workflow, tool and MCP server read, and a Slack credential.
+      // The cookbook declares the secrets its workflow, tool and MCP server read, and a Slack and a
+      // Gmail credential.
       for (const name of [
         'ANTHROPIC_API_KEY',
         'DOCS_MCP_KEY',
@@ -407,6 +408,14 @@ describe('workspace source across kinds', () => {
         providerId: 'slack',
         createdBy: ownerId,
       })
+      await db.insert(credential).values({
+        id: generateId(),
+        workspaceId,
+        type: 'service_account',
+        displayName: 'Support inbox',
+        providerId: 'google-email',
+        createdBy: ownerId,
+      })
 
       const dryRun = await apply(workspaceId, cookbook, { dryRun: true })
       expect(findings(dryRun.diagnostics, 'error')).toEqual([])
@@ -421,6 +430,7 @@ describe('workspace source across kinds', () => {
         'update secret:DOCS_MCP_KEY',
         'update secret:DOCS_MCP_TOKEN',
         'update secret:ORDERS_API_KEY',
+        'adopt credential:gmail',
         'adopt credential:slack',
         'create custom-tool:lookup-order',
         'create skill:tone',

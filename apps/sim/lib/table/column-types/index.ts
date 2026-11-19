@@ -12,7 +12,6 @@
 
 export * from '@/lib/table/column-types/registry'
 export type {
-  CoerceResult,
   ColumnCellEditor,
   ColumnType,
   ColumnTypeDefinition,

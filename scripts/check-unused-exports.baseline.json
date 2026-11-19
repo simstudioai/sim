@@ -4202,7 +4202,6 @@
   "apps/sim/lib/core/utils/response-format.ts#hasResponseFormatSelection",
   "apps/sim/lib/core/utils/smooth-bottom-chase.ts#CHASE_REST_GAP",
   "apps/sim/lib/core/utils/sse.ts#SSEStopSignal",
-  "apps/sim/lib/core/utils/timezone.ts#getSupportedTimezones",
   "apps/sim/lib/core/utils/urls.ts#CANONICAL_SITE_HOST",
   "apps/sim/lib/core/utils/urls.ts#getBaseDomain",
   "apps/sim/lib/core/utils/user-file.ts#USER_FILE_DISPLAY_FIELDS",
@@ -5943,5 +5942,6 @@
   "packages/sim-setup/src/setup-status.ts#SetupStatusSource",
   "packages/sim-setup/src/twins.ts#getConfiguredMailProvider",
   "packages/sim-setup/src/wizard.ts#WizardMode",
+  "packages/utils/src/timezone.ts#getSupportedTimezones",
   "packages/workflow-renderer/src/note/search-highlight.ts#NOTE_SEARCH_MARK_INDEX_PROPERTY"
 ]

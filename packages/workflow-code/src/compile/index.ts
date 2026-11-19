@@ -36,6 +36,7 @@ import { ErrorLimitReached, Reporter } from './report'
 import { checkSuspiciousName, collectBody, collisionSuffix } from './scope'
 import {
   checkCodeFileRefs,
+  checkErrorOutputRefs,
   checkResponseFormatRefs,
   compileJsonLiteral,
   objectEntries,
@@ -68,6 +69,11 @@ export interface CompileInput {
    * `env.NAME` outside it compiles with `W_ENV_UNKNOWN`; absent, no name is checked.
    */
   envNames?: ReadonlySet<string>
+  /**
+   * The file `envNames` are declared in (`secrets.ts` of a workspace source directory), which a
+   * `W_ENV_UNKNOWN` hint points at; absent, the hint points at the workspace's env variables.
+   */
+  envDeclaredIn?: string
 }
 
 /** The compiled workflow (or `null` after an error) with its diagnostics, spans and lock hints. */
@@ -461,9 +467,11 @@ function compileEntry(
     knownKeys: input.knownKeys ?? new Set(),
     stored: input.stored,
     envNames: input.envNames,
+    envDeclaredIn: input.envDeclaredIn,
     envReferences: new Set(),
     jsonFields: [],
     responseFormatRefs: [],
+    errorOutputRefs: [],
     refusedBranches: new Map(),
     valueConsts: new Set(),
   }
@@ -605,10 +613,13 @@ function compileEntry(
   for (const entry of ctx.wiring) edges.statement(entry)
   for (const implied of ctx.implied) edges.implied(implied.container, implied.child, implied.body)
   edges.reportCycles(input.stored)
+  const erroring = new Set<BlockKey>()
   for (const edge of edges.edges) {
     const source = compiled.get(edge.from)
     if (edge.port.kind === 'error' && source) source.errorPort = true
+    if (edge.port.kind === 'error') erroring.add(edge.from)
   }
+  checkErrorOutputRefs(ctx, erroring)
 
   ctx.comments.assign(
     (ast.comments ?? []).filter((comment) => (comment.start ?? 0) >= parsed.headerEnd)

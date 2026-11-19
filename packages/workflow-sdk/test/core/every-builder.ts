@@ -132,6 +132,7 @@ export default workflow(
     })
     const done = response('Done', { body: { answer: answer.content }, status: 200 })
     const built = response('Built', { dataMode: 'structured' })
+    const failed = response('Child Failed', { body: { why: rows.error }, status: 502 })
     note('Readme', { content: md`# Every builder` })
 
     start.to(answer).to(search).to(rows).to(gate)
@@ -142,5 +143,6 @@ export default workflow(
     assign.to(opaque).to(done)
     edge(opaque, 'legacy-port', built)
     child.onError(built)
+    rows.onError(failed)
   }
 )

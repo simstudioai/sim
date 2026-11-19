@@ -193,4 +193,250 @@ describe('sim workspaces source check', () => {
       ),
     })
   })
+
+  it('checks a managed rows file against its table, at each line, as the dry run would refuse it', async () => {
+    writeFile(
+      'tables/plans.ts',
+      [
+        '// @sim-sdk 1',
+        "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+        'export default defineTable({',
+        "  name: 'plans',",
+        '  columns: {',
+        '    code: column.string({ required: true, unique: true }),',
+        '    label: column.string({ required: true, unique: true }),',
+        "    tier: column.select({ options: ['free', 'pro'] }),",
+        '    seats: column.number(),',
+        '  },',
+        "  rows: { mode: 'managed', key: 'code' },",
+        '})',
+        '',
+      ].join('\n')
+    )
+    writeFile(
+      'tables/plans.rows.jsonl',
+      [
+        '{"code":"a","label":"A","tier":"pro","seats":5}',
+        '{"code":"b","tier":"free"}',
+        '{"code":"c","label":"A"}',
+        '{"code":"d","label":"D","seats":"five"}',
+        '{"code":"e","label":"E","tier":"platinum"}',
+        '{"code":"f",',
+        '{"code":"a","label":"G"}',
+        '',
+      ].join('\n')
+    )
+
+    await check()
+
+    const found = (stdoutJson().diagnostics as Array<Record<string, unknown>>).map(
+      ({ code, file, line, message }) => ({ code, file, line, message })
+    )
+    expect(found).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          line: 2,
+          message: expect.stringContaining('Missing required field: label'),
+        }),
+        expect.objectContaining({
+          line: 3,
+          message: expect.stringContaining('Column "label" must be unique'),
+        }),
+        expect.objectContaining({
+          line: 4,
+          message: expect.stringContaining('seats must be number'),
+        }),
+        expect.objectContaining({
+          line: 5,
+          message: expect.stringContaining('tier must be one of the defined options'),
+        }),
+        expect.objectContaining({ line: 6, message: expect.stringContaining('not JSON') }),
+        expect.objectContaining({ line: 7, message: expect.stringContaining('share the key') }),
+      ])
+    )
+    expect(found).toHaveLength(6)
+    expect(
+      found.every(({ code, file }) => code === 'E_TABLE_ROWS' && file === 'tables/plans.rows.jsonl')
+    ).toBe(true)
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('accepts seed rows the columns hold, coercing a numeric string as the write does', async () => {
+    writeFile(
+      'tables/seeds.ts',
+      [
+        '// @sim-sdk 1',
+        "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+        "export default defineTable({ name: 'seeds', columns: { n: column.number({ required: true }) }, rows: { mode: 'seed' } })",
+        '',
+      ].join('\n')
+    )
+    writeFile('tables/seeds.rows.jsonl', '{"n":"12"}\n{"n":3}\n')
+
+    await check()
+
+    expect(stdoutJson()).toMatchObject({ errors: 0 })
+  })
+
+  /** A workflow file whose body is `lines`, importing every builder the tests use. */
+  function workflowFile(...lines: string[]): string {
+    return [
+      '// @sim-sdk 1',
+      "import { agent, childWorkflow, env, runWorkflow, skill, trigger, workflow } from '@sim/workflow-sdk'",
+      "export default workflow('W', {}, () => {",
+      ...lines.map((line) => `  ${line}`),
+      '})',
+      '',
+    ].join('\n')
+  }
+
+  it('checks skill keys against skills/, with a did-you-mean and the code point of a look-alike letter', async () => {
+    writeFile('skills/triage.md', '---\nname: triage\ndescription: Triage\n---\nBody\n')
+    writeFile(
+      'workflows/first/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { q: 'string' } })",
+        "const a = agent('A', { model: 'gpt-4o', messages: [{ role: 'user', content: start.q }], skills: [skill('triagee')] })",
+        "const b = agent('B', { model: 'gpt-4o', messages: [{ role: 'user', content: start.q }], skills: [skill('tri\u0430ge')] })",
+        'start.to(a)',
+        'a.to(b)'
+      )
+    )
+
+    await check()
+
+    const found = (stdoutJson().diagnostics as Array<Record<string, string>>).filter(
+      (finding) => finding.code === 'E_MAT_UNKNOWN_RESOURCE'
+    )
+    expect(found).toEqual([
+      expect.objectContaining({
+        code: 'E_MAT_UNKNOWN_RESOURCE',
+        message: 'No skill "triagee" is declared in this workspace directory.',
+        hint: 'Did you mean triage? Keys: triage.',
+      }),
+      expect.objectContaining({
+        code: 'E_MAT_UNKNOWN_RESOURCE',
+        message: expect.stringContaining('holds U+0430, a Cyrillic letter'),
+        hint: 'Did you mean triage? Keys: triage.',
+      }),
+    ])
+  })
+
+  it('checks a child call against the child workflow: its inputs, and that it has a Start trigger', async () => {
+    writeFile(
+      'workflows/child/workflow.ts',
+      workflowFile("const start = trigger.start('Start', { inputFormat: { question: 'string' } })")
+    )
+    writeFile(
+      'workflows/hook/workflow.ts',
+      workflowFile("const hook = trigger.webhook('Hook', { inputFormat: { question: 'string' } })")
+    )
+    writeFile(
+      'workflows/parent/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { q: 'string' } })",
+        "const ok = runWorkflow('Ok', { workflowId: childWorkflow('child'), inputMapping: { question: start.q } })",
+        "const typo = runWorkflow('Typo', { workflowId: childWorkflow('child'), inputMapping: { qestion: start.q } })",
+        "const hooked = runWorkflow('Hooked', { workflowId: childWorkflow('hook'), inputMapping: { question: start.q } })",
+        'start.to(ok)',
+        'ok.to(typo)',
+        'typo.to(hooked)'
+      )
+    )
+
+    await check()
+
+    const found = stdoutJson().diagnostics as Array<Record<string, unknown>>
+    expect(found).toEqual([
+      expect.objectContaining({
+        code: 'W_CHILD_INPUT_UNKNOWN',
+        severity: 'error',
+        line: 6,
+        hint: expect.stringContaining('Did you mean question?'),
+      }),
+      expect.objectContaining({ code: 'W_CHILD_NO_START', severity: 'warning', line: 7 }),
+    ])
+  })
+
+  it('points an unknown env name at secrets.ts', async () => {
+    writeFile(
+      'secrets.ts',
+      "// @sim-sdk 1\nimport { defineSecrets } from '@sim/workflow-sdk/workspace'\nexport default defineSecrets({ OPENAI_API_KEY: {} })\n"
+    )
+    writeFile(
+      'workflows/first/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { q: 'string' } })",
+        "const a = agent('A', { model: 'gpt-4o', apiKey: env.OPENAI_API_KEX, messages: [{ role: 'user', content: start.q }] })",
+        'start.to(a)'
+      )
+    )
+
+    await check()
+
+    expect(stdoutJson().diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'W_ENV_UNKNOWN',
+        hint: 'Did you mean OPENAI_API_KEY? Otherwise declare OPENAI_API_KEX in secrets.ts and set its value with `sim secrets set OPENAI_API_KEX --scope workspace`.',
+      }),
+    ])
+  })
+
+  it('drops "kept as written" from a warning it raises to an error', async () => {
+    writeFile(
+      'tables/contacts.ts',
+      [
+        '// @sim-sdk 1',
+        "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+        "export default defineTable({ name: 'contacts', columns: { email: column.string(), plan: column.select({ options: ['free'] }) } })",
+        '',
+      ].join('\n')
+    )
+    writeFile(
+      'workflows/first/workflow.ts',
+      [
+        '// @sim-sdk 1',
+        "import { table, trigger, workflow } from '@sim/workflow-sdk'",
+        "export default workflow('W', {}, () => {",
+        "  const start = trigger.start('Start', { inputFormat: { email: 'string' } })",
+        "  const save = table.insertRow('Save', { tableId: table('contacts'), data: { email: start.email, plan: 'gold' } })",
+        '  start.to(save)',
+        '})',
+        '',
+      ].join('\n')
+    )
+
+    await check()
+
+    expect(stdoutJson().diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'W_UNKNOWN_OPTION',
+        severity: 'error',
+        message: 'plan of table "contacts" has no option gold.',
+      }),
+    ])
+  })
+
+  it('regenerates workspace.d.ts from the kept manifest and the declarations, typing child inputs', async () => {
+    writeFile(
+      '.sim/sdk/workspace.manifest.json',
+      JSON.stringify({ skills: ['stored-skill'], env: ['STORED'] })
+    )
+    writeFile('.sim/sdk/workspace.d.ts', '// stale\n')
+    writeFile('skills/triage.md', '---\nname: triage\ndescription: Triage\n---\nBody\n')
+    writeFile(
+      'workflows/child/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { question: 'string', count: 'number' } })"
+      )
+    )
+
+    await check()
+
+    const types = readFileSync(join(dir, '.sim/sdk/workspace.d.ts'), 'utf8')
+    expect(types).toContain(`'child': { inputs: { count: number; question: string } }`)
+    expect(types).toContain(`'contacts': RowOf<typeof import('../../tables/contacts').default>`)
+    expect(types).toMatch(/'stored-skill': true[\s\S]*'triage': true/)
+    expect(types).toContain('STORED: true')
+  })
 })

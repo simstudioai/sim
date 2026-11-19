@@ -3,8 +3,8 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
+import { getBrowserTimezone } from '@sim/utils/timezone'
 import { useIsFetching } from '@tanstack/react-query'
-import { getBrowserTimezone } from '@/lib/core/utils/timezone'
 import type { DashboardRange, DashboardTime } from '@/lib/dashboards/spec'
 import {
   type DashboardTimeRange,

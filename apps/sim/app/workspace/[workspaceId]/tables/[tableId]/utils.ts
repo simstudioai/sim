@@ -1,8 +1,11 @@
-import { getWallClockParts } from '@/lib/core/utils/timezone'
+import { getWallClockParts } from '@sim/utils/timezone'
+import {
+  formatDateCellDisplay,
+  normalizeDateCellValue,
+} from '@sim/workspace-code/table-cells/dates'
 import type { ColumnDefinition, JsonValue } from '@/lib/table'
 import type { ColumnType } from '@/lib/table/column-types'
 import { columnTypeById, columnTypeOf } from '@/lib/table/column-types'
-import { formatDateCellDisplay, normalizeDateCellValue } from '@/lib/table/dates'
 
 /**
  * Pick a fresh "untitled[_N]" name not already taken by `columns`. Used by

@@ -84,14 +84,14 @@ function lineSpan(file: string, line: number, start: number, end: number) {
 /**
  * Reads `tables/<key>.rows.jsonl` for `rows`, against the declared column keys: every line a JSON
  * object of declared columns, at most `maxTableRows`, and for managed rows each with a key value
- * no other row holds. Blank lines are skipped.
+ * no other row holds. Blank lines are skipped. `lines` holds each row's 1-based line.
  */
 export function parseTableRows(
   key: string,
   text: string,
   rows: Omit<TableRowsDecl, 'data'>,
   columns: ReadonlySet<string>
-): { data: TableRowCells[]; diagnostics: WorkspaceDiagnostic[] } {
+): { data: TableRowCells[]; lines: number[]; diagnostics: WorkspaceDiagnostic[] } {
   const file = tableRowsPath(key)
   const diagnostics: WorkspaceDiagnostic[] = []
   const resource = resourceOf('table', key)
@@ -104,6 +104,7 @@ export function parseTableRows(
       })
     )
   const data: TableRowCells[] = []
+  const rowLines: number[] = []
   const seen = new Map<string, number>()
   let offset = 0
   const lines = text.split('\n')
@@ -155,13 +156,14 @@ export function parseTableRows(
       seen.set(rowKey, index + 1)
     }
     data.push(row)
+    rowLines.push(index + 1)
   }
   if (data.length > WORKSPACE_SOURCE_LIMITS.maxTableRows) {
     report(
       `The file holds ${data.length} rows; a table's rows file holds at most ${WORKSPACE_SOURCE_LIMITS.maxTableRows}.`
     )
   }
-  return { data, diagnostics }
+  return { data, lines: rowLines, diagnostics }
 }
 
 /**

@@ -84,6 +84,16 @@ const COMPILE_SCOPE_CODES = [
   'E_INVALID_ENV_NAME',
   /** `env.X` where X is none of the env names the caller's runs resolve, when those are known. */
   'W_ENV_UNKNOWN',
+  /**
+   * A child workflow call's `inputMapping` names an input the child's Start trigger does not
+   * declare (an offline check of a workspace directory); the child never receives it.
+   */
+  'W_CHILD_INPUT_UNKNOWN',
+  /**
+   * A child workflow call names a workflow with no Start trigger (an offline check of a workspace
+   * directory), so it has no inputs to map and no entry point to run from.
+   */
+  'W_CHILD_NO_START',
   /** `p.<prop>` not in the loop/parallel resolvers' `KNOWN_PROPERTIES`. */
   'E_UNKNOWN_SUBFLOW_PROPERTY',
   /** A ref to a block declared later; it resolves, but the order is unusual. */

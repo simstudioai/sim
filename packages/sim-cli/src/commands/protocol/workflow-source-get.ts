@@ -36,6 +36,7 @@ import {
   TSCONFIG_FULL_FILE,
   TSCONFIG_MARKER,
   WORKSPACE_TYPES_FILE,
+  type WorkspaceTypes,
   withSourceExitCode,
 } from './source-tree'
 
@@ -142,7 +143,7 @@ async function writeSourceTree(
   dir: string,
   source: PrintedSource,
   catalog: BlockCatalog,
-  workspaceTypes: string | null,
+  workspaceTypes: WorkspaceTypes | null,
   blockTypes: readonly string[]
 ): Promise<SourceTree> {
   const [previousLock, tree] = await Promise.all([

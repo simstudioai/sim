@@ -11,7 +11,7 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import { Check, ChevronDown, ChevronLeft, Clock, RefreshCw } from '@sim/emcn/icons'
-import { getBrowserTimezone, zonedWallClock } from '@/lib/core/utils/timezone'
+import { getBrowserTimezone, zonedWallClock } from '@sim/utils/timezone'
 import { DASHBOARD_RANGES, type DashboardRange } from '@/lib/dashboards/spec'
 import {
   DASHBOARD_RANGE_LABELS,

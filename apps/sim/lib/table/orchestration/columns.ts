@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { isSupportedCurrencyCode } from '@sim/workspace-code/table-cells/currency'
 import {
   OrchestrationError,
   type OrchestrationErrorCode,
@@ -16,7 +17,6 @@ import {
   updateColumnOptions,
   updateColumnType,
 } from '@/lib/table/columns/service'
-import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
 import type { TableWriteTx } from '@/lib/table/tx'

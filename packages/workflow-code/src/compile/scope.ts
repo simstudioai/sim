@@ -15,6 +15,7 @@ import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/vi
 import { type BlockKey, isLoopType, isParallelType, LOOP_TYPES, PARALLEL_TYPES } from '../model'
 import { hasSuspiciousCharacter } from '../print/strings'
 import { GENERIC_BUILDER } from '../sdk'
+import { codePointLabel, mixedScriptCharacter } from './characters'
 import type { ListOptions } from './comments'
 import {
   type BlockDecl,
@@ -244,9 +245,20 @@ export function checkSuspiciousName(
  * Refuses a block whose key equals another's once both are NFC-normalized (`café` written
  * precomposed and decomposed): the runtime binds keys by their bytes, so the two are distinct
  * blocks no reader can tell apart. A pair the stored workflow already holds only warns, so it
- * round-trips. The comparison form is never stored: each key stays as written.
+ * round-trips. The comparison form is never stored: each key stays as written. A name with a word
+ * that mixes Latin letters with Cyrillic, Greek, Armenian or Cherokee ones (`Сlaude`, a Cyrillic
+ * `С`) is refused the same way: it reads as a Latin name it is not, beside `Claude` or alone.
  */
 function checkLookalikeName(ctx: CompileContext, decl: BlockDecl): void {
+  const mixed = mixedScriptCharacter(decl.name)
+  if (mixed) {
+    ctx.reporter.report(
+      ctx.knownKeys.has(decl.key) ? 'W_LOOKALIKE_NAME' : 'E_LOOKALIKE_NAME',
+      `${decl.name} mixes ${mixed.script} and Latin letters in one word (${mixed.character} is ${codePointLabel(mixed.character)}, ${mixed.script}), so it looks like a name it is not.`,
+      rangeOf(ctx, decl.nameNode),
+      { hint: 'Retype the name so each word uses one alphabet.' }
+    )
+  }
   const folded = decl.key.normalize('NFC')
   const first = ctx.declsByLookalike.get(folded)
   if (!first) {

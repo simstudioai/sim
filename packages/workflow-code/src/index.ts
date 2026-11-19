@@ -37,6 +37,7 @@ export {
   isIdentifierName,
 } from './code-files'
 export { type CompileResult, compileWorkflow } from './compile'
+export { codePointLabel, scriptName } from './compile/characters'
 export { didYouMean } from './compile/hints'
 export {
   babelMessage,
@@ -116,3 +117,4 @@ export {
   sourceMetaExtensions,
   type WorkflowSourceMetaV1,
 } from './source-meta'
+export { startInputs, type WorkflowInput } from './start-inputs'

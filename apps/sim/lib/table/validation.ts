@@ -5,16 +5,25 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { chunkArray } from '@sim/utils/helpers'
+import {
+  type UncoercibleValuePolicy as CellUncoercibleValuePolicy,
+  cellOf as cellAt,
+  uniqueValueKey as cellUniqueValueKey,
+  coerceRowCells,
+  rowCellErrors,
+  scanBatchUniqueValues,
+} from '@sim/workspace-code/table-cells/rows'
+import {
+  resolveSelectOptionId,
+  splitMultiSelectInput,
+} from '@sim/workspace-code/table-cells/select'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { canonicalJson } from '@/lib/api/cursor-binding'
 import { getColumnId } from '@/lib/table/column-keys'
-import type { CoerceResult, TypeSpecificColumnKey } from '@/lib/table/column-types'
+import type { TypeSpecificColumnKey } from '@/lib/table/column-types'
 import {
   COLUMN_TYPE_REGISTRY,
   COLUMN_TYPES,
-  columnTypeOf,
-  columnValueForEquality,
   isColumnType,
   TYPE_SPECIFIC_COLUMN_KEYS,
   validateColumnTypeLimits,
@@ -28,7 +37,6 @@ import {
   USER_TABLE_ROWS_SQL_NAME,
 } from '@/lib/table/constants'
 import { withSeqscanOff } from '@/lib/table/planner'
-import { resolveSelectOptionId, splitMultiSelectInput } from '@/lib/table/select-options'
 import { uniqueValuePredicate } from '@/lib/table/sql'
 import type {
   ColumnDefinition,
@@ -41,8 +49,8 @@ import type {
 export type { ColumnDefinition, TableSchema, ValidationResult }
 
 /**
- * Re-exported so existing importers keep working; the implementations moved to
- * `select-options.ts` to break this module's drizzle dependency for clients.
+ * Re-exported so existing importers keep working; the implementations live in
+ * `@sim/workspace-code/table-cells/select`, free of this module's drizzle dependency.
  */
 export { resolveSelectOptionId, splitMultiSelectInput }
 
@@ -259,38 +267,13 @@ export function validateTableSchema(schema: TableSchema): ValidationResult {
  * can be called `constructor`, which a plain index would find on every row's prototype.
  */
 export function cellOf(row: RowData, columnId: string): JsonValue | undefined {
-  return Object.hasOwn(row, columnId) ? row[columnId] : undefined
+  return cellAt(row, columnId)
 }
 
 /** Validates row data matches schema column types and required fields. */
 export function validateRowAgainstSchema(data: RowData, schema: TableSchema): ValidationResult {
-  const errors: string[] = []
-
-  for (const column of schema.columns) {
-    const value = cellOf(data, getColumnId(column))
-
-    if (column.required && (value === undefined || value === null)) {
-      errors.push(`Missing required field: ${column.name}`)
-      continue
-    }
-
-    if (value === null || value === undefined) continue
-
-    const error = columnTypeOf(column).validateCell(value, column)
-    if (error !== null) errors.push(error)
-  }
-
+  const errors = rowCellErrors(data, schema.columns)
   return { valid: errors.length === 0, errors }
-}
-
-/**
- * Attempts to coerce a non-null value to a column's declared type. Returns the
- * coerced value when the value already matches or can be converted without
- * ambiguity (e.g. the string `"1999"` to the number `1999`), and `ok: false`
- * when no safe conversion exists.
- */
-function coerceValueToColumnType(value: JsonValue, column: ColumnDefinition): CoerceResult {
-  return columnTypeOf(column).coerce(value, column)
 }
 
 /**
@@ -313,7 +296,7 @@ function coerceValueToColumnType(value: JsonValue, column: ColumnDefinition): Co
  * `required` column is never blanked under either policy: a null would fail the
  * required check immediately after.
  */
-export type UncoercibleValuePolicy = 'reject' | 'null'
+export type UncoercibleValuePolicy = CellUncoercibleValuePolicy
 
 /**
  * The keys of `data` this write's caller actually supplied, for when `data` is a
@@ -355,26 +338,7 @@ export function coerceRowValues(
   policy: UncoercibleValuePolicy = 'null',
   patchedKeys?: PatchedKeys
 ): void {
-  const policyFor = policyResolver(policy, patchedKeys)
-  for (const column of schema.columns) {
-    const key = getColumnId(column)
-    const value = cellOf(data, key)
-    if (value === null || value === undefined) continue
-
-    const coerced = coerceValueToColumnType(value, column)
-    if (coerced.ok) {
-      data[key] = coerced.value
-      continue
-    }
-    if (policyFor(key) !== 'null') continue
-
-    const salvaged = columnTypeOf(column).salvage?.(value, column)
-    if (salvaged?.ok) {
-      data[key] = salvaged.value
-    } else if (!column.required) {
-      data[key] = null
-    }
-  }
+  coerceRowCells(data, schema.columns, policyResolver(policy, patchedKeys))
 }
 
 /**
@@ -431,7 +395,7 @@ export function uniqueColumnsInPatch(schema: TableSchema, patch: RowData): Colum
  * duplicate detection and the unique-value locks both key on it.
  */
 export function uniqueValueKey(value: JsonValue, column: ColumnDefinition): string {
-  return canonicalJson(columnValueForEquality(value, column))
+  return cellUniqueValueKey(value, column)
 }
 
 /**
@@ -553,63 +517,6 @@ type UniqueCheckExecutor = Pick<typeof db, 'select' | 'execute'>
  * the table instead, and a much larger OR adds a scan of the table's whole entry in that index.
  */
 const UNIQUE_PROBE_GROUP_SIZE = 25
-
-/** Row errors keyed by the batch row index they belong to. */
-type BatchRowErrors = Array<{ row: number; errors: string[] }>
-
-/**
- * Scans a batch for values of `uniqueColumns` that an earlier row of the batch already holds,
- * returning those rows' errors and every distinct value per column id (for the database probe).
- */
-function scanBatchUniqueValues(
-  rows: RowData[],
-  uniqueColumns: ColumnDefinition[]
-): {
-  rowErrors: BatchRowErrors
-  valuesByColumn: Map<string, { values: Set<string>; column: ColumnDefinition }>
-} {
-  const rowErrors: BatchRowErrors = []
-  // Keyed by the stable column id (the row-data storage key); each value maps to its first row.
-  const firstRows = new Map<string, Map<string, number>>()
-  const valuesByColumn = new Map<string, { values: Set<string>; column: ColumnDefinition }>()
-  for (const column of uniqueColumns) {
-    firstRows.set(getColumnId(column), new Map())
-    valuesByColumn.set(getColumnId(column), { values: new Set(), column })
-  }
-
-  for (let i = 0; i < rows.length; i++) {
-    const currentRowErrors: string[] = []
-    for (const column of uniqueColumns) {
-      const key = getColumnId(column)
-      const value = cellOf(rows[i], key)
-      const seen = firstRows.get(key)
-      if (value === null || value === undefined || !seen) continue
-
-      const normalizedValue = uniqueValueKey(value, column)
-      const firstRowIndex = seen.get(normalizedValue)
-      if (firstRowIndex !== undefined) {
-        currentRowErrors.push(
-          `Column "${column.name}" must be unique. Value "${value}" duplicates row ${firstRowIndex + 1} in batch`
-        )
-      } else {
-        seen.set(normalizedValue, i)
-        valuesByColumn.get(key)?.values.add(normalizedValue)
-      }
-    }
-    if (currentRowErrors.length > 0) rowErrors.push({ row: i, errors: currentRowErrors })
-  }
-  return { rowErrors, valuesByColumn }
-}
-
-/**
- * The rows of a batch that repeat a unique column's value an earlier row of the batch holds,
- * compared as the unique check compares them. Needs no database: for rows checked before the
- * table that will hold them exists.
- */
-export function findBatchUniqueDuplicates(rows: RowData[], schema: TableSchema): BatchRowErrors {
-  const uniqueColumns = getUniqueColumns(schema)
-  return uniqueColumns.length === 0 ? [] : scanBatchUniqueValues(rows, uniqueColumns).rowErrors
-}
 
 /**
  * Checks unique constraints for a batch of rows using targeted database queries.

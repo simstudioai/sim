@@ -220,6 +220,28 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBe(11)
   })
 
+  it('degrades to the local view without a login, saying why in a sentence', async () => {
+    write(root, 'workflow.ts', `${ENTRY}// edited\n`)
+    mockRequest.mockRejectedValue(
+      new SimApiError(
+        'Not logged in on profile "default". Run: sim login --profile default',
+        0,
+        'AUTH_REQUIRED',
+        undefined,
+        13
+      )
+    )
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({
+      server: 'unreachable',
+      state: 'local',
+      note: 'Not logged in on profile "default". Run: sim login --profile default. Showing local changes only.',
+    })
+    expect(process.exitCode).toBe(11)
+  })
+
   it('fails on a cancelled request instead of reporting the server unreachable', async () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
     mockRequest.mockRejectedValue(new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED))

@@ -659,14 +659,16 @@ function segmentsOf(
 function checkEnvName(ctx: CompileContext, name: string, at: Range, blockKey: BlockKey): void {
   ctx.envReferences.add(name)
   if (!ctx.envNames || ctx.envNames.has(name)) return
+  const near = didYouMean(name, ctx.envNames)
   ctx.reporter.report(
     'W_ENV_UNKNOWN',
     `The workspace has no env variable ${name}, so it resolves to nothing at run time.`,
     at,
     {
-      hint:
-        didYouMean(name, ctx.envNames) ??
-        `Add ${name} under the workspace's or your environment variables, or use a name .sim/sdk/workspace.d.ts lists.`,
+      hint: ctx.envDeclaredIn
+        ? `${near ? `${near} Otherwise d` : 'D'}eclare ${name} in ${ctx.envDeclaredIn} and set its value with \`sim secrets set ${name} --scope workspace\`.`
+        : (near ??
+          `Add ${name} under the workspace's or your environment variables, or use a name .sim/sdk/workspace.d.ts lists.`),
       blockKey,
     }
   )
@@ -706,12 +708,43 @@ function checkOutputPath(
   if (!block || (block.dynamicOutputs && block.dynamicOutputs.source !== 'tableRows')) return
   const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
   const outputs = builderOutputSchemas(ctx.catalog, block, builder)
-  if (!outputKnown(outputs, segments)) {
+  if (outputKnown(outputs, segments)) return
+  if (isErrorOutput(segments)) {
+    ctx.errorOutputRefs.push({ at, target, blockKey })
+    return
+  }
+  ctx.reporter.report(
+    'W_UNKNOWN_OUTPUT_PATH',
+    `${target.name} has no output ${formatStoredPath(segments)}.`,
+    at,
+    { hint: () => unknownOutputHint(outputs, segments), blockKey }
+  )
+}
+
+/**
+ * `x.error`: the message a failed block outputs when an error edge (`x.onError(y)`) leaves it,
+ * which the executor returns as the block's output instead of failing the run
+ * (`BlockExecutor`'s `errorOutput`). Any other block fails the run, so nothing reads it.
+ */
+function isErrorOutput(segments: RefSegment[]): boolean {
+  return segments.length === 1 && segments[0].kind === 'name' && segments[0].name === 'error'
+}
+
+/**
+ * Checks each `x.error` reference once the edges are known: `x` must have an error edge
+ * (`x.onError(...)`), else the path is unknown (`W_UNKNOWN_OUTPUT_PATH`).
+ */
+export function checkErrorOutputRefs(ctx: CompileContext, erroring: ReadonlySet<BlockKey>): void {
+  for (const { at, target, blockKey } of ctx.errorOutputRefs) {
+    if (erroring.has(target.key)) continue
     ctx.reporter.report(
       'W_UNKNOWN_OUTPUT_PATH',
-      `${target.name} has no output ${formatStoredPath(segments)}.`,
+      `${target.name} has no output error: only a block with an error edge outputs its failure message.`,
       at,
-      { hint: () => unknownOutputHint(outputs, segments), blockKey }
+      {
+        hint: `Wire ${target.ident ?? 'the block'}.onError(<handler>) and read ${target.ident ?? 'it'}.error in the handler.`,
+        blockKey,
+      }
     )
   }
 }
@@ -739,6 +772,10 @@ export function checkResponseFormatRefs(
     const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
     const outputs = builderOutputSchemas(ctx.catalog, block, builder)
     if (outputKnown(outputs, segments)) continue
+    if (isErrorOutput(segments)) {
+      ctx.errorOutputRefs.push({ at, target, blockKey })
+      continue
+    }
     const known = [...fields, ...Object.keys(outputs)]
     ctx.reporter.report(
       'W_UNKNOWN_OUTPUT_PATH',

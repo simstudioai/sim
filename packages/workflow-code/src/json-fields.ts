@@ -224,6 +224,9 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
         : dynamicFieldType(block, source === 'humanForm' ? 'inputFormat' : source, param, field)
     if (type !== undefined) return type === 'string' ? 'string' : 'typed'
   }
+  // `x.error`: the failure message a block outputs after an error edge (`x.onError(y)`).
+  const [first] = segments
+  if (segments.length === 1 && first?.kind === 'name' && first.name === 'error') return 'string'
   return 'untyped'
 }
 

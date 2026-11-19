@@ -1,6 +1,7 @@
 import { dbReplica, runOutsideTransactionContext } from '@sim/db'
 import { workflow, workflowActivityHourly, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { assertValidTimezone } from '@sim/utils/timezone'
 import { type SQL, sql } from 'drizzle-orm'
 import {
   ceilHour,
@@ -32,7 +33,6 @@ import {
   readChatActivityDays,
 } from '@/lib/billing/core/organization-activity-queries'
 import { USAGE_WINDOW_MAX_DAYS } from '@/lib/billing/core/usage-analytics'
-import { assertValidTimezone } from '@/lib/core/utils/timezone'
 import type { DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('OrganizationActivityRollupQueries')

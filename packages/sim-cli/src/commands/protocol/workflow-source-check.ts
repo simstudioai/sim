@@ -1,12 +1,18 @@
+import { join } from 'node:path'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   type BlockCatalog,
   type CanonicalWorkflow,
   codeFrame,
+  codePointLabel,
   compileWorkflow,
+  didYouMean,
   encodeAnchor,
   parseWorkflowLock,
+  scriptName,
+  startInputs,
   type Value,
+  type WorkflowInput,
 } from '@sim/workflow-code'
 import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS } from '@sim/workspace-code'
@@ -17,7 +23,7 @@ import { setSoftExitCode } from '../../embed-context'
 import { SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
 import { readSourceJson, readSourceText, workspaceFolderOf } from './source-dir'
-import { cachedCatalog, refreshTsconfigs } from './source-tree'
+import { cachedCatalog, type LocalDeclarations, refreshTsconfigs } from './source-tree'
 import { printNewDiagnostics, resultDiagnostics } from './source-ui'
 import { readSourceFiles } from './workflow-source-apply'
 import { WORKFLOW_TREE } from './workflow-source-get'
@@ -46,6 +52,7 @@ const STRICT_CODES: ReadonlySet<string> = new Set([
   'W_OUT_OF_RANGE',
   'W_LITERAL_SECRET',
   'W_TABLE_UNKNOWN_COLUMN',
+  'W_CHILD_INPUT_UNKNOWN',
 ])
 
 /**
@@ -55,6 +62,12 @@ const STRICT_CODES: ReadonlySet<string> = new Set([
  * in the editor), so the default fails only on blocks the edit wrote.
  */
 type StrictMode = 'new' | 'all' | 'off'
+
+/**
+ * The clause a warning ends with to say an apply saves the value anyway (`; it is kept as
+ * written.`), dropped from a warning a check raises to an error, which nothing saves.
+ */
+const KEPT_AS_WRITTEN = /[;,] (?:it|the value|the text) is kept as written\.$/
 
 /** One finding of a check, as the write commands print theirs. */
 export type CheckFinding = Parameters<typeof printNewDiagnostics>[0][number]
@@ -144,6 +157,18 @@ function resourceNodes(value: unknown): Array<{ kind: string; key: string }> {
   return []
 }
 
+/**
+ * Why a key can never match: ` "triаge" holds U+0430, a Cyrillic letter; …` for a key with a
+ * character outside lowercase ASCII (a resource key is `[a-z][a-z0-9_-]*`), which reads the same
+ * as the declared key it imitates; empty for a key in the key format.
+ */
+function keyCharacterNote(key: string): string {
+  const odd = [...key].find((character) => !/[a-z0-9_-]/.test(character))
+  if (odd === undefined) return ''
+  const script = scriptName(odd)
+  return ` "${key}" holds ${codePointLabel(odd)}${script ? `, a ${script} letter` : ''}: a key is lowercase ASCII letters, digits, - and _, so retype it.`
+}
+
 /** How many keys a hint lists. */
 const LISTED_KEYS = 20
 
@@ -176,6 +201,59 @@ type ParamFinding = Pick<CheckFinding, 'code' | 'severity' | 'message' | 'hint'>
   names?: string
 }
 
+/** The `inputMapping` of a child workflow call, as a record of input name to value. */
+function inputMappingOf(canonical: CanonicalWorkflow['blocks'][string]): Record<string, unknown> {
+  const mapping = canonical.params.inputMapping
+  if (mapping?.kind !== 'value') return {}
+  const value = rowJson(mapping.value)
+  return toRecord(value)
+}
+
+/**
+ * A child workflow call checked against the child's own `workflow.ts` in this directory: a child
+ * without a Start trigger (`W_CHILD_NO_START`), and an `inputMapping` key its Start trigger does
+ * not declare (`W_CHILD_INPUT_UNKNOWN`). A child that did not compile is not checked.
+ */
+function childInputFindings(
+  block: string,
+  canonical: CanonicalWorkflow['blocks'][string],
+  declarations: WorkspaceDeclarations
+): ParamFinding[] {
+  const ref = canonical.params.workflowId
+  const child = ref?.kind === 'value' ? resourceNode(ref.value) : null
+  if (child?.kind !== 'workflow') return []
+  const inputs = declarations.workflowInputs?.get(child.key)
+  if (inputs === undefined) return []
+  const entry = `${KIND_DIRS.workflow}/${child.key}/${SOURCE_ENTRY_FILE}`
+  if (inputs === null) {
+    return [
+      {
+        code: 'W_CHILD_NO_START',
+        severity: 'warning',
+        message: `Workflow "${child.key}" has no Start trigger, so it takes no inputs and a call cannot run it.`,
+        hint: `Add trigger.start('Start', { inputFormat: { … } }) to ${entry}, or call a workflow that has one.`,
+        block,
+        param: 'workflowId',
+        names: child.key,
+      },
+    ]
+  }
+  const names = inputs.map((input) => input.name)
+  return Object.keys(inputMappingOf(canonical))
+    .filter((field) => !names.includes(field))
+    .map((field) => ({
+      code: 'W_CHILD_INPUT_UNKNOWN',
+      severity: 'warning',
+      message: `inputMapping sets ${field}, which is not an input of workflow "${child.key}"; the child never receives it.`,
+      hint:
+        names.length > 0
+          ? `${didYouMean(field, names) ?? ''} Inputs (the Start trigger's inputFormat in ${entry}): ${listed(names)}.`.trimStart()
+          : `The Start trigger of ${entry} declares no inputs: add ${field} to its inputFormat.`,
+      block,
+      param: 'inputMapping',
+    }))
+}
+
 /**
  * The findings a compile cannot make without the workspace's declarations: a resource key the
  * directory does not declare (an apply fails on it), and a table row write naming a column, or a
@@ -193,13 +271,14 @@ function declarationFindings(
         if (node.kind === 'table') tables.add(node.key)
         const declared = declarations.keys.get(node.kind)
         if (!declared || declared.has(node.key)) continue
+        const near = didYouMean(node.key, declared)
         findings.push({
           code: 'E_MAT_UNKNOWN_RESOURCE',
           severity: 'error',
-          message: `No ${node.kind} "${node.key}" is declared in this workspace directory.`,
+          message: `No ${node.kind} "${node.key}" is declared in this workspace directory.${keyCharacterNote(node.key)}`,
           hint:
             declared.size > 0
-              ? `Keys: ${listed(declared)}.`
+              ? `${near ? `${near} ` : ''}Keys: ${listed(declared)}.`
               : `This directory declares no ${node.kind}: declare it before naming it.`,
           block,
           param,
@@ -207,6 +286,7 @@ function declarationFindings(
         })
       }
     }
+    findings.push(...childInputFindings(block, canonical, declarations))
     if (tables.size !== 1) continue
     const [table] = tables
     const columns = declarations.tables.get(table)
@@ -224,7 +304,7 @@ function declarationFindings(
               code: 'W_TABLE_UNKNOWN_COLUMN',
               severity: 'warning',
               message: `${param} writes ${field}, which is not a column of table "${table}"; the run drops it.`,
-              hint: `Columns: ${listed(columns.keys())}.`,
+              hint: `${didYouMean(field, columns.keys()) ?? ''} Columns: ${listed(columns.keys())}.`.trimStart(),
               block,
               param,
             })
@@ -250,6 +330,62 @@ function declarationFindings(
 }
 
 /**
+ * Compiles the workflow source directory `dir` against `catalog`, checking env names against the
+ * names `secrets.ts` declares when `declarations` hold them.
+ */
+async function compileWorkflowDir(
+  dir: string,
+  catalog: BlockCatalog,
+  declarations?: WorkspaceDeclarations
+) {
+  const { lock } = parseWorkflowLock(await readSourceJson(dir, SOURCE_LOCK_FILE))
+  const files = await readSourceFiles(dir, lock ?? null)
+  const envNames = declarations?.envNames
+  const compiled = compileWorkflow({
+    entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
+    files: new Map(Object.entries(files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
+    catalog,
+    sdkMajor: catalog.sdkMajor,
+    knownKeys: new Set(Object.keys(lock?.blocks ?? {})),
+    ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
+  })
+  return { lock, files, compiled }
+}
+
+/**
+ * The inputs of each workflow of the workspace directory `root` that compiles (`startInputs`,
+ * `null` for one without a Start trigger), by key: what a child workflow call is checked against
+ * and what `workspace.d.ts` types its `inputMapping` with.
+ */
+export async function workspaceWorkflowInputs(
+  root: string,
+  catalog: BlockCatalog
+): Promise<Map<string, WorkflowInput[] | null>> {
+  const inputs = new Map<string, WorkflowInput[] | null>()
+  for (const key of await workspaceWorkflowKeys(root)) {
+    const { compiled } = await compileWorkflowDir(join(root, KIND_DIRS.workflow, key), catalog)
+    if (compiled.workflow) inputs.set(key, startInputs(compiled.workflow))
+  }
+  return inputs
+}
+
+/**
+ * The workflows of `local` typed with the inputs each declares (`inputs`), for `workspace.d.ts`.
+ */
+export function withWorkflowInputs(
+  local: LocalDeclarations,
+  inputs: ReadonlyMap<string, readonly WorkflowInput[] | null>
+): LocalDeclarations {
+  const workflows = { ...local.workflows }
+  for (const [key, fields] of inputs) {
+    workflows[key] = {
+      inputs: Object.fromEntries((fields ?? []).map((field) => [field.name, field.type])),
+    }
+  }
+  return { ...local, workflows }
+}
+
+/**
  * Compiles one workflow source directory offline against `catalog`, with the workspace's
  * declarations when the directory sits in a workspace directory, and returns its findings with
  * the {@link STRICT_CODES} the strict mode fails on raised to errors, and the `workflow.ts` text.
@@ -260,17 +396,7 @@ export async function checkWorkflowDir(
   catalog: BlockCatalog,
   options: { declarations?: WorkspaceDeclarations; strict: StrictMode; prefix?: string }
 ): Promise<{ findings: CheckFinding[]; entry: string }> {
-  const { lock } = parseWorkflowLock(await readSourceJson(dir, SOURCE_LOCK_FILE))
-  const files = await readSourceFiles(dir, lock ?? null)
-  const envNames = options.declarations?.envNames
-  const compiled = compileWorkflow({
-    entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
-    files: new Map(Object.entries(files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
-    catalog,
-    sdkMajor: catalog.sdkMajor,
-    knownKeys: new Set(Object.keys(lock?.blocks ?? {})),
-    ...(envNames ? { envNames } : {}),
-  })
+  const { lock, files, compiled } = await compileWorkflowDir(dir, catalog, options.declarations)
   const entryText = files[SOURCE_ENTRY_FILE]
   const locate = (block: string, param: string, names: string | undefined) => {
     const prefix = encodeAnchor({ kind: 'param', block, param: '' })
@@ -315,17 +441,17 @@ export async function checkWorkflowDir(
   const findings = [
     ...compiled.diagnostics.filter((diagnostic) => !SERVER_ONLY_CODES.has(diagnostic.code)),
     ...declared,
-  ].map(
-    ({ code, severity, message, hint, frame, span, blockKey }): CheckFinding => ({
+  ].map(({ code, severity, message, hint, frame, span, blockKey }): CheckFinding => {
+    const raised = severity === 'warning' && STRICT_CODES.has(code) && fails(blockKey)
+    return {
       code,
-      severity:
-        severity === 'warning' && STRICT_CODES.has(code) && fails(blockKey) ? 'error' : severity,
-      message,
+      severity: raised ? 'error' : severity,
+      message: raised ? message.replace(KEPT_AS_WRITTEN, '.') : message,
       ...(hint !== undefined ? { hint } : {}),
       ...(frame !== undefined ? { frame } : {}),
       ...(span ? { file: `${prefix}${span.file}`, line: span.line, column: span.column } : {}),
-    })
-  )
+    }
+  })
   return { findings, entry: entryText }
 }
 
@@ -404,7 +530,14 @@ export function attachWorkflowSourceCheck(source: Command): void {
       )
       const { findings, entry } = await checkWorkflowDir(options.dir, catalog, {
         strict: strictMode(options),
-        ...(workspace ? { declarations: await readWorkspaceDeclarations(workspace.root) } : {}),
+        ...(workspace
+          ? {
+              declarations: {
+                ...(await readWorkspaceDeclarations(workspace.root)),
+                workflowInputs: await workspaceWorkflowInputs(workspace.root, catalog),
+              },
+            }
+          : {}),
       })
       if (workspace) await refreshWorkspaceTsconfigs(workspace.root, workspaceId)
       else {

@@ -7,6 +7,7 @@
 import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { toRecord } from '@sim/utils/object'
+import type { WorkflowInput } from '@sim/workflow-code'
 import {
   SDK_GUIDE_FILE,
   SOURCE_COMPILER_OPTIONS,
@@ -20,6 +21,7 @@ import {
   isFileKind,
   KIND_DIRS,
   WORKSPACE_KIND_SPECS,
+  type WorkspaceDiagnosticCode,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { fileKindGroupKey } from '@sim/workspace-code/kinds/entries'
@@ -27,10 +29,14 @@ import { FILE_KIND_CODECS, isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/
 import {
   columnName,
   createTableCodec,
+  refusedTableRows,
   TABLE_COLUMN_METADATA_KEYS,
+  type TableDecl,
 } from '@sim/workspace-code/kinds/table'
+import { parseTableRows, tableRowsPath } from '@sim/workspace-code/kinds/table-rows'
 import { unchangedFiles, workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import {
+  DECLARATION_EXTENSION,
   DECLARATION_MODULES,
   isWorkspaceSourcePath,
   kindOfPath,
@@ -106,14 +112,14 @@ A resource's key is its file or folder name (in \`${KIND_DIRS.secret}\` and \`${
 
 ${APPLY_ORDER.map((kind) => `- ${WORKSPACE_KIND_SPECS[kind].guide}`).join('\n')}
 
-One apply creates resources before the workflows that use them, so a workflow may name a key this directory declares before it exists. \`.sim/sdk/workspace.d.ts\` types the keys the server held and this directory declared at the last get, so \`tsc\` flags a key added since then until it is applied and read again (\`sim workspaces source get --dir .\`); the dry run is the authority for it.
+One apply creates resources before the workflows that use them, so a workflow may name a key this directory declares before it exists. \`.sim/sdk/workspace.d.ts\` types the keys the server held at the last get and the ones this directory declares, with each workflow's inputs: \`sim workspaces source check\` regenerates it from the files, so run it before \`tsc\` after adding a resource. The dry run is the authority.
 
 Secrets never appear in source: a workflow reads an environment variable as \`env.NAME\` and tool code as \`$env.NAME\`, both by name, and a saved credential is \`credential('<key>')\`. Declare the ones workflows use in \`${KIND_DIRS.secret}\` and \`${KIND_DIRS.credential}\`: a workflow using a declared secret the workspace has no value for, or a declared credential key nothing binds to, is held back (exit 1, with the command that fixes it) while the rest of the apply is written. The same directory applied to another workspace binds each credential key to that workspace's own credential.
 
 ## Edit loop (run from this directory)
 
 1. Edit the files.
-2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key or table column, and an env name \`${KIND_DIRS.secret}\` lacks (a warning). It fails (exit 1) on errors and on a missing required field, an unknown option or output path, a wrong value kind, an out-of-range value or a literal secret in a block you added (\`--strict\`: in every block), and adds the blocks the workflows now use to \`tsconfig.json\`. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
+2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key (skills included) or table column, a child workflow's inputs, and an env name \`${KIND_DIRS.secret}\` lacks (a warning); and checks each \`${KIND_DIRS.table}/<key>.rows.jsonl\` line against its table as the apply would. It fails (exit 1) on errors and on a missing required field, an unknown option or output path, a wrong value kind, an out-of-range value or a literal secret in a block you added (\`--strict\`: in every block), regenerates \`.sim/sdk/workspace.d.ts\` and adds the blocks the workflows now use to \`tsconfig.json\`. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
 3. \`${typecheckCommand()}\` type-checks the files with the TypeScript release the declarations are built for. \`tsconfig.json\` includes only the blocks the workflows used at the last check or get, which keeps it fast: a builder from another block fails with \`has no exported member\` until you run step 2 (or check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). \`${SOURCE_SDK_DIR}/${SDK_GUIDE_FILE}\` lists every builder with its file and params type; \`grep\` it rather than reading the declarations. The dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
 4. \`sim workspaces source status --dir .\` before applying: your changes by resource (\`sim workspaces source diff --dir .\` shows the edits), what changed on the server since the get (a workflow edited in the editor included), the conflicts, and the command to run next. Exit 0 nothing changed, 11 only your edits, 12 the server changed since (\`--offline\`: skip the server). Then \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
 5. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored.
@@ -152,7 +158,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Exit codes
 
-0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit; right after an apply that ended without an answer, such as a timeout, that apply or someone else changed it: get into a fresh directory and compare, and only when it holds your edits run \`sim workspaces source get --dir . --force\`); 6 locked; 7 too large; 8 stopped part-way (a resource failed, or a later round stayed rate limited): what was written is saved here, so apply again, as often as it takes, until it exits 0; 9 rate limited (HTTP 429) after the CLI's retries: nothing more was written, so wait a minute and run the same command again (a get keeps the binary files it downloaded and fetches only the rest); 10 another apply (a CI job, a teammate) is writing this workspace, or another command is using this directory: nothing was written, so wait for it to finish and run the command again.
+0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit; right after an apply that ended without an answer, such as a timeout, that apply or someone else changed it: get into a fresh directory and compare, and only when it holds your edits run \`sim workspaces source get --dir . --force\`); 6 locked; 7 too large; 8 stopped part-way (a resource failed, or a later round stayed rate limited): what was written is saved here, so apply again, as often as it takes, until it exits 0; 9 rate limited (HTTP 429) after the CLI's retries: nothing more was written, so wait a minute and run the same command again (a get keeps the binary files it downloaded and fetches only the rest); 10 another apply (a CI job, a teammate) is writing this workspace, or another command is using this directory: nothing was written, so wait for it to finish and run the command again. 13 not logged in (\`AUTH_REQUIRED\`): run \`sim login\`, then the command again.
 
 Keep \`${WORKSPACE_BASE_FILE}\` and each workflow's \`.sim/\` files as written.
 `
@@ -221,12 +227,14 @@ function declaredKeys(
 }
 
 /**
- * The kinds whose keys an offline check holds a workflow's references to. A skill is left out:
- * a built-in skill has no declaration, so an undeclared skill key may still be valid.
+ * The kinds whose keys an offline check holds a workflow's references to. A skill counts too: a
+ * built-in skill is stored by id and never printed as `skill('<key>')`, so a key names a
+ * workspace skill, which a managed `skills/` folder declares.
  */
 const CHECKED_REFERENCE_KINDS: readonly WorkspaceKind[] = [
   'credential',
   'custom-tool',
+  'skill',
   'mcp-server',
   'table',
   'knowledge-base',
@@ -254,6 +262,29 @@ export interface WorkspaceDeclarations {
   keys: ReadonlyMap<string, ReadonlySet<string>>
   /** Each declared table's columns, by table key and then by stored column name. */
   tables: ReadonlyMap<string, ReadonlyMap<string, DeclaredColumn>>
+  /**
+   * What the declared rows of each table (`tables/<key>.rows.jsonl`) hold that an apply refuses,
+   * each at its line: a line that is not a JSON object of declared columns, a managed key two
+   * lines share, and a row the write refuses (`refusedTableRows`).
+   */
+  rowFindings: readonly RowFinding[]
+  /** What `workspace.d.ts` types from the directory's declarations (`localDeclarations`). */
+  local: LocalDeclarations
+  /**
+   * Each workflow's inputs (`startInputs`: its Start trigger's fields, `null` without one), by
+   * key, for the workflows that compiled; set by a check, which compiles them.
+   */
+  workflowInputs?: ReadonlyMap<string, readonly WorkflowInput[] | null>
+}
+
+/** A finding about a line of a table's rows file (`E_TABLE_ROWS`, an error). */
+interface RowFinding {
+  code: WorkspaceDiagnosticCode
+  message: string
+  hint?: string
+  file: string
+  line: number
+  column: number
 }
 
 /**
@@ -282,29 +313,79 @@ export async function readWorkspaceDeclarations(root: string): Promise<Workspace
   }
   const secrets = present.includes('secret') ? declaredKeys('secret', files) : null
   const tables = new Map<string, ReadonlyMap<string, DeclaredColumn>>()
+  const rowFindings: RowFinding[] = []
   for (const [key, tablePaths] of KIND_LAYOUTS.table.group(
     paths.filter((path) => kindOfPath(path) === 'table')
   ).groups) {
-    const columns = declaredColumns(key, tablePaths, files)
-    if (columns) tables.set(key, columns)
+    const rowsPath = tableRowsPath(key)
+    const { decl } = declaredTable(
+      key,
+      tablePaths.filter((path) => path !== rowsPath),
+      files
+    )
+    if (!decl) continue
+    tables.set(key, declaredColumns(decl))
+    rowFindings.push(...tableRowFindings(key, decl, files[rowsPath]))
   }
-  return { ...(secrets ? { envNames: new Set(secrets) } : {}), keys, tables }
+  return {
+    ...(secrets ? { envNames: new Set(secrets) } : {}),
+    keys,
+    tables,
+    rowFindings,
+    local: localDeclarations(files),
+  }
 }
+
+/**
+ * The findings of table `key`'s rows file, read against `decl` (its declaration, read without the
+ * file): the reader's own (a line that is not a JSON object of declared columns, a managed key two
+ * lines share) and each row the write refuses, at the row's line.
+ */
+function tableRowFindings(key: string, decl: TableDecl, text: string | undefined): RowFinding[] {
+  const file = tableRowsPath(key)
+  const rows = decl.rows
+  if (!rows || text === undefined) return []
+  const parsed = parseTableRows(key, text, rows, new Set(Object.keys(decl.columns)))
+  const read = parsed.diagnostics.map(
+    ({ code, message, hint, span }): RowFinding => ({
+      code,
+      message,
+      ...(hint ? { hint } : {}),
+      file,
+      line: span?.line ?? 1,
+      column: span?.column ?? 1,
+    })
+  )
+  const refused = refusedTableRows(decl, parsed.data).map(
+    ({ row, errors }): RowFinding => ({
+      code: 'E_TABLE_ROWS',
+      message: `Line ${parsed.lines[row] ?? 1} does not fit the declared columns: ${errors.join('; ')}.`,
+      hint: `Write a value each column of ${KIND_DIRS.table}/${key}${DECLARATION_EXTENSION} holds (a select cell names one of its options), fill every required column, and keep unique values unique.`,
+      file,
+      line: parsed.lines[row] ?? 1,
+      column: 1,
+    })
+  )
+  return [...read, ...refused]
+}
+
+/** A table declaration as the codec reads it, with its findings. */
+type ParsedTable = ReturnType<ReturnType<typeof createTableCodec>['parse']>
 
 /** A column helper call and its arguments' text: `column.select({ options: [...] })`. */
 const COLUMN_CALL = /\bcolumn\.(\w+)\s*\(([^)]*)\)/g
 
 /**
- * A table declaration's columns by stored name, or `null` when it does not read. The server's
- * column-type catalog is not at hand offline, so the codec is built over the types the file
- * calls, each owning the options its calls set (`options`, `multiple`, `currencyCode`): only
- * the names and options are read here, and the dry run checks the declaration itself.
+ * A table declaration as the codec reads it. The server's column-type catalog
+ * is not at hand offline, so the codec is built over the types the file calls, each owning the
+ * options its calls set (`options`, `multiple`, `currencyCode`) and taking `unique`: the dry run
+ * checks the declaration itself against the real catalog.
  */
-function declaredColumns(
+function declaredTable(
   key: string,
   paths: readonly string[],
   files: Readonly<Record<string, string>>
-): ReadonlyMap<string, DeclaredColumn> | null {
+): ParsedTable {
   const text = Object.fromEntries(paths.map((path) => [path, files[path] ?? '']))
   const owned = new Map<string, Set<(typeof TABLE_COLUMN_METADATA_KEYS)[number]>>()
   for (const source of Object.values(text)) {
@@ -322,8 +403,11 @@ function declaredColumns(
     ),
     maxOptions: Number.MAX_SAFE_INTEGER,
   })
-  const decl = codec.parse(key, text, []).decl
-  if (!decl) return null
+  return codec.parse(key, text, [])
+}
+
+/** A table declaration's columns by stored name, as a workflow's row writes name them. */
+function declaredColumns(decl: TableDecl): ReadonlyMap<string, DeclaredColumn> {
   return new Map(
     Object.entries(decl.columns).map(([columnKey, column]) => [
       columnName(columnKey, column),

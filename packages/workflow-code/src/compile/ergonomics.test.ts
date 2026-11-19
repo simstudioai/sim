@@ -403,6 +403,30 @@ describe('header, names and hand-written references', () => {
     )
   })
 
+  it('refuses a block name that mixes Cyrillic and Latin letters in one word, beside its Latin twin or alone', () => {
+    const twin = run(source("  api('Claude', { url: 'x' })\n  api('\\u0421laude', { url: 'y' })"))
+    expect(codes(twin)).toEqual(['E_LOOKALIKE_NAME'])
+    expect(twin.diagnostics[0]?.message).toContain('U+0421, Cyrillic')
+    expect(codes(run(source("  api('Ch\\u0435ck', { url: 'x' })")))).toEqual(['E_LOOKALIKE_NAME'])
+  })
+
+  it('accepts names written in one script per word, and keeps a stored mixed name with a warning', () => {
+    expect(
+      codes(
+        run(source("  api('Send to \\u041C\\u043E\\u0441\\u043A\\u0432\\u0430', { url: 'x' })"))
+      )
+    ).toEqual([])
+    expect(codes(run(source("  api('\\u0394elta', { url: 'x' })")))).toEqual(['E_LOOKALIKE_NAME'])
+    const stored = compileWorkflow({
+      entry: { path: 'workflow.ts', text: source("  api('\\u0421laude', { url: 'y' })") },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      knownKeys: new Set(['\u0421laude'.toLowerCase()]),
+    })
+    expect(codes(stored)).toEqual(['W_LOOKALIKE_NAME'])
+  })
+
   it.each([
     ['an Arabic letter mark', 0x061c],
     ['a Mongolian vowel separator', 0x180e],

@@ -18,16 +18,11 @@
  * API writes. After that the stored value is final: reads render its wall
  * time verbatim, identically for everyone.
  *
- * This module is pure and shared by server coercion and client rendering.
- * Client code must import it via this concrete path, never the `@/lib/table`
- * barrel (the barrel is server-tainted).
+ * This module is pure and shared by server coercion, client rendering and the
+ * CLI's offline row check.
  */
 
-import {
-  formatIsoYear,
-  formatUtcOffsetSuffix,
-  zonedWallClockWithOffset,
-} from '@/lib/core/utils/timezone'
+import { formatIsoYear, formatUtcOffsetSuffix, zonedWallClockWithOffset } from '@sim/utils/timezone'
 
 const CALENDAR_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 const LOCALIZED_CALENDAR_DATE_PATTERN = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/

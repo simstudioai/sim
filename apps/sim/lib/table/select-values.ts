@@ -10,8 +10,8 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
+import { resolveSelectOptionId } from '@sim/workspace-code/table-cells/select'
 import { buildIdByName, getColumnId, predicateNamesToIds } from '@/lib/table/column-keys'
-import { resolveSelectOptionId } from '@/lib/table/select-options'
 import type {
   ColumnDefinition,
   ConditionOperators,

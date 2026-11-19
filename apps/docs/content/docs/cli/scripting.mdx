@@ -135,7 +135,7 @@ Results go to stdout; diagnostics go to stderr. JSON/YAML modes serialize API er
 
 Each finding has `code`, `severity` and `message`, and when they apply `hint`, `file`, `line`, `column`, `endLine`, `endColumn`, `path` (a JSON path into a non-source file such as `.sim/lock.json`), and `kind` and `key` (the workspace resource it is about). A write the server refuses (stale, locked, too large, busy or rejected; exit 5, 6, 7, 10 or 1) prints nothing on stdout and the `{error:…}` document on stderr, whose `details` carries the refusal's own `code` (such as `SOURCE_STALE`) and its findings in the same shape: `{ "error": { "code", "message", "details": { "code", "diagnostics": [...] } } }`.
 
-Most successful actions exit 0; API, configuration, or argument failures exit 1. Interactive secret entry cancelled with Ctrl-C exits 130. The CLI resends a read, and a source apply or dry run, that the API answers `429` (rate limited), waiting at least its `Retry-After`; a request still limited after those retries, or a write the CLI does not resend, exits 9 with nothing more sent, so wait a minute and run it again. Other outcomes are command-specific:
+Most successful actions exit 0; API, configuration, or argument failures exit 1. A command that needs a login and has none exits 13 with the code `AUTH_REQUIRED`: the profile has no credential, its OAuth login expired and could not be refreshed, or the server answered `401` (keeping the server's code when it sends one). Nothing was sent or done, so run `sim login` and the same command again; a script can tell it from exit 1, a source with errors. Interactive secret entry cancelled with Ctrl-C exits 130. The CLI resends a read, and a source apply or dry run, that the API answers `429` (rate limited), waiting at least its `Retry-After`; a request still limited after those retries, or a write the CLI does not resend, exits 9 with nothing more sent, so wait a minute and run it again. Other outcomes are command-specific:
 
 | Code | `sim whoami` |
 | --- | --- |
@@ -362,6 +362,9 @@ on:
 
 concurrency: sim-workspace
 
+permissions:
+  contents: write
+
 jobs:
   workspace:
     runs-on: ubuntu-latest
@@ -376,12 +379,21 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun add -g sim
       - run: sim workspaces source check --dir workspace
+      - run: bunx -p typescript@7.0.2 tsc -p workspace
       - run: sim workspaces source apply --dir workspace --dry-run
       - if: github.event_name == 'push'
         run: sim workspaces source apply --dir workspace --yes
+      - if: github.event_name == 'push'
+        run: |
+          git add -A workspace
+          if ! git diff --cached --quiet; then
+            git -c user.name=sim-bot -c user.email=sim-bot@users.noreply.github.com \
+              commit -m "chore(workspace): files the apply rewrote [skip ci]"
+            git push
+          fi
 ```
 
-A workspace API key can apply tables, rows, knowledge bases, files, custom tools and MCP servers. Workflows, skills, secrets, credentials and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory: commit them back, or run `sim workspaces source get --dir workspace` on a branch and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
+`check` runs first because it is offline and fast, and it regenerates `.sim/sdk/workspace.d.ts`, so the `tsc` step after it types resources the pull request adds. A workspace API key can apply tables, rows, knowledge bases, files, custom tools and MCP servers. Workflows, skills, secrets, credentials and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory (each `.sim/base.json`, ids it allocated, values the server normalized), and the next apply compares with them, so the last step commits them back to the branch; `[skip ci]` keeps that commit from running the job again. Where the branch is protected, run `sim workspaces source get --dir workspace` on a new branch instead and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
 
 To promote the same directory to a second workspace, add a step with `--to`:
 
