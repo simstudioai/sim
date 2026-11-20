@@ -264,7 +264,7 @@ jobs:
       - &resolve-playwright
         name: Resolve the Playwright version
         id: playwright
-        if: &browser-group contains(fromJSON('["assistant-actions","organization-search","markdown-viewer","workflow-code-ui","mobile"]'), matrix.group) || startsWith(matrix.group, 'browser-extension-')
+        if: &browser-group contains(fromJSON('["scim","assistant-actions","organization-search","markdown-viewer","workflow-code-ui","mobile"]'), matrix.group) || startsWith(matrix.group, 'browser-extension-')
         run: echo "version=$(bunx --no-install playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
       - &cache-playwright
         name: Cache Playwright browsers
