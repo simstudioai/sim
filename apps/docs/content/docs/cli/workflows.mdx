@@ -396,6 +396,7 @@ sim workflows deploy <workflowId> [options]
 | --- | --- | --- |
 | `--name <value>` | No | Optional label for the deployment version. |
 | `--description <value>` | No | Optional release note for the deployment version. |
+| `--expected-draft-fingerprint <value>` | No | Deploy only this draft: the `sf1:` fingerprint a source apply answered with (`base.fingerprint`). When the draft changed since, the deploy answers `409` and publishes nothing. |
 | `-y, --yes` | No | Accepted and ignored: this command needs no confirmation. |
 
 </CommandTable>

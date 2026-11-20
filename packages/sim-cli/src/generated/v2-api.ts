@@ -6479,6 +6479,7 @@ export type DeployWorkflowQuery = Record<string, never>
 export type DeployWorkflowBody = {
   name?: string
   description?: string | null
+  expectedDraftFingerprint?: string
 }
 
 type DeployWorkflowResponseRef0 = {
@@ -22875,6 +22876,11 @@ export const V2_OPERATIONS = {
       description: {
         kind: 'string',
         describe: 'Optional release note for the deployment version.',
+      },
+      expectedDraftFingerprint: {
+        kind: 'string',
+        describe:
+          'Deploy only this draft: the `sf1:` fingerprint a source apply answered with (`base.fingerprint`). When the draft changed since, the deploy answers `409` and publishes nothing.',
       },
     },
   },

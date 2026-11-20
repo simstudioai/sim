@@ -6,6 +6,7 @@ import {
   type CanonicalWorkflow,
   type Diagnostic,
   type SourceBase,
+  type SourceFingerprint,
   sourceDepthOverflow,
   type WorkflowLockV1,
   type WorkflowSourceMetaV1,
@@ -19,6 +20,7 @@ import {
   readWorkflowSourceMeta,
   readWorkflowSourceMetas,
 } from '@sim/workflow-persistence/source-meta'
+import type { WorkflowState } from '@sim/workflow-types/workflow'
 import {
   type CatalogGate,
   resolveCatalogGate,
@@ -41,6 +43,7 @@ import {
   printStoredSource,
   type StoredSource,
   storedCanonicalHash,
+  storedSourceFingerprint,
 } from '@/lib/workflows/code/print-stored'
 import {
   canonicalizeStored,
@@ -48,6 +51,7 @@ import {
   prefetchStoredResources,
   prefetchStoredResourcesFor,
 } from '@/lib/workflows/code/stored-canonical'
+import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 interface GetWorkflowSourceInput {
@@ -148,6 +152,44 @@ export async function loadStoredSource(
     state: { blocks, edges, loops, parallels, variables },
     meta: { name: context.workflow.name, description: context.workflow.description ?? null },
   }
+}
+
+/**
+ * The `sf1:` fingerprint a source read of `draft` would report as `base.fingerprint`: `draft` is a
+ * graph of the workflow in `context` as the normalized tables load it (a deploy's snapshot), read
+ * under the workflow's current name and description. A caller holding the fingerprint an apply
+ * answered with tells from it whether `draft` is still the draft that apply wrote.
+ */
+export async function draftSourceFingerprint(
+  principal: Principal,
+  context: ActiveWorkflowApplicationContext,
+  draft: Pick<WorkflowState, 'blocks' | 'edges' | 'loops' | 'parallels' | 'variables'>
+): Promise<SourceFingerprint> {
+  const [gate, prefetched] = await Promise.all([
+    resolveCatalogGate(principal, context, { customBlockInputs: true }),
+    prefetchStoredResources({
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
+    }),
+  ])
+  const state = {
+    blocks: draft.blocks,
+    edges: draft.edges,
+    loops: draft.loops,
+    parallels: draft.parallels,
+    variables: parseWorkflowVariables(draft.variables) ?? {},
+  }
+  const meta = { name: context.workflow.name, description: context.workflow.description ?? null }
+  return withCatalogBlockScope(gate, async () => {
+    const catalog = buildSourceCatalog({
+      gate,
+      organizationId: context.workspaceOrganizationId,
+      storedTypes: storedCatalogTypes(Object.values(state.blocks)),
+    })
+    const { canonical, resources } = await canonicalizeStored({ prefetched, state, meta, catalog })
+    return storedSourceFingerprint(canonical, resources)
+  })
 }
 
 /** Everything one workflow's source read prints from, loaded by a single or a batched read. */

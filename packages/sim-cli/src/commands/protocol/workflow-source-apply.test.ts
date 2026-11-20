@@ -854,6 +854,10 @@ describe('sim workflows source apply', () => {
       await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
 
       expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH, DEPLOY_PATH])
+      // The deploy names the draft the apply stored, so an edit made since is never published.
+      expect(request.mock.calls[1][1].body).toEqual({
+        expectedDraftFingerprint: outcome().data.base.fingerprint,
+      })
       expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
       expect(stdoutJson()).toMatchObject({
         applied: true,

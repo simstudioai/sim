@@ -107,6 +107,12 @@ export interface PerformFullDeployParams {
   actorId?: string
   actor?: PrincipalActor
   captureAnalytics?: false
+  /**
+   * Checks the draft snapshot this deploy is about to publish, before anything is admitted: a
+   * refusal message refuses the deploy (`conflict`), so a caller publishes exactly the draft it
+   * expects and never one edited since it looked.
+   */
+  admitDraft?: (draft: WorkflowState) => Promise<string | null>
 }
 
 /**
@@ -259,6 +265,8 @@ async function performStableFullDeploy(params: {
       errorCode: 'validation',
     }
   }
+  const refusal = await params.params.admitDraft?.(workflowState)
+  if (refusal) return { success: false, error: refusal, errorCode: 'conflict' }
 
   const prepared = await prepareWorkflowSnapshotDeployment({ ...params, workflowState })
   if (!prepared.success) return prepared

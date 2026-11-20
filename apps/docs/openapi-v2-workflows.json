@@ -15646,6 +15646,11 @@
                 "type": "null"
               }
             ]
+          },
+          "expectedDraftFingerprint": {
+            "description": "Deploy only this draft: the `sf1:` fingerprint a source apply answered with (`base.fingerprint`). When the draft changed since, the deploy answers `409` and publishes nothing.",
+            "type": "string",
+            "pattern": "^sf1:[0-9a-f]{64}$"
           }
         },
         "additionalProperties": false

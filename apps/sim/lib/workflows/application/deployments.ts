@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import {
+  type Principal,
   resolvePrincipalAttribution,
   resolvePrincipalSubjectUserId,
   toPrincipalActor,
@@ -18,6 +19,7 @@ import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/applicati
 import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
+import { draftSourceFingerprint } from '@/lib/workflows/application/read-workflow-source'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
@@ -33,6 +35,7 @@ import {
   loadWorkflowDeploymentVersionState,
   updateDeploymentVersionMetadata,
 } from '@/lib/workflows/persistence/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDeployments')
 
@@ -49,6 +52,12 @@ export interface DeployWorkflowInput {
    * surface that presents the findings should pay for them.
    */
   lintDeployedVersion?: boolean
+  /**
+   * The `sf1:` fingerprint of the draft the caller means to publish (what a source apply answered
+   * with as `base.fingerprint`): a draft that no longer has it is refused with `conflict`, nothing
+   * deployed, so an edit made since the caller looked never goes live in its name.
+   */
+  expectedDraftFingerprint?: string
 }
 
 export interface UndeployWorkflowInput {
@@ -144,6 +153,21 @@ async function lintDeployedVersion(
   }
 }
 
+/**
+ * A deploy's draft check: the snapshot it publishes must print with `expected`, the fingerprint of
+ * the draft the caller reviewed or wrote.
+ */
+function expectedDraft(
+  principal: Principal,
+  context: ActiveWorkflowApplicationContext,
+  expected: string
+): (draft: WorkflowState) => Promise<string | null> {
+  return async (draft) =>
+    (await draftSourceFingerprint(principal, context, draft)) === expected
+      ? null
+      : 'The workflow draft changed since it was applied, so it was not deployed. Read it again to review the change, then deploy.'
+}
+
 export const deployWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.deploy,
   resolveContext: resolvePrincipalWorkflowContext<DeployWorkflowInput>,
@@ -162,6 +186,9 @@ export const deployWorkflow = defineAuthorizedWorkflowUseCase({
       versionDescription: input.description,
       requestId: input.requestId,
       idempotencyKey: input.idempotencyKey,
+      ...(input.expectedDraftFingerprint !== undefined
+        ? { admitDraft: expectedDraft(principal, context, input.expectedDraftFingerprint) }
+        : {}),
     })
     if (!result.success) throwDeploymentFailure(result, 'Failed to deploy workflow')
     const lint =

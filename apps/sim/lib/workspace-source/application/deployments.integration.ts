@@ -27,8 +27,11 @@ vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { replaceWorkflowChatDeployment } from '@/lib/chat-deployments/application/workflow-chat-deployment'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+import { deployWorkflow } from '@/lib/workflows/application/deployments'
+import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { listWorkflowTriggers } from '@/lib/workflows/application/triggers'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
 import { deploymentAdapter } from '@/lib/workspace-source/application/kinds/deployment/adapter'
@@ -249,6 +252,26 @@ async function serveChat(id: string, identifier: string) {
       requestId: generateId(),
     },
   })
+}
+
+/**
+ * Edits the Answer agent's prompt in the stored draft directly, as the editor's realtime save
+ * does: no source apply sees it.
+ */
+async function editDraftOutOfBand(id: string, text: string) {
+  const [row] = await db
+    .select({ id: workflowBlocks.id, subBlocks: workflowBlocks.subBlocks })
+    .from(workflowBlocks)
+    .where(and(eq(workflowBlocks.workflowId, id), eq(workflowBlocks.name, 'Answer')))
+  if (!row) throw new Error('No Answer block')
+  const subBlocks = JSON.parse(JSON.stringify(row.subBlocks).replace('Question: ', text))
+  await db.update(workflowBlocks).set({ subBlocks }).where(eq(workflowBlocks.id, row.id))
+}
+
+/** The `sf1:` fingerprint a source read of workflow `id` reports now. */
+async function draftFingerprint(id: string): Promise<string> {
+  const read = await readWorkflowSource.execute({ principal: owner, input: { workflowId: id } })
+  return read.base.fingerprint
 }
 
 function edited(files: Files): Files {
@@ -1115,4 +1138,34 @@ describe('workspace source: deployments', () => {
     const refused = await refusal(apply(workspaceId, { 'deployments/missing.ts': DRAFT }))
     expect(codes(refused.diagnostics)).toEqual(['E_DEPLOY_WORKFLOW'])
   })
+
+  check(
+    'a deploy carrying the draft fingerprint it expects refuses a draft edited since, deploying nothing',
+    async () => {
+      const { id } = await deployedWorkspace(PINNED)
+      const reviewed = await draftFingerprint(id)
+      await editDraftOutOfBand(id, 'Edited in the editor: ')
+
+      const refused = await deployWorkflow
+        .execute({
+          principal: owner,
+          input: { workflowId: id, requestId: generateId(), expectedDraftFingerprint: reviewed },
+        })
+        .then(
+          () => null,
+          (error: unknown) => error
+        )
+      expect(refused).toBeInstanceOf(OrchestrationError)
+      expect((refused as OrchestrationError).code).toBe('conflict')
+      expect((await deployState(id)).versions).toBe(1)
+
+      const current = await draftFingerprint(id)
+      expect(current).not.toBe(reviewed)
+      await deployWorkflow.execute({
+        principal: owner,
+        input: { workflowId: id, requestId: generateId(), expectedDraftFingerprint: current },
+      })
+      expect((await deployState(id)).versions).toBe(2)
+    }
+  )
 })

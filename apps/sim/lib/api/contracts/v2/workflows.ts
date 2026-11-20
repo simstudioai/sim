@@ -1078,6 +1078,16 @@ export const v2DeployWorkflowContract = defineRouteContract({
       description: v1DeployWorkflowBodySchema.shape.description.describe(
         'Optional release note for the deployment version.'
       ),
+      expectedDraftFingerprint: z
+        .string()
+        .regex(
+          /^sf1:[0-9a-f]{64}$/,
+          'expectedDraftFingerprint must be a source fingerprint (sf1: and 64 hex digits)'
+        )
+        .optional()
+        .describe(
+          'Deploy only this draft: the `sf1:` fingerprint a source apply answered with (`base.fingerprint`). When the draft changed since, the deploy answers `409` and publishes nothing.'
+        ),
     })
     .strict()
     .optional()

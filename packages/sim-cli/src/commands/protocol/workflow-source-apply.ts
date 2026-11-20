@@ -397,7 +397,8 @@ async function deployStep(
   const deployed = await client
     .request<DeployWorkflowResponse>('deployWorkflow', {
       params: { workflowId: data.workflowId },
-      body: {},
+      // The draft this write stored: an edit made since is refused, never deployed in its name.
+      body: { expectedDraftFingerprint: data.base.fingerprint },
     })
     .then(
       (response) => response.data,

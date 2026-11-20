@@ -28,6 +28,9 @@ export const POST = defineV2JsonRoute({
     workflowId: params.workflowId,
     name: body.name,
     description: body.description ?? undefined,
+    ...(body.expectedDraftFingerprint
+      ? { expectedDraftFingerprint: body.expectedDraftFingerprint }
+      : {}),
     requestId: generateRequestId(),
     lintDeployedVersion: true,
   }),
