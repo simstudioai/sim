@@ -1067,6 +1067,52 @@ describe('the code files an apply sends', () => {
     expect(sentCodeFiles()).toEqual(['functions/used.py'])
   })
 
+  /** Applies `entry` with --yes, the server answering with `files` as what it stored. */
+  async function applyStored(entry: string, files: Record<string, string>): Promise<void> {
+    writeFileSync(join(dir, 'workflow.ts'), entry)
+    setTerminal(false)
+    const stored = outcome()
+    request.mockResolvedValue({ data: { ...stored.data, files } })
+    await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+  }
+
+  it('applies a function file named with capitals and underscores, and writes the base and lock', async () => {
+    writeFunctions('functions/My_Sink.js')
+    const entry = entryWith(
+      "const sink = fn('Sink', { code: codeFile('./functions/My_Sink.js') })\n"
+    )
+
+    await applyStored(entry, { 'workflow.ts': entry, 'functions/My_Sink.js': 'return 2\n' })
+
+    expect(sentCodeFiles()).toEqual(['functions/My_Sink.js'])
+    expect(readFileSync(join(dir, 'functions/My_Sink.js'), 'utf8')).toBe('return 2\n')
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).fingerprint).toBe('sf1:b')
+  })
+
+  it('refuses before sending a code file outside functions/, which no workflow directory holds', async () => {
+    mkdirSync(join(dir, 'lib'))
+    writeFileSync(join(dir, 'lib/helper.js'), 'return 1\n')
+    const entry = entryWith("const a = fn('A', { code: codeFile('./lib/helper.js') })\n")
+
+    await expect(applyStored(entry, { 'workflow.ts': entry })).rejects.toMatchObject({
+      code: 'E_CODE_FILE_PATH',
+      message: expect.stringContaining('lib/helper.js is not a code file path'),
+    })
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('after a stored write, skips an answer path it never writes and still writes the base and lock', async () => {
+    const entry = entryWith('')
+
+    await applyStored(entry, { 'workflow.ts': entry, '.git/hooks/pre-commit.sh': 'exit 1\n' })
+
+    expect(existsSync(join(dir, '.git/hooks/pre-commit.sh'))).toBe(false)
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).fingerprint).toBe('sf1:b')
+    expect(stderrLines().join('\n')).toContain(
+      'the answer named .git/hooks/pre-commit.sh, which the CLI never writes'
+    )
+  })
+
   it('sends only .js, .py and .sh files, whatever the source or the lock names', async () => {
     writeFileSync(join(dir, '.env'), 'SECRET=1')
     writeFileSync(join(dir, 'notes.txt'), 'SECRET')

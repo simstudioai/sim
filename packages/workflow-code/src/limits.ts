@@ -60,6 +60,22 @@ export const CODE_FILE_EXTENSIONS = {
   shell: 'sh',
 } as const
 
+/**
+ * A function code file's path in a workflow directory, from the directory root:
+ * `functions/<name>.<js|py|sh>`, the name letters, digits, `_`, `$`, `-` and inner dots (never a
+ * leading one). The one rule the compiler (`E_CODE_FILE_PATH`), the printer and the CLI (on what
+ * it sends and what it writes) share, so a name one accepts the others never refuse after a
+ * write was stored.
+ */
+const CODE_FILE_PATH = new RegExp(
+  `^${SOURCE_CODE_DIR}/[A-Za-z0-9_$-][A-Za-z0-9_.$-]*\\.(?:${Object.values(CODE_FILE_EXTENSIONS).join('|')})$`
+)
+
+/** Whether `path` (from the workflow directory root) is a code file path a source may name. */
+export function isCodeFilePath(path: string): boolean {
+  return CODE_FILE_PATH.test(path)
+}
+
 /** One size limit a source exceeds, with the measured value. */
 export interface SourceLimitExcess {
   limit: 'maxBlocks' | 'maxEdges' | 'maxFiles' | 'maxTotalBytes'

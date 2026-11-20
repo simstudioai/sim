@@ -30,7 +30,7 @@ import { basename, dirname, join, posix, resolve } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
-  CODE_FILE_EXTENSIONS,
+  isCodeFilePath,
   SOURCE_BASE_FILE,
   SOURCE_ENTRY_FILE,
   SOURCE_CODE_DIR as SOURCE_FUNCTIONS_DIR,
@@ -38,6 +38,7 @@ import {
 } from '@sim/workflow-code/limits'
 import { fingerprintOf, KIND_DIRS } from '@sim/workspace-code'
 import type { Command } from 'commander'
+import { printError } from '#sim-cli/output/io'
 import type { ResolvedProfile } from '../../config/index'
 import { embedStore } from '../../embed-context'
 import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
@@ -86,17 +87,12 @@ export const SOURCE_DOWNLOADS_DIR = '.sim/downloads'
 export const SOURCE_STAGING_PREFIX = '.sim-staging-'
 
 /**
- * The only files a server answer may name: the entry file and function code under `functions/`,
- * named as the printer names them (`functions/<kebab ident>[-n].<js|py|sh>`). Anything else
- * (`.git/hooks/*`, `conftest.py`, a dotfile) is refused, whatever base URL answered.
+ * Whether a server answer may write `path` into the source directory: the entry file, or a code
+ * file as {@link isCodeFilePath} (the rule the compiler applies to `codeFile()`) names one.
+ * Anything else (`.git/hooks/*`, `conftest.py`, a dotfile) is refused, whatever base URL answered.
  */
-const FUNCTION_FILE = new RegExp(
-  `^${SOURCE_FUNCTIONS_DIR}/[a-z0-9$-]+\\.(?:${Object.values(CODE_FILE_EXTENSIONS).join('|')})$`
-)
-
-/** Whether a server answer may write `path` into the source directory. */
 function isPrintedSourcePath(path: string): boolean {
-  return path === SOURCE_ENTRY_FILE || FUNCTION_FILE.test(path)
+  return path === SOURCE_ENTRY_FILE || isCodeFilePath(path)
 }
 
 /** Refuses a server answer naming a file the printer never writes, before anything is written. */
@@ -106,6 +102,21 @@ export function assertPrintedSourcePaths(files: Record<string, string>): void {
       throw new SimApiError(`The workflow source named an unsafe file path: ${path}`, 0)
     }
   }
+}
+
+/**
+ * Refuses, before a write is sent, a code file the server would store but the CLI could never
+ * write back: one rule ({@link isCodeFilePath}) for both, so an apply is never stored and then
+ * reported as failed.
+ */
+export function assertSendableCodeFiles(files: Record<string, string>): void {
+  const refused = Object.keys(files).filter((path) => !isPrintedSourcePath(path))
+  if (refused.length === 0) return
+  throw new SimApiError(
+    `${refused.join(', ')} ${refused.length === 1 ? 'is not a code file path' : 'are not code file paths'} a workflow directory holds, so nothing was sent. Move the code to ${SOURCE_FUNCTIONS_DIR}/<name>.js (or .py, .sh: letters, digits, _, $, - and dots, not starting with a dot) and update its codeFile().`,
+    0,
+    'E_CODE_FILE_PATH'
+  )
 }
 
 const GITATTRIBUTES_LINES = [
@@ -790,9 +801,25 @@ interface PrintedSourceAnswer {
 }
 
 /**
+ * The files of a stored write's answer the CLI may write: every one {@link isPrintedSourcePath}
+ * accepts. The write is already stored, so a path refused here is left as it is on disk (it is
+ * the author's own file, which the server echoed) with a warning, never thrown: the lock and base
+ * are still written, so the directory matches the stored workflow.
+ */
+function writableFiles(files: Record<string, string>): Record<string, string> {
+  const refused = Object.keys(files).filter((path) => !isPrintedSourcePath(path))
+  if (refused.length === 0) return files
+  printError(
+    `warning: the answer named ${refused.join(', ')}, which the CLI never writes; the write was saved and the lock and base were written, but ${refused.length === 1 ? 'that file was' : 'those files were'} left as ${refused.length === 1 ? 'it is' : 'they are'} on disk.`
+  )
+  return Object.fromEntries(Object.entries(files).filter(([path]) => isPrintedSourcePath(path)))
+}
+
+/**
  * Writes a server answer into the source directory in one staged update: its files, lock and base,
  * plus `extra`, pruning the function files the previous lock named and the new one no longer does.
- * Returns how many files it wrote.
+ * Returns how many files it wrote. A get refuses an unsafe path first
+ * ({@link assertPrintedSourcePaths}); after a stored write one is skipped ({@link writableFiles}).
  */
 export async function writeBack(
   dir: string,
@@ -800,16 +827,16 @@ export async function writeBack(
   previousLock: unknown,
   extra: SourceDirChange = { write: [] }
 ): Promise<number> {
-  assertPrintedSourcePaths(answer.files)
+  const files = writableFiles(answer.files)
   const folder = await workspaceFolderOf(dir)
   const printed: Array<readonly [string, string]> = [
-    ...Object.entries(answer.files),
+    ...Object.entries(files),
     [SOURCE_LOCK_FILE, `${JSON.stringify(answer.lock, null, 2)}\n`],
     [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`],
   ]
   const write = [
     ...printed,
-    ...(folder ? [] : [[SOURCE_WRITTEN_FILE, writtenFile(writtenRecord(answer.files))] as const]),
+    ...(folder ? [] : [[SOURCE_WRITTEN_FILE, writtenFile(writtenRecord(files))] as const]),
     ...extra.write,
   ]
   const orphaned = orphanedCodeFiles(previousLock, answer.lock, Object.keys(answer.files))

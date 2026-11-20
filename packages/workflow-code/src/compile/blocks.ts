@@ -42,7 +42,7 @@ import { isIdentifierName, parseStoredPath } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { type ConfigField, type ContainerForm, loopForm, parallelForm } from '../forms/subflow'
-import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
+import { CODE_FILE_EXTENSIONS, isCodeFilePath, SOURCE_CODE_DIR, utf8Bytes } from '../limits'
 import { isJson } from '../lock'
 import {
   type AnchorKey,
@@ -350,12 +350,26 @@ function readCodeFile(
     return null
   }
   const path = resolveRelative(ctx.file, compiled.path)
-  if (path === null || codeFileLanguage(compiled.path) !== language) {
+  const entryName = ctx.file.slice(ctx.file.lastIndexOf('/') + 1)
+  const fromEntry = resolveRelative(entryName, compiled.path)
+  if (path === null || fromEntry === null || !isCodeFilePath(fromEntry)) {
     ctx.reporter.report(
       'E_CODE_FILE_PATH',
       path === null
         ? `${compiled.path} is not a relative path inside the repository.`
-        : `${compiled.path} does not match the block language ${language}.`,
+        : `${compiled.path} is not a code file path a workflow directory holds.`,
+      at,
+      {
+        hint: `Name it ./${SOURCE_CODE_DIR}/<name>.js (or .py, .sh): one file directly in ${SOURCE_CODE_DIR}/ beside ${entryName}, its name letters, digits, _, $, - and dots, not starting with a dot.`,
+        blockKey: decl.key,
+      }
+    )
+    return null
+  }
+  if (codeFileLanguage(compiled.path) !== language) {
+    ctx.reporter.report(
+      'E_CODE_FILE_PATH',
+      `${compiled.path} does not match the block language ${language}.`,
       at,
       {
         hint: "Write codeFile('./functions/name.js') with .js, .py or .sh matching language.",

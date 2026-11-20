@@ -251,7 +251,10 @@ const COMPILE_CATALOG_CODES = [
 const CODE_FILE_CODES = [
   /** `fn('./x.js')` names a file absent from `CompileInput.files`. */
   'E_CODE_FILE_MISSING',
-  /** Not a relative path inside the repo, or the extension does not match the block language. */
+  /**
+   * Not `./functions/<name>.<js|py|sh>` beside the entry file (`isCodeFilePath`), or the extension
+   * does not match the block language.
+   */
   'E_CODE_FILE_PATH',
   /** The printer's bijection self-check failed; the code was printed inline as `js```. */
   'W_CODE_FILE_INLINED',

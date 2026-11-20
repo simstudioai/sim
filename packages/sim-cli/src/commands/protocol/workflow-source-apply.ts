@@ -23,6 +23,7 @@ import { apiCommand, type OperationClient } from '../../runtime/called-operation
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
+  assertSendableCodeFiles,
   assertSourceDirKind,
   FILE_CONCURRENCY,
   lockCodeFiles,
@@ -270,6 +271,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   command: string
 }): Promise<void> {
   const { options, creating } = args
+  assertSendableCodeFiles(args.body.files)
   /** Sends the write (or its dry run); a refusal prints its diagnostics and rethrows. */
   const send = async (dryRun: boolean): Promise<SourceApplyData> => {
     try {

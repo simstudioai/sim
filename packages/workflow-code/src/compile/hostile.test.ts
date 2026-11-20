@@ -296,8 +296,12 @@ describe('hostile sources produce diagnostics only', () => {
   })
 
   it('never reads a code file outside the repository or past the size cap', () => {
-    const text = `// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('X', {}, () => {\n  const a = fn('A', { code: codeFile('../../etc/passwd.js') })\n  const b = fn('B', { code: codeFile('./big.js') })\n})\n`
-    const result = run(text, { maxTotalBytes: 1_000 }, { 'workflows/big.js': 'x'.repeat(5_000) })
+    const text = `// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('X', {}, () => {\n  const a = fn('A', { code: codeFile('../../etc/passwd.js') })\n  const b = fn('B', { code: codeFile('./functions/big.js') })\n})\n`
+    const result = run(
+      text,
+      { maxTotalBytes: 1_000 },
+      { 'workflows/functions/big.js': 'x'.repeat(5_000) }
+    )
     expect(codes(result)).toEqual(expect.arrayContaining(['E_CODE_FILE_PATH', 'E_LIMIT_EXCEEDED']))
   })
 
@@ -312,10 +316,10 @@ describe('hostile sources produce diagnostics only', () => {
 
     it('reports an unstorable code file shared by many blocks once', () => {
       const result = run(
-        fnFile(5, () => './a.js'),
+        fnFile(5, () => './functions/a.js'),
         undefined,
         {
-          'workflows/a.js': 'return "x\u0000"\n',
+          'workflows/functions/a.js': 'return "x\u0000"\n',
         }
       )
       expect(errorCodes(result)).toEqual(['E_INVALID_CHARACTER'])
@@ -323,10 +327,13 @@ describe('hostile sources produce diagnostics only', () => {
 
     it('caps the total bytes of distinct code files', () => {
       const files = Object.fromEntries(
-        Array.from({ length: 4 }, (_, i) => [`workflows/f${i}.js`, `return ${'1'.repeat(700)}\n`])
+        Array.from({ length: 4 }, (_, i) => [
+          `workflows/functions/f${i}.js`,
+          `return ${'1'.repeat(700)}\n`,
+        ])
       )
       const result = run(
-        fnFile(4, (i) => `./f${i}.js`),
+        fnFile(4, (i) => `./functions/f${i}.js`),
         { maxTotalBytes: 2_000 },
         files
       )
@@ -336,9 +343,9 @@ describe('hostile sources produce diagnostics only', () => {
 
     it('accepts exactly the block cap', () => {
       const result = run(
-        fnFile(3, () => './a.js'),
+        fnFile(3, () => './functions/a.js'),
         { maxBlocks: 3 },
-        { 'workflows/a.js': 'return 1\n' }
+        { 'workflows/functions/a.js': 'return 1\n' }
       )
       expect(errorCodes(result)).toEqual([])
       expect(Object.keys(result.workflow?.blocks ?? {})).toHaveLength(3)
@@ -346,39 +353,39 @@ describe('hostile sources produce diagnostics only', () => {
 
     it('caps the number of blocks with one diagnostic', () => {
       const result = run(
-        fnFile(4, () => './a.js'),
+        fnFile(4, () => './functions/a.js'),
         { maxBlocks: 3 },
-        { 'workflows/a.js': 'return 1\n' }
+        { 'workflows/functions/a.js': 'return 1\n' }
       )
       expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
       expect(result.workflow).toBeNull()
     })
 
     it('counts the entry file toward the total bytes', () => {
-      const entry = fnFile(1, () => './a.js')
+      const entry = fnFile(1, () => './functions/a.js')
       const result = run(
         entry,
         { maxTotalBytes: entry.length + 4 },
-        { 'workflows/a.js': 'return 1\n' }
+        { 'workflows/functions/a.js': 'return 1\n' }
       )
       expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
     })
 
     it('caps the number of codeFile() references with one diagnostic', () => {
       const result = run(
-        fnFile(10, () => './a.js'),
+        fnFile(10, () => './functions/a.js'),
         { maxCodeFileRefs: 3 },
-        { 'workflows/a.js': 'return 1\n' }
+        { 'workflows/functions/a.js': 'return 1\n' }
       )
       expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
     })
 
     it('rejects a depth bomb in a code file before parsing it', () => {
       const result = run(
-        fnFile(1, () => './a.js'),
+        fnFile(1, () => './functions/a.js'),
         undefined,
         {
-          'workflows/a.js': `return ${'['.repeat(100_000)}${']'.repeat(100_000)}\n`,
+          'workflows/functions/a.js': `return ${'['.repeat(100_000)}${']'.repeat(100_000)}\n`,
         }
       )
       expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
@@ -412,8 +419,8 @@ describe('one set of limits for get and compile', () => {
     [
       'a JavaScript code file nested in brackets',
       {
-        'workflows/hostile.ts': `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./deep.js') })\n})\n`,
-        'workflows/deep.js': `return ${'['.repeat(250)}${']'.repeat(250)}\n`,
+        'workflows/hostile.ts': `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./functions/deep.js') })\n})\n`,
+        'workflows/functions/deep.js': `return ${'['.repeat(250)}${']'.repeat(250)}\n`,
       },
     ],
   ])('flags %s that compile refuses, so a get never prints it', (_, files) => {
@@ -431,8 +438,8 @@ describe('one set of limits for get and compile', () => {
       ].join('\n')
     )
     const files = {
-      'workflows/hostile.ts': `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./regex.js') })\n})\n`,
-      'workflows/regex.js': `${lines.join('\n')}\nreturn 1\n`,
+      'workflows/hostile.ts': `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./functions/regex.js') })\n})\n`,
+      'workflows/functions/regex.js': `${lines.join('\n')}\nreturn 1\n`,
     }
     const { 'workflows/hostile.ts': entry, ...codeFiles } = files
     expect(errorCodes(run(entry, undefined, codeFiles))).toEqual([])
@@ -442,9 +449,9 @@ describe('one set of limits for get and compile', () => {
   // Two linear walks of 300k nodes: ~0.5s locally, 1.8-2.4s on CI, 5.1s on one loaded runner.
   it('walks a node with more children than one call can take as arguments', () => {
     const wide = `[${'0,'.repeat(300_000)}0]`
-    const entry = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./f.js') })\n  const a = api('A', { url: 'x', body: raw(${wide}) })\n})\n`
-    expect(() => run(entry, undefined, { 'workflows/f.js': 'return 1\n' })).not.toThrow()
-    expect(codeFileReferences(entry)).toEqual(['./f.js'])
+    const entry = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./functions/f.js') })\n  const a = api('A', { url: 'x', body: raw(${wide}) })\n})\n`
+    expect(() => run(entry, undefined, { 'workflows/functions/f.js': 'return 1\n' })).not.toThrow()
+    expect(codeFileReferences(entry)).toEqual(['./functions/f.js'])
   }, 15_000)
 
   it('passes a source nested within the cap', () => {
@@ -470,11 +477,11 @@ describe('characters a workflow cannot store', () => {
   })
 
   it('refuses a NUL in a code file at its line, for the block reading it', () => {
-    const text = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./f.js') })\n})\n`
+    const text = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./functions/f.js') })\n})\n`
     const code = 'const a = 1\nreturn "x\u0000"\n'
-    const result = run(text, undefined, { 'workflows/f.js': code })
+    const result = run(text, undefined, { 'workflows/functions/f.js': code })
     const refused = result.diagnostics.find((d) => d.code === 'E_INVALID_CHARACTER')
-    expect(refused?.span).toMatchObject({ file: 'workflows/f.js', line: 2, column: 10 })
+    expect(refused?.span).toMatchObject({ file: 'workflows/functions/f.js', line: 2, column: 10 })
     expect(refused?.blockKey).toBe('f')
   })
 

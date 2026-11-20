@@ -348,16 +348,16 @@ describe('the source directory never reaches outside --dir', () => {
     expect(applyBodies).toEqual([])
   })
 
-  it('refuses a write-back the server names outside the directory, writing nothing', async () => {
+  it('never writes a stored write-back path outside the directory, and still records the write', async () => {
     await get()
     server.apply = () =>
       json(appliedResponse({ 'workflow.ts': '// changed\n', '../escape.js': 'x' }))
 
-    await expect(apply()).rejects.toThrow('unsafe file path')
+    await apply()
 
     expect(existsSync(join(root, 'escape.js'))).toBe(false)
-    expect(read('workflow.ts')).toBe(WORKFLOW_TS)
-    expect(JSON.parse(read('.sim/base.json')).fingerprint).toBe(FIRST)
+    expect(read('workflow.ts')).toBe('// changed\n')
+    expect(JSON.parse(read('.sim/base.json')).fingerprint).not.toBe(FIRST)
   })
 
   it.each([
@@ -428,14 +428,14 @@ describe('the files a server answer may write', () => {
     expect(existsSync(dir)).toBe(false)
   })
 
-  it('refuses an apply answer naming a file the printer never writes, keeping the directory', async () => {
+  it('never writes an apply answer file the printer never writes, and still records the write', async () => {
     await get()
     server.apply = () => json(appliedResponse({ ...FILES, '.git/hooks/pre-commit': 'planted' }))
 
-    await expect(apply()).rejects.toThrow('unsafe file path')
+    await apply()
 
     expect(existsSync(join(dir, '.git'))).toBe(false)
-    expect(JSON.parse(read('.sim/base.json')).fingerprint).toBe(FIRST)
+    expect(JSON.parse(read('.sim/base.json')).fingerprint).not.toBe(FIRST)
   })
 })
 

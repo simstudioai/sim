@@ -423,13 +423,13 @@ describe('accepted grammar', () => {
       source(
         [
           START,
-          "const score = fn('Score', { language: 'javascript', code: codeFile('./fns/score.js') })",
-          "const py = fn('Py', { language: 'python', code: codeFile('./fns/py.py') })",
+          "const score = fn('Score', { language: 'javascript', code: codeFile('./functions/score.js') })",
+          "const py = fn('Py', { language: 'python', code: codeFile('./functions/py.py') })",
         ].join('\n')
       ),
       {
-        'workflows/fns/score.js': 'return $ref.start.input + $env.KEY // $ref.x',
-        'workflows/fns/py.py': 'print($ref.start.input)',
+        'workflows/functions/score.js': 'return $ref.start.input + $env.KEY // $ref.x',
+        'workflows/functions/py.py': 'print($ref.start.input)',
       }
     )
     expect(errorsOf(result)).toEqual([])
@@ -440,7 +440,7 @@ describe('accepted grammar', () => {
     expect(result.hints.blocks.score).toEqual({
       ident: 'score',
       order: 1,
-      codeFile: 'workflows/fns/score.js',
+      codeFile: 'workflows/functions/score.js',
     })
   })
 
@@ -841,9 +841,9 @@ describe('errors, each with its code, location and hint', () => {
     ],
     [
       'codeFile() in an extra field',
-      "const a = api('A', { url: 'x' }, { extra: { script: codeFile('./fns/a.js') } })",
+      "const a = api('A', { url: 'x' }, { extra: { script: codeFile('./functions/a.js') } })",
       'E_UNSUPPORTED_SYNTAX',
-      "codeFile('./fns/a.js') }",
+      "codeFile('./functions/a.js') }",
       "Write code: codeFile('./functions/x.js').",
     ],
     [
@@ -984,9 +984,9 @@ describe('errors, each with its code, location and hint', () => {
     ],
     [
       'a missing code file',
-      "const f = fn('F', { code: codeFile('./fns/missing.js') })",
+      "const f = fn('F', { code: codeFile('./functions/missing.js') })",
       'E_CODE_FILE_MISSING',
-      "'./fns/missing.js'",
+      "'./functions/missing.js'",
     ],
     [
       'a code file outside the repo',
@@ -995,18 +995,39 @@ describe('errors, each with its code, location and hint', () => {
       "'../../../x.js'",
     ],
     [
-      'a code file whose extension does not match the language',
-      "const f = fn('F', { language: 'python', code: codeFile('./fns/a.js') })",
+      'a code file outside functions/, which the CLI never writes back',
+      "const f = fn('F', { code: codeFile('./lib/a.js') })",
       'E_CODE_FILE_PATH',
-      "'./fns/a.js'",
+      "'./lib/a.js'",
+    ],
+    [
+      'a code file whose name starts with a dot',
+      "const f = fn('F', { code: codeFile('./functions/.a.js') })",
+      'E_CODE_FILE_PATH',
+      "'./functions/.a.js'",
+    ],
+    [
+      'a code file whose extension does not match the language',
+      "const f = fn('F', { language: 'python', code: codeFile('./functions/a.js') })",
+      'E_CODE_FILE_PATH',
+      "'./functions/a.js'",
     ],
   ] as const)('reports %s', (_label, body, code, needle) => {
     const text = source(body)
     expectDiagnostic(
-      run(text, { 'workflows/fns/a.js': 'return 1' }),
+      run(text, { 'workflows/functions/a.js': 'return 1' }),
       code,
       locate(text, needle, code === 'E_DUPLICATE_EDGE' ? 2 : 1)
     )
+  })
+
+  it('reads a code file named with capitals and underscores, as an author names a Python file', () => {
+    const text = source(
+      "const f = fn('F', { language: 'python', code: codeFile('./functions/My_Sink.py') })"
+    )
+    const result = run(text, { 'workflows/functions/My_Sink.py': 'print(1)' })
+    expect(result.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    expect(result.hints.blocks.f?.codeFile).toBe('workflows/functions/My_Sink.py')
   })
 
   it('attributes a wiring error to the source block', () => {
@@ -1033,7 +1054,7 @@ describe('errors, each with its code, location and hint', () => {
         START,
         "const classifier = agent('Triage Agent', { model: 'm' })",
         "const lookup = api('Lookup', { url: 'x' })",
-        "const f = fn('F', { code: codeFile('./fns/f.js') })",
+        "const f = fn('F', { code: codeFile('./functions/f.js') })",
       ].join('\n')
     )
     const file = [
@@ -1042,22 +1063,22 @@ describe('errors, each with its code, location and hint', () => {
       'const c = $ref.variable.missing',
       'const d = $ref.triageagent.content + $ref.lookup.data + $ref.start.input + $ref.variable.retries',
     ].join('\n')
-    const result = run(text, { 'workflows/fns/f.js': file })
+    const result = run(text, { 'workflows/functions/f.js': file })
     expect(errorsOf(result)).toEqual([])
     const unresolved = result.diagnostics.filter((d) => d.code === 'W_UNRESOLVED_REF')
     expect(unresolved).toEqual([
       expect.objectContaining({
-        span: expect.objectContaining({ file: 'workflows/fns/f.js', line: 1, column: 11 }),
+        span: expect.objectContaining({ file: 'workflows/functions/f.js', line: 1, column: 11 }),
         hint: expect.stringContaining('$ref.triageagent.content'),
       }),
       expect.objectContaining({
-        span: expect.objectContaining({ file: 'workflows/fns/f.js', line: 3 }),
+        span: expect.objectContaining({ file: 'workflows/functions/f.js', line: 3 }),
       }),
     ])
     const outputPath = result.diagnostics.filter((d) => d.code === 'W_UNKNOWN_OUTPUT_PATH')
     expect(outputPath).toEqual([
       expect.objectContaining({
-        span: expect.objectContaining({ file: 'workflows/fns/f.js', line: 2 }),
+        span: expect.objectContaining({ file: 'workflows/functions/f.js', line: 2 }),
       }),
     ])
   })
@@ -1067,10 +1088,10 @@ describe('errors, each with its code, location and hint', () => {
       [
         START,
         "const lookup = api('Fetch Page', { url: 'x' })",
-        "const f = fn('F', { code: codeFile('./fns/f.js') })",
+        "const f = fn('F', { code: codeFile('./functions/f.js') })",
       ].join('\n')
     )
-    const files = { 'workflows/fns/f.js': 'return $ref.lookup.data + $ref.lookup.nope' }
+    const files = { 'workflows/functions/f.js': 'return $ref.lookup.data + $ref.lookup.nope' }
     const lockBlock = (id: string, ident: string, order: number) => ({
       id,
       parent: null,
@@ -1096,7 +1117,7 @@ describe('errors, each with its code, location and hint', () => {
       })
     const codes = (result: CompileResult) =>
       result.diagnostics
-        .filter((d) => d.span.file === 'workflows/fns/f.js')
+        .filter((d) => d.span.file === 'workflows/functions/f.js')
         .map((d) => `${d.code} ${d.span.column}`)
     const expected = ['W_UNKNOWN_OUTPUT_PATH 27']
     expect(codes(compile({ storedUnread }))).toEqual(expected)
@@ -1109,7 +1130,7 @@ describe('errors, each with its code, location and hint', () => {
       [
         START,
         "const fetcher = api('Fetch Page', { url: 'x' })",
-        "const f = fn('F', { code: codeFile('./fns/f.js') })",
+        "const f = fn('F', { code: codeFile('./functions/f.js') })",
       ].join('\n')
     )
     const lockBlock = (id: string, ident: string, order: number) => ({
@@ -1129,7 +1150,7 @@ describe('errors, each with its code, location and hint', () => {
     }
     const result = compileWorkflow({
       entry: { path: ENTRY, text },
-      files: new Map([['workflows/fns/f.js', 'return $ref.lookup.data']]),
+      files: new Map([['workflows/functions/f.js', 'return $ref.lookup.data']]),
       catalog: TEST_CATALOG,
       sdkMajor: 1,
       knownKeys: new Set(Object.keys(storedUnread.blocks)),
@@ -1143,11 +1164,11 @@ describe('errors, each with its code, location and hint', () => {
   })
 
   it('reports a syntax error inside a code file at its own location', () => {
-    const result = run(source("const f = fn('F', { code: codeFile('./fns/bad.js') })"), {
-      'workflows/fns/bad.js': 'return (',
+    const result = run(source("const f = fn('F', { code: codeFile('./functions/bad.js') })"), {
+      'workflows/functions/bad.js': 'return (',
     })
     const syntax = result.diagnostics.find((d) => d.code === 'E_SYNTAX')
-    expect(syntax?.span).toMatchObject({ file: 'workflows/fns/bad.js', line: 1 })
+    expect(syntax?.span).toMatchObject({ file: 'workflows/functions/bad.js', line: 1 })
     expect(result.workflow).toBeNull()
   })
 
@@ -1477,8 +1498,11 @@ describe('env names the workspace does not hold', () => {
 
   it('warns on a $env name in a code file at the file location', () => {
     const result = compileWorkflow({
-      entry: { path: ENTRY, text: source("const f = fn('F', { code: codeFile('./fns/f.js') })") },
-      files: new Map([['workflows/fns/f.js', 'return $env.API_URL + $env.MISSING_KEY']]),
+      entry: {
+        path: ENTRY,
+        text: source("const f = fn('F', { code: codeFile('./functions/f.js') })"),
+      },
+      files: new Map([['workflows/functions/f.js', 'return $env.API_URL + $env.MISSING_KEY']]),
       catalog: TEST_CATALOG,
       sdkMajor: 1,
       envNames: new Set(['API_URL']),
@@ -1487,7 +1511,7 @@ describe('env names the workspace does not hold', () => {
     expect(unknown).toEqual([
       expect.objectContaining({
         message: expect.stringContaining('MISSING_KEY'),
-        span: expect.objectContaining({ file: 'workflows/fns/f.js', line: 1, column: 23 }),
+        span: expect.objectContaining({ file: 'workflows/functions/f.js', line: 1, column: 23 }),
       }),
     ])
   })

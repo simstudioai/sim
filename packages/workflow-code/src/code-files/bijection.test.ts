@@ -261,4 +261,22 @@ describe('code file paths', () => {
     expect(print().hints.blocks.fetchdata?.codeFile).toBe(hinted)
     expect(print()).toEqual(print())
   })
+
+  it.each(['lib/fetch.js', 'functions/.fetch.js', '.git/hooks/fetch.js'])(
+    'prints a hinted path no workflow directory holds (%s) under functions/ instead',
+    (hinted) => {
+      const stored = canonical(
+        workflowState([
+          blockState('f0', 'function', 'Fetch data', { language: 'javascript', code: 'return 1' }),
+        ])
+      ).workflow
+      const printed = printWorkflow({
+        workflow: stored,
+        catalog: CATALOG,
+        hints: { blocks: { fetchdata: { codeFile: hinted } } },
+        options: { functionCode: 'files' },
+      })
+      expect(printed.files.slice(1).map((file) => file.path)).toEqual(['functions/fetch-data.js'])
+    }
+  )
 })
