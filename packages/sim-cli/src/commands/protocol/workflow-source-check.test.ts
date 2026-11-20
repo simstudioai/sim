@@ -552,6 +552,49 @@ export default workflow('W', {}, () => {
     }
   })
 
+  it('keeps a stored dangling $ref a warning when only its function file was renamed', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const total = fn('Total', { code: codeFile('./functions/sum.js') })
+  start.to(total)
+})
+`
+    )
+    writeFileSync(
+      join(dir, '.sim/lock.json'),
+      JSON.stringify({
+        version: 1,
+        blocks: {
+          start: { id: 'id-start', parent: null, ident: 'start', order: 0 },
+          total: {
+            id: 'id-total',
+            parent: null,
+            ident: 'total',
+            order: 1,
+            codeFile: 'functions/total.js',
+          },
+        },
+        variables: {},
+      })
+    )
+    writeWritten({ 'functions/total.js': 'return $ref.ordertotals.sum\n' })
+    writeFileSync(join(dir, 'functions/sum.js'), 'return $ref.ordertotals.sum\n')
+
+    for (const flags of [[], ['--no-strict']]) {
+      process.exitCode = undefined
+      await checkIn(dir, ...flags)
+      expect(result()).toMatchObject({ errors: 0, warnings: 1 })
+      expect(process.exitCode).toBeUndefined()
+    }
+  })
+
   it('fails on a bound block with --strict and on nothing with --no-strict', async () => {
     cacheCatalog()
     writeFileSync(join(dir, 'workflow.ts'), UNKNOWN_METHOD)

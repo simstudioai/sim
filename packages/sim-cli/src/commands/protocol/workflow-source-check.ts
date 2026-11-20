@@ -92,9 +92,10 @@ const EDIT_SCOPED_CODES: ReadonlySet<string> = new Set(['W_JSON_REF_UNTYPED'])
 
 /**
  * Warnings in a function code file a check refuses under the server's error code, whatever the
- * strict mode, when that file changed since the get wrote it (or is new): the server refuses them
- * on code the edit changed, and keeps them as warnings only on code the stored workflow already
- * holds. `W_UNRESOLVED_REF`, a `$ref` naming no block or variable, which fails at run time, is
+ * strict mode, when that file changed since the get wrote it (or is new; a file only moved from
+ * the path the lock bound its block to is unchanged while its text matches that path's digest):
+ * the server refuses them on code the edit changed, and keeps them as warnings only on code the
+ * stored workflow already holds. `W_UNRESOLVED_REF`, a `$ref` naming no block or variable, which fails at run time, is
  * `E_APPLY_UNRESOLVED_REF`.
  */
 const EDITED_FILE_REFUSALS: ReadonlyMap<string, CheckFinding['code']> = new Map([
@@ -497,12 +498,19 @@ export async function checkWorkflowDir(
   const bound = (blockKey: string | undefined) =>
     lock !== undefined && blockKey !== undefined && Object.hasOwn(lock.blocks, blockKey)
   const written = await readFolderWritten(dir)
-  const edited = (file: string) => {
+  const edited = (file: string, blockKey: string | undefined) => {
     const text = files[file]
-    return text === undefined || written.digests[file] !== digest(text)
+    if (text === undefined) return true
+    const textDigest = digest(text)
+    if (written.digests[file] === textDigest) return false
+    const previousFile =
+      lock && blockKey !== undefined && Object.hasOwn(lock.blocks, blockKey)
+        ? lock.blocks[blockKey].codeFile
+        : undefined
+    return previousFile === undefined || written.digests[previousFile] !== textDigest
   }
-  const editedRefusal = (code: string, file: string | undefined) =>
-    file !== undefined && file !== SOURCE_ENTRY_FILE && edited(file)
+  const editedRefusal = (code: string, file: string | undefined, blockKey: string | undefined) =>
+    file !== undefined && file !== SOURCE_ENTRY_FILE && edited(file, blockKey)
       ? EDITED_FILE_REFUSALS.get(code)
       : undefined
   const fails = (code: string, blockKey: string | undefined) =>
@@ -517,7 +525,7 @@ export async function checkWorkflowDir(
     ...compiled.diagnostics.filter((diagnostic) => reported(diagnostic.code, diagnostic.blockKey)),
     ...declared,
   ].map(({ code, severity, message, hint, frame, span, blockKey }): CheckFinding => {
-    const refusal = severity === 'warning' ? editedRefusal(code, span?.file) : undefined
+    const refusal = severity === 'warning' ? editedRefusal(code, span?.file, blockKey) : undefined
     const raised = refusal !== undefined || (severity === 'warning' && fails(code, blockKey))
     return {
       code: refusal ?? code,
