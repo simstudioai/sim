@@ -460,6 +460,26 @@ const SCRIPT_LANGUAGE_LABEL: Record<Exclude<CodeFileLanguage, 'javascript'>, str
 }
 
 /**
+ * Whether a `$ref`/`$env` match in a Python or shell file is a reference rather than the
+ * language's own text (a shell variable `$ref` before `.txt`): `$ref` needs a path under a block,
+ * `loop`, `parallel` or `variable`, and `$env` a name the workspace declares, when its names are
+ * known.
+ */
+function isScriptRef(ctx: CompileContext, root: string, names: readonly string[]): boolean {
+  const [head] = names
+  if (head === undefined) return false
+  if (root === 'env') return !ctx.envNames || ctx.envNames.has(head)
+  if (names.length < 2) return false
+  return (
+    ctx.declsByKey.has(head) ||
+    ctx.declsByIdent.has(head) ||
+    head === 'loop' ||
+    head === 'parallel' ||
+    head === 'variable'
+  )
+}
+
+/**
  * `W_CODE_FILE_REF_SYNTAX` on each `$ref.key.path` and `$env.NAME` in a Python or shell file:
  * only JavaScript files are rewritten, so these reach the run as text and break the code. The
  * hint names the form those files take, the stored `<key.path>` tag or `{{NAME}}`, which the run
@@ -476,6 +496,7 @@ function reportScriptRefSyntax(
   for (const match of text.matchAll(SCRIPT_REF)) {
     const [written, root, members] = match
     const names = members.slice(1).split('.')
+    if (!isScriptRef(ctx, root, names)) continue
     const form = root === 'env' ? `{{${names[0]}}}` : `<${names.join('.')}>`
     ctx.reporter.report(
       'W_CODE_FILE_REF_SYNTAX',

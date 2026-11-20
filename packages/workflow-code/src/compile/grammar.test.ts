@@ -1893,6 +1893,27 @@ describe('$ref and $env in a Python or shell code file', () => {
       ['workflows/functions/s.sh', 'Shell files are saved as written: write <start.q>.'],
     ])
   })
+
+  it('leaves a shell variable named ref or env alone when no block or env name follows it', () => {
+    const result = compileWorkflow({
+      entry: {
+        path: ENTRY,
+        text: source(
+          [
+            START,
+            "const sh = fn('Sh', { language: 'shell', code: codeFile('./functions/s.sh') })",
+          ].join('\n')
+        ),
+      },
+      files: new Map([
+        ['workflows/functions/s.sh', 'ref=out; env=dev\necho $ref.txt $ref.start $env.lower'],
+      ]),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      envNames: new Set(['API_KEY']),
+    })
+    expect(syntax(result)).toEqual([])
+  })
 })
 
 describe('reference-shaped text that floods the warnings', () => {
