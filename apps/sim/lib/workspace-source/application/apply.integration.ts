@@ -253,6 +253,28 @@ describe('workspace source apply', () => {
   }
 
   check(
+    'a real apply reports each finding of a written workflow once, as its dry run does',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        ...STARTER,
+        'workflows/ingest/workflow.ts': INGEST.replace(
+          'data: { email: start.email },',
+          'data: { email: start.email, note: env.QA_NOT_SET },'
+        ).replace('import { table,', 'import { env, table,'),
+      }
+      const once = (diagnostics: ReadonlyArray<{ code: string; severity: string }>) =>
+        codes(diagnostics, 'warning').filter((code) => code === 'W_ENV_UNKNOWN')
+
+      const planned = await apply(workspaceId, files, { dryRun: true })
+      expect(once(planned.diagnostics)).toEqual(['W_ENV_UNKNOWN'])
+      const written = await apply(workspaceId, files)
+      expect(written.failed).toBeUndefined()
+      expect(once(written.diagnostics)).toEqual(['W_ENV_UNKNOWN'])
+    }
+  )
+
+  check(
     'every audit entry an apply writes carries its apply id, and the next apply has another',
     async () => {
       const workspaceId = await newWorkspace()

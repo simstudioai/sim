@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, withAuditCorrelation } from '@sim/audit
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { stableStringify } from '@sim/workflow-code'
 import {
   APPLY_ORDER,
   type FlatDiagnostic,
@@ -396,12 +397,25 @@ async function writeAll(
   base: WorkspaceBaseV1,
   result: ApplyWorkspaceSourceResult
 ): Promise<void> {
+  // A write re-reports what its plan already found (a workflow's commit runs its pipeline
+  // again): each finding is listed once, with the ids the write gave it.
+  const findingKey = (diagnostic: WorkspaceSourceDiagnostic) =>
+    stableStringify({ ...diagnostic, blockId: undefined })
+  const reported = new Map(result.diagnostics.map((diagnostic, at) => [findingKey(diagnostic), at]))
   for (const change of writeOrder(changes)) {
     try {
       await lease.confirm()
       const written = await write(change, writeCtx)
       Object.assign(result.files, written.text)
-      result.diagnostics.push(...(written.diagnostics ?? []))
+      for (const diagnostic of written.diagnostics ?? []) {
+        const at = reported.get(findingKey(diagnostic))
+        if (at !== undefined) {
+          result.diagnostics[at] = diagnostic
+          continue
+        }
+        reported.set(findingKey(diagnostic), result.diagnostics.length)
+        result.diagnostics.push(diagnostic)
+      }
       result.applied.push(summarize(change, written.id))
       if (written.keyTaken) {
         // Written but not bound to its key, so the base keeps what it held, and a later write
