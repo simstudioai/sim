@@ -1,6 +1,6 @@
 /**
- * Real PostgreSQL coverage for what an operations batch persists when it renames a block, read
- * back from the normalized tables.
+ * Real PostgreSQL coverage for what an operations batch persists when it renames a block or
+ * sets a loop or parallel count from a string, read back from the normalized tables.
  */
 import { db } from '@sim/db'
 import { auditLog, permissions, user, workflow, workspace } from '@sim/db/schema'
@@ -131,5 +131,69 @@ describe('renaming a block through an operations batch', () => {
       'return { saved: <saveorderedited.row>, all: <saveorderedited.result> }'
     )
     expect(blocks[unrelated].subBlocks.code.value).toBe('return <saveorders.row>')
+  })
+})
+
+describe('a loop or parallel count given as a string', () => {
+  it('stores a numeric string as its number on add and on edit', async () => {
+    const workflowId = await seedWorkflow([block(generateId(), 'starter', 'Start')])
+    const loop = generateId()
+    const parallel = generateId()
+
+    await apply(
+      workflowId,
+      [
+        {
+          operation_type: 'add',
+          block_id: loop,
+          params: { type: 'loop', name: 'Repeat', inputs: { loopType: 'for', iterations: '3' } },
+        },
+        {
+          operation_type: 'add',
+          block_id: parallel,
+          params: {
+            type: 'parallel',
+            name: 'Fan Out',
+            inputs: { parallelType: 'count', count: '2' },
+          },
+        },
+      ],
+      true
+    )
+
+    const added = await stored(workflowId)
+    expect(added.loops[loop]).toMatchObject({ iterations: 3 })
+    expect(added.parallels[parallel]).toMatchObject({ count: 2 })
+
+    await apply(workflowId, [
+      { operation_type: 'edit', block_id: loop, params: { inputs: { iterations: ' 4 ' } } },
+    ])
+
+    expect((await stored(workflowId)).loops[loop]).toMatchObject({ iterations: 4 })
+  })
+
+  it('refuses a non-numeric count instead of silently resetting it', async () => {
+    const workflowId = await seedWorkflow([block(generateId(), 'starter', 'Start')])
+
+    await expect(
+      apply(
+        workflowId,
+        [
+          {
+            operation_type: 'add',
+            block_id: generateId(),
+            params: {
+              type: 'loop',
+              name: 'Repeat',
+              inputs: { loopType: 'for', iterations: 'three' },
+            },
+          },
+        ],
+        true
+      )
+    ).rejects.toMatchObject({
+      droppedInputs: [expect.objectContaining({ field: 'iterations', value: 'three' })],
+    })
+    expect(Object.keys((await stored(workflowId)).loops)).toEqual([])
   })
 })

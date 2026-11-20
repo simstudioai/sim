@@ -23,7 +23,7 @@ import {
   updateCanonicalModesForInputs,
 } from './builders'
 import { VALID_LOOP_TYPES, VALID_PARALLEL_TYPES } from './container-types'
-import type { EditWorkflowOperation, OperationContext } from './types'
+import type { EditWorkflowOperation, OperationContext, ValidationError } from './types'
 import { logSkippedItem } from './types'
 import { findBlockWithDuplicateNormalizedName, validateInputsForBlock } from './validation'
 
@@ -83,9 +83,38 @@ function renameBlock(blocks: Record<string, BlockState>, blockId: string, name: 
 }
 
 /**
+ * A loop's `iterations` or a parallel's `count` as stored: a number as given, a numeric string as
+ * its number (the way a slider input coerces), and anything else refused as an input validation
+ * error, keeping `current`, since the loader would otherwise reset a non-number to its default.
+ */
+function containerCount(
+  block: BlockState,
+  field: 'iterations' | 'count',
+  value: unknown,
+  validationErrors: ValidationError[],
+  current?: unknown
+): unknown {
+  if (typeof value === 'number') return value
+  const parsed = typeof value === 'string' && value.trim() !== '' ? Number(value) : Number.NaN
+  if (Number.isFinite(parsed)) return parsed
+  validationErrors.push({
+    blockId: block.id,
+    blockType: block.type,
+    field,
+    value,
+    error: `Invalid ${field} "${String(value)}" for ${block.type} "${block.name}" - must be a number`,
+  })
+  return current
+}
+
+/**
  * Applies loop/parallel container config from `inputs` onto a block state (data.loopType, etc.).
  */
-function applyLoopOrParallelContainerData(block: any, params: Record<string, any>): void {
+function applyLoopOrParallelContainerData(
+  block: any,
+  params: Record<string, any>,
+  validationErrors: ValidationError[]
+): void {
   if (params.type === 'loop') {
     const loopType =
       params.inputs?.loopType && VALID_LOOP_TYPES.includes(params.inputs.loopType)
@@ -96,7 +125,16 @@ function applyLoopOrParallelContainerData(block: any, params: Record<string, any
       loopType,
       ...(loopType === 'forEach' &&
         params.inputs?.collection && { collection: params.inputs.collection }),
-      ...(loopType === 'for' && params.inputs?.iterations && { count: params.inputs.iterations }),
+      ...(loopType === 'for' &&
+        params.inputs?.iterations && {
+          count: containerCount(
+            block,
+            'iterations',
+            params.inputs.iterations,
+            validationErrors,
+            block.data?.count
+          ),
+        }),
       ...(loopType === 'while' &&
         params.inputs?.condition && { whileCondition: params.inputs.condition }),
       ...(loopType === 'doWhile' &&
@@ -112,7 +150,16 @@ function applyLoopOrParallelContainerData(block: any, params: Record<string, any
       parallelType,
       ...(parallelType === 'collection' &&
         params.inputs?.collection && { collection: params.inputs.collection }),
-      ...(parallelType === 'count' && params.inputs?.count && { count: params.inputs.count }),
+      ...(parallelType === 'count' &&
+        params.inputs?.count && {
+          count: containerCount(
+            block,
+            'count',
+            params.inputs.count,
+            validationErrors,
+            block.data?.count
+          ),
+        }),
     }
   }
 }
@@ -167,7 +214,7 @@ function processNestedNodesForParent(
       ctx.enforceToolBindingContract
     )
     if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
-      applyLoopOrParallelContainerData(childBlockState, childBlock)
+      applyLoopOrParallelContainerData(childBlockState, childBlock, validationErrors)
     }
     modifiedState.blocks[childId] = childBlockState
 
@@ -184,7 +231,11 @@ function processNestedNodesForParent(
   })
 }
 
-function updateLoopOrParallelContainerData(block: any, params: Record<string, any>): void {
+function updateLoopOrParallelContainerData(
+  block: any,
+  params: Record<string, any>,
+  validationErrors: ValidationError[]
+): void {
   if (block.type === 'loop') {
     block.data = block.data || {}
     if (params.inputs?.loopType) {
@@ -195,7 +246,13 @@ function updateLoopOrParallelContainerData(block: any, params: Record<string, an
     }
     const effectiveLoopType = params.inputs?.loopType ?? block.data.loopType ?? 'for'
     if (params.inputs?.iterations && effectiveLoopType === 'for') {
-      block.data.count = params.inputs.iterations
+      block.data.count = containerCount(
+        block,
+        'iterations',
+        params.inputs.iterations,
+        validationErrors,
+        block.data.count
+      )
     }
     if (params.inputs?.collection && effectiveLoopType === 'forEach') {
       block.data.collection = params.inputs.collection
@@ -220,7 +277,13 @@ function updateLoopOrParallelContainerData(block: any, params: Record<string, an
     }
     const effectiveParallelType = params.inputs?.parallelType ?? block.data.parallelType ?? 'count'
     if (params.inputs?.count && effectiveParallelType === 'count') {
-      block.data.count = params.inputs.count
+      block.data.count = containerCount(
+        block,
+        'count',
+        params.inputs.count,
+        validationErrors,
+        block.data.count
+      )
     }
     if (params.inputs?.collection && effectiveParallelType === 'collection') {
       block.data.collection = params.inputs.collection
@@ -303,7 +366,7 @@ function mergeNestedNodesForParent(
       }
 
       if (existingBlock.type === 'loop' || existingBlock.type === 'parallel') {
-        updateLoopOrParallelContainerData(existingBlock, childBlock)
+        updateLoopOrParallelContainerData(existingBlock, childBlock, ctx.validationErrors)
       }
 
       if (childBlock.connections) {
@@ -345,7 +408,7 @@ function mergeNestedNodesForParent(
       ctx.enforceToolBindingContract
     )
     if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
-      applyLoopOrParallelContainerData(childBlockState, childBlock)
+      applyLoopOrParallelContainerData(childBlockState, childBlock, validationErrors)
     }
     modifiedState.blocks[childId] = childBlockState
 
@@ -599,7 +662,13 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
       const effectiveLoopType = params.inputs.loopType ?? block.data.loopType ?? 'for'
       if (params.inputs.iterations !== undefined && effectiveLoopType === 'for') {
-        block.data.count = params.inputs.iterations
+        block.data.count = containerCount(
+          block,
+          'iterations',
+          params.inputs.iterations,
+          validationErrors,
+          block.data.count
+        )
       }
       if (params.inputs.collection !== undefined && effectiveLoopType === 'forEach') {
         block.data.collection = params.inputs.collection
@@ -624,7 +693,13 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
       const effectiveParallelType = params.inputs.parallelType ?? block.data.parallelType ?? 'count'
       if (params.inputs.count !== undefined && effectiveParallelType === 'count') {
-        block.data.count = params.inputs.count
+        block.data.count = containerCount(
+          block,
+          'count',
+          params.inputs.count,
+          validationErrors,
+          block.data.count
+        )
       }
       if (params.inputs.collection !== undefined && effectiveParallelType === 'collection') {
         block.data.collection = params.inputs.collection
@@ -729,7 +804,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
   if (params?.nestedNodes) {
     mergeNestedNodesForParent(block_id, params.nestedNodes, ctx)
 
-    updateLoopOrParallelContainerData(block, params)
+    updateLoopOrParallelContainerData(block, params, ctx.validationErrors)
   }
 
   // Defer connections to pass 2 so all blocks exist before edges are created
@@ -912,7 +987,7 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
   )
 
   if (params.type === 'loop' || params.type === 'parallel') {
-    applyLoopOrParallelContainerData(newBlock, params)
+    applyLoopOrParallelContainerData(newBlock, params, ctx.validationErrors)
   }
 
   // Add parent block FIRST before adding children
@@ -1063,7 +1138,7 @@ export function handleInsertIntoSubflowOperation(
     )
     modifiedState.blocks[block_id] = newBlock
     if (params.type === 'loop' || params.type === 'parallel') {
-      applyLoopOrParallelContainerData(newBlock, params)
+      applyLoopOrParallelContainerData(newBlock, params, ctx.validationErrors)
     }
     if (params.nestedNodes && (params.type === 'loop' || params.type === 'parallel')) {
       processNestedNodesForParent(block_id, params.nestedNodes, ctx)
