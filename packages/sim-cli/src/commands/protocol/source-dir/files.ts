@@ -147,7 +147,10 @@ export async function readSourceText(dir: string, path: string): Promise<string 
     try {
       const content = await embeddedFileContent(embedded, posix.join(dir, path))
       text = typeof content === 'string' ? content : new TextDecoder().decode(content)
-    } catch {
+    } catch (error) {
+      // The host's reader names no missing-file error, so a failure reads as a missing file; a
+      // stopped run does not.
+      if (embedded.identity.signal?.aborted) throw error
       return null
     }
   } else {

@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { type EmbedContext, embedStore } from '../../embed-context'
 import { EmbeddedOutput } from '../../embed-output'
 import {
+  readSourceText,
   SOURCE_DIR_LOCK,
   SOURCE_WRITTEN_FILE,
   takeOverStaleLock,
@@ -52,6 +53,21 @@ describe('updateSourceDir', () => {
     ).rejects.toThrow()
 
     for (const path of records) expect(readFileSync(join(dir, path), 'utf8')).toBe('old')
+  })
+
+  it('in an embedded run, a read the run stopped during throws instead of reading as a missing file', async () => {
+    const stopped = new AbortController()
+    const host: EmbedContext = {
+      identity: { endpoint: 'http://localhost', apiKey: 'test', signal: stopped.signal },
+      stdout: new EmbeddedOutput(),
+      stderr: new EmbeddedOutput(),
+      readFile: async () => {
+        stopped.abort()
+        return 'text'
+      },
+    }
+
+    await expect(embedStore.run(host, () => readSourceText(dir, 'workflow.ts'))).rejects.toThrow()
   })
 
   it('in an embedded run, writes the records after every file, fetched blobs included', async () => {
