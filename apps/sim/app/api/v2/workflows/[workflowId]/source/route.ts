@@ -5,6 +5,7 @@ import {
 } from '@/lib/api/contracts/v2/workflow-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import {
+  presentSourceOutcome,
   v2WorkflowErrorPolicies,
   withBoundSourceFindings,
   withSourceSlot,
@@ -66,5 +67,5 @@ export const POST = defineV2JsonRoute({
     ...(query.allowDelete !== undefined ? { allowDelete: query.allowDelete } : {}),
   }),
   useCase: withSourceSlot(applyWorkflowSource, 'apply'),
-  present: (result) => ({ data: withBoundSourceFindings(result) }),
+  present: (result) => ({ data: presentSourceOutcome(result) }),
 })

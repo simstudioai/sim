@@ -1,11 +1,7 @@
 import { SOURCE_REQUEST_MAX_BYTES } from '@sim/workflow-code/limits'
 import { v2PlanWorkflowSourceContract } from '@/lib/api/contracts/v2/workflow-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import {
-  v2WorkflowErrorPolicies,
-  withBoundSourceFindings,
-  withSourceSlot,
-} from '@/lib/workflows/api'
+import { presentSourceOutcome, v2WorkflowErrorPolicies, withSourceSlot } from '@/lib/workflows/api'
 import { planWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 
@@ -34,5 +30,5 @@ export const POST = defineV2JsonRoute({
     ...(query.allowDelete !== undefined ? { allowDelete: query.allowDelete } : {}),
   }),
   useCase: withSourceSlot(planWorkflowSource, 'plan'),
-  present: (result) => ({ data: withBoundSourceFindings(result) }),
+  present: (result) => ({ data: presentSourceOutcome(result) }),
 })
