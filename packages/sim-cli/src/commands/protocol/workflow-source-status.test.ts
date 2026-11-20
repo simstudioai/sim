@@ -179,7 +179,7 @@ describe('workflows source status', () => {
     await run(root, 'status')
 
     const { frame: _frame, ...listed } = warning
-    expect(printed()).toMatchObject({ plan: { warnings: 1 }, diagnostics: [listed] })
+    expect(printed()).toMatchObject({ plan: null, diagnostics: [listed] })
 
     contextMockState.output = 'text'
     mockProfileFrom.mockReturnValue({
@@ -217,7 +217,11 @@ describe('workflows source status', () => {
   })
 
   it('reports an edit, a deleted function file and a new one, exit 11', async () => {
-    write(root, 'workflow.ts', `${ENTRY}// edited\n`)
+    write(
+      root,
+      'workflow.ts',
+      ENTRY.replace('})\n})', "})\n  fn('Rank', { code: codeFile('./functions/rank.js') })\n})")
+    )
     unlinkSync(join(root, 'functions/score.js'))
     write(root, 'functions/rank.js', 'return 2\n')
     mockRequest.mockResolvedValue(dryRun([], 1))
@@ -241,6 +245,25 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBe(11)
   })
 
+  it('leaves out a function file no codeFile() names, which applying never sends, and says so', async () => {
+    write(root, 'functions/notes.js', 'return 3\n')
+    mockRequest.mockResolvedValue(dryRun())
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({
+      state: 'clean',
+      local: [],
+      unnamed: ['functions/notes.js'],
+      next: null,
+    })
+    expect(process.exitCode ?? 0).toBe(0)
+
+    vi.mocked(console.log).mockClear()
+    await run(root, 'diff', '--server')
+    expect(printed()).toMatchObject({ files: [] })
+  })
+
   it('reports drift when the workflow changed on the server and nothing here, exit 12', async () => {
     mockRequest.mockResolvedValue(dryRun([STALE]))
 
@@ -249,7 +272,8 @@ describe('workflows source status', () => {
     expect(printed()).toMatchObject({
       state: 'drift',
       drift: [{ kind: 'workflow', key: WORKFLOW_ID, server: 'changed' }],
-      plan: { errors: 0 },
+      // Applying is refused as stale, so no plan of what it would change is shown.
+      plan: null,
       next: { command: `sim workflows source get ${WORKFLOW_ID} --dir ${root}` },
     })
     expect(process.exitCode).toBe(12)

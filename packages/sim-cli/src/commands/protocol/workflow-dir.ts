@@ -93,9 +93,9 @@ async function readJson(directory: string, path: string, hint: string): Promise<
  * reference to any other file never uploads it; the server reports a referenced file that is
  * missing or of another kind.
  */
-function codeFilePaths(entry: string, lock: WorkflowLockV1 | null): string[] {
+export function codeFilePaths(entry: string | null, lock: unknown): string[] {
   const candidates = lockCodeFiles(lock)
-  for (const literal of codeFileReferences(entry)) {
+  for (const literal of entry === null ? [] : codeFileReferences(entry)) {
     const path = sourceRelativePath(literal)
     if (path) candidates.add(path)
   }

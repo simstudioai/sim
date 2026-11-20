@@ -61,6 +61,8 @@ export interface StatusReport<Plan> extends SourceStatus {
   server: ServerCheck
   /** Why the server was not checked, or what it left unchecked. */
   note?: string
+  /** Files in the directory no source names, which applying never sends. */
+  unnamed?: string[]
   plan: Plan | null
   next: NextStep | null
 }
@@ -191,6 +193,13 @@ export function printStatusReport<Plan>(
     }
   } else {
     lines.push(s.yellow(`Server not checked${report.note ? `: ${sanitize(report.note)}` : '.'}`))
+  }
+  if (report.unnamed?.length) {
+    lines.push(
+      s.dim(
+        `Not named by any codeFile(), so applying never sends ${report.unnamed.length === 1 ? 'it' : 'them'}: ${sanitize(report.unnamed.join(', '))}`
+      )
+    )
   }
   if (report.server === 'checked' && report.note) lines.push(s.dim(sanitize(report.note)))
   if (report.plan) lines.push(planLine(report.plan))
