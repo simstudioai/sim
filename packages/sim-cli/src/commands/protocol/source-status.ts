@@ -21,9 +21,24 @@ import { noAnswer, SimApiError } from '../../http/client'
 import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
+import { type Diagnostic, findingsOutput } from './source-ui'
 
 /** Whether the server was asked: `checked`, `unreachable` (degraded to local), or `offline`. */
 export type ServerCheck = 'checked' | 'unreachable' | 'offline'
+
+/**
+ * The dry run's findings a status's plan counts: its errors and warnings, less those `listed`
+ * says the status reports as a change of its own (a stale base is drift or a conflict).
+ */
+export function planFindings(
+  diagnostics: readonly Diagnostic[],
+  listed: (code: Diagnostic['code']) => boolean
+): Diagnostic[] {
+  return diagnostics.filter(
+    (finding) =>
+      (finding.severity === 'error' || finding.severity === 'warning') && !listed(finding.code)
+  )
+}
 
 /** The next command a status recommends, and why. */
 export interface NextStep {
@@ -113,19 +128,24 @@ const SERVER_WORDS = {
 } as const
 
 /**
- * Prints a status: the machine shape for `json` and `yaml`, else one screen naming each local
- * change, each drifted and conflicting resource, the dry run's summary line and the next command.
+ * Prints a status: the machine shape for `json` and `yaml`, with the plan's `findings` (from
+ * {@link planFindings}) under `diagnostics`, else the findings on stderr as an apply prints them
+ * and one screen naming each local change, each drifted and conflicting resource, the dry run's
+ * summary line and the next command.
  */
 export function printStatusReport<Plan>(
   format: OutputFormat,
   heading: string,
   report: StatusReport<Plan>,
-  planLine: (plan: Plan) => string
+  planLine: (plan: Plan) => string,
+  findings: readonly Diagnostic[]
 ): void {
+  const shown = findingsOutput(format)
   if (format === 'json' || format === 'yaml') {
-    printDocument(format, report)
+    printDocument(format, findings.length > 0 ? { ...report, ...shown.result(findings) } : report)
     return
   }
+  shown.print(findings)
   const s = styles()
   const lines = [s.bold(sanitize(heading))]
   if (report.local.length === 0) lines.push('No local changes.')

@@ -37,6 +37,7 @@ import {
   loginCommand,
   nextStep,
   pathFilter,
+  planFindings,
   printDiffReport,
   printStatusReport,
   type ServerCheck,
@@ -47,6 +48,7 @@ import {
   unreachableReason,
 } from './source-status'
 import { withSourceExitCode } from './source-tree'
+import type { Diagnostic } from './source-ui'
 import { readBase, readLock, readSourceFiles } from './workflow-source-apply'
 
 type ApplyData = ApplyWorkflowSourceResponse['data']
@@ -102,11 +104,15 @@ interface WorkflowPlanSummary {
   warnings: number
 }
 
+/** The dry run's findings the plan counts: all but `E_APPLY_STALE`, which the status lists. */
+function workflowPlanFindings(data: ApplyData): Diagnostic[] {
+  return planFindings(data.diagnostics, (code) => code === 'E_APPLY_STALE')
+}
+
 function planSummary(data: ApplyData): WorkflowPlanSummary {
+  const planned = workflowPlanFindings(data)
   const findings = (severity: string) =>
-    data.diagnostics.filter(
-      (finding) => finding.severity === severity && finding.code !== 'E_APPLY_STALE'
-    ).length
+    planned.filter((finding) => finding.severity === severity).length
   return {
     blocksAdded: data.diff.blocks.added.length,
     blocksRemoved: data.diff.blocks.removed.length,
@@ -214,7 +220,13 @@ export function attachWorkflowSourceStatus(source: Command): void {
           login,
         }),
       }
-      printStatusReport(output, `Workflow ${workflowId} in ${options.dir}`, report, planLine)
+      printStatusReport(
+        output,
+        `Workflow ${workflowId} in ${options.dir}`,
+        report,
+        planLine,
+        data ? workflowPlanFindings(data) : []
+      )
       setSoftExitCode(statusExitCode(status.state, login))
     })
 }

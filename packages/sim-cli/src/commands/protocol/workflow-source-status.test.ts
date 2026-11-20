@@ -160,6 +160,36 @@ describe('workflows source status', () => {
     expect(process.exitCode ?? 0).toBe(0)
   })
 
+  it('lists the warnings its plan counts, in the document and on stderr', async () => {
+    const warning = {
+      code: 'W_UNRESOLVED_REF',
+      severity: 'warning',
+      message: '$ref.nosuch.x names no block, so it does not resolve at run time.',
+      file: 'functions/score.js',
+      line: 1,
+      column: 8,
+      frame: '> 1 | return $ref.nosuch.x',
+    }
+    mockRequest.mockResolvedValue(dryRun([warning, STALE]))
+
+    await run(root, 'status')
+
+    const { frame: _frame, ...listed } = warning
+    expect(printed()).toMatchObject({ plan: { warnings: 1 }, diagnostics: [listed] })
+
+    contextMockState.output = 'text'
+    mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: WORKSPACE_ID,
+      output: 'text',
+    })
+    await run(root, 'status')
+
+    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+    expect(stderr).toContain('functions/score.js:1:8 warning W_UNRESOLVED_REF')
+    expect(stderr).not.toContain('E_APPLY_STALE')
+  })
+
   it('reports an edit, a deleted function file and a new one, exit 11', async () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
     unlinkSync(join(root, 'functions/score.js'))
