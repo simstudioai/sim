@@ -4,7 +4,11 @@ import {
   v2GetWorkflowSourceContract,
 } from '@/lib/api/contracts/v2/workflow-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { v2WorkflowErrorPolicies, withSourceSlot } from '@/lib/workflows/api'
+import {
+  v2WorkflowErrorPolicies,
+  withBoundSourceFindings,
+  withSourceSlot,
+} from '@/lib/workflows/api'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
@@ -33,7 +37,7 @@ export const GET = defineV2JsonRoute({
     ...(query.functionCode ? { functionCode: query.functionCode } : {}),
   }),
   useCase: withSourceSlot(readWorkflowSource, 'read'),
-  present: (source) => ({ data: source }),
+  present: (source) => ({ data: withBoundSourceFindings(source) }),
 })
 
 /**
@@ -62,5 +66,5 @@ export const POST = defineV2JsonRoute({
     ...(query.allowDelete !== undefined ? { allowDelete: query.allowDelete } : {}),
   }),
   useCase: withSourceSlot(applyWorkflowSource, 'apply'),
-  present: (result) => ({ data: result }),
+  present: (result) => ({ data: withBoundSourceFindings(result) }),
 })

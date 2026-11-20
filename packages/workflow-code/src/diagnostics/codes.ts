@@ -46,12 +46,15 @@ const COMPILE_SYNTAX_CODES = [
    * Fixing the errors listed and compiling again shows the rest.
    */
   'E_TOO_MANY_ERRORS',
-  /**
-   * `MAX_WARNINGS` warnings, or `MAX_WARNINGS_PER_CODE` of one code, were listed; this one sits
-   * where the next was found, and the rest (of that code) are omitted.
-   */
-  'W_TOO_MANY_WARNINGS',
 ] as const
+
+/**
+ * The one truncation marker, in every vocabulary: a list of findings was cut, and this info ends
+ * it. The compile records it where its warning caps (`FINDING_LIMITS`) leave the next warning (of
+ * that code) out; an answer's list (`boundDiagnostics`) ends in one that counts what it left out.
+ * Informational: the findings it follows decide whether a write is refused.
+ */
+const TRUNCATION_CODES = ['I_FINDINGS_TRUNCATED'] as const
 
 /** Names, identifiers and scope. */
 const COMPILE_SCOPE_CODES = [
@@ -292,6 +295,7 @@ const REFERENCE_CODES = [
 
 const COMPILE_DIAGNOSTIC_CODES = [
   ...COMPILE_SYNTAX_CODES,
+  ...TRUNCATION_CODES,
   ...COMPILE_SCOPE_CODES,
   ...COMPILE_EDGE_CODES,
   ...COMPILE_CATALOG_CODES,

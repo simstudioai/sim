@@ -23,6 +23,7 @@ import { apiKeyPrincipal } from '@/lib/api-key/principal'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
+import { boundSourceFindings } from '@/lib/workflows/api/source-findings'
 import { renderSourceSlotBusy } from '@/lib/workflows/api/source-slots'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 import { WorkflowImportError } from '@/lib/workflows/application/import-error'
@@ -108,7 +109,7 @@ export const v2WorkflowErrorPolicies = {
       if (error instanceof WorkflowSourceRejectedError) {
         return v2ErrorForOrchestration(error.code, error.message, {
           code: 'SOURCE_REJECTED',
-          diagnostics: error.diagnostics,
+          diagnostics: boundSourceFindings(error.diagnostics),
         })
       }
       if (error instanceof WorkflowSourceStaleError) {
@@ -138,7 +139,7 @@ export const v2WorkflowErrorPolicies = {
       if (error instanceof WorkflowSourceRejectedError) {
         return v2ErrorForOrchestration(error.code, error.message, {
           code: 'SOURCE_REJECTED',
-          diagnostics: error.diagnostics,
+          diagnostics: boundSourceFindings(error.diagnostics),
         })
       }
       if (error instanceof WorkflowSourceNameTakenError) {

@@ -1,9 +1,13 @@
 export {
+  boundDiagnostics,
+  boundFindingText,
+  findingsTruncated,
+} from './bound'
+export {
   type ApplyDiagnosticCode,
   type DiagnosticCode,
   framesSource,
   type HasDuplicates,
-  type PrintDiagnosticCode,
 } from './codes'
 export { diagnostic } from './factory'
 export {
@@ -18,7 +22,8 @@ export {
   EDIT_REFUSALS,
   type RefusalClass,
   raisedMessage,
+  refusalClass,
   refusalClassifier,
   refuseEditedFindings,
 } from './refusals'
-export { type DiagnosticSeverity, type SeverityOf, severityOf } from './severity'
+export type { DiagnosticSeverity, SeverityOf } from './severity'

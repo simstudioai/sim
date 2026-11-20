@@ -1,4 +1,5 @@
 import { truncateAtCodePoint } from '@sim/utils/string'
+import { FINDING_LIMITS } from '../diagnostics/bound'
 import { type CompileDiagnosticCode, framesSource, MAX_ERRORS } from '../diagnostics/codes'
 import {
   codeFrame,
@@ -55,7 +56,7 @@ export interface Range {
 interface ReportExtras {
   /**
    * A function is called only when the diagnostic is recorded, so a costly did-you-mean is never
-   * computed for a warning past {@link MAX_WARNINGS}; a withheld warning computes it when its
+   * computed for a warning past {@link MAX_LISTED}; a withheld warning computes it when its
    * `hint` is first read.
    */
   hint?: string | (() => string | undefined)
@@ -64,18 +65,17 @@ interface ReportExtras {
   related?: Array<{ at: Range; message: string }>
 }
 
-/** Warnings one compile lists before the rest are omitted with `W_TOO_MANY_WARNINGS`. */
-export const MAX_WARNINGS = 100
 /**
- * Warnings of one code one compile lists before the rest of that code are omitted with
- * `W_TOO_MANY_WARNINGS`, so a flood of one finding leaves room under {@link MAX_WARNINGS} for the
- * others.
+ * How many warnings and infos one compile builds, and how long their text runs: the defaults of
+ * the bound every answer applies (`FINDING_LIMITS`). These stop work, not only trim a list: a
+ * warning past them never computes its code frame or did-you-mean, and a message never holds more
+ * of the source it quotes than an answer could show.
  */
-export const MAX_WARNINGS_PER_CODE = 20
-/** Infos one compile lists before the rest are dropped; counted apart so none displaces a warning. */
-export const MAX_INFOS = 100
-/** Code units of a message or hint kept; longer text, which quotes the source, is cut. */
-const MAX_MESSAGE_LENGTH = 1_000
+const {
+  perSeverity: MAX_LISTED,
+  warningsPerCode: MAX_WARNINGS_PER_CODE,
+  textLength,
+} = FINDING_LIMITS
 
 /**
  * Thrown by {@link Reporter.report} once {@link MAX_ERRORS} errors are listed, after it records
@@ -90,14 +90,14 @@ export class ErrorLimitReached extends Error {
 }
 
 function capLength(text: string): string {
-  return truncateAtCodePoint(text, MAX_MESSAGE_LENGTH, '…')
+  return truncateAtCodePoint(text, textLength, '…')
 }
 
 /**
  * Collects located diagnostics for every file a compile reads. Each diagnostic gets its span (from
- * offsets) and code frame here, so no other module computes line numbers. Output is bounded: at
- * most {@link MAX_ERRORS} errors, {@link MAX_WARNINGS} warnings and {@link MAX_INFOS} infos, each with a bounded frame and
- * message.
+ * offsets) and code frame here, so no other module computes line numbers. The work is bounded: at
+ * most {@link MAX_ERRORS} errors, and {@link MAX_LISTED} warnings and as many infos, each with a
+ * bounded frame and message.
  */
 export class Reporter {
   readonly diagnostics: LocatedDiagnostic<CompileDiagnosticCode>[] = []
@@ -144,10 +144,11 @@ export class Reporter {
   /**
    * Records a diagnostic, once: a finding with the same code, message and range as one already
    * recorded is dropped. The error after the {@link MAX_ERRORS}th is recorded as
-   * `E_TOO_MANY_ERRORS` and throws {@link ErrorLimitReached}; the warning after the
-   * {@link MAX_WARNINGS}th, or after the {@link MAX_WARNINGS_PER_CODE}th of its code, is recorded as
-   * `W_TOO_MANY_WARNINGS` and later ones are dropped. Each severity has its own cap, so a warning
-   * never crowds out an error, nor an info a warning.
+   * `E_TOO_MANY_ERRORS` and throws {@link ErrorLimitReached}; where the warning after the
+   * {@link MAX_LISTED}th, or after the {@link MAX_WARNINGS_PER_CODE}th of its code, was found one
+   * `I_FINDINGS_TRUNCATED` is recorded (taking that warning's place in the count) and later ones
+   * are dropped. Each severity has its own cap, so a warning never crowds out an error, nor an
+   * info a warning.
    */
   report(code: CompileDiagnosticCode, message: string, at: Range, extras: ReportExtras = {}): void {
     const key = `${code}\u0000${at.file}\u0000${at.start}\u0000${at.end}\u0000${message}`
@@ -166,15 +167,13 @@ export class Reporter {
         throw new ErrorLimitReached()
       }
     } else if (severity === 'info') {
-      if (this.infoCount >= MAX_INFOS) return
-    } else if (this.warningCount >= MAX_WARNINGS) {
+      if (this.infoCount >= MAX_LISTED) return
+    } else if (this.warningCount >= MAX_LISTED) {
       this.withhold(code, message, at, extras)
-      if (this.warningCount === MAX_WARNINGS) {
-        this.record(
-          'W_TOO_MANY_WARNINGS',
-          `Listed ${MAX_WARNINGS} warnings; the rest are omitted. The next: ${message}`,
+      if (this.warningCount === MAX_LISTED) {
+        this.truncated(
+          `Listed ${MAX_LISTED} warnings; the rest are omitted. The next: ${message}`,
           at,
-          {},
           framesSource(code)
         )
       }
@@ -185,11 +184,9 @@ export class Reporter {
       if (ofCode >= MAX_WARNINGS_PER_CODE) {
         this.withhold(code, message, at, extras)
         if (ofCode === MAX_WARNINGS_PER_CODE) {
-          this.record(
-            'W_TOO_MANY_WARNINGS',
+          this.truncated(
             `Listed ${MAX_WARNINGS_PER_CODE} ${code} warnings; the rest of them are omitted. The next: ${message}`,
             at,
-            {},
             framesSource(code)
           )
         }
@@ -231,6 +228,16 @@ export class Reporter {
       })
     }
     this.withheld.push(diagnostic)
+  }
+
+  /**
+   * Records the `I_FINDINGS_TRUNCATED` that stands where a warning cap left a warning out. It
+   * takes that warning's place in the warning count, so the caps list as many findings as when
+   * the marker was a warning.
+   */
+  private truncated(message: string, at: Range, framed: boolean): void {
+    this.warningCount++
+    this.diagnostics.push(this.build('I_FINDINGS_TRUNCATED', message, at, {}, framed))
   }
 
   /** Records one diagnostic; `framed` is false when the finding at `at` is about a literal secret. */

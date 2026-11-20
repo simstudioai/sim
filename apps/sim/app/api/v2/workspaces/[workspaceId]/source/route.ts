@@ -10,6 +10,7 @@ import {
   workspaceApplyRateCost,
 } from '@/lib/workspace-source/api/route-policies'
 import { applyWorkspaceSource } from '@/lib/workspace-source/application/apply-workspace-source'
+import { boundFindings } from '@/lib/workspace-source/application/findings'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
 
@@ -35,7 +36,9 @@ export const GET = defineV2JsonRoute({
     ...(query.kinds ? { kinds: query.kinds } : {}),
   }),
   useCase: withSourceSlot(readWorkspaceSource, 'read'),
-  present: (source) => ({ data: source }),
+  present: (source) => ({
+    data: { ...source, diagnostics: boundFindings(source.diagnostics) },
+  }),
 })
 
 /**

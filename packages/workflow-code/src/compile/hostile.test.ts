@@ -1,12 +1,13 @@
 import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
 import { afterEach, describe, expect, it } from 'vitest'
 import { codeFileReferences } from '../code-files/references'
+import { FINDING_LIMITS } from '../diagnostics/bound'
 import { MAX_ERRORS } from '../diagnostics/codes'
 import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
-import { MAX_INFOS, MAX_WARNINGS, MAX_WARNINGS_PER_CODE, Reporter } from './report'
+import { Reporter } from './report'
 
 /**
  * Hostile sources: compile never executes anything and never throws. Each input must come
@@ -195,13 +196,15 @@ describe('hostile sources produce diagnostics only', () => {
       'W_COMMENT_DROPPED',
       'W_FIELD_NOT_APPLICABLE',
     ] as const
-    expect(fillers.length * MAX_WARNINGS_PER_CODE).toBeGreaterThanOrEqual(MAX_WARNINGS)
-    for (let i = 0; i < MAX_WARNINGS; i++) {
-      reporter.report(fillers[Math.floor(i / MAX_WARNINGS_PER_CODE)], `x${i}`, at)
+    expect(fillers.length * FINDING_LIMITS.warningsPerCode).toBeGreaterThanOrEqual(
+      FINDING_LIMITS.perSeverity
+    )
+    for (let i = 0; i < FINDING_LIMITS.perSeverity; i++) {
+      reporter.report(fillers[Math.floor(i / FINDING_LIMITS.warningsPerCode)], `x${i}`, at)
     }
     reporter.report('W_LITERAL_SECRET', 'body holds a literal secret', at)
     const capped = reporter.diagnostics.at(-1)
-    expect(capped?.code).toBe('W_TOO_MANY_WARNINGS')
+    expect(capped?.code).toBe('I_FINDINGS_TRUNCATED')
     expect(capped?.frame).toBeUndefined()
   })
 
@@ -231,8 +234,8 @@ describe('hostile sources produce diagnostics only', () => {
     body += `const a150 = api('A150', { url: 'x' })`
     const result = run(wrap(body))
     expect(result.workflow).not.toBeNull()
-    expect(result.diagnostics).toHaveLength(MAX_WARNINGS_PER_CODE + 1)
-    expect(result.diagnostics.at(-1)?.code).toBe('W_TOO_MANY_WARNINGS')
+    expect(result.diagnostics).toHaveLength(FINDING_LIMITS.warningsPerCode + 1)
+    expect(result.diagnostics.at(-1)?.code).toBe('I_FINDINGS_TRUNCATED')
   })
 
   it('never computes the did-you-mean of a warning past the cap', () => {
@@ -252,7 +255,7 @@ describe('hostile sources produce diagnostics only', () => {
         }
       )
     }
-    expect(computed).toBe(MAX_WARNINGS_PER_CODE)
+    expect(computed).toBe(FINDING_LIMITS.warningsPerCode)
     expect(reporter.diagnostics[0]?.hint).toBe('Did you mean y?')
   })
 
@@ -274,22 +277,25 @@ describe('hostile sources produce diagnostics only', () => {
         }
       )
     }
-    expect(reporter.withheld).toHaveLength(1_000 - MAX_WARNINGS_PER_CODE)
-    expect(computed).toBe(MAX_WARNINGS_PER_CODE)
+    expect(reporter.withheld).toHaveLength(1_000 - FINDING_LIMITS.warningsPerCode)
+    expect(computed).toBe(FINDING_LIMITS.warningsPerCode)
     expect({ ...reporter.withheld[0] }.hint).toBe('Did you mean y?')
-    expect(computed).toBe(MAX_WARNINGS_PER_CODE + 1)
+    expect(computed).toBe(FINDING_LIMITS.warningsPerCode + 1)
   })
 
   it('keeps infos from crowding out a warning', () => {
     const reporter = new Reporter()
     reporter.addFile('w.ts', 'x')
     const at = { file: 'w.ts', start: 0, end: 1 }
-    for (let i = 0; i < MAX_WARNINGS + 50; i++) reporter.report('I_SCHEDULE_UTC', `x${i}`, at)
+    for (let i = 0; i < FINDING_LIMITS.perSeverity + 50; i++)
+      reporter.report('I_SCHEDULE_UTC', `x${i}`, at)
     reporter.report('W_LITERAL_SECRET', 'apiKey holds a literal secret', at)
     const listed = reporter.diagnostics.map((d) => d.code)
     expect(listed).toContain('W_LITERAL_SECRET')
-    expect(listed).not.toContain('W_TOO_MANY_WARNINGS')
-    expect(listed.filter((code) => code === 'I_SCHEDULE_UTC')).toHaveLength(MAX_INFOS)
+    expect(listed).not.toContain('I_FINDINGS_TRUNCATED')
+    expect(listed.filter((code) => code === 'I_SCHEDULE_UTC')).toHaveLength(
+      FINDING_LIMITS.perSeverity
+    )
   })
 
   it('caps a diagnostic message that quotes a huge name', () => {

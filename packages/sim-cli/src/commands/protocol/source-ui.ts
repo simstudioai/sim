@@ -4,7 +4,7 @@
  * write nobody confirmed, and an API refusal re-thrown with the exit status a script branches on.
  */
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import type { RefusalClass } from '@sim/workflow-code/diagnostics'
+import { boundFindingText, type RefusalClass } from '@sim/workflow-code/diagnostics'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { type FlatDiagnostic, refusalClass } from '@sim/workspace-code'
 import type { Command } from 'commander'
@@ -193,7 +193,11 @@ export interface FindingsOutput {
   result(diagnostics: readonly Diagnostic[]): { diagnostics?: ResultDiagnostic[] }
 }
 
-/** The {@link FindingsOutput} of `format`; `verbose` keeps info findings in a machine result. */
+/**
+ * The {@link FindingsOutput} of `format`; `verbose` keeps info findings in a machine result. It is
+ * the CLI's output edge, where each finding's message and hint are cut (`boundFindingText`): a
+ * finding an offline check made is as long as its source made it until here.
+ */
 export function findingsOutput(format: OutputFormat, verbose = false): FindingsOutput {
   const printed = new Set<string>()
   const machine = isMachine(format)
@@ -201,9 +205,14 @@ export function findingsOutput(format: OutputFormat, verbose = false): FindingsO
     machine,
     print(diagnostics) {
       const unseen = diagnostics.filter((diagnostic) => fresh(printed, findingKey(diagnostic)))
-      if (!machine) printDiagnostics(unseen)
+      if (!machine) printDiagnostics(unseen.map((diagnostic) => boundFindingText(diagnostic)))
     },
-    result: (diagnostics) => resultDiagnostics(format, diagnostics, verbose),
+    result: (diagnostics) =>
+      resultDiagnostics(
+        format,
+        diagnostics.map((diagnostic) => boundFindingText(diagnostic)),
+        verbose
+      ),
   }
 }
 

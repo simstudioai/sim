@@ -7,6 +7,7 @@ export {
   v2WorkflowErrorPolicies,
   WORKFLOW_NOT_FOUND_MESSAGE,
 } from '@/lib/workflows/api/route-policies'
+export { withBoundSourceFindings } from '@/lib/workflows/api/source-findings'
 export { withSourceSlot } from '@/lib/workflows/api/source-slots'
 export {
   presentV2WorkflowTrigger,

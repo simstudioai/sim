@@ -2,12 +2,13 @@
  * The findings every kind reports the same way, so the plan reads alike across kinds.
  */
 
-import { diagnostic } from '@sim/workflow-code/diagnostics'
+import { boundDiagnostics, diagnostic } from '@sim/workflow-code/diagnostics'
 import {
   type BaseResource,
   type FlatDiagnostic,
   isFileKind,
   KIND_DIRS,
+  refusalClass,
   resourceAddress,
   WORKSPACE_KIND_SPECS,
   type WorkspaceDiagnosticCode,
@@ -35,6 +36,36 @@ export function finding(
   extras: Omit<FlatDiagnostic, 'code' | 'severity' | 'message'> = {}
 ): WorkspaceSourceDiagnostic {
   return diagnostic(code, message, extras)
+}
+
+/** Findings one answer reports; past it, one more finding counts the rest. */
+const MAX_ANSWER_FINDINGS = 1_000
+
+/**
+ * `diagnostics` as one answer lists them (`boundDiagnostics`): at most
+ * {@link MAX_ANSWER_FINDINGS}, errors first so a refusal always shows why (those that class it,
+ * stale, locked or too large, first of all), then warnings, then infos, each finding's text cut.
+ * No per-code cap: a status reads every server-change finding of the resources it lists. The
+ * finding that counts the rest is an info, so cutting a plan's findings never refuses it, nor
+ * changes how a refusal is classed.
+ */
+export function boundFindings(
+  diagnostics: readonly WorkspaceSourceDiagnostic[]
+): WorkspaceSourceDiagnostic[] {
+  return boundDiagnostics(diagnostics, {
+    limits: {
+      total: MAX_ANSWER_FINDINGS,
+      perSeverity: Number.POSITIVE_INFINITY,
+      warningsPerCode: Number.POSITIVE_INFINITY,
+    },
+    first: (entry) => refusalClass([entry.code]) !== 'validation',
+    marker: (dropped) =>
+      finding(
+        'I_FINDINGS_TRUNCATED',
+        `The plan has ${dropped.total} findings; ${dropped.error + dropped.warning + dropped.info} more${dropped.error > 0 ? ` (${dropped.error} of them errors)` : ''} are left out.`,
+        { hint: 'Fix the findings shown, then apply again to see the rest.' }
+      ),
+  })
 }
 
 /** How to recover from a refusal that needs a fresh read. */

@@ -567,7 +567,7 @@ export async function checkWorkflowDir(
    */
   // Past a warning cap the compile keeps one finding per code, block and file, which could stand
   // for a reference no rename settles, so then nothing is exempt.
-  const listedEvery = !compiled.diagnostics.some((d) => d.code === 'W_TOO_MANY_WARNINGS')
+  const listedEvery = !compiled.diagnostics.some((d) => d.code === 'I_FINDINGS_TRUNCATED')
   const mayBeRenamed = (finding: (typeof compiled.diagnostics)[number]) => {
     if (!listedEvery || finding.code !== 'W_UNRESOLVED_REF') return false
     if (finding.span.file === SOURCE_ENTRY_FILE) return false

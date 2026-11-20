@@ -293,22 +293,19 @@ const PLAN_CODES = [
   'I_KEY_REBOUND',
   /** A declaration under a new key for a resource the base read under another: keys never move. */
   'E_KEY_RENAMED',
-  /**
-   * More findings than one answer (or one file's list) reports; this one says where the list
-   * stopped. Informational: the findings it follows decide whether the apply is refused.
-   */
-  'I_FINDINGS_TRUNCATED',
 ] as const
 
 /**
  * Workflow codes workspace findings carry with the same meaning: a resource changed on the server
  * since the directory was read (`409`), a size, count or nesting limit exceeded (a file, a kind,
- * the staging area), and a name or key another resource of the kind holds.
+ * the staging area), a name or key another resource of the kind holds, and the marker that ends a
+ * cut list (more findings than one answer, or one file's list, reports).
  */
 const SHARED_CODES = [
   'E_APPLY_STALE',
   'E_LIMIT_EXCEEDED',
   'E_NAME_TAKEN',
+  'I_FINDINGS_TRUNCATED',
 ] as const satisfies readonly DiagnosticCode[]
 
 /** The codes only workspace source emits. */
