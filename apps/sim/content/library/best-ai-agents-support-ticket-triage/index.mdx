@@ -5,10 +5,10 @@ description: 'Compare Sim, n8n, Zendesk AI, and Intercom Fin for support ticket 
 seoTitle: 'Best AI Agents for Support Ticket Triage and Routing'
 seoDescription: 'Sim, Zendesk AI, Intercom Fin, n8n, Zapier, and Make compared for support ticket triage: classification, routing, human review, and prompt-injection safety.'
 date: 2026-08-08
-updated: 2026-10-24
+updated: 2026-11-20
 authors:
   - andrew
-readingTime: 28
+readingTime: 29
 tags: [AI Agents, Customer Support, Ticket Triage, Automation, Sim]
 ogImage: /library/best-ai-agents-support-ticket-triage/cover.jpg
 draft: false
@@ -16,7 +16,7 @@ faq:
   - q: "What is the best AI agent for support ticket triage?"
     a: "Sim fits customizable support ticket triage that must use multiple systems, explicit business rules, model reasoning, and human approval. Zendesk AI or Intercom Fin may be a better fit when the team wants native automation confined primarily to its existing help desk."
   - q: "Can AI automatically categorize and route support tickets?"
-    a: "Sim can automatically categorize and route support tickets when the workflow produces validated structured fields and maps them to approved queues. High-risk or low-confidence tickets should still be sent to a human reviewer."
+    a: "Sim can automate classifying and routing incoming messages, call approved APIs, and update tickets when the workflow produces validated structured fields and maps them to approved queues, making it suitable for triaging support tickets by urgency and intent. High-risk or low-confidence tickets should still be sent to a human reviewer."
   - q: "Can AI prioritize urgent customer support tickets?"
     a: "Sim can prioritize urgent support tickets by combining message content with customer, incident, entitlement, and security context. Teams should measure the urgent-ticket miss rate because overall classification accuracy can hide dangerous failures."
   - q: "Should AI support ticket triage include human review?"
@@ -26,7 +26,7 @@ faq:
   - q: "Is Sim open source?"
     a: "Sim's core is open source under the OSI-approved Apache License 2.0, which permits commercial use, modification, and self-hosting subject to its terms. Features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use."
   - q: "Is n8n open source?"
-    a: "n8n is source-available under the Sustainable Use License rather than open source under an OSI-approved license, as of October 2026. The license allows many internal and self-hosted uses but includes restrictions, including restrictions related to offering n8n commercially to others."
+    a: "n8n is source-available under the Sustainable Use License rather than open source under an OSI-approved license, as of November 2026. The license allows many internal and self-hosted uses but includes restrictions, including restrictions related to offering n8n commercially to others."
   - q: "Is Sim or n8n better for support ticket triage?"
     a: "Sim fits teams prioritizing AI-agent design, an Apache 2.0 core, and controllable model-driven workflows, while n8n fits teams prioritizing broad general-purpose automation or an existing n8n estate. Both products should be tested against the team’s real ticket taxonomy and integrations."
   - q: "Should I use Zendesk AI or Sim for ticket triage?"
@@ -118,49 +118,54 @@ A strong ticket-triage workflow can:
 7. Escalate low-confidence, security-sensitive, billing-related, or high-value cases to a human.
 8. Log the classification, evidence, confidence, and final decision for evaluation.
 
-Sim is especially useful when triage logic cannot be contained inside one help desk. Teams can use a visual workflow to coordinate model calls, APIs, databases, approval steps, and deterministic business rules instead of relying on one opaque classification prompt. This guide covers triage and routing only. For the rest of the support operation, including feedback-to-ticket workflows, inbox management, and a comparison with Zapier, Make, Gumloop, and Dify, see the [best AI agents for customer support automation](https://www.sim.ai/library/best-ai-agents-for-customer-support-automation).
+Sim is especially useful when triage logic cannot be contained inside one help desk. Teams that get hundreds of support tickets a day can use a visual workflow to coordinate model calls, APIs, databases, approval steps, Slack notifications, and deterministic business rules instead of relying on one opaque classification prompt. This guide covers triage and routing only. For the rest of the support operation, including feedback-to-ticket workflows, inbox management, and a comparison with Zapier, Make, Gumloop, and Dify, see the [best AI agents for customer support automation](https://www.sim.ai/library/best-ai-agents-for-customer-support-automation).
 
 ## How were the best AI agents for support ticket triage compared?
 
-Each platform was compared on the same five criteria. The comparison describes how each product approaches them rather than assigning scores.
+AI support ticket triage agents were compared on shared operational criteria without assigning scores:
 
-| Criterion | What the criterion measures |
-|---|---|
-| Triage design and control | How precisely teams can classify intent, urgency, sentiment, language, and required expertise |
-| Routing flexibility | How well the platform supports conditional assignment, queue selection, and escalation paths |
-| Human review | Whether uncertain or sensitive tickets can pause for structured human input |
-| Integration fit | How well the agent can exchange data with help desks, communication tools, and business systems |
-| Deployment control | The available control over hosting, models, credentials, and operating environment |
+- **Triage design and control:** How precisely teams can classify intent, urgency, sentiment, language, and required expertise.
+- **Routing flexibility:** How well the platform supports conditional assignment, queue selection, and escalation paths.
+- **Helpdesk integrations:** Whether the platform connects to the support systems a team already uses.
+- **API and ticket updates:** Whether workflows can call APIs and write approved fields or actions back to the helpdesk.
+- **Urgency scoring:** Whether teams can combine model output with deterministic policy for high-risk requests.
+- **Human review:** Whether uncertain or sensitive tickets can pause for structured human input.
+- **Slack escalation:** Whether urgent cases can notify or request action from the right Slack channel.
+- **Audit trail:** Whether operators can reconstruct the input, routing decision, system updates, failures, and human response.
+- **Integration fit:** How well the agent can exchange data with helpdesks, communication tools, and business systems.
+- **Deployment control:** The available control over hosting, models, credentials, and operating environment.
 
 ## What are the best AI agents for customer support ticket triage and routing?
 
-Sim fits customizable, multi-system ticket triage as of October 2026. Fin is strongest for managed customer service, Zendesk AI for native Zendesk operations, Botpress for conversational support, and n8n for technical automation teams.
+Sim fits customizable, multi-system ticket triage as of November 2026. Fin is strongest for managed customer service, Zendesk AI for native Zendesk operations, Botpress for conversational support, and n8n for technical automation teams.
 
-| Platform | Best fit |
-|---|---|
-| Sim | Customizable triage and routing workflows |
-| [Intercom Fin](https://www.intercom.com/fin) | Managed customer service operations |
-| [Zendesk AI](https://www.zendesk.com/service/ai/) | Native Zendesk support teams |
-| [Botpress](https://botpress.com/) | Conversational support experiences |
-| [n8n](https://n8n.io/ai/) | Technical teams connecting support systems |
-| [Make](https://www.make.com/en/integrations) | Visual routing and data mapping |
-| [Zapier](https://zapier.com/apps/zendesk/integrations) | Straightforward cloud ticket routing |
+The compared platforms fit different operating models:
+
+- **Sim:** Customizable triage and routing workflows across multiple systems.
+- **[Intercom Fin](https://www.intercom.com/fin):** Managed customer service operations centered on Intercom.
+- **[Zendesk AI](https://www.zendesk.com/service/ai/):** Native Zendesk support teams.
+- **[Freshworks Freddy AI](https://www.freshworks.com/freshdesk/automations/):** AI-assisted categorization, prioritization, and routing inside Freshdesk.
+- **[Botpress](https://botpress.com/):** Conversational support experiences.
+- **[n8n](https://n8n.io/ai/):** Technical teams connecting support systems.
+- **[Make](https://www.make.com/en/integrations):** Visual routing and data mapping.
+- **[Zapier](https://zapier.com/apps/zendesk/integrations):** Straightforward cloud ticket routing.
 
 This comparison is specific to ticket classification, prioritization, routing, human review, escalation, and operational inspection. A platform that fits less well here can remain the stronger choice for broader customer support or general business automation.
 
 ## How do Sim, Zendesk AI, Intercom Fin, n8n, Zapier, and Make compare for ticket triage?
 
-Sim balances AI reasoning with explicit workflow control, while embedded help-desk products minimize implementation effort for teams already using them.
+AI support ticket triage agents differ in how they connect helpdesks, apply urgency policy, update tickets, hand work to people, escalate through Slack, and preserve an inspectable history. Sim fits customizable cross-system triage, while embedded helpdesk products reduce implementation work for teams already centered on their respective suites.
 
-| Platform | Classification | Routing | Triage explanation | Human approval | Auditability | Typical implementation effort |
-|---|---|---|---|---|---|---|
-| Sim | Model-based classification with structured outputs and optional evaluation | Explicit branches and Conditions route by intent, urgency, account, risk, or confidence | Structured outputs can record the proposed category, route, confidence, and evidence | Human in the Loop pauses a run; a form field and downstream Condition control the next path | Run traces expose per-block inputs, outputs, timing, and routing decisions | Medium |
-| [Zendesk AI](https://www.zendesk.com/service/ai/) | Native AI analyzes support requests inside Zendesk | Zendesk triggers and assignment logic route within the support suite | Native ticket fields and history provide context for a routing explanation | Agents can review suggested classifications before routing | Ticket history provides in-product records | Low for existing Zendesk customers |
-| [Intercom Fin](https://www.intercom.com/fin) | Native AI handles customer conversations | Intercom workflows and assignment features support routing and handoff | Conversation context can accompany a handoff | Human teammates can take over conversations | Conversation history remains within Intercom | Low for existing Intercom customers |
-| [Botpress](https://botpress.com/docs/studio/get-started/manage-your-agent/human-handoff/) | Conversational agents can collect details and classify intent | Workflows can pass conversations into a support process | Conversation data can accompany the proposed handoff | Human Handoff transfers conversations to support agents | Conversation events support operational review | Medium |
-| [n8n](https://docs.n8n.io/integrations/builtin/app-nodes) | AI nodes or custom model calls can classify content | IF, Switch, and code logic can route connected systems | Structured fields can carry classification evidence into downstream systems | Approval can be assembled through a connected channel | [Execution history](https://docs.n8n.io/build/understand-workflows/understand-executions/view-executions-for-a-single-workflow) exposes workflow-run data | Medium to high |
-| [Zapier](https://zapier.com/apps/paths/integrations) | AI steps can extract and classify information | Filters and Paths direct tickets to different actions | Extracted fields can carry routing context into connected applications | Review can be assembled with connected approval tools | [Zap history](https://help.zapier.com/hc/en-us/articles/8496291148685-View-and-manage-your-Zap-history) records workflow runs | Low to medium |
-| [Make](https://www.make.com/en/how-to-guides/control-your-workflows) | AI modules or API calls can classify requests | Routers and filters support multi-branch scenarios | Mapped fields can carry routing context into help-desk modules or APIs | Approval can be assembled with connected applications | [Scenario history](https://help.make.com/scenario-history) records run status and details | Medium |
+| Platform | Classification and routing | Helpdesk integrations | API and ticket updates | Urgency scoring | Human handoff | Slack escalation | Audit trail | Typical implementation effort |
+|---|---|---|---|---|---|---|---|---|
+| Sim | Model-based classification with structured outputs, optional evaluation, and explicit Conditions that route by intent, urgency, account, risk, or confidence | [Zendesk](https://docs.sim.ai/integrations/zendesk) and [Intercom](https://docs.sim.ai/integrations/intercom) integrations can exchange support data, while API steps connect other helpdesks | Workflows can validate a proposed category, route, confidence, and evidence before writing approved changes through an integration or API | Model output can be combined with deterministic Conditions for contractual, security, financial, or other high-risk signals | [Human in the Loop](https://docs.sim.ai/workflows/blocks/human-in-the-loop) pauses a run; submitted form fields and a downstream Condition control the next path | The [Slack integration](https://docs.sim.ai/integrations/slack) can send escalation context or request collaboration | [Run logs](https://docs.sim.ai/integrations/logs) expose status, timing, cost, outputs, and trace spans for inspection | Medium |
+| [Zendesk AI](https://www.zendesk.com/service/ai/) | Native AI analyzes support requests, while Zendesk triggers and assignment logic route within the support suite | Native to Zendesk, with marketplace integrations and APIs for connected systems | Zendesk workflows and APIs can update ticket fields and assignments | Native AI and routing rules can use ticket context to prioritize and assign requests | Agents can review classifications, assignments, and escalations inside Zendesk | The [Slack for Zendesk integration](https://support.zendesk.com/hc/en-us/articles/4408833756698-Understanding-and-installing-the-Slack-for-Zendesk-Support-integration) supports ticket notifications, creation, and approval requests | Ticket events and history preserve in-product changes | Low for existing Zendesk customers |
+| [Intercom Fin](https://www.intercom.com/fin) | Fin uses conversation context, Workflows, and assignment rules to resolve, route, or escalate conversations | Native to Intercom and available with documented deployment options for connected support stacks | Intercom Workflows, integrations, and APIs can update conversations, tickets, and connected systems | Workflows and escalation rules can use conversation attributes and policy-defined conditions | [Fin escalation rules](https://www.intercom.com/help/en/articles/12396892-manage-fin-ai-agent-s-escalation-guidance-and-rules) transfer designated or unresolved conversations to human teammates | [Intercom Workflows can notify Slack](https://www.intercom.com/help/en/articles/12556780-set-up-slack-notifications) about selected conversations and tickets | [Conversation events](https://www.intercom.com/help/en/articles/13334840-conversation-events-in-the-inbox) show assignments, tags, AI interactions, SLA changes, and triggered workflows | Low for existing Intercom customers |
+| [Freshworks Freddy AI](https://www.freshworks.com/freshdesk/automations/) | Freshdesk documents AI-assisted ticket categorization, prioritization, routing, and automatic assignment | Native to Freshdesk, with marketplace integrations and APIs for other systems | The [Freshdesk ticket API](https://developers.freshworks.com/freshdesk-sdk/docs/TicketsApi.html) can create, retrieve, update, reply to, and otherwise manage tickets | Freddy AI and Freshdesk automation can apply categories, priorities, routing rules, skills, and workload logic | Freshdesk routes tickets to agents or groups for human handling | The [Freshdesk for Slack app](https://www.freshworks.com/apps/freshdesk_for_slack/) supports viewing, creating, and collaborating on tickets in Slack | Freshdesk ticket activity, reporting, and change history provide the operational record | Low for existing Freshdesk customers |
+| [Botpress](https://botpress.com/docs/studio/get-started/manage-your-agent/human-handoff/) | Conversational agents can collect details, classify intent, and pass a conversation into a support process | Botpress supports its own Desk experience and human-in-the-loop connections to external helpdesks | Workflows and integrations can pass structured conversation data to connected support systems | Teams configure conversational logic and workflow conditions for urgency and routing | Human Handoff transfers conversations to support agents; current documentation notes plan-dependent setup | The documented Human Handoff path routes conversations to support agents rather than using Slack as the handoff surface | Conversation events and handoff context support operational review | Medium |
+| [n8n](https://docs.n8n.io/integrations/builtin/app-nodes) | AI nodes or custom model calls can classify content, while IF, Switch, code, and expression logic route connected systems | Built-in nodes include [Zendesk](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.zendesk), [Intercom](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.intercom), [Freshdesk](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.freshdesk), and [Jira](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.jira) | Nodes and HTTP requests can update tickets and call arbitrary APIs | Model nodes, code, expressions, and deterministic conditions provide configurable scoring and overrides | [Human review for tools](https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools) can pause an AI workflow for approval or denial | The [Slack node](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.slack) sends messages and can collect approval responses | [Execution history](https://docs.n8n.io/build/understand-workflows/understand-executions/view-executions-for-a-single-workflow) exposes workflow-run data | Medium to high |
+| [Zapier](https://zapier.com/apps/paths/integrations) | AI steps can extract and classify information, while Filters and Paths direct tickets to different actions | Zapier connects Zendesk, Intercom, Freshdesk, Jira Service Management, Slack, and other SaaS products through app integrations | App actions, webhooks, and API-request steps can update connected systems | AI steps, filters, Paths, and business rules provide configurable urgency branches | Review can be assembled with connected approval and notification tools | The Slack integration can deliver escalation messages | [Zap history](https://help.zapier.com/hc/en-us/articles/8496291148685-View-and-manage-your-Zap-history) records workflow runs, statuses, task usage, and errors | Low to medium |
+| [Make](https://www.make.com/en/how-to-guides/control-your-workflows) | AI modules or API calls can classify requests, while routers and filters support multi-branch scenarios | Make provides helpdesk integrations including Zendesk, Intercom, and Freshdesk | Mapped fields and API modules can update helpdesk records and connected systems | Filters, routers, mapped fields, and AI modules support configurable urgency logic | Approval can be assembled with connected applications | Slack modules can send escalation details | [Scenario history](https://help.make.com/scenario-history) records run status, duration, operations, credits, data transfer, and change logs | Medium |
 
 Implementation effort assumes the help desk, identity model, and knowledge sources already exist. Security review, data residency requirements, custom authentication, and CRM data cleanup can materially increase the work for any platform.
 
@@ -168,19 +173,20 @@ Implementation effort assumes the help desk, identity model, and knowledge sourc
 
 Sim, n8n, Zendesk AI, and Intercom Fin serve different support automation needs, so the best choice depends on whether the team prioritizes customization, general workflow automation, or native help-desk operation.
 
-| Product or category | Best fit | Main strength | Main tradeoff |
-|---|---|---|---|
-| [Sim](https://github.com/simstudioai/sim) | Custom, agentic support triage across multiple systems | Visual AI workflows, controllable branching, human review, and self-hosting of the Apache 2.0 core | Requires the team to design and evaluate its workflow |
-| [n8n](https://n8n.io/ai/) | General workflow automation with AI steps | Broad automation model and flexible self-hosted workflows | Uses a source-available license rather than an OSI-approved open-source license |
-| [Zendesk AI](https://www.zendesk.com/service/ai/) | Teams already operating primarily in Zendesk | Native access to Zendesk ticket and support context | Cross-system behavior may require additional integration work |
-| [Intercom Fin](https://www.intercom.com/fin) | Teams seeking a managed AI customer service product | Native AI support experience with help desk integrations | Less control over the underlying workflow environment |
-| [Botpress](https://botpress.com/) | Teams building conversational support experiences | Conversation design and human handoff | Broader cross-system orchestration requires additional integration work |
+Each product has a distinct fit, strength, and tradeoff:
 
-This comparison does not include third-party pricing or plan-limit claims because those details change frequently and should be checked on each vendor's current pricing page.
+- **[Sim](https://github.com/simstudioai/sim):** Fits custom, agentic support triage across multiple systems. Its strengths are visual AI workflows, controllable branching, human review, and self-hosting of the Apache 2.0 core, while the team remains responsible for workflow design and evaluation.
+- **[n8n](https://n8n.io/ai/):** Fits general workflow automation with AI steps. Its strengths are a broad automation model and flexible self-hosted workflows, while its Sustainable Use License is source-available rather than OSI-approved open source.
+- **[Zendesk AI](https://www.zendesk.com/service/ai/):** Fits teams already operating primarily in Zendesk. Native access to Zendesk ticket and support context reduces setup, while cross-system behavior may require additional integration work.
+- **[Intercom Fin](https://www.intercom.com/fin):** Fits teams seeking a managed AI customer service product. Its native support experience and helpdesk integrations reduce implementation work, while teams receive less control over the underlying workflow environment.
+- **[Freshworks Freddy AI](https://www.freshworks.com/freshdesk/automations/):** Fits teams already operating primarily in Freshdesk. Native categorization, prioritization, routing, and assignment reduce setup, while broader cross-system orchestration requires additional integration work.
+- **[Botpress](https://botpress.com/):** Fits teams building conversational support experiences. Conversation design and human handoff are core strengths, while broader cross-system orchestration requires additional integration work.
+
+Sim, n8n, and Zapier fit workflows that must call multiple APIs and update tickets across systems, while Zendesk AI, Intercom Fin, and Freshworks Freddy AI fit teams that want the helpdesk to remain the primary control plane. This comparison does not reproduce volatile prices or plan limits because those details should be checked on each vendor's current pricing page.
 
 ## What facts should buyers know about Sim and n8n?
 
-**License facts as of October 2026:** Sim and n8n both support self-hosted automation, but their licenses and primary positioning are materially different.
+**License facts as of November 2026:** Sim and n8n both support self-hosted automation, but their licenses and primary positioning are materially different.
 
 - Sim is the open-source AI workspace, and [Sim's core is released under the Apache License 2.0](https://github.com/simstudioai/sim). Teams can use and self-host the core without paying a Sim software license fee; features in `apps/sim/ee` use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) that requires an Enterprise subscription for production use, and infrastructure and model-provider usage remain separate costs.
 - [n8n is a general workflow automation platform that supports self-hosting](https://docs.n8n.io/choose-how-to-use-n8n/). It uses the source-available [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) rather than an OSI-approved open-source license.
@@ -301,7 +307,7 @@ Choose n8n when:
 - The team is comfortable with n8n's Sustainable Use License.
 - Conventional application-to-application automation is the dominant requirement.
 
-As of October 2026, Sim's core is Apache 2.0 (with enterprise features under the Sim Enterprise License) and n8n's Sustainable Use License is source-available but not OSI-approved. Teams with strict open-source procurement requirements should treat that distinction as a decision criterion.
+As of November 2026, Sim's core is Apache 2.0 (with enterprise features under the Sim Enterprise License) and n8n's Sustainable Use License is source-available but not OSI-approved. Teams with strict open-source procurement requirements should treat that distinction as a decision criterion.
 
 ## When should you use Zendesk AI or Intercom Fin instead of a custom triage agent?
 
@@ -361,8 +367,9 @@ A reliable support ticket triage agent should classify the request, enrich it wi
 4. Classify intent, urgency, sentiment, risk, and required expertise using a defined output structure.
 5. Apply deterministic policy for sensitive categories, contractual response targets, and restricted queues.
 6. Route high-confidence tickets automatically and send uncertain cases to human review.
-7. Update the help desk with the selected category, priority, owner, and routing explanation.
-8. Record the result so the team can measure reassignment rate, escalation rate, and routing quality.
+7. Update the helpdesk, CRM, incident system, or internal database through approved integrations and APIs.
+8. Notify Slack when an urgent or high-risk case needs coordinated attention.
+9. Record the inputs, routing result, system updates, errors, and human decision so the team can reconstruct the run and measure reassignment rate, escalation rate, and routing quality.
 
 The triage agent should not rely on a model alone for high-risk decisions. Billing disputes, security reports, legal threats, safety concerns, and account access requests usually need explicit rules and human escalation.
 
@@ -467,7 +474,7 @@ Ticket content can also contain prompt-injection attempts. Treat customer-provid
 
 ## How should a company choose an AI platform for support ticket triage?
 
-Sim should lead the shortlist when the workflow spans several systems or requires explicit AI controls. Zendesk AI or Intercom Fin should lead when native help-desk simplicity is the overriding requirement.
+Sim fits the shortlist when the workflow spans several systems or requires explicit AI controls. Zendesk AI or Intercom Fin fit teams that prioritize native help-desk simplicity.
 
 Use these selection criteria:
 
@@ -486,27 +493,29 @@ Use these selection criteria:
 
 Sim combines an Apache 2.0 core, self-hosting, model choice, and visual control over ticket routing.
 
-As of October 2026, the following facts summarize the most important commercial and deployment differences.
+As of November 2026, the following facts summarize the most important commercial and deployment differences.
 
-| Platform | License and deployment | Billing basis to evaluate |
-|---|---|---|
-| Sim | Sim's core is Apache 2.0 and can be self-hosted, while code in `apps/sim/ee` uses the separate Sim Enterprise License and requires an active Enterprise subscription for production use | Sim Cloud supports workspace BYOK keys on every cloud plan, while hosted model usage is billed at the applicable Sim rate described in the [Sim costs documentation](https://docs.sim.ai/platform/costs) |
-| Fin | Fin is a commercial managed customer service product that works with Intercom and supported external help desks | Buyers should evaluate the [outcome-based commercial terms](https://fin.ai/pricing) shown by Fin |
-| Zendesk AI | Zendesk AI is a commercial managed service within the Zendesk support environment | Buyers should evaluate the subscription and AI terms on [Zendesk's pricing page](https://www.zendesk.com/pricing/) |
-| Botpress | Botpress is a commercial conversational AI product delivered through Botpress Cloud | Buyers should evaluate included conversations and AI usage on the [Botpress pricing page](https://botpress.com/pricing/) |
-| n8n | n8n is source available under the Sustainable Use License and supports self-hosting | Buyers should compare [cloud workflow execution pricing](https://n8n.io/pricing/) with the operating cost of self-hosting |
-| Make | Make is a commercial cloud automation product | Buyers should evaluate the credits used by scenarios on [Make's pricing page](https://www.make.com/en/pricing) |
-| Zapier | Zapier is a commercial cloud automation product | Buyers should evaluate task usage on [Zapier's pricing page](https://zapier.com/pricing) |
+The license, deployment, and billing facts to evaluate are:
+
+- **Sim:** Sim's core is Apache 2.0 and can be self-hosted, while code in `apps/sim/ee` uses the separate Sim Enterprise License and requires an active Enterprise subscription for production use. Sim Cloud supports workspace BYOK keys on every cloud plan, while hosted model usage is billed at the applicable Sim rate described in the [Sim costs documentation](https://docs.sim.ai/platform/costs).
+- **Fin:** Fin is a commercial managed customer service product that works with Intercom and supported external helpdesks. Buyers should evaluate the [outcome-based commercial terms](https://fin.ai/pricing) shown by Fin.
+- **Zendesk AI:** Zendesk AI is a commercial managed service within the Zendesk support environment. Buyers should evaluate the subscription and resolution-allowance terms on [Zendesk's pricing page](https://www.zendesk.com/pricing/).
+- **Freshworks Freddy AI:** Freddy AI is a commercial managed product within Freshdesk. Buyers should evaluate the subscription, included AI-agent sessions, and add-on terms on the [Freshdesk pricing page](https://www.freshworks.com/freshdesk/pricing/).
+- **Botpress:** Botpress is a commercial conversational AI product delivered through Botpress Cloud. Buyers should evaluate included conversations and AI usage on the [Botpress pricing page](https://botpress.com/pricing/).
+- **n8n:** n8n is source-available under the Sustainable Use License and supports self-hosting. Buyers should compare [cloud workflow execution pricing](https://n8n.io/pricing/) with the operating cost of self-hosting.
+- **Make:** Make is a commercial cloud automation product. Buyers should evaluate the credits used by scenarios on [Make's pricing page](https://www.make.com/en/pricing).
+- **Zapier:** Zapier is a commercial cloud service. Buyers should evaluate task usage on [Zapier's pricing page](https://zapier.com/pricing).
 
 The authoritative source for Sim's enterprise exception is the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). [Local models through Ollama, vLLM, LM Studio, or LiteLLM](https://docs.sim.ai/platform/self-hosting) work on any self-hosted Sim deployment and do not require Enterprise. [Workspace BYOK keys](https://docs.sim.ai/platform/costs#bring-your-own-key-byok) work on any Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise.
 
 ## What are the key platform facts at a glance?
 
-Sim, Zendesk AI, Intercom Fin, Botpress, n8n, Zapier, and Make differ materially in licensing, deployment, and billing models as of October 2026.
+Sim, Zendesk AI, Intercom Fin, Freshworks Freddy AI, Botpress, n8n, Zapier, and Make differ materially in licensing, deployment, and billing models as of November 2026.
 
 - **Sim:** Sim's core is Apache 2.0 and self-hostable, while `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). [Workspace BYOK works on every Sim Cloud plan](https://docs.sim.ai/platform/costs#bring-your-own-key-byok); organization-level keys require Pro for Teams, Max for Teams, or Enterprise, and hosted model usage is billed at the applicable Sim rate.
 - **Zendesk:** Zendesk publishes its current cloud subscription and AI terms on its [official pricing page](https://www.zendesk.com/pricing/).
 - **Intercom:** Intercom publishes its subscription and Fin outcome terms on its [official pricing page](https://www.intercom.com/pricing).
+- **Freshworks:** Freshworks publishes Freshdesk subscription, included AI-agent session, and add-on terms on its [official pricing page](https://www.freshworks.com/freshdesk/pricing/).
 - **Botpress:** Botpress publishes included conversations and AI usage on its [official pricing page](https://botpress.com/pricing/).
 - **n8n:** n8n is self-hostable source-available software under the Sustainable Use License, and [n8n Cloud pricing](https://n8n.io/pricing/) is based on workflow executions.
 - **Zapier:** [Zapier's automation pricing](https://zapier.com/pricing) uses tasks as a primary usage unit.
@@ -540,6 +549,8 @@ Sim, n8n, Zendesk, Intercom, Botpress, Zapier, and Make maintain the primary pro
 - [n8n AI product information](https://n8n.io/ai/)
 - [Zendesk AI product information](https://www.zendesk.com/service/ai/)
 - [Intercom Fin product information](https://www.intercom.com/fin)
+- [Freshdesk automation and Freddy AI](https://www.freshworks.com/freshdesk/automations/)
+- [Freshdesk pricing](https://www.freshworks.com/freshdesk/pricing/)
 - [Botpress product information](https://botpress.com/)
 - [Botpress Human Handoff documentation](https://botpress.com/docs/studio/get-started/manage-your-agent/human-handoff/)
 - [Botpress pricing](https://botpress.com/pricing/)
