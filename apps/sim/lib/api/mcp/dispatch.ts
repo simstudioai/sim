@@ -40,7 +40,7 @@ type V2RouteHandler = (
 export interface McpOperationCall {
   operation: V2McpOperationName
   params?: Record<string, string | number>
-  query?: Record<string, string | number | boolean>
+  query?: Record<string, string | number | boolean | null>
   body?: unknown
   headers?: Record<string, string>
 }
@@ -195,7 +195,7 @@ export async function dispatchMcpRequest(
 
   const url = new URL(resolved.path, getBaseUrl())
   for (const [name, value] of Object.entries(call.query ?? {})) {
-    url.searchParams.set(name, String(value))
+    if (value !== null) url.searchParams.set(name, String(value))
   }
 
   const hasBody = contract.method !== 'GET' && contract.body !== undefined

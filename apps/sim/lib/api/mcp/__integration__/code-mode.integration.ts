@@ -9,16 +9,13 @@ import { db } from '@sim/db'
 import { apiKey, permissions, user, userTableDefinitions, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { authMock } from '@sim/testing/mocks/auth.mock'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth', () => authMock)
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { POST as simMcpPost } from '@/app/api/mcp/route'
@@ -28,6 +25,7 @@ const userId = generateId()
 const workspaceId = generateId()
 const writeKey = `sk-sim-fixture-${generateId()}`
 const readKey = `sk-sim-fixture-${generateId()}`
+const workspaceKey = `sk-sim-fixture-${generateId()}`
 
 interface ToolResult {
   isError?: boolean
@@ -130,14 +128,17 @@ describe('Sim MCP code mode in PostgreSQL and the isolate pool', () => {
         type: 'personal',
         access: 'read',
       },
+      {
+        id: generateId(),
+        userId,
+        workspaceId,
+        name: 'Workspace',
+        key: workspaceKey,
+        keyHash: hashApiKey(workspaceKey),
+        type: 'workspace',
+        access: 'read',
+      },
     ])
-  })
-
-  beforeEach(() => {
-    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
-      async (flag: string, target?: unknown) =>
-        flag === 'mcp-code-mode' && toRecord(target).userId === userId
-    )
   })
 
   afterAll(async () => {
@@ -146,28 +147,23 @@ describe('Sim MCP code mode in PostgreSQL and the isolate pool', () => {
     await db.$client.end()
   })
 
-  it('lists the code tools only when the flag is on for the caller', async () => {
-    const listed = await mcp(writeKey, { method: 'tools/list' })
+  it('runs programs for a workspace key, which has no person to key the sandbox by', async () => {
+    const listed = await mcp(workspaceKey, { method: 'tools/list' })
+    expect(listed.status, JSON.stringify(listed.body)).toBe(200)
     const names = (listed.body.result as { tools: Array<{ name: string }> }).tools.map(
       (t) => t.name
     )
     expect(names).toEqual(expect.arrayContaining(['execute_read_code', 'execute_write_code']))
 
-    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
-    const hidden = await mcp(writeKey, { method: 'tools/list' })
-    const hiddenNames = (hidden.body.result as { tools: Array<{ name: string }> }).tools.map(
-      (t) => t.name
+    const read = await runCode(
+      'execute_read_code',
+      `const page = await sim.api.listTables({ query: { workspaceId: ${JSON.stringify(workspaceId)} } })
+      return Array.isArray(page.data)`,
+      { key: workspaceKey }
     )
-    expect(hiddenNames).not.toContain('execute_read_code')
-    expect(hiddenNames).not.toContain('execute_write_code')
-    const refused = await mcp(writeKey, {
-      method: 'tools/call',
-      params: { name: 'execute_read_code', arguments: { code: 'return 1' } },
-    })
-    expect(refused.body.result).toMatchObject({
-      isError: true,
-      content: [{ text: expect.stringContaining('Tool execute_read_code not found') }],
-    })
+    expect(read.isError, JSON.stringify(read)).toBeFalsy()
+    expect(read.structuredContent?.result).toBe(true)
+    expect(read.structuredContent?.calls).toMatchObject([{ operation: 'listTables', status: 200 }])
   })
 
   it('writes through real routes and reads them back with paging, returning only the result', async () => {
@@ -195,9 +191,9 @@ describe('Sim MCP code mode in PostgreSQL and the isolate pool', () => {
       'execute_read_code',
       `
       const found = []
-      let cursor
+      let cursor = null
       do {
-        const page = await sim.api.listTables({ query: { workspaceId: ${JSON.stringify(workspaceId)}, limit: 1, ...(cursor ? { cursor } : {}) } })
+        const page = await sim.api.listTables({ query: { workspaceId: ${JSON.stringify(workspaceId)}, limit: 1, cursor } })
         found.push(...page.data.map((t) => t.name))
         cursor = page.nextCursor
       } while (cursor)
@@ -270,6 +266,22 @@ describe('Sim MCP code mode in PostgreSQL and the isolate pool', () => {
       code: 'NOT_FOUND',
       isError: true,
     })
+  })
+
+  it('refuses an input key outside params, query, body, and headers instead of dropping it', async () => {
+    const result = await runCode(
+      'execute_read_code',
+      `
+      try {
+        await sim.api.listTables({ query: { workspaceId: ${JSON.stringify(workspaceId)} }, limit: 1 })
+        return 'sent without its limit'
+      } catch (error) {
+        return { status: error.status, code: error.code }
+      }
+      `
+    )
+    expect(result.structuredContent?.result).toEqual({ status: 400, code: 'INVALID_CALL' })
+    expect(result.structuredContent?.calls).toEqual([])
   })
 
   it('passes a numeric path parameter, as signatures declare it, through to its route', async () => {

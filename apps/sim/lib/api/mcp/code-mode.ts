@@ -25,7 +25,8 @@ import { SIM_API_CODE_MAX_TIMEOUT_MS } from '@/sandboxes/sim-api-code'
 
 const logger = createLogger('SimMcpCodeMode')
 
-const DEFAULT_TIMEOUT_MS = 60_000
+/** Under the 60-second request timeout MCP clients default to, so a default run answers before its client gives up. */
+const DEFAULT_TIMEOUT_MS = 45_000
 /** API calls one program may make; each is a full v2 request against the caller's rate limit. */
 const MAX_CALLS_PER_RUN = 200
 /** Calls one program may have in flight at once, so a `Promise.all` cannot fan out a whole page of requests. */
@@ -40,7 +41,7 @@ export const codeModeInput = z
       .min(1)
       .max(MAX_CODE_CHARS)
       .describe(
-        'The body of an async function. Call operations with `await sim.api.<operation>(input)`, where input is { params?, query?, body?, headers? } exactly as describe_operation’s signature declares, and `return` a JSON-serializable value: only that value comes back. TypeScript is accepted; types are stripped, not checked. A failed call throws SimApiError with status, code, message, and details.'
+        'The body of an async function. Call operations with `await sim.api.<operation>(input)`, where input is { params?, query?, body?, headers? } exactly as describe_operation’s signature declares, and `return` a JSON-serializable value: only that value comes back. TypeScript is accepted; types are stripped, not checked. A failed call throws SimApiError with status, code, message, details, and requestId. One call’s input may be at most 256 KB as JSON; send a larger body with call_write_operation.'
       ),
     timeoutMs: z
       .number()
