@@ -1,7 +1,9 @@
-import type { BlockState } from '@sim/workflow-types/workflow'
+import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
+import { type BlockState, normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { CanonicalizeResult } from '../canonicalize'
 import type { BlockCatalog } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
+import { parseStoredPath } from '../code-files/ref-path'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import { pointer, type WorkflowLockBlock, type WorkflowLockV1 } from '../lock'
@@ -387,10 +389,29 @@ function settingsAgree(
   return shared.length > 0 && shared.every((id) => deepEqual(left[id], right[id]))
 }
 
-/** Whether `text` (a block's params, serialized) holds a reference token to `key`. */
-function referencesKey(params: CanonicalBlock['params'], key: BlockKey): boolean {
-  const text = JSON.stringify(params)
-  return text.includes(`<${key}.`) || text.includes(`<${key}>`)
+/** Every string under `value`, depth first. */
+function* strings(value: unknown): Generator<string> {
+  if (typeof value === 'string') yield value
+  else if (Array.isArray(value)) for (const item of value) yield* strings(item)
+  else if (value !== null && typeof value === 'object') {
+    for (const item of Object.values(value)) yield* strings(item)
+  }
+}
+
+/**
+ * Whether a block holds a reference to `key` in any field a reference can sit in (its params, a
+ * condition or router's branches, a loop or parallel's collection), its head read as the resolver
+ * reads it: normalized, so `<Fetch.data>` references `fetch`.
+ */
+function referencesKey(block: CanonicalBlock, key: BlockKey): boolean {
+  for (const text of strings([block.params, block.branches, block.subflow])) {
+    for (const token of findWorkflowReferenceTokens(text)) {
+      if (token.kind !== 'workflow') continue
+      const head = parseStoredPath(token.value.slice(1, -1))?.[0]
+      if (head?.kind === 'name' && normalizeWorkflowBlockName(head.name) === key) return true
+    }
+  }
+  return false
 }
 
 /**
@@ -515,14 +536,14 @@ function inferRenames(state: InferenceState): void {
     const union = new Set([...sides.target, ...sides.prev]).size
     if (shared > 0 && shared * 2 > union) return 'connections'
     const referrers = Object.keys(prevCanonical.blocks).filter(
-      (other) => other !== prevKey && referencesKey(prevCanonical.blocks[other].params, prevKey)
+      (other) => other !== prevKey && referencesKey(prevCanonical.blocks[other], prevKey)
     )
     const renamedAtEverySite =
       referrers.length > 0 &&
       referrers.every((other) => {
         const id = idOfPrev(other)
         const now = id === undefined ? undefined : [...resolved].find(([, b]) => b.id === id)?.[0]
-        return now !== undefined && referencesKey(workflow.blocks[now].params, key)
+        return now !== undefined && referencesKey(workflow.blocks[now], key)
       })
     return renamedAtEverySite ? 'references' : null
   }

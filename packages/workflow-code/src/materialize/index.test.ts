@@ -566,6 +566,45 @@ describe('materialize: identity', () => {
     expect(codes(result)).not.toContain('W_MAT_INFERRED_RENAME')
   })
 
+  it.each([
+    ['<one.result> > 1', '<uno.result> > 1'],
+    ['<One.result> > 1', '<Uno.result> > 1'],
+  ])(
+    'infers a rename whose every reference (%s in a condition branch) was renamed with it',
+    (before, after) => {
+      const prev = workflowState(
+        [
+          blockState('a1', 'function', 'One', { code: 'return 1' }),
+          blockState('c1', 'condition', 'Gate', {
+            conditions: JSON.stringify([
+              { id: 'c1-if', title: 'if', value: before },
+              { id: 'c1-else', title: 'else', value: '' },
+            ]),
+          }),
+          blockState('u1', 'function', 'Use', { code: 'return 0' }),
+        ],
+        { edges: [edge('e1', 'u1', 'a1')] }
+      )
+      // Neither settings nor connections tie the two: only the renamed references do.
+      const target = edit(canonical(prev).workflow, (draft) => {
+        draft.edges = []
+        draft.blocks.uno = {
+          ...draft.blocks.one,
+          key: 'uno',
+          name: 'Uno',
+          params: { code: { kind: 'value', value: 'return 2' } },
+        }
+        draft.blocks = omit(draft.blocks, ['one'])
+        const rows = draft.blocks.gate.branches?.rows ?? []
+        rows[0].value = after
+      })
+      const result = run(target, lockFor(prev), { prev, lockFreshness: 'fresh' })
+      expect(result.entries).toContainEqual(
+        expect.objectContaining({ status: 'matched', key: 'uno', id: 'a1', via: 'inferred' })
+      )
+    }
+  )
+
   it('infers a rename under a fresh lock when the ident changed too', () => {
     const prev = base()
     const lock = lockFor(prev)
