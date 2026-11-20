@@ -780,6 +780,28 @@ describe('sim workflows source apply', () => {
       ])
     })
 
+    it('without --verbose, says the truncation marker leaves out the infos it hides too', async () => {
+      setTerminal(false)
+      const truncated = {
+        code: 'I_FINDINGS_TRUNCATED',
+        severity: 'info',
+        message: 'There are 140 findings; 40 more are left out.',
+      }
+      request.mockResolvedValue(
+        outcome({ dryRun: true, diagnostics: [layout, { ...layout, line: 4 }, truncated] })
+      )
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+      expect(stdoutJson().diagnostics).toEqual([
+        {
+          ...truncated,
+          message:
+            'There are 140 findings; 40 more are left out. 2 info findings listed are hidden too; pass --verbose to see them.',
+        },
+      ])
+    })
+
     it('in a display format, prints the first warning of a code whole and the rest on one line', async () => {
       setTerminal(false)
       contextMockState.output = 'text'
