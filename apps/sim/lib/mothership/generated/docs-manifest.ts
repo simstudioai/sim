@@ -509,6 +509,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'workflows/deployment/chat.mdx',
   'workflows/deployment/mcp.mdx',
   'workflows/how-it-runs.mdx',
+  'workflows/large-data.mdx',
   'workflows/triggers/rss.mdx',
   'workflows/triggers/schedule.mdx',
   'workflows/triggers/sim.mdx',
