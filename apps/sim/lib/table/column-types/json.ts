@@ -1,5 +1,5 @@
 import { TypeJson } from '@sim/emcn/icons'
-import { CELL_RULES } from '@sim/workspace-code/table-cells/rules'
+import { CELL_RULES } from '@sim/table-cells/rules'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 
 export const jsonColumnType: ColumnTypeDefinition = {

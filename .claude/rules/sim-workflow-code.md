@@ -29,6 +29,7 @@ workspace directory).
 | `packages/workflow-types` | Shared workflow, block and resource-kind types (`WORKFLOW_RESOURCE_KINDS`) |
 | `packages/workflow-code` | Pure engines for one workflow: catalog types, canonicalize, print, compile, materialize, lock, diagnostics |
 | `packages/workspace-code` | Pure workspace half: `KIND_DIRS`, `APPLY_ORDER`, one codec per kind (`src/kinds/`), `.sim/base.json`, `rf1:` fingerprints, limits |
+| `packages/table-cells` | Pure table cell rules (coerce, validate, currency/date/ttl parsing) shared by the table codec's offline row check and the server's writes |
 | `packages/workflow-sdk` | Authoring declarations (`src/core.d.ts`, `src/workspace/*.d.ts`), type codegen from the catalog (`src/codegen/`), the cookbook |
 | `packages/sim-cli/src/commands/protocol/` | `workflow-source-*` and `workspace-source-*` commands; `source-dir.ts`, `source-tree.ts`, `source-ui.ts` are shared |
 | `apps/sim/lib/workflows/code/` | Server glue: catalog projection from the registry (`catalog/`), source-apply gates (`apply/`), stored canonical form, the feature flag, the proof corpus (`corpus/`) |
@@ -38,7 +39,7 @@ workspace directory).
 | `apps/sim/app/workspace/**/panel/components/code/` | The read-only Code tab |
 
 Dependencies point one way: `packages/workflow-types` → `packages/workflow-code` →
-`packages/workspace-code` and `packages/workflow-sdk` → the CLI and `apps/sim`. `check:boundaries` keeps both engines pure (no
+`packages/workspace-code` and `packages/workflow-sdk` → the CLI and `apps/sim`. `check:boundaries` keeps both engines and `packages/table-cells` pure (no
 Node built-ins, `eval`, `globalThis`, dynamic import): they run in the browser, the CLI and the
 server unchanged.
 

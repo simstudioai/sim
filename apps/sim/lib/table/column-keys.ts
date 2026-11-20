@@ -8,8 +8,8 @@
  * map builders here.
  */
 
+import { cellKeyOf } from '@sim/table-cells/rows'
 import { generateId } from '@sim/utils/id'
-import { cellKeyOf } from '@sim/workspace-code/table-cells/rows'
 import type {
   ColumnDefinition,
   Filter,

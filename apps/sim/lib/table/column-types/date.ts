@@ -1,6 +1,6 @@
 import { Calendar as CalendarIcon } from '@sim/emcn/icons'
-import { formatDateCellDisplay, storedDateToEditable } from '@sim/workspace-code/table-cells/dates'
-import { CELL_RULES } from '@sim/workspace-code/table-cells/rules'
+import { formatDateCellDisplay, storedDateToEditable } from '@sim/table-cells/dates'
+import { CELL_RULES } from '@sim/table-cells/rules'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 
 export const dateColumnType: ColumnTypeDefinition = {

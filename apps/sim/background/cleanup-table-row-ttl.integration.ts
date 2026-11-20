@@ -22,10 +22,7 @@ vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: signalChanged }))
 vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: fireTrigger }))
 
 import { db } from '@sim/db'
-import {
-  normalizeTtlTimestamp,
-  TTL_TIMESTAMP_VALIDATION,
-} from '@sim/workspace-code/table-cells/ttl'
+import { normalizeTtlTimestamp, TTL_TIMESTAMP_VALIDATION } from '@sim/table-cells/ttl'
 import { validatedTimestampSql } from '@/lib/table/column-types/timestamp-sql'
 import { updateColumnConstraints } from '@/lib/table/columns/service'
 import { getDeleteSnapshotBatchSize } from '@/lib/table/constants'

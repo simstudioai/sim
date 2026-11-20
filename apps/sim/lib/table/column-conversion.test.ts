@@ -3,7 +3,7 @@
  * coverage and every case below was a shipped defect caught in review.
  */
 
-import { resolveSelectOptionId } from '@sim/workspace-code/table-cells/select'
+import { resolveSelectOptionId } from '@sim/table-cells/select'
 import { describe, expect, it } from 'vitest'
 import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types'
 import {

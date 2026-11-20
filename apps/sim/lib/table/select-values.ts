@@ -9,8 +9,8 @@
  * both the legacy `$` grammar and the v2 predicate tree.
  */
 
+import { resolveSelectOptionId } from '@sim/table-cells/select'
 import { isRecordLike } from '@sim/utils/object'
-import { resolveSelectOptionId } from '@sim/workspace-code/table-cells/select'
 import { buildIdByName, getColumnId, predicateNamesToIds } from '@/lib/table/column-keys'
 import type {
   ColumnDefinition,

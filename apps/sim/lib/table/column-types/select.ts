@@ -1,9 +1,6 @@
 import { TagIcon } from '@sim/emcn/icons'
-import { CELL_RULES } from '@sim/workspace-code/table-cells/rules'
-import {
-  resolveSelectOptionId,
-  splitMultiSelectInput,
-} from '@sim/workspace-code/table-cells/select'
+import { CELL_RULES } from '@sim/table-cells/rules'
+import { resolveSelectOptionId, splitMultiSelectInput } from '@sim/table-cells/select'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 import { MAX_SELECT_OPTIONS } from '@/lib/table/constants'
 import { selectValueToNames } from '@/lib/table/select-values'

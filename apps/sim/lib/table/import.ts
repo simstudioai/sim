@@ -10,12 +10,9 @@
  * parsers share {@link csvParseOptions} so their behavior can't drift.
  */
 
-import { parseCurrencyInput } from '@sim/workspace-code/table-cells/currency'
-import {
-  type NormalizeDateCellOptions,
-  normalizeDateCellValue,
-} from '@sim/workspace-code/table-cells/dates'
-import { normalizeTtlTimestamp } from '@sim/workspace-code/table-cells/ttl'
+import { parseCurrencyInput } from '@sim/table-cells/currency'
+import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@sim/table-cells/dates'
+import { normalizeTtlTimestamp } from '@sim/table-cells/ttl'
 import type { Options as CsvParseOptions } from 'csv-parse'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'

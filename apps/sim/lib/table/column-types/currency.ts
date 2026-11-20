@@ -1,12 +1,8 @@
 import { TypeCurrency } from '@sim/emcn/icons'
-import {
-  formatCurrencyDisplay,
-  formatCurrencyForInput,
-  isSupportedCurrencyCode,
-  resolveCurrencyCode,
-} from '@sim/workspace-code/table-cells/currency'
-import { CELL_RULES } from '@sim/workspace-code/table-cells/rules'
+import { isSupportedCurrencyCode, resolveCurrencyCode } from '@sim/table-cells/currency'
+import { CELL_RULES } from '@sim/table-cells/rules'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import { formatCurrencyDisplay, formatCurrencyForInput } from '@/lib/table/currency-format'
 
 export const currencyColumnType: ColumnTypeDefinition = {
   id: 'currency',

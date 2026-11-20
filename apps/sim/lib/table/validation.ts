@@ -4,7 +4,6 @@
 
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
-import { chunkArray } from '@sim/utils/helpers'
 import {
   type UncoercibleValuePolicy as CellUncoercibleValuePolicy,
   cellOf as cellAt,
@@ -12,11 +11,9 @@ import {
   coerceRowCells,
   rowCellErrors,
   scanBatchUniqueValues,
-} from '@sim/workspace-code/table-cells/rows'
-import {
-  resolveSelectOptionId,
-  splitMultiSelectInput,
-} from '@sim/workspace-code/table-cells/select'
+} from '@sim/table-cells/rows'
+import { resolveSelectOptionId, splitMultiSelectInput } from '@sim/table-cells/select'
+import { chunkArray } from '@sim/utils/helpers'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from '@/lib/table/column-keys'
@@ -50,7 +47,7 @@ export type { ColumnDefinition, TableSchema, ValidationResult }
 
 /**
  * Re-exported so existing importers keep working; the implementations live in
- * `@sim/workspace-code/table-cells/select`, free of this module's drizzle dependency.
+ * `@sim/table-cells/select`, free of this module's drizzle dependency.
  */
 export { resolveSelectOptionId, splitMultiSelectInput }
 

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act, createElement, type ReactNode } from 'react'
-import { TTL_FORMAT_ERROR } from '@sim/workspace-code/table-cells/ttl'
+import { TTL_FORMAT_ERROR } from '@sim/table-cells/ttl'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ColumnDefinition } from '@/lib/table'

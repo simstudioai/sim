@@ -168,6 +168,7 @@
     "@sim/realtime-protocol": "workspace:*",
     "@sim/runtime-secrets": "workspace:*",
     "@sim/security": "workspace:*",
+    "@sim/table-cells": "workspace:*",
     "@sim/terminal-protocol": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-code": "workspace:*",

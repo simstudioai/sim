@@ -19,11 +19,12 @@
  *      context type.
  *    Fix by taking the surface fact (a cursor's route identity, a wire shape) as input from
  *    the adapter.
- * 3. `@sim/workflow-code` and `@sim/workspace-code` (every non-test file under their `src`)
- *    compile untrusted source on the server, in the browser and in the CLI, so they must stay pure
- *    and must never execute code: no Node built-in (`vm`, `child_process`, `fs`, any `node:*`,
- *    even type-only), no dynamic `import()`, `import.meta` or `require`, no `.constructor` read
- *    (a function's constructor is `Function`), and no value reference to `eval`, `Function`,
+ * 3. `@sim/workflow-code`, `@sim/workspace-code` and the `@sim/table-cells` rules they check rows
+ *    with (every non-test file under their `src`) compile untrusted source on the server, in the
+ *    browser and in the CLI, so they must stay pure and must never execute code: no Node built-in
+ *    (`vm`, `child_process`, `fs`, any `node:*`, even type-only), no dynamic `import()`,
+ *    `import.meta` or `require`, no `.constructor` read (a function's constructor is
+ *    `Function`), and no value reference to `eval`, `Function`,
  *    `Reflect` or the global object under any name (`globalThis`, `window`, `self`, `global`),
  *    which also bans computed lookups such as `globalThis[name]`. Fix by keeping I/O in
  *    the caller (the compiler takes file text as input) and interpreting the AST instead of
@@ -183,7 +184,7 @@ async function scanImports(
   return offenders
 }
 
-const PURE_PACKAGES = ['workflow-code', 'workspace-code'].map((name) => ({
+const PURE_PACKAGES = ['workflow-code', 'workspace-code', 'table-cells'].map((name) => ({
   name: `@sim/${name}`,
   src: path.join(PACKAGES_DIR, name, 'src'),
 }))
@@ -372,7 +373,7 @@ async function main() {
 
   if (offenders.length === 0) {
     console.log(
-      '✅ Monorepo boundaries OK: no package imports from apps/*, application code is surface-neutral, and @sim/workflow-code and @sim/workspace-code are pure'
+      '✅ Monorepo boundaries OK: no package imports from apps/*, application code is surface-neutral, and @sim/workflow-code, @sim/workspace-code and @sim/table-cells are pure'
     )
     return
   }
