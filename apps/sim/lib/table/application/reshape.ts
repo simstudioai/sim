@@ -33,7 +33,7 @@ import {
   rowDataNameToId,
 } from '@/lib/table/column-keys'
 import { columnTypeById } from '@/lib/table/column-types'
-import { addTableColumn, deleteColumn } from '@/lib/table/columns/service'
+import { addTableColumn, deleteColumn, stripDroppedColumnData } from '@/lib/table/columns/service'
 import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
 import { performUpdateTableColumn } from '@/lib/table/orchestration'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
@@ -363,12 +363,18 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
           input.sourceRows === undefined
             ? locked.metadata?.sourceRows?.mode === 'managed'
             : input.sourceRows?.mode === 'managed'
+        const droppedIds: string[] = []
         for (const columnName of input.drop ?? []) {
+          const dropped = table.schema.columns.find((column) =>
+            columnMatchesRef(column, columnName)
+          )
           table = await deleteColumn({ tableId: table.id, columnName }, requestId, {
             ...options,
-            stripRowsInTransaction: managed,
+            callerStripsRows: managed,
           })
+          if (managed && dropped) droppedIds.push(getColumnId(dropped))
         }
+        await stripDroppedColumnData(tx, table, droppedIds)
         // With rows to write, a column made required is made so after them (an add, below, too).
         const deferredUpdates: string[] = []
         const updates = (input.update ?? []).flatMap((entry) => {
