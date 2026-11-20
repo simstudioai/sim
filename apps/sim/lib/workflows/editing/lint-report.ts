@@ -101,6 +101,11 @@ interface WorkflowLintReportOptions extends AgentToolReferenceValidationOptions 
    * (a workspace source apply's dry run): they stand in for the stored schema.
    */
   declaredTables?: ReadonlyMap<string, WorkflowLintTableSchema>
+  /**
+   * `false` leaves out the iteration-scope check, for a caller whose compile reports it at the
+   * source line (a source apply).
+   */
+  iterationScope?: boolean
 }
 
 /**
@@ -164,7 +169,7 @@ export async function buildWorkflowLintReport(
   // do not fail loudly (API bodies, agent prompts), and an unquoted string
   // reference makes a JSON field unparseable only once the block runs.
   unresolvedReferences.push(
-    ...collectDanglingBlockOutputReferences(graph),
+    ...collectDanglingBlockOutputReferences(graph, { iterationScope: options.iterationScope }),
     ...collectUnquotedJsonStringReferences(graph)
   )
 

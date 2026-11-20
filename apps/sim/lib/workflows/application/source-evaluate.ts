@@ -13,7 +13,6 @@ import {
   compileWorkflow,
   type Diagnostic,
   diffCanonical,
-  EDITED_CODE_FILE_REFUSALS,
   encodeAnchor,
   getOwn,
   type LocatedDiagnostic,
@@ -23,6 +22,7 @@ import {
   parseWorkflowLock,
   type ResourceKeyResolver,
   type ResourceKind,
+  refuseEditedFindings,
   renamesBetween,
   replacedBetween,
   type SourceBase,
@@ -67,11 +67,10 @@ import type { StoredSource } from '@/lib/workflows/code/print-stored'
 import { loadAvailableResourceKeys, loadResourceKeyResolver } from '@/lib/workflows/code/resources'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import type { StoredCanonical } from '@/lib/workflows/code/stored-canonical'
-import {
-  isIterationScopeFinding,
-  type WorkflowLintReport,
-  type WorkflowLintTableSchema,
-  type WorkflowLintUnresolvedReference,
+import type {
+  WorkflowLintReport,
+  WorkflowLintTableSchema,
+  WorkflowLintUnresolvedReference,
 } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { workflowNameExistsInFolder } from '@/lib/workflows/orchestration'
@@ -243,36 +242,35 @@ function withoutPendingReferences(
 }
 
 /**
- * `lint` without the block-output references compile already reported in a function's code
- * file (`W_UNRESOLVED_REF`, or `E_APPLY_UNRESOLVED_REF` on code the edit changed, on that block,
- * located at the file line): the same dangling `$ref` is one finding there, as an offline check
- * reports it, not also a lint finding on the `codeFile()` call.
+ * `lint` without the block-output findings compile already reported at their source line, so a
+ * dangling reference is one finding, as an offline check reports it: on a block whose
+ * `workflow.ts` reads a path no output has (`W_UNKNOWN_OUTPUT_PATH`, or its refusal), every
+ * block-output finding; on a block whose code file `$ref` names nothing (`W_UNRESOLVED_REF`, or
+ * its refusal), the one on its code.
  */
-function withoutCodeFileReferences(
+function withoutCompiledReferences(
   lint: WorkflowLintReport,
   compiled: readonly LocatedDiagnostic[],
   keyOf: (id: string) => string | undefined
 ): WorkflowLintReport {
-  const reported = new Set(
-    compiled.flatMap((diagnostic) =>
-      (diagnostic.code === 'W_UNRESOLVED_REF' || diagnostic.code === 'E_APPLY_UNRESOLVED_REF') &&
-      diagnostic.blockKey !== undefined &&
-      diagnostic.span.file !== SOURCE_ENTRY_FILE
-        ? [diagnostic.blockKey]
-        : []
-    )
-  )
-  if (reported.size === 0) return lint
+  const inEntry = new Set<string>()
+  const inCode = new Set<string>()
+  for (const { code, blockKey, span } of compiled) {
+    if (blockKey === undefined) continue
+    if (span.file === SOURCE_ENTRY_FILE) {
+      if (code === 'W_UNKNOWN_OUTPUT_PATH' || code === 'E_APPLY_UNRESOLVED_REF')
+        inEntry.add(blockKey)
+    } else if (code === 'W_UNRESOLVED_REF' || code === 'E_APPLY_UNRESOLVED_REF') {
+      inCode.add(blockKey)
+    }
+  }
+  if (inEntry.size === 0 && inCode.size === 0) return lint
   return {
     ...lint,
     unresolvedReferences: lint.unresolvedReferences.filter((reference) => {
       const key = keyOf(reference.blockId)
-      return !(
-        reference.kind === 'block-output' &&
-        reference.field === 'code' &&
-        key !== undefined &&
-        reported.has(key)
-      )
+      if (reference.kind !== 'block-output' || key === undefined) return true
+      return !inEntry.has(key) && !(reference.field === 'code' && inCode.has(key))
     }),
   }
 }
@@ -294,131 +292,22 @@ const RENAME_SETTLED_CODES: ReadonlySet<string> = new Set([
  * a finding stays only where that compile still reports it.
  */
 function withoutRenameSettledFindings(
-  diagnostics: CompileResult['diagnostics'],
+  compiled: Pick<CompileResult, 'diagnostics' | 'withheld'>,
   renames: ReadonlyMap<string, string>,
   recompile: () => CompileResult
-): CompileResult['diagnostics'] {
-  if (renames.size === 0 || !diagnostics.some((d) => RENAME_SETTLED_CODES.has(d.code))) {
-    return diagnostics
+): Pick<CompileResult, 'diagnostics' | 'withheld'> {
+  const settles = (d: CompileResult['diagnostics'][number]) => RENAME_SETTLED_CODES.has(d.code)
+  if (renames.size === 0 || ![...compiled.diagnostics, ...compiled.withheld].some(settles)) {
+    return compiled
   }
   const at = (d: CompileResult['diagnostics'][number]) =>
     `${d.code}@${d.span.file}:${d.span.line}:${d.span.column}`
-  const still = new Set(
-    recompile()
-      .diagnostics.filter((d) => RENAME_SETTLED_CODES.has(d.code))
-      .map(at)
-  )
-  return diagnostics.filter((d) => !RENAME_SETTLED_CODES.has(d.code) || still.has(at(d)))
-}
-
-/**
- * `diagnostics` with each function code file finding of {@link EDITED_CODE_FILE_REFUSALS} on a
- * block whose code the source changed (`codeChanged`, by block key) refused under its error code:
- * a `$ref` naming no block, a `$ref` in a Python file, fail at run time. On code the stored
- * workflow already holds it stays a warning, so a workflow saved with one still applies unchanged.
- */
-function withEditedCodeFileRefsRefused(
-  diagnostics: CompileResult['diagnostics'],
-  codeChanged: (blockKey: string) => boolean
-): LocatedDiagnostic[] {
-  return diagnostics.map((diagnostic): LocatedDiagnostic => {
-    const refusal = EDITED_CODE_FILE_REFUSALS.get(diagnostic.code)
-    if (
-      refusal === undefined ||
-      diagnostic.span.file === SOURCE_ENTRY_FILE ||
-      diagnostic.blockKey === undefined ||
-      !codeChanged(diagnostic.blockKey)
-    ) {
-      return diagnostic
-    }
-    return { ...diagnostic, code: refusal, severity: 'error' }
-  })
-}
-
-/**
- * The apply's handling of compile's `W_REF_OUT_OF_SCOPE`, an iteration field read from outside
- * its container: refused as `E_APPLY_REF_OUT_OF_SCOPE` on a block the write adds, changes or
- * moves (`changed`, by block key), which would fail at run time (a code file the edit changed
- * already refused it); a warning on a block the stored workflow already holds as it is, so such a
- * workflow still applies unchanged. The lint's finding for the same block is dropped from `lint`,
- * as compile's is the one located at the source line.
- */
-function withOutOfScopeRefsRefused(
-  diagnostics: readonly LocatedDiagnostic[],
-  lint: WorkflowLintReport,
-  changed: (blockKey: string) => boolean,
-  keyOf: (id: string) => string | undefined
-): { diagnostics: LocatedDiagnostic[]; lint: WorkflowLintReport } {
-  const reported = new Set<string>()
-  const refused = diagnostics.map((diagnostic): LocatedDiagnostic => {
-    const scoped =
-      diagnostic.code === 'W_REF_OUT_OF_SCOPE' || diagnostic.code === 'E_APPLY_REF_OUT_OF_SCOPE'
-    if (!scoped || diagnostic.blockKey === undefined) return diagnostic
-    reported.add(diagnostic.blockKey)
-    return diagnostic.code === 'W_REF_OUT_OF_SCOPE' && changed(diagnostic.blockKey)
-      ? { ...diagnostic, code: 'E_APPLY_REF_OUT_OF_SCOPE', severity: 'error' }
-      : diagnostic
-  })
-  if (reported.size === 0) return { diagnostics: refused, lint }
+  const again = recompile()
+  const still = new Set([...again.diagnostics, ...again.withheld].filter(settles).map(at))
+  const kept = (d: CompileResult['diagnostics'][number]) => !settles(d) || still.has(at(d))
   return {
-    diagnostics: refused,
-    lint: {
-      ...lint,
-      unresolvedReferences: lint.unresolvedReferences.filter((reference) => {
-        const key = keyOf(reference.blockId)
-        return !(isIterationScopeFinding(reference) && key !== undefined && reported.has(key))
-      }),
-    },
-  }
-}
-
-/** Compile findings of a reference in the entry file to an output or block that does not exist. */
-const ENTRY_REF_CODES: ReadonlySet<string> = new Set(['W_UNKNOWN_OUTPUT_PATH', 'W_UNRESOLVED_REF'])
-
-/**
- * One finding per dangling reference in the entry file, in the vocabulary an offline check uses.
- * Compile reports such a reference at its line (`W_UNKNOWN_OUTPUT_PATH`, `W_UNRESOLVED_REF`), and
- * the lint reports the same one again on the whole block, refusing it (`E_APPLY_LINT`) on a block
- * this apply adds or changes (`changed`, by block key). So the lint's block-output finding on a
- * block compile already reported one for is dropped, and where the lint would have refused it,
- * compile's finding is the refusal instead: `E_APPLY_UNRESOLVED_REF`, located at the reference.
- */
-function withEntryRefsDeduplicated(
-  diagnostics: LocatedDiagnostic[],
-  lint: WorkflowLintReport,
-  changed: ReadonlySet<string>,
-  keyOf: (id: string) => string | undefined
-): { diagnostics: LocatedDiagnostic[]; lint: WorkflowLintReport } {
-  const reported = new Set(
-    diagnostics.flatMap((diagnostic) =>
-      ENTRY_REF_CODES.has(diagnostic.code) &&
-      diagnostic.blockKey !== undefined &&
-      diagnostic.span.file === SOURCE_ENTRY_FILE
-        ? [diagnostic.blockKey]
-        : []
-    )
-  )
-  if (reported.size === 0) return { diagnostics, lint }
-  const refused = new Set<string>()
-  const unresolvedReferences = lint.unresolvedReferences.filter((reference) => {
-    const key = keyOf(reference.blockId)
-    if (reference.kind !== 'block-output' || key === undefined || !reported.has(key)) return true
-    if (changed.has(reference.blockId)) refused.add(key)
-    return false
-  })
-  return {
-    lint: { ...lint, unresolvedReferences },
-    diagnostics: diagnostics.map((diagnostic): LocatedDiagnostic => {
-      if (
-        !ENTRY_REF_CODES.has(diagnostic.code) ||
-        diagnostic.span.file !== SOURCE_ENTRY_FILE ||
-        diagnostic.blockKey === undefined ||
-        !refused.has(diagnostic.blockKey)
-      ) {
-        return diagnostic
-      }
-      return { ...diagnostic, code: 'E_APPLY_UNRESOLVED_REF', severity: 'error' }
-    }),
+    diagnostics: compiled.diagnostics.filter(kept),
+    withheld: compiled.withheld.filter(kept),
   }
 }
 
@@ -891,15 +780,13 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       getOwn(compiled.stored.blocks, storedKeyOf.get(key) ?? key)
     return storedBlock && getOwn(storedBlock.params, 'code')
   }
-  const compileDiagnostics = withEditedCodeFileRefsRefused(
-    withoutRenameSettledFindings(compiled.diagnostics, renamedKeys, () =>
-      compileWorkflow({ ...compileInput, stored: compiled.stored, renamedKeys })
-    ),
-    (key) => {
-      const compiledBlock = getOwn(compiledWorkflow.blocks, key)
-      return !isEqual(compiledBlock && getOwn(compiledBlock.params, 'code'), storedCode(key))
-    }
+  const compileFindings = withoutRenameSettledFindings(compiled, renamedKeys, () =>
+    compileWorkflow({ ...compileInput, stored: compiled.stored, renamedKeys })
   )
+  const codeEdited = (key: string) => {
+    const compiledBlock = getOwn(compiledWorkflow.blocks, key)
+    return !isEqual(compiledBlock && getOwn(compiledBlock.params, 'code'), storedCode(key))
+  }
   const sourceRefusals: Diagnostic[] = []
   const headerSpan = compiled.spans[encodeAnchor({ kind: 'header' })]
   /** Where a finding about the workflow itself points: the field it names, else the name. */
@@ -1032,25 +919,18 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       workspaceId: scope.workspaceId,
       subjectUserId: scope.subjectUserId,
     },
-    { declaredTables: declaredTableSchemas(input.pendingResources ?? []) }
+    { declaredTables: declaredTableSchemas(input.pendingResources ?? []), iterationScope: false }
   )
   const changedIds = new Set([...graphDiff.added, ...graphDiff.modified.map((m) => m.id)])
   const changedKeys = new Set([...changedIds].flatMap((id) => keyById.get(id) ?? []))
   const keyOfId = (id: string) => keyById.get(id)
-  const scoped = withOutOfScopeRefsRefused(
+  const compileDiagnostics = refuseEditedFindings(compileFindings, {
+    changed: (key) => changedKeys.has(key),
+    codeEdited,
+  })
+  const compiledLint = withoutCompiledReferences(
+    withoutPendingReferences(lint, input.pendingResources ?? []),
     compileDiagnostics,
-    lint,
-    (key) => changedKeys.has(key),
-    keyOfId
-  )
-  const entryRefs = withEntryRefsDeduplicated(
-    scoped.diagnostics,
-    withoutCodeFileReferences(
-      withoutPendingReferences(scoped.lint, input.pendingResources ?? []),
-      compileDiagnostics,
-      keyOfId
-    ),
-    changedIds,
     keyOfId
   )
   const foreignIds = await foreignResourceRefusals({
@@ -1061,13 +941,13 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     keyOf: keyOfId,
   })
   const diagnostics = [
-    ...entryRefs.diagnostics,
+    ...compileDiagnostics,
     ...keptDiagnostics,
     ...materializeDiagnostics,
     ...refusals,
     ...normalized.diagnostics,
     ...foreignIds,
-    ...lintDiagnostics(entryRefs.lint, changedIds, keyOfId),
+    ...lintDiagnostics(compiledLint, changedIds, keyOfId),
   ].map(locate)
   if (hasErrors(diagnostics)) {
     return {

@@ -1917,7 +1917,7 @@ describe('reference-shaped text that floods the warnings', () => {
       { length: 120 },
       (_, i) => `const a${i} = api('A${i}', { url: t\`<x${i}>\` })`
     )
-    const later = "const later = api('Later', { url: t`${start.missing}` })"
+    const later = "const later = api('Later', { url: t`${a0.missing}` })"
     const result = run(source([START, ...flood, later].join('\n')))
     expect(result.diagnostics.filter((d) => d.code === 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(1)
     expect(result.diagnostics.filter((d) => d.code === 'W_TOO_MANY_WARNINGS')).toHaveLength(1)

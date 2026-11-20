@@ -2751,6 +2751,43 @@ describe('renames in source', () => {
   )
 
   check(
+    'refuses every edited Python file holding a $ref, however many the compile lists of that code',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      // More of one code than a compile lists, so the second file's are all left out of the listing.
+      const refs = Array.from({ length: 120 }, (_, i) => `v${i} = $ref.start.v${i}`)
+      const entry = source.files['workflow.ts']
+        .replace(
+          /fn\('Boom', \{.*\}\)/,
+          "fn('Boom', { language: 'python', code: codeFile('./functions/boom.py') })"
+        )
+        .replace(
+          /fn\('Tally', \{.*\}\)/,
+          "fn('Tally', { language: 'python', code: codeFile('./functions/tally.py') })"
+        )
+      const files = {
+        ...omit(source.files, ['functions/boom.js', 'functions/tally.js']),
+        'workflow.ts': entry,
+        'functions/boom.py': refs.join('\n'),
+        'functions/tally.py': refs.join('\n'),
+      }
+
+      const dryRun = await apply(source, files, { dryRun: true })
+
+      expect(
+        [
+          ...new Set(
+            dryRun.diagnostics
+              .filter((d) => d.code === 'E_APPLY_CODE_FILE_REF_SYNTAX')
+              .map((d) => d.file)
+          ),
+        ].sort()
+      ).toEqual(['functions/boom.py', 'functions/tally.py'])
+    }
+  )
+
+  check(
     'a dangling reference the stored code already holds stays a warning, whatever else the apply changes',
     async () => {
       const seeded = await seedChain('return <ghost.result>')

@@ -116,7 +116,7 @@ describe("references into a start trigger's declared inputs", () => {
           'start.to(next)',
         ].join('\n')
       ),
-      'W_UNKNOWN_OUTPUT_PATH'
+      'W_OUTPUT_PATH_UNDECLARED'
     )
 
   it('warns on an input the start does not declare, at the reference', () => {
@@ -665,7 +665,7 @@ describe('hints that name the fix', () => {
     expect(unknown?.hint).toBe('Did you mean data?')
   })
 
-  it('reads x.error in the handler of an error edge, and refuses it on a block without one', () => {
+  it('reads x.error in the handler of an error edge, and warns that it reads nothing on a block without one', () => {
     const body = (wiring: string) =>
       [
         START,
@@ -674,8 +674,8 @@ describe('hints that name the fix', () => {
         'start.to(call)',
         wiring,
       ].join('\n')
-    expect(findings(run(body('call.onError(failed)')), 'W_UNKNOWN_OUTPUT_PATH')).toEqual([])
-    const [unknown] = findings(run(body('call.to(failed)')), 'W_UNKNOWN_OUTPUT_PATH')
+    expect(findings(run(body('call.onError(failed)')), 'W_OUTPUT_PATH_UNDECLARED')).toEqual([])
+    const [unknown] = findings(run(body('call.to(failed)')), 'W_OUTPUT_PATH_UNDECLARED')
     expect(unknown?.message).toBe(
       'Call has no output error: only a block with an error edge outputs its failure message.'
     )
@@ -709,8 +709,8 @@ describe('hints that name the fix', () => {
         'start.to(classify)',
         wiring,
       ].join('\n')
-    expect(findings(run(body('classify.onError(failed)')), 'W_UNKNOWN_OUTPUT_PATH')).toEqual([])
-    expect(findings(run(body('classify.to(failed)')), 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(1)
+    expect(findings(run(body('classify.onError(failed)')), 'W_OUTPUT_PATH_UNDECLARED')).toEqual([])
+    expect(findings(run(body('classify.to(failed)')), 'W_OUTPUT_PATH_UNDECLARED')).toHaveLength(1)
   })
 
   it('lists the outputs when no output is close to an unknown path', () => {

@@ -110,6 +110,11 @@ export interface CompileResult {
   workflow: CanonicalWorkflow | null
   /** Spans into the entry count from after a leading byte order mark (see `compileWorkflow`). */
   diagnostics: LocatedDiagnostic<CompileDiagnosticCode>[]
+  /**
+   * Refusable warnings the warning caps left out of `diagnostics`, one per code, block and file:
+   * what `refuseEditedFindings` reads beside `diagnostics`, so a cap never hides a refusal.
+   */
+  withheld: LocatedDiagnostic<CompileDiagnosticCode>[]
   /** Where each anchor sits, to map later server findings back to lines. */
   spans: Partial<Record<AnchorKey, SourceSpan>>
   /**
@@ -422,6 +427,7 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
   return {
     workflow: null,
     diagnostics: reporter.diagnostics,
+    withheld: reporter.withheld,
     spans: {},
     metaSpans: {},
     hints: { blocks: {} },
@@ -743,7 +749,12 @@ function compileEntry(
   // break the JSON is moot until the path is fixed.
   const unknownAt = new Set(
     reporter.diagnostics
-      .filter((d) => d.code === 'W_UNKNOWN_OUTPUT_PATH' || d.code === 'W_UNRESOLVED_REF')
+      .filter(
+        (d) =>
+          d.code === 'W_UNKNOWN_OUTPUT_PATH' ||
+          d.code === 'W_OUTPUT_PATH_UNDECLARED' ||
+          d.code === 'W_UNRESOLVED_REF'
+      )
       .map((d) => `${d.span.file}:${d.span.start}`)
   )
   for (const ref of untyped) {
@@ -782,6 +793,7 @@ function compileEntry(
   return {
     workflow,
     diagnostics: reporter.diagnostics,
+    withheld: reporter.withheld,
     spans,
     metaSpans: ctx.metaSpans,
     hints,

@@ -1,10 +1,7 @@
 import type { Mock } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
 import { createMcpToolOutputSnapshot } from '@/lib/mcp/output-schema'
-import {
-  collectDanglingBlockOutputReferences,
-  isIterationScopeFinding,
-} from '@/lib/workflows/editing/lint'
+import { collectDanglingBlockOutputReferences } from '@/lib/workflows/editing/lint'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { getAllBlocks, getBlock, getBlockByToolName, getBlockRegistry } from '@/blocks/registry'
 
@@ -158,7 +155,6 @@ describe('collectDanglingBlockOutputReferences', () => {
       field: 'code',
       value: ['<lp.index>', '<loop.currentItem>'],
     })
-    expect(isIterationScopeFinding(findings[0])).toBe(true)
   })
 
   it('ignores non-reference angle text (Slack links, comparisons, bare tags)', () => {

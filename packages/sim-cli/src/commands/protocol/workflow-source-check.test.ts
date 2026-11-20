@@ -39,6 +39,19 @@ function cacheCatalog(): void {
   cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, readFileSync(FIXTURE_CATALOG, 'utf8'))
 }
 
+/** Records in `.sim/base.json` that the source was printed with the fixture catalog, as a get does. */
+function printedWithFixture(): void {
+  writeFileSync(
+    join(dir, '.sim/base.json'),
+    JSON.stringify({
+      workflowId: 'wf',
+      workspaceId: WORKSPACE_ID,
+      fingerprint: 'sf1:a',
+      catalogHash: 'fixture',
+    })
+  )
+}
+
 function result(): Record<string, unknown> {
   return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
 }
@@ -553,6 +566,7 @@ export default workflow('W', {}, () => {
       variables: {},
     }
     const printed = source('return 1')
+    printedWithFixture()
     writeFileSync(join(dir, 'workflow.ts'), printed)
     writeFileSync(join(dir, '.sim/lock.json'), JSON.stringify(lock))
     const record = storedEdgesWrite(
@@ -742,6 +756,7 @@ export default workflow('W', {}, () => {
         ),
         variables: {},
       }
+      printedWithFixture()
       writeFileSync(join(dir, 'workflow.ts'), printed)
       writeFileSync(join(dir, '.sim/lock.json'), JSON.stringify(lock))
       const record = storedEdgesWrite(
@@ -770,17 +785,42 @@ export default workflow('W', {}, () => {
       expect(process.exitCode).toBe(1)
     })
 
-    it('stays a warning on a block the stored workflow already holds that way, and with --no-strict', async () => {
+    it('stays a warning on a block the stored workflow already holds that way', async () => {
       cacheCatalog()
       writePrinted(reads('dataa'))
       await check()
       expect(findings()).toEqual(['warning W_UNKNOWN_OUTPUT_PATH'])
       expect(process.exitCode).toBeUndefined()
+    })
 
+    it('fails with --no-strict too, as the server refuses it whatever the client asks', async () => {
+      cacheCatalog()
       writePrinted(reads('data'))
       writeFileSync(join(dir, 'workflow.ts'), reads('dataa'))
       await checkIn(dir, '--no-strict')
+      expect(findings()).toEqual(['error E_APPLY_UNRESOLVED_REF'])
+      expect(process.exitCode).toBe(1)
+    })
+
+    it('claims no refusal when the catalog the source was printed with is not cached', async () => {
+      cacheCatalog()
+      writePrinted(reads('data'))
+      writeFileSync(
+        join(dir, '.sim/base.json'),
+        JSON.stringify({ workflowId: 'wf', workspaceId: WORKSPACE_ID, fingerprint: 'sf1:a' })
+      )
+      writeFileSync(join(dir, 'workflow.ts'), reads('dataa'))
+      await check()
       expect(findings()).toEqual(['warning W_UNKNOWN_OUTPUT_PATH'])
+      expect(process.exitCode).toBeUndefined()
+    })
+
+    it('keeps x.error on a block with no error edge a warning, which the server never refuses', async () => {
+      cacheCatalog()
+      writePrinted(reads('data'))
+      writeFileSync(join(dir, 'workflow.ts'), reads('error'))
+      await check()
+      expect(findings()).toEqual(['warning W_OUTPUT_PATH_UNDECLARED'])
       expect(process.exitCode).toBeUndefined()
     })
   })

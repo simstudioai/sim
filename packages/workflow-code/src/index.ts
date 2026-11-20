@@ -52,7 +52,6 @@ export {
   type ApplyDiagnosticCode,
   type DiagnosticCode,
   type DiagnosticSeverity,
-  EDITED_CODE_FILE_REFUSALS,
   framesSource,
 } from './diagnostics/codes'
 export {
@@ -63,6 +62,12 @@ export {
   type SourceSpan,
   splitLines,
 } from './diagnostics/frame'
+export {
+  EDIT_REFUSALS,
+  type EditedBlocks,
+  raisedMessage,
+  refuseEditedFindings,
+} from './diagnostics/refusals'
 export { type CanonicalDiff, diffCanonical, renamesBetween, replacedBetween } from './diff'
 export {
   canonicalDigests,
@@ -72,6 +77,7 @@ export {
 } from './equivalence'
 export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
+export { readsIterationOutOfScope, type ScopeNode } from './iteration-scope'
 export { parseJsonField } from './json-fields'
 export {
   type DefinedField,

@@ -27,6 +27,7 @@ import {
   type RefSegment,
 } from '../code-files/ref-path'
 import { REF_ROOT } from '../code-files/to-file'
+import { type ContainerKind, readsIterationOutOfScope, type ScopeNode } from '../iteration-scope'
 import {
   JsonRef,
   type JsonTree,
@@ -179,56 +180,44 @@ export function objectEntries(
   return entries
 }
 
-/**
- * `W_REF_NOT_NORMALIZED` for each hand-written `<Name.path>` in literal text whose head is not a
- * normalized block key, or names no declared block. Such text is kept verbatim, so a rename in the
- * same apply never rewrites it; the block's ident is the reference that follows the block.
- */
-/**
- * The containers whose iteration fields a block reads at run time: those enclosing it, and the
- * block itself when it is one (a while condition reads `<loop.index>`).
- */
-function iterationScopes(decl: BlockDecl): BlockDecl[] {
-  const enclosing = enclosingContainers(decl)
-  return containerKindOf(decl) ? [decl, ...enclosing] : enclosing
+/** A declared block as the iteration-scope rule reads it. */
+function scopeNodeOf(ctx: CompileContext, key: BlockKey): ScopeNode | undefined {
+  const decl = ctx.declsByKey.get(key)
+  return decl && { kind: containerKindOf(decl), parent: decl.parent?.key ?? null }
 }
 
 /**
  * Reports `W_REF_OUT_OF_SCOPE` when block `siteKey` reads iteration field `property` of a
- * container it is not inside: `container` is a declared loop or parallel (`lp.index`,
- * `$ref.lp.index`), or the kind whose innermost enclosing container `<loop.index>` names. Outside
- * the container the executor refuses a named iteration field and finds no scope for a bare one.
- * A container output (`results`) and a property no container has are not this check's.
+ * container it is not inside (see {@link readsIterationOutOfScope}): `container` is a declared
+ * loop or parallel (`lp.index`, `$ref.lp.index`), or the kind whose innermost enclosing container
+ * `<loop.index>` names.
  */
 function checkIterationScope(
   ctx: CompileContext,
   at: Range,
   siteKey: BlockKey,
-  container: BlockDecl | 'loop' | 'parallel',
+  container: BlockDecl | ContainerKind,
   property: string
 ): void {
   const site = ctx.declsByKey.get(siteKey)
-  const kind = typeof container === 'string' ? container : containerKindOf(container)
-  if (!site || !kind) return
-  if (!(kind === 'loop' ? LOOP_PROPERTIES : PARALLEL_PROPERTIES).includes(property)) return
-  const scopes = iterationScopes(site)
+  if (!site) return
+  const nodeOf = (key: BlockKey) => scopeNodeOf(ctx, key)
+  if (!readsIterationOutOfScope(siteKey, container, property, nodeOf)) return
   if (typeof container === 'string') {
-    if (scopes.some((decl) => containerKindOf(decl) === kind)) return
     ctx.reporter.report(
       'W_REF_OUT_OF_SCOPE',
-      `${site.name} reads the enclosing ${kind}'s ${property}, but it sits in no ${kind}, so the reference resolves to nothing at run time.`,
+      `${site.name} reads the enclosing ${container}'s ${property}, but it sits in no ${container}, so the reference resolves to nothing at run time.`,
       at,
       {
-        hint: `Move ${site.name} into a ${kind}'s body, or read a ${kind}'s results after it finishes.`,
+        hint: `Move ${site.name} into a ${container}'s body, or read a ${container}'s results after it finishes.`,
         blockKey: siteKey,
       }
     )
     return
   }
-  if (scopes.includes(container)) return
   ctx.reporter.report(
     'W_REF_OUT_OF_SCOPE',
-    `${site.name} reads ${container.name}'s ${property}, but it is not inside ${container.name}; outside it a ${kind} outputs only results, so the run fails.`,
+    `${site.name} reads ${container.name}'s ${property}, but it is not inside ${container.name}; outside it a ${containerKindOf(container)} outputs only results, so the run fails.`,
     at,
     {
       hint: `Move ${site.name} into ${container.name}'s body, or read ${container.ident ?? container.key}.results after it finishes.`,
@@ -257,6 +246,11 @@ function checkIterationTag(
   if (target) checkIterationScope(ctx, at, siteKey, target, property.name)
 }
 
+/**
+ * `W_REF_NOT_NORMALIZED` for each hand-written `<Name.path>` in literal text whose head is not a
+ * normalized block key, or names no declared block. Such text is kept verbatim, so a rename in the
+ * same apply never rewrites it; the block's ident is the reference that follows the block.
+ */
 function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: ValueSite): void {
   // A note never runs, so nothing in it resolves: `<b>` in its markdown is text, not a reference.
   if (catalogBlockOf(site.decl)?.graph.annotationOnly) return
@@ -817,13 +811,13 @@ function isErrorOutput(segments: RefSegment[]): boolean {
 
 /**
  * Checks each `x.error` reference once the edges are known: `x` must have an error edge
- * (`x.onError(...)`), else the path is unknown (`W_UNKNOWN_OUTPUT_PATH`).
+ * (`x.onError(...)`), else the path reads nothing (`W_OUTPUT_PATH_UNDECLARED`).
  */
 export function checkErrorOutputRefs(ctx: CompileContext, erroring: ReadonlySet<BlockKey>): void {
   for (const { at, target, blockKey } of ctx.errorOutputRefs) {
     if (erroring.has(target.key)) continue
     ctx.reporter.report(
-      'W_UNKNOWN_OUTPUT_PATH',
+      'W_OUTPUT_PATH_UNDECLARED',
       `${target.name} has no output error: only a block with an error edge outputs its failure message.`,
       at,
       {
@@ -872,8 +866,8 @@ function declaredOutputFields(
  * Checks each reference into a block whose outputs a param declares (an agent's
  * `responseFormat`, an input trigger's `inputFormat`), once every block is compiled: the first
  * path segment must be a declared field or one of the block's static outputs
- * (`W_UNKNOWN_OUTPUT_PATH` otherwise). A warning, as for any unknown output path: a caller may
- * still pass an undeclared input, which the unified Start passes through. A param the compiler
+ * (`W_UNKNOWN_OUTPUT_PATH` otherwise, `W_OUTPUT_PATH_UNDECLARED` for an input trigger: a caller
+ * may still pass an undeclared input, which the unified Start passes through). A param the compiler
  * cannot read (not JSON, or holding references) leaves every path allowed; an absent one leaves
  * the static outputs.
  */
@@ -901,7 +895,7 @@ export function checkDynamicOutputRefs(
     const path = formatStoredPath(segments)
     if (dynamic.source === 'inputFormat') {
       ctx.reporter.report(
-        'W_UNKNOWN_OUTPUT_PATH',
+        'W_OUTPUT_PATH_UNDECLARED',
         fields.length > 0
           ? `${target.name} declares no input ${first.name}: its inputFormat declares ${fields.join(', ')}.`
           : `${target.name} declares no input ${first.name}: its inputFormat declares none.`,

@@ -119,13 +119,6 @@ const COMPILE_SCOPE_CODES = [
    * `E_APPLY_REF_OUT_OF_SCOPE`.
    */
   'W_REF_OUT_OF_SCOPE',
-  /**
-   * `$ref.key.path` or `$env.NAME` in a Python or shell code file, which is saved as written (only
-   * JavaScript files are rewritten), so the run reads it as text; `hint` names the `<key.path>` or
-   * `{{NAME}}` form those files take. A warning so stored code that holds the text still
-   * round-trips; refused as `E_APPLY_CODE_FILE_REF_SYNTAX` in a file the edit changed.
-   */
-  'W_CODE_FILE_REF_SYNTAX',
 ] as const
 
 /** Wiring. */
@@ -238,8 +231,18 @@ const COMPILE_CATALOG_CODES = [
    * round-trip.
    */
   'W_SUBFLOW_COUNT',
-  /** Skipped when the block's outputs are dynamic. */
+  /**
+   * A path the referenced block's outputs do not have, which fails the run when it resolves.
+   * Skipped when the block's outputs are dynamic and cannot be read. Refused as
+   * `E_APPLY_UNRESOLVED_REF` in `workflow.ts` on a block the edit added or changed.
+   */
   'W_UNKNOWN_OUTPUT_PATH',
+  /**
+   * A path the referenced block does not declare that the run still accepts: an input its
+   * `inputFormat` does not declare (a caller may pass it), or `x.error` on a block with no error
+   * edge (it reads nothing). Never refused, unlike `W_UNKNOWN_OUTPUT_PATH`.
+   */
+  'W_OUTPUT_PATH_UNDECLARED',
   /**
    * A bare reference in a JSON field literal whose output type nothing declares: it is stored bare
    * (typed), so a string value would break the JSON (`json-fields.ts`).
@@ -258,6 +261,13 @@ const CODE_FILE_CODES = [
   'E_CODE_FILE_PATH',
   /** The printer's bijection self-check failed; the code was printed inline as `js```. */
   'W_CODE_FILE_INLINED',
+  /**
+   * `$ref.key.path` or `$env.NAME` in a Python or shell code file, which is saved as written (only
+   * JavaScript files are rewritten), so the run reads it as text; `hint` names the `<key.path>` or
+   * `{{NAME}}` form those files take. A warning so stored code that holds the text still
+   * round-trips; refused as `E_APPLY_CODE_FILE_REF_SYNTAX` in a file the edit changed.
+   */
+  'W_CODE_FILE_REF_SYNTAX',
 ] as const
 
 /** References and comments, shared by compile and print. */
@@ -531,27 +541,6 @@ export const DIAGNOSTIC_CODES = [
   ...APPLY_DIAGNOSTIC_CODES,
 ] as const
 export type DiagnosticCode = (typeof DIAGNOSTIC_CODES)[number]
-
-/** The error codes {@link EDITED_CODE_FILE_REFUSALS} refuses a code file warning under. */
-type EditedCodeFileRefusal =
-  | 'E_APPLY_UNRESOLVED_REF'
-  | 'E_APPLY_REF_OUT_OF_SCOPE'
-  | 'E_APPLY_CODE_FILE_REF_SYNTAX'
-
-/**
- * Code file warnings refused under an error code in a function code file the edit changed: the
- * server refuses them on a block whose code the source changed, and an offline check in a file
- * changed since the get wrote it. On code the stored workflow already holds they stay warnings, so
- * a workflow saved with one still applies unchanged.
- */
-export const EDITED_CODE_FILE_REFUSALS: ReadonlyMap<string, EditedCodeFileRefusal> = new Map<
-  CompileDiagnosticCode,
-  EditedCodeFileRefusal
->([
-  ['W_UNRESOLVED_REF', 'E_APPLY_UNRESOLVED_REF'],
-  ['W_REF_OUT_OF_SCOPE', 'E_APPLY_REF_OUT_OF_SCOPE'],
-  ['W_CODE_FILE_REF_SYNTAX', 'E_APPLY_CODE_FILE_REF_SYNTAX'],
-])
 
 /**
  * Whether a finding with `code` may carry a code frame. A finding about a literal secret in
