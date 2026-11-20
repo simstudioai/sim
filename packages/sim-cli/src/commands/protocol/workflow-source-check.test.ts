@@ -185,13 +185,16 @@ const STORED_SHAPES_RENAMED = STORED_SHAPES.replace(
   "loop.for('Retry Loop',"
 ).replace("api('A',", "api('Alpha',")
 
-function writeLock(keys: readonly string[]): void {
+function writeLock(keys: readonly string[], parents: Record<string, string> = {}): void {
   writeFileSync(
     join(dir, '.sim/lock.json'),
     JSON.stringify({
       version: 1,
       blocks: Object.fromEntries(
-        keys.map((key, order) => [key, { id: `id-${key}`, parent: null, ident: key, order }])
+        keys.map((key, order) => [
+          key,
+          { id: `id-${key}`, parent: parents[key] ?? null, ident: key, order },
+        ])
       ),
       variables: {},
     })
@@ -476,6 +479,50 @@ describe('sim workflows source check', () => {
 
     await checkIn(dir, '--strict')
     expect(untyped()).toHaveLength(1)
+  })
+
+  it('fails on an iteration reference a new block reads outside its loop, and on one a move left behind', async () => {
+    cacheCatalog()
+    const source = (echo: string) => `// @sim-sdk 1
+import { fn, loop, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const each = loop.for('Each', { count: 2 }, (p) => {
+    const inner = fn('Inner', { code: 'return 1' })
+    p.to(inner)
+  })
+  ${echo}
+  start.to(each)
+})
+`
+    const scoped = () =>
+      ((result().diagnostics ?? []) as Array<{ code: string; severity: string }>).filter(
+        (finding) => finding.code.includes('OUT_OF_SCOPE')
+      )
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      source("const echo = fn('Echo', { code: 'return <loop.index>' })")
+    )
+
+    await check()
+    expect(scoped()).toEqual([
+      expect.objectContaining({ code: 'W_REF_OUT_OF_SCOPE', severity: 'error' }),
+    ])
+
+    writeLock(['start', 'each', 'inner', 'echo'], { inner: 'each', echo: 'each' })
+    await check()
+    expect(scoped()).toEqual([
+      expect.objectContaining({ code: 'E_APPLY_REF_OUT_OF_SCOPE', severity: 'error' }),
+    ])
+
+    writeLock(['start', 'each', 'inner', 'echo'], { inner: 'each' })
+    process.exitCode = undefined
+    await check()
+    expect(scoped()).toEqual([
+      expect.objectContaining({ code: 'W_REF_OUT_OF_SCOPE', severity: 'warning' }),
+    ])
+    expect(process.exitCode).toBeUndefined()
   })
 
   it('fails on a dangling $ref in a new function file by default, and on any with --strict', async () => {

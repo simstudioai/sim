@@ -108,6 +108,14 @@ const COMPILE_SCOPE_CODES = [
    * `[`...): the runtime would read the token as text or as another block.
    */
   'E_REF_UNREPRESENTABLE',
+  /**
+   * A loop or parallel iteration field (`index`, `currentItem`, `items`) read from a block outside
+   * that container: `lp.index` after the loop, `$ref.loop.index` or `<loop.index>` in a block in
+   * no loop. The run fails (or reads nothing) there. A warning so a stored workflow that holds one
+   * still round-trips; the apply refuses it on a block the edit changed as
+   * `E_APPLY_REF_OUT_OF_SCOPE`.
+   */
+  'W_REF_OUT_OF_SCOPE',
 ] as const
 
 /** Wiring. */
@@ -460,6 +468,11 @@ const APPLY_DIAGNOSTIC_CODES = [
    * at run time; on code the stored workflow already holds it stays `W_UNRESOLVED_REF`.
    */
   'E_APPLY_UNRESOLVED_REF',
+  /**
+   * A `W_REF_OUT_OF_SCOPE` iteration reference on a block the edit added, changed or moved, which
+   * fails at run time.
+   */
+  'E_APPLY_REF_OUT_OF_SCOPE',
   /** A non-blocking workflow lint finding, mapped to a source line. */
   'W_APPLY_LINT',
   /** A table row write (insert, upsert, update) with a key that is not a column of its table. */

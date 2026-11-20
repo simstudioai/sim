@@ -64,10 +64,11 @@ import type { StoredSource } from '@/lib/workflows/code/print-stored'
 import { loadAvailableResourceKeys, loadResourceKeyResolver } from '@/lib/workflows/code/resources'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import type { StoredCanonical } from '@/lib/workflows/code/stored-canonical'
-import type {
-  WorkflowLintReport,
-  WorkflowLintTableSchema,
-  WorkflowLintUnresolvedReference,
+import {
+  isIterationScopeFinding,
+  type WorkflowLintReport,
+  type WorkflowLintTableSchema,
+  type WorkflowLintUnresolvedReference,
 } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { workflowNameExistsInFolder } from '@/lib/workflows/orchestration'
@@ -328,6 +329,42 @@ function withEditedCodeFileRefsRefused(
     }
     return { ...diagnostic, code: 'E_APPLY_UNRESOLVED_REF', severity: 'error' }
   })
+}
+
+/**
+ * The apply's handling of compile's `W_REF_OUT_OF_SCOPE`, an iteration field read from outside
+ * its container: refused as `E_APPLY_REF_OUT_OF_SCOPE` on a block the write adds, changes or
+ * moves (`changed`, by block key), which would fail at run time; a warning on a block the stored
+ * workflow already holds as it is, so such a workflow still applies unchanged. The lint's finding
+ * for the same block is dropped from `lint`, as compile's is the one located at the source line.
+ */
+function withOutOfScopeRefsRefused(
+  diagnostics: readonly LocatedDiagnostic[],
+  lint: WorkflowLintReport,
+  changed: (blockKey: string) => boolean,
+  keyOf: (id: string) => string | undefined
+): { diagnostics: LocatedDiagnostic[]; lint: WorkflowLintReport } {
+  const reported = new Set<string>()
+  const refused = diagnostics.map((diagnostic): LocatedDiagnostic => {
+    if (diagnostic.code !== 'W_REF_OUT_OF_SCOPE' || diagnostic.blockKey === undefined) {
+      return diagnostic
+    }
+    reported.add(diagnostic.blockKey)
+    return changed(diagnostic.blockKey)
+      ? { ...diagnostic, code: 'E_APPLY_REF_OUT_OF_SCOPE', severity: 'error' }
+      : diagnostic
+  })
+  if (reported.size === 0) return { diagnostics: refused, lint }
+  return {
+    diagnostics: refused,
+    lint: {
+      ...lint,
+      unresolvedReferences: lint.unresolvedReferences.filter((reference) => {
+        const key = keyOf(reference.blockId)
+        return !(isIterationScopeFinding(reference) && key !== undefined && reported.has(key))
+      }),
+    },
+  }
 }
 
 /** `{ span }` when there is one, to spread into a diagnostic. */
@@ -918,15 +955,22 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     { declaredTables: declaredTableSchemas(input.pendingResources ?? []) }
   )
   const changedIds = new Set([...graphDiff.added, ...graphDiff.modified.map((m) => m.id)])
+  const changedKeys = new Set([...changedIds].flatMap((id) => keyById.get(id) ?? []))
+  const scoped = withOutOfScopeRefsRefused(
+    compileDiagnostics,
+    lint,
+    (key) => changedKeys.has(key),
+    (id) => keyById.get(id)
+  )
   const diagnostics = [
-    ...compileDiagnostics,
+    ...scoped.diagnostics,
     ...keptDiagnostics,
     ...materializeDiagnostics,
     ...refusals,
     ...normalized.diagnostics,
     ...lintDiagnostics(
       withoutCodeFileReferences(
-        withoutPendingReferences(lint, input.pendingResources ?? []),
+        withoutPendingReferences(scoped.lint, input.pendingResources ?? []),
         compileDiagnostics,
         (id) => keyById.get(id)
       ),

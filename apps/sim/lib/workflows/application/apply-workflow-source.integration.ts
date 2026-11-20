@@ -2548,3 +2548,111 @@ describe('renames in source', () => {
     }
   )
 })
+
+describe('iteration references outside their container', () => {
+  const LOOP_SOURCE = `// @sim-sdk 1
+import { fn, js, loop, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Each item', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { items: 'array' } })
+  const each = loop.forEach('Each Item', { collection: start.items }, (item) => {
+    const echo = fn('Echo', { code: js\`return \${item.index}\` })
+    item.to(echo)
+  })
+  const after = fn('After', { code: 'return 1' })
+  start.to(each)
+  each.to(after)
+})
+`
+
+  function create(source: string) {
+    return withPermissionGroupScope(() =>
+      createWorkflowFromSource.execute({
+        principal,
+        input: {
+          workspaceId,
+          name: `Source scope ${generateId()}`,
+          files: { 'workflow.ts': source },
+        },
+      })
+    )
+  }
+
+  check('a new block reading a loop index from after the loop is refused', async () => {
+    const source = LOOP_SOURCE.replace(
+      "fn('After', { code: 'return 1' })",
+      `fn('After', { code: js\`return \${each.index}\` })`
+    )
+    await expectRejected(create(source), 'E_APPLY_REF_OUT_OF_SCOPE')
+  })
+
+  check('moving a block that reads <loop.index> out of its loop is refused', async () => {
+    const created = await create(LOOP_SOURCE)
+    expect(created.applied).toBe(true)
+    const moved = LOOP_SOURCE.replace(
+      `    const echo = fn('Echo', { code: js\`return \${item.index}\` })\n    item.to(echo)\n`,
+      ''
+    ).replace(
+      '  start.to(each)\n',
+      "  const echo = fn('Echo', { code: 'return <loop.index>' })\n  after.to(echo)\n  start.to(each)\n"
+    )
+    expect(moved).not.toContain('item.to(echo)')
+
+    const dryRun = await apply(created, { 'workflow.ts': moved }, { dryRun: true })
+
+    expect(
+      dryRun.diagnostics
+        .filter((d) => d.severity === 'error')
+        .map((d) => ({ code: d.code, blockKey: d.blockKey }))
+    ).toEqual([{ code: 'E_APPLY_REF_OUT_OF_SCOPE', blockKey: 'echo' }])
+  })
+
+  check(
+    'a stored block that already reads <loop.index> outside a loop stays a warning',
+    async () => {
+      const workflowId = generateId()
+      const now = new Date()
+      await db.insert(workflow).values({
+        id: workflowId,
+        userId: ownerId,
+        workspaceId,
+        name: `Source scope ${workflowId}`,
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const block = (name: string, type: string, code?: string): BlockState => ({
+        id: generateId(),
+        type,
+        name,
+        position: { x: 0, y: 0 },
+        subBlocks: code === undefined ? {} : { code: { id: 'code', type: 'code', value: code } },
+        outputs: {},
+        enabled: true,
+      })
+      const start = block('Start', 'start_trigger')
+      const stray = block('Stray', 'function', 'return <loop.index>')
+      const tail = block('Tail', 'function', 'return 1')
+      const saved = await saveWorkflowToNormalizedTables(workflowId, {
+        blocks: { [start.id]: start, [stray.id]: stray, [tail.id]: tail },
+        edges: [
+          { id: generateId(), source: start.id, target: stray.id },
+          { id: generateId(), source: stray.id, target: tail.id },
+        ],
+        loops: {},
+        parallels: {},
+      })
+      if (!saved.success) throw new Error(`Seeding the workflow failed: ${saved.error}`)
+      const source = await getSource(workflowId)
+
+      const result = await apply(source, edit(source.files, "fn('Tail'", "fn('Last'"))
+
+      expect(result.applied).toBe(true)
+      expect(
+        result.diagnostics
+          .filter((d) => d.code.includes('OUT_OF_SCOPE') || d.code.endsWith('_LINT'))
+          .map((d) => ({ code: d.code, severity: d.severity, blockKey: d.blockKey }))
+      ).toEqual([{ code: 'W_REF_OUT_OF_SCOPE', severity: 'warning', blockKey: 'stray' }])
+    }
+  )
+})

@@ -183,6 +183,79 @@ export function objectEntries(
  * normalized block key, or names no declared block. Such text is kept verbatim, so a rename in the
  * same apply never rewrites it; the block's ident is the reference that follows the block.
  */
+/**
+ * The containers whose iteration fields a block reads at run time: those enclosing it, and the
+ * block itself when it is one (a while condition reads `<loop.index>`).
+ */
+function iterationScopes(decl: BlockDecl): BlockDecl[] {
+  const enclosing = enclosingContainers(decl)
+  return containerKindOf(decl) ? [decl, ...enclosing] : enclosing
+}
+
+/**
+ * Reports `W_REF_OUT_OF_SCOPE` when block `siteKey` reads iteration field `property` of a
+ * container it is not inside: `container` is a declared loop or parallel (`lp.index`,
+ * `$ref.lp.index`), or the kind whose innermost enclosing container `<loop.index>` names. Outside
+ * the container the executor refuses a named iteration field and finds no scope for a bare one.
+ * A container output (`results`) and a property no container has are not this check's.
+ */
+function checkIterationScope(
+  ctx: CompileContext,
+  at: Range,
+  siteKey: BlockKey,
+  container: BlockDecl | 'loop' | 'parallel',
+  property: string
+): void {
+  const site = ctx.declsByKey.get(siteKey)
+  const kind = typeof container === 'string' ? container : containerKindOf(container)
+  if (!site || !kind) return
+  if (!(kind === 'loop' ? LOOP_PROPERTIES : PARALLEL_PROPERTIES).includes(property)) return
+  const scopes = iterationScopes(site)
+  if (typeof container === 'string') {
+    if (scopes.some((decl) => containerKindOf(decl) === kind)) return
+    ctx.reporter.report(
+      'W_REF_OUT_OF_SCOPE',
+      `${site.name} reads the enclosing ${kind}'s ${property}, but it sits in no ${kind}, so the reference resolves to nothing at run time.`,
+      at,
+      {
+        hint: `Move ${site.name} into a ${kind}'s body, or read a ${kind}'s results after it finishes.`,
+        blockKey: siteKey,
+      }
+    )
+    return
+  }
+  if (scopes.includes(container)) return
+  ctx.reporter.report(
+    'W_REF_OUT_OF_SCOPE',
+    `${site.name} reads ${container.name}'s ${property}, but it is not inside ${container.name}; outside it a ${kind} outputs only results, so the run fails.`,
+    at,
+    {
+      hint: `Move ${site.name} into ${container.name}'s body, or read ${container.ident ?? container.key}.results after it finishes.`,
+      blockKey: siteKey,
+    }
+  )
+}
+
+/**
+ * {@link checkIterationScope} for a reference path (`<head.property>` text, a code file's
+ * `$ref.head.property`) whose head is `loop`, `parallel` or a declared container's key.
+ */
+function checkIterationTag(
+  ctx: CompileContext,
+  at: Range,
+  siteKey: BlockKey,
+  segments: readonly RefSegment[]
+): void {
+  const [head, property] = segments
+  if (head?.kind !== 'name' || property?.kind !== 'name') return
+  if (head.name === 'loop' || head.name === 'parallel') {
+    checkIterationScope(ctx, at, siteKey, head.name, property.name)
+    return
+  }
+  const target = ctx.declsByKey.get(head.name)
+  if (target) checkIterationScope(ctx, at, siteKey, target, property.name)
+}
+
 function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: ValueSite): void {
   for (const token of findWorkflowReferenceTokens(text)) {
     if (token.kind !== 'workflow') continue
@@ -193,8 +266,10 @@ function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: V
     if (
       normalized === head.name &&
       (isReservedWorkflowBlockName(head.name) || ctx.declsByKey.has(head.name))
-    )
+    ) {
+      checkIterationTag(ctx, rangeOf(ctx, node), site.decl.key, segments)
       continue
+    }
     const target = ctx.declsByKey.get(normalized)
     ctx.reporter.report(
       'W_REF_NOT_NORMALIZED',
@@ -699,6 +774,7 @@ function checkOutputPath(
         { hint: () => didYouMean(first.name, known), blockKey }
       )
     }
+    if (first.kind === 'name') checkIterationScope(ctx, at, blockKey, target, first.name)
     return
   }
   const block = catalogBlockOf(target)
@@ -894,7 +970,10 @@ export function checkCodeFileRefs(
         }
         continue
       }
-      if (isReservedWorkflowBlockName(head.name)) continue
+      if (isReservedWorkflowBlockName(head.name)) {
+        checkIterationTag(ctx, at, blockKey, ref.segments)
+        continue
+      }
       const renamedTo = renamed.get(head.name)
       const target =
         ctx.declsByKey.get(head.name) ??

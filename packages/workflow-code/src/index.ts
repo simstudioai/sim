@@ -35,6 +35,8 @@ export {
   createJsContextScanner,
   fromCodeFile,
   isIdentifierName,
+  LOOP_PROPERTIES,
+  PARALLEL_PROPERTIES,
 } from './code-files'
 export { type CompileResult, compileWorkflow, type StoredEdgeRef } from './compile'
 export { codePointLabel, scriptName } from './compile/characters'

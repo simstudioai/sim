@@ -1,7 +1,10 @@
 import type { Mock } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
 import { createMcpToolOutputSnapshot } from '@/lib/mcp/output-schema'
-import { collectDanglingBlockOutputReferences } from '@/lib/workflows/editing/lint'
+import {
+  collectDanglingBlockOutputReferences,
+  isIterationScopeFinding,
+} from '@/lib/workflows/editing/lint'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { getAllBlocks, getBlock, getBlockByToolName, getBlockRegistry } from '@/blocks/registry'
 
@@ -78,7 +81,7 @@ function graph(
       type?: string
       name?: string
       triggerMode?: boolean
-      data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> }
+      data?: { canonicalModes?: Record<string, 'basic' | 'advanced'>; parentId?: string }
       subBlocks?: Record<string, { value?: unknown }>
     }
   >
@@ -110,9 +113,11 @@ describe('collectDanglingBlockOutputReferences', () => {
     const findings = collectDanglingBlockOutputReferences(
       graph({
         b1: { type: 'starter', name: 'Start' },
+        lp: { type: 'loop', name: 'Lp' },
         b2: {
           type: 'api',
           name: 'Call',
+          data: { parentId: 'lp' },
           subBlocks: {
             url: { value: 'https://x.test/<start.input>' },
             body: { value: '<loop.index> and <b1.input> are fine' },
@@ -121,6 +126,39 @@ describe('collectDanglingBlockOutputReferences', () => {
       })
     )
     expect(findings).toHaveLength(0)
+  })
+
+  it('flags iteration fields read from outside their container, by name or bare prefix', () => {
+    const findings = collectDanglingBlockOutputReferences(
+      graph({
+        lp: {
+          type: 'loop',
+          name: 'Lp',
+          subBlocks: { whileCondition: { value: '<loop.index> < 3' } },
+        },
+        fan: { type: 'parallel', name: 'Fan' },
+        inner: {
+          type: 'function',
+          name: 'Inner',
+          data: { parentId: 'fan' },
+          subBlocks: {
+            code: { value: 'return [<lp.results>, <fan.index>, <parallel.currentItem>]' },
+          },
+        },
+        after: {
+          type: 'function',
+          name: 'After',
+          subBlocks: { code: { value: 'return [<lp.index>, <loop.currentItem>, <lp.results>]' } },
+        },
+      })
+    )
+    expect(findings).toHaveLength(1)
+    expect(findings[0]).toMatchObject({
+      blockId: 'after',
+      field: 'code',
+      value: ['<lp.index>', '<loop.currentItem>'],
+    })
+    expect(isIterationScopeFinding(findings[0])).toBe(true)
   })
 
   it('ignores non-reference angle text (Slack links, comparisons, bare tags)', () => {

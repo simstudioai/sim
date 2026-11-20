@@ -1669,3 +1669,91 @@ describe('meta.retry', () => {
     })
   })
 })
+
+describe('iteration references outside their container', () => {
+  const codes = (result: CompileResult) =>
+    result.diagnostics.filter((d) => d.code === 'W_REF_OUT_OF_SCOPE')
+
+  it('reports a handle read of a loop index from a block after the loop', () => {
+    const result = run(
+      source(
+        [
+          START,
+          "const lp = loop.for('Lp', { count: 2 }, (p) => {",
+          "  const inner = fn('Inner', { code: js`return ${p.index}` })",
+          '  p.to(inner)',
+          '})',
+          "const after = fn('After', { code: js`return ${lp.index}` })",
+          'start.to(lp)',
+          'lp.to(after)',
+        ].join('\n')
+      )
+    )
+    const [finding] = codes(result)
+    expect(finding?.blockKey).toBe('after')
+    expect(finding?.span.line).toBe(10)
+    expect(codes(result)).toHaveLength(1)
+  })
+
+  it('reports $ref.loop and a named $ref index in a code file of a block in no loop', () => {
+    const result = run(
+      source(
+        [
+          START,
+          "const lp = parallel.count('Fan', { count: 2 }, (p) => {",
+          "  const inner = fn('Inner', { code: codeFile('./fns/inner.js') })",
+          '  p.to(inner)',
+          '})',
+          "const after = fn('After', { code: codeFile('./fns/after.js') })",
+          'start.to(lp)',
+          'lp.to(after)',
+        ].join('\n')
+      ),
+      {
+        'workflows/fns/inner.js': 'return [$ref.parallel.index, $ref.fan.currentItem]',
+        'workflows/fns/after.js': 'return [$ref.loop.index, $ref.fan.index, $ref.fan.results]',
+      }
+    )
+    expect(codes(result).map((d) => [d.blockKey, d.span.file])).toEqual([
+      ['after', 'workflows/fns/after.js'],
+      ['after', 'workflows/fns/after.js'],
+    ])
+  })
+
+  it('reports a <loop.index> tag in a block in no loop, and keeps a while condition quiet', () => {
+    const result = run(
+      source(
+        [
+          START,
+          "const w = loop.while('W', { condition: '<loop.index> < 3' }, (p) => {",
+          "  const inner = fn('Inner', { code: 'return 1' })",
+          '  p.to(inner)',
+          '})',
+          "const after = api('After', { url: t`https://x/<loop.index>` })",
+          'start.to(w)',
+          'w.to(after)',
+        ].join('\n')
+      )
+    )
+    expect(codes(result).map((d) => d.blockKey)).toEqual(['after'])
+  })
+
+  it('accepts an outer container read from a nested body', () => {
+    const result = run(
+      source(
+        [
+          START,
+          "const outer = loop.forEach('Outer', { collection: [1, 2] }, (p) => {",
+          "  const inner = parallel.count('Inner', { count: 2 }, (q) => {",
+          "    const leaf = fn('Leaf', { code: js`return [${outer.index}, ${p.currentItem}, ${q.index}]` })",
+          '    q.to(leaf)',
+          '  })',
+          '  p.to(inner)',
+          '})',
+          'start.to(outer)',
+        ].join('\n')
+      )
+    )
+    expect(codes(result)).toEqual([])
+  })
+})

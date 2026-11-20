@@ -8,6 +8,7 @@ import {
   compileWorkflow,
   didYouMean,
   encodeAnchor,
+  getOwn,
   parseJsonField,
   parseWorkflowLock,
   scriptName,
@@ -72,6 +73,7 @@ const STRICT_CODES: ReadonlySet<string> = new Set([
   'W_CHILD_INPUT_UNKNOWN',
   'W_BRANCH_UNWIRED',
   'W_UNRESOLVED_REF',
+  'W_REF_OUT_OF_SCOPE',
 ])
 
 /**
@@ -100,6 +102,16 @@ const EDIT_SCOPED_CODES: ReadonlySet<string> = new Set(['W_JSON_REF_UNTYPED'])
  */
 const EDITED_FILE_REFUSALS: ReadonlyMap<string, CheckFinding['code']> = new Map([
   ['W_UNRESOLVED_REF', 'E_APPLY_UNRESOLVED_REF'],
+  ['W_REF_OUT_OF_SCOPE', 'E_APPLY_REF_OUT_OF_SCOPE'],
+])
+
+/**
+ * Warnings a check refuses under the server's error code, whatever the strict mode, on a block the
+ * lock binds that the source moved into another container: the server refuses them on any block
+ * the edit changed. `W_REF_OUT_OF_SCOPE`, an iteration field the move left outside its container.
+ */
+const MOVED_BLOCK_REFUSALS: ReadonlyMap<string, CheckFinding['code']> = new Map([
+  ['W_REF_OUT_OF_SCOPE', 'E_APPLY_REF_OUT_OF_SCOPE'],
 ])
 
 /**
@@ -142,9 +154,11 @@ ${[...STRICT_CODES].map((code) => `  ${code}`).join(',\n')}.
 lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails
 on none of them. In a function file changed since the get, ${[...EDITED_FILE_REFUSALS]
   .map(([warning, refusal]) => `${warning} is the error ${refusal}`)
+  .join(', ')} in every mode, as the server refuses it; so is ${[...MOVED_BLOCK_REFUSALS]
+  .map(([warning, refusal]) => `${warning} (${refusal})`)
   .join(
     ', '
-  )} in every mode, as the server refuses it. ${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not
+  )} on a block the source moved into another container. ${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not
 bind, and with --strict on every block.`
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
@@ -509,10 +523,18 @@ export async function checkWorkflowDir(
         : undefined
     return previousFile === undefined || written.digests[previousFile] !== textDigest
   }
+  const moved = (blockKey: string | undefined) => {
+    const held = blockKey === undefined || !lock ? undefined : getOwn(lock.blocks, blockKey)
+    const block =
+      blockKey === undefined || !compiled.workflow
+        ? undefined
+        : getOwn(compiled.workflow.blocks, blockKey)
+    return held !== undefined && block !== undefined && held.parent !== block.parent
+  }
   const editedRefusal = (code: string, file: string | undefined, blockKey: string | undefined) =>
-    file !== undefined && file !== SOURCE_ENTRY_FILE && edited(file, blockKey)
+    (file !== undefined && file !== SOURCE_ENTRY_FILE && edited(file, blockKey)
       ? EDITED_FILE_REFUSALS.get(code)
-      : undefined
+      : undefined) ?? (moved(blockKey) ? MOVED_BLOCK_REFUSALS.get(code) : undefined)
   const fails = (code: string, blockKey: string | undefined) =>
     STRICT_CODES.has(code) &&
     !(STORED_EXEMPT_CODES.has(code) && bound(blockKey)) &&
