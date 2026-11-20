@@ -134,7 +134,7 @@ describe('withSourceDirLock', () => {
 
   it('releases the lock when an interrupt ends the command holding it', () => {
     const script = `
-      import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir.ts'))}
+      import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir/index.ts'))}
       await withSourceDirLock(process.env.SOURCE_DIR, async () => {
         process.kill(process.pid, 'SIGINT')
         await new Promise(() => {})
@@ -159,7 +159,7 @@ describe('withSourceDirLock', () => {
       import { writeFileSync } from 'node:fs'
       import { join } from 'node:path'
       import { setTimeout as sleep } from 'node:timers/promises'
-      import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir.ts'))}
+      import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir/index.ts'))}
       import { deferInterrupts } from ${JSON.stringify(join(import.meta.dirname, '../../terminal/interrupts.ts'))}
       await withSourceDirLock(process.env.SOURCE_DIR, async () => {
         await deferInterrupts(
