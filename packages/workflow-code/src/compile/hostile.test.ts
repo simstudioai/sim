@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { codeFileReferences } from '../code-files/references'
+import { growth, MAX_GROWTH } from '../scaling.test-helpers'
 import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
@@ -18,28 +19,6 @@ const SENTINEL = '__simWorkflowCodePwned'
 function wrap(body: string, options = '{}'): string {
   return `${HEADER}export default workflow('Hostile', ${options}, () => {\n${body}\n})\n`
 }
-
-/**
- * How many times longer `work` takes at four times the size `size`, the fastest of three timings
- * each: about 4 for linear work and about 16 for quadratic, on a slow machine as on a fast one.
- * A wall-clock budget instead fails on a loaded runner and passes a quadratic scan on a fast one.
- * The work repeats until one timing at `size` spans 25 ms, so the clock's millisecond steps are
- * small beside it.
- */
-function growth(work: (size: number) => void, size: number): number {
-  let repeats = 1
-  const time = (at: number) => {
-    const started = Date.now()
-    for (let repeat = 0; repeat < repeats; repeat += 1) work(at)
-    return Date.now() - started
-  }
-  while (time(size) < 25 && repeats < 1_024) repeats *= 2
-  const fastest = (at: number) => Math.min(time(at), time(at), time(at))
-  return fastest(size * 4) / Math.max(1, fastest(size))
-}
-
-/** The {@link growth} under which work counts as linear: well short of quadratic's 16. */
-const LINEAR_GROWTH = 9
 
 function run(
   text: string,
@@ -174,7 +153,11 @@ describe('hostile sources produce diagnostics only', () => {
   it('scans a 400 KB value of overlapping token prefixes for secrets in linear time', () => {
     const source = (repeats: number) =>
       wrap(`const a = api('A', { url: 'https://x', body: '${'-eyJ'.repeat(repeats)}' })`)
-    expect(growth((repeats) => run(source(repeats)), 25_000)).toBeLessThan(LINEAR_GROWTH)
+    const scan = (repeats: number) => {
+      const text = source(repeats)
+      return () => run(text)
+    }
+    expect(growth(scan, 12_500)).toBeLessThan(MAX_GROWTH)
     const result = run(source(100_000))
     expect(result.workflow).not.toBeNull()
     expect(codes(result)).not.toContain('W_LITERAL_SECRET')
@@ -195,14 +178,26 @@ describe('hostile sources produce diagnostics only', () => {
     const reporter = new Reporter()
     reporter.addFile('w.ts', `body: '${jwt}'`)
     const at = { file: 'w.ts', start: 7, end: 7 + jwt.length }
+    // Enough codes, each filled to its own cap in turn, that the warnings reach the total cap
+    // whatever the two caps are.
     const fillers = [
       'W_SUBFLOW_COUNT',
       'W_FORWARD_REF',
       'W_VALUE_KIND',
       'W_OUT_OF_RANGE',
       'W_UNKNOWN_OPTION',
+      'W_REQUIRED_MISSING',
+      'W_ENV_UNKNOWN',
+      'W_REF_NOT_NORMALIZED',
+      'W_JSON_REF_UNTYPED',
+      'W_COMMENT_MOVED',
+      'W_COMMENT_DROPPED',
+      'W_FIELD_NOT_APPLICABLE',
     ] as const
-    for (let i = 0; i < MAX_WARNINGS; i++) reporter.report(fillers[i % fillers.length], `x${i}`, at)
+    expect(fillers.length * MAX_WARNINGS_PER_CODE).toBeGreaterThanOrEqual(MAX_WARNINGS)
+    for (let i = 0; i < MAX_WARNINGS; i++) {
+      reporter.report(fillers[Math.floor(i / MAX_WARNINGS_PER_CODE)], `x${i}`, at)
+    }
     reporter.report('W_LITERAL_SECRET', 'body holds a literal secret', at)
     const capped = reporter.diagnostics.at(-1)
     expect(capped?.code).toBe('W_TOO_MANY_WARNINGS')
@@ -212,7 +207,11 @@ describe('hostile sources produce diagnostics only', () => {
   it('checks the precision of a 100 KB numeric literal in linear time', () => {
     const source = (zeros: number) =>
       wrap(`const a = api('A', { url: 'x', timeout: 0.1${'0'.repeat(zeros)}1 })`)
-    expect(growth((zeros) => run(source(zeros)), 25_000)).toBeLessThan(LINEAR_GROWTH)
+    const check = (zeros: number) => {
+      const text = source(zeros)
+      return () => run(text)
+    }
+    expect(growth(check, 12_500)).toBeLessThan(MAX_GROWTH)
     expect(codes(run(source(100_000)))).toContain('W_NUMBER_PRECISION')
   })
 
