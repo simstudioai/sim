@@ -40,6 +40,8 @@ const ratios = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9',
 const extremeRatios = [...ratios, '1:4', '4:1', '1:8', '8:1']
 const formats = ['png', 'jpeg', 'webp']
 const openaiModels = [
+  ['gpt-image-2.6-sunburst', 'GPT Image 2.6 Sunburst'],
+  ['gpt-image-2.6-flare', 'GPT Image 2.6 Flare'],
   ['gpt-image-2.5-sunburst', 'GPT Image 2.5 Sunburst'],
   ['gpt-image-2.5-flare', 'GPT Image 2.5 Flare'],
   ['gpt-image-2', 'GPT Image 2'],
@@ -82,7 +84,7 @@ export const imageModels: readonly ImageModel[] = [
             'low',
             'medium',
             'high',
-            ...(id.startsWith('gpt-image-2.5') ? ['xhigh', 'max'] : []),
+            ...(/^gpt-image-2\.[56]/.test(id) ? ['xhigh', 'max'] : []),
           ],
         },
         background: { field: 'background', values: ['auto', 'transparent', 'opaque'] },
