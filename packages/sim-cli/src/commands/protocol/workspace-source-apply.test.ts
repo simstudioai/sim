@@ -18,6 +18,7 @@ import { basename, dirname, join } from 'node:path'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
+import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { runWorkspaceSource } from '../../test/workspace-source-command'
 import { digest } from './source-dir'
@@ -1212,5 +1213,60 @@ describe('workspaces source apply', () => {
       .mock.calls.map(([line]) => String(line))
       .join('\n')
     expect(warned).toContain('Held back, not written: workflow ingest')
+  })
+
+  it('saves the applied answer when the catalog of a workflow it reprinted cannot be fetched, and says its edges are unrecorded', async () => {
+    const configDir = mkdtempSync(join(tmpdir(), 'sim-workspace-apply-config-'))
+    vi.stubEnv('SIM_CONFIG_DIR', configDir)
+    cacheCatalogText(
+      configDir,
+      'ws_local',
+      readFileSync(join(__dirname, '../../../../workflow-sdk/test/fixtures/catalog.json'), 'utf8')
+    )
+    const storedBase = JSON.stringify({
+      version: 1,
+      workflowId: 'wf_1',
+      workspaceId: 'ws_local',
+      fingerprint: 'sf1:b',
+      catalogHash: 'workflow-own-catalog',
+    })
+    request.mockImplementation(
+      async (path: string, options: { query?: { workflowId?: string } }) => {
+        if (path.endsWith('/source/catalog') && options.query?.workflowId) {
+          throw new SimApiError('Service unavailable', 503, 'UNAVAILABLE')
+        }
+        return answer({
+          plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+          applied: [{ kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' }],
+          files: {
+            'workflows/ingest/workflow.ts': `${INGEST}// stored\n`,
+            'workflows/ingest/.sim/base.json': storedBase,
+          },
+          base: { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } },
+        })
+      }
+    )
+
+    try {
+      await apply('--yes')
+    } finally {
+      vi.unstubAllEnvs()
+      rmSync(configDir, { recursive: true, force: true })
+    }
+
+    expect(process.exitCode).toBeUndefined()
+    expect(readFileSync(join(dir, 'workflows/ingest/workflow.ts'), 'utf8')).toBe(
+      `${INGEST}// stored\n`
+    )
+    expect(readFileSync(join(dir, 'workflows/ingest/.sim/base.json'), 'utf8')).toBe(storedBase)
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).resources).toEqual({
+      'workflow:ingest': { id: 'wf_1' },
+    })
+    expect(existsSync(join(dir, 'workflows/ingest/.sim/stored-edges.json'))).toBe(false)
+    const warned = vi
+      .mocked(console.error)
+      .mock.calls.map(([line]) => String(line))
+      .join('\n')
+    expect(warned).toContain('could not fetch the block catalog of workflows/ingest')
   })
 })

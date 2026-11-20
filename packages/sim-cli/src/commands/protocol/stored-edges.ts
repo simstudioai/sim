@@ -75,18 +75,27 @@ function parseJson(text: string): unknown {
   }
 }
 
+/** The stored-edges records of a workspace answer, and the folders left without one. */
+export interface WorkflowFolderRecords {
+  records: Array<readonly [string, string]>
+  /** Folder keys whose catalog could not be fetched: their record is skipped, not failed. */
+  unrecorded: string[]
+}
+
 /**
  * The `.sim/stored-edges.json` write of each workflow folder a workspace get or apply answered
  * with, each compiled against the catalog its base names. A workflow holding a type the workspace
  * catalog lacks was printed with its own catalog: one not cached yet is fetched, once per distinct
- * hash, and cached, so an offline check compiles that folder against it too.
+ * hash, and cached, so an offline check compiles that folder against it too. The records are a
+ * cache fill, never part of the write: a catalog fetch that fails skips the folders printed with
+ * that catalog (named in `unrecorded`) rather than failing a write the server already committed.
  */
 export async function workflowFolderRecords(
   client: OperationClient<'getSourceCatalog'>,
   workspaceId: string,
   workspaceCatalog: BlockCatalog,
   files: Record<string, string>
-): Promise<Array<readonly [string, string]>> {
+): Promise<WorkflowFolderRecords> {
   const folders = printedWorkflowFolders(files)
   const uncached = new Map<string, string>()
   for (const { base } of folders.values()) {
@@ -95,16 +104,39 @@ export async function workflowFolderRecords(
     if (catalogHash === workspaceCatalog.hash || cachedCatalogByHash(catalogHash)) continue
     if (!uncached.has(catalogHash)) uncached.set(catalogHash, workflowId)
   }
-  for (const workflowId of uncached.values()) {
-    await loadWorkflowCatalog(client, workspaceId, workflowId)
+  const fetched = new Map<string, BlockCatalog>()
+  for (const [catalogHash, workflowId] of uncached) {
+    const catalog = await loadWorkflowCatalog(client, workspaceId, workflowId).catch(() => null)
+    if (catalog) fetched.set(catalogHash, catalog)
   }
-  return [...folders].flatMap(([key, folder]) => {
+  const records: Array<readonly [string, string]> = []
+  const unrecorded: string[] = []
+  for (const [key, folder] of folders) {
     const { catalogHash } = toRecord(folder.base)
     const catalog =
-      catalogHash === workspaceCatalog.hash ? workspaceCatalog : cachedCatalogByHash(catalogHash)
+      catalogHash === workspaceCatalog.hash
+        ? workspaceCatalog
+        : typeof catalogHash === 'string'
+          ? (fetched.get(catalogHash) ?? cachedCatalogByHash(catalogHash))
+          : null
+    if (typeof catalogHash === 'string' && uncached.has(catalogHash) && !catalog) {
+      unrecorded.push(key)
+      continue
+    }
     const write = storedEdgesWrite(folder, catalog, `${KIND_DIRS.workflow}/${key}/`)
-    return write ? [write] : []
-  })
+    if (write) records.push(write)
+  }
+  return { records, unrecorded }
+}
+
+/**
+ * The warning for workflow folders {@link workflowFolderRecords} could not record, or `null`.
+ * Their edges are unrecorded, so an offline check of each one compiles without its stored edges
+ * until the next get records them.
+ */
+export function unrecordedFoldersWarning(unrecorded: readonly string[]): string | null {
+  if (unrecorded.length === 0) return null
+  return `Warning: could not fetch the block catalog of ${unrecorded.map((key) => `${KIND_DIRS.workflow}/${key}`).join(', ')}, so its stored edges are not recorded; everything else was saved. The next \`sim workspaces source get\` records them.`
 }
 
 function isStoredEdge(value: unknown): value is StoredEdgeRef {

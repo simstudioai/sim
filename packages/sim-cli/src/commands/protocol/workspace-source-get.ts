@@ -16,6 +16,7 @@ import {
   WORKSPACE_SKIPPED_FILE,
 } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
+import { printError } from '#sim-cli/output/io'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
@@ -47,7 +48,11 @@ import {
   sourceTreeChange,
   withSourceExitCode,
 } from './source-tree'
-import { removedWorkflowRecords, workflowFolderRecords } from './stored-edges'
+import {
+  removedWorkflowRecords,
+  unrecordedFoldersWarning,
+  workflowFolderRecords,
+} from './stored-edges'
 import {
   assertListedBlobs,
   blobDigests,
@@ -212,7 +217,7 @@ async function writeWorkspaceSource(
     loadWorkspaceTypes(client, source.workspaceId, localDeclarations(source.files)),
   ])
   assertSdkMajor(catalog)
-  const workflowRecords = await workflowFolderRecords(
+  const { records: workflowRecords, unrecorded } = await workflowFolderRecords(
     client,
     source.workspaceId,
     catalog,
@@ -304,6 +309,8 @@ async function writeWorkspaceSource(
       ],
     })
     await rm(downloads, { recursive: true, force: true })
+    const unrecordedWarning = unrecordedFoldersWarning(unrecorded)
+    if (unrecordedWarning) printError(unrecordedWarning)
     const summary = finishTree(dir, write.length + stale.length, workspaceTypes, tree)
     return {
       written: summary.files,

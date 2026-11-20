@@ -61,7 +61,11 @@ import {
   verboseFlag,
   writeMode,
 } from './source-ui'
-import { removedWorkflowRecords, workflowFolderRecords } from './stored-edges'
+import {
+  removedWorkflowRecords,
+  unrecordedFoldersWarning,
+  workflowFolderRecords,
+} from './stored-edges'
 import {
   appliedBlobDigests,
   assertBlobsFetched,
@@ -616,10 +620,12 @@ export function attachWorkspaceSourceApply(source: Command): void {
                 await savePromotion(options.dir, options.to, promotion, answer)
               } else {
                 const workspaceCatalog = cachedCatalog(workspaceId)
-                const records = workspaceCatalog
+                const { records, unrecorded } = workspaceCatalog
                   ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, answer.files)
-                  : []
+                  : { records: [], unrecorded: [] }
                 await saveApplied(options.dir, answer, submission, written, records)
+                const unrecordedWarning = unrecordedFoldersWarning(unrecorded)
+                if (unrecordedWarning) printError(unrecordedWarning)
               }
               return answer
             },
