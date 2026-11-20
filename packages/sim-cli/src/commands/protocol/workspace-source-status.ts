@@ -2,8 +2,8 @@
  * `sim workspaces source status` and `sim workspaces source diff`: what changed in a workspace
  * source directory since it was read, on either side, without applying anything. Local changes
  * come from the file digests `.sim/written.json` records; the server's come from the plan read
- * (`planWorkspaceSource`: a dry run on the source-read budget, one unit whatever the directory
- * holds) of the directory (its findings name every resource changed since the base), and the base text a
+ * (`planWorkspaceSource`: a dry run on the source-plan budget, charged per workflow it
+ * evaluates) of the directory (its findings name every resource changed since the base), and the base text a
  * diff shows from the server's current source where it still prints what the directory was read
  * at.
  */
@@ -76,7 +76,7 @@ import {
 } from './workspace-source-dir'
 import { ONLY_KINDS_HELP, parseKinds } from './workspace-source-get'
 
-type ApplyData = PlanWorkspaceSourceResponse['data']
+type PlanData = PlanWorkspaceSourceResponse['data']
 type ServerSource = GetWorkspaceSourceResponse['data']
 
 const PREFIX = 'sim workspaces source'
@@ -197,7 +197,7 @@ interface WorkspacePlanSummary {
   warnings: number
 }
 
-type PlannedChange = ApplyData['plan'][number]
+type PlannedChange = PlanData['plan'][number]
 
 /**
  * The dry run's plan as an apply to `target` would make it. The status sends every workflow folder
@@ -225,11 +225,11 @@ function planAsApplied(
 }
 
 /** The dry run's findings the plan counts: all but the server changes the status lists. */
-function workspacePlanFindings(data: ApplyData): Diagnostic[] {
+function workspacePlanFindings(data: PlanData): Diagnostic[] {
   return planFindings(data.diagnostics, isServerChangeFinding)
 }
 
-function planSummary(data: ApplyData, plan: readonly PlannedChange[]): WorkspacePlanSummary {
+function planSummary(data: PlanData, plan: readonly PlannedChange[]): WorkspacePlanSummary {
   const count = (...actions: string[]) =>
     plan.filter((change) => actions.includes(change.action)).length
   const planned = workspacePlanFindings(data)
@@ -326,7 +326,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
           const locals = localResourceChanges(local.changed)
           let server: ServerCheck = options.offline ? 'offline' : 'checked'
           let note: string | undefined = options.offline ? 'Skipped with --offline.' : undefined
-          let data: ApplyData | null = null
+          let data: PlanData | null = null
           let applyPlan: PlannedChange[] = []
           let workspaceId = local.readFrom
           // The scope every recommended command carries, so it acts on what this status showed.

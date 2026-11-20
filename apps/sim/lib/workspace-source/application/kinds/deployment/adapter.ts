@@ -620,10 +620,6 @@ function idempotencyKey(decl: DeploymentDecl, workflowId: string, live: string |
 }
 
 /**
- * Deploys the draft unless it already is the live version: a re-run after a deploy that
- * succeeded finds nothing to publish, and one after a deploy that failed replays the same key.
- */
-/**
  * The `sf1:` fingerprint of the draft change `change` may publish on workflow `workflowId`, or
  * `undefined` when its plan vouched for none (a chat write on a workflow this apply creates).
  */
@@ -646,6 +642,10 @@ async function publishing(change: DeploymentChange, publish: () => Promise<unkno
   }
 }
 
+/**
+ * Deploys the draft unless it already is the live version: a re-run after a deploy that
+ * succeeded finds nothing to publish, and one after a deploy that failed replays the same key.
+ */
 async function deployDraft(
   change: DeploymentChange,
   decl: DeploymentDecl,

@@ -303,7 +303,7 @@ export interface PlanWorkflowSourceInput {
   files: Record<string, string>
   lock: WorkflowLockV1
   base: SourceBase
-  /** Plan block deletes as allowed, so the plan names them instead of refusing. */
+  /** Plan block and variable deletes as allowed, so the plan names them instead of refusing. */
   allowDelete?: boolean
 }
 

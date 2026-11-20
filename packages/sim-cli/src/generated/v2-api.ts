@@ -27577,7 +27577,7 @@ export const V2_OPERATIONS = {
       allowDelete: {
         kind: 'boolean',
         describe:
-          'Plan the deletes of blocks the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE`.',
+          'Plan the deletes of blocks and variables the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE` or `E_APPLY_VARIABLE_DELETE`.',
       },
     },
     body: {

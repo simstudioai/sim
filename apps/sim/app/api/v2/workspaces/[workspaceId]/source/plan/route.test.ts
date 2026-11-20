@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({ plan: vi.fn() }))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/lib/workspace-source/application/apply-workspace-source', () => ({
-  readWorkspaceSourcePlan: { operation: { id: 'workspaces.source.plan' }, execute: mocks.plan },
+  planWorkspaceSource: { operation: { id: 'workspaces.source.plan' }, execute: mocks.plan },
 }))
 
 import { POST } from '@/app/api/v2/workspaces/[workspaceId]/source/plan/route'

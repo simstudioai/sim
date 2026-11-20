@@ -113,6 +113,13 @@ export const workflowLockSchema = withExtensions({
   'Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.'
 )
 
+/** The `sf1:` fingerprint a source read or apply reports as `base.fingerprint`, by `field`. */
+export function sourceFingerprintSchema(field: string) {
+  return z
+    .string()
+    .regex(/^sf1:[0-9a-f]{64}$/, `${field} must be a source fingerprint (sf1: and 64 hex digits)`)
+}
+
 export const sourceBaseSchema = withExtensions({
   version: z
     .literal(1)

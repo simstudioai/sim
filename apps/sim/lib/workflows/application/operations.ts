@@ -1,14 +1,5 @@
-import type { OperationFeature } from '@/lib/core/application/feature-availability'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
-
-/**
- * Workflows and workspaces as code (the source catalog and resources, workflow and workspace
- * source read and apply) ship behind the `workflow-code` flag; every source operation declares it.
- */
-export const WORKFLOW_CODE_FEATURE = {
-  flag: 'workflow-code',
-  unavailableMessage: 'Workflows as code is in preview and not enabled for this workspace',
-} as const satisfies OperationFeature
+import { WORKFLOW_CODE_FEATURE } from '@/lib/workflows/code/feature-flag'
 
 const ALL_WORKFLOW_PRINCIPAL_POLICY = {
   principalKinds: [

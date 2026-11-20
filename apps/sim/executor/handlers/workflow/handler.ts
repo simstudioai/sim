@@ -191,10 +191,6 @@ type WorkflowTraceSpan = TraceSpan & {
 }
 
 /**
- * Handler for workflow blocks that execute other workflows inline.
- * Creates sub-execution contexts and manages data flow between parent and child workflows.
- */
-/**
  * A child workflow read refused because the run's delegation does not reach it, named for what
  * that almost always means: the workflow block names a workflow of another workspace (a raw id
  * copied across workspaces). Any other error is returned as it is.
@@ -206,6 +202,10 @@ function childReadError(error: unknown, workflowId: string): unknown {
   )
 }
 
+/**
+ * Handler for workflow blocks that execute other workflows inline.
+ * Creates sub-execution contexts and manages data flow between parent and child workflows.
+ */
 export class WorkflowBlockHandler implements BlockHandler {
   private serializer = new Serializer()
 

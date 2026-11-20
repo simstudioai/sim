@@ -1,5 +1,5 @@
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
-import { WORKFLOW_CODE_FEATURE } from '@/lib/workflows/application/operations'
+import { WORKFLOW_CODE_FEATURE } from '@/lib/workflows/code/feature-flag'
 
 const SOURCE_OPERATION_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],

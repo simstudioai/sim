@@ -23,7 +23,7 @@ import { finding, GET_HINT } from '@/lib/workspace-source/application/findings'
 import { claimKey } from '@/lib/workspace-source/application/keys'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
-  planWorkspaceSource,
+  buildWorkspacePlan,
   type WorkspacePlan,
   type WorkspaceSourceSubmission,
 } from '@/lib/workspace-source/application/plan'
@@ -264,7 +264,7 @@ function planned(
   }
 }
 
-/** What {@link readWorkspaceSourcePlan} reads: a directory as an apply sends it, without its knobs. */
+/** What {@link planWorkspaceSource} reads: a directory as an apply sends it, without its knobs. */
 export type PlanWorkspaceSourceInput = Omit<ApplyWorkspaceSourceInput, 'dryRun' | 'provenance'>
 
 /**
@@ -272,13 +272,13 @@ export type PlanWorkspaceSourceInput = Omit<ApplyWorkspaceSourceInput, 'dryRun' 
  * exactly as a dry run reports them. A read, so `sim workspaces source status` costs no write
  * budget; like a dry run it takes no lease and records, audits and notifies nothing.
  */
-export const readWorkspaceSourcePlan = defineAuthorizedWorkspaceUseCase({
+export const planWorkspaceSource = defineAuthorizedWorkspaceUseCase({
   operation: workspaceSourceOperations.plan,
   resolveContext: ({ input }: { input: PlanWorkspaceSourceInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ApplyWorkspaceSourceResult> {
-    const plan = await planWorkspaceSource(input, sourceContext(principal, context))
+    const plan = await buildWorkspacePlan(input, sourceContext(principal, context))
     return planned(plan, context.workspaceId, true)
   },
 })
@@ -305,7 +305,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       ...(input.provenance ? { provenance: input.provenance } : {}),
     }
     if (input.dryRun === true) {
-      return planned(await planWorkspaceSource(input, ctx), context.workspaceId, true)
+      return planned(await buildWorkspacePlan(input, ctx), context.workspaceId, true)
     }
     const facts = {
       principal,
@@ -323,7 +323,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       throw error
     })
     try {
-      const plan = await planWorkspaceSource(input, ctx, { requireBlobs: true })
+      const plan = await buildWorkspacePlan(input, ctx, { requireBlobs: true })
       if (plan.refusing.length > 0) {
         recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'rejected' })
         throw new WorkspaceSourceRejectedError(plan.diagnostics, plan.refusing)

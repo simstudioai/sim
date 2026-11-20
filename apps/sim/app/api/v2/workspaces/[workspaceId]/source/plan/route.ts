@@ -6,7 +6,7 @@ import {
   v2WorkspaceSourceErrorPolicy,
   workspaceApplyRateCost,
 } from '@/lib/workspace-source/api/route-policies'
-import { readWorkspaceSourcePlan } from '@/lib/workspace-source/application/apply-workspace-source'
+import { planWorkspaceSource } from '@/lib/workspace-source/application/apply-workspace-source'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 
 export const dynamic = 'force-dynamic'
@@ -37,6 +37,6 @@ export const POST = defineV2JsonRoute({
     ...(body.options?.allowDelete !== undefined ? { allowDelete: body.options.allowDelete } : {}),
   }),
   rateLimitCost: (input) => workspaceApplyRateCost(input.files, input.blobs),
-  useCase: withSourceSlot(readWorkspaceSourcePlan, 'plan'),
+  useCase: withSourceSlot(planWorkspaceSource, 'plan'),
   present: (result) => ({ data: result }),
 })

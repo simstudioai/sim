@@ -34,7 +34,7 @@ import { readSourceResources } from '@/lib/workflows/application/read-source-res
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   type ApplyWorkspaceSourceInput,
-  readWorkspaceSourcePlan,
+  planWorkspaceSource,
 } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   failKeyClaims,
@@ -147,7 +147,7 @@ function planAs(
   base: ApplyOptions['base']
 ) {
   return withPermissionGroupScope(() =>
-    readWorkspaceSourcePlan.execute({
+    planWorkspaceSource.execute({
       principal,
       input: { workspaceId, kinds: ['mcp-server', 'workflow'], files, ...(base ? { base } : {}) },
     })

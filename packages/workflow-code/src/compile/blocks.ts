@@ -1756,8 +1756,6 @@ function compileConfig<S>(
   const written = new Map<ConfigField<S>, ObjectProperty>()
   if (!configNode) return { fields, written }
   for (const [key, property] of objectEntries(ctx, configNode)) {
-    const known = getOwn(form, key)
-    if (known) written.set(known.field, property)
     const entry = getOwn(form, key)
     if (!entry) {
       ctx.reporter.report(
@@ -1768,6 +1766,7 @@ function compileConfig<S>(
       )
       continue
     }
+    written.set(entry.field, property)
     const node = property.value
     const field = String(entry.field)
     if (entry.kind === 'number') {

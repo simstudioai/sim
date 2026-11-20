@@ -3,7 +3,7 @@ import {
   defineWorkspaceOperation,
   isOperationFeatureEnabled,
 } from '@/lib/core/application'
-import { WORKFLOW_CODE_FEATURE } from '@/lib/workflows/application/operations'
+import { WORKFLOW_CODE_FEATURE } from '@/lib/workflows/code/feature-flag'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 /** permission-group-exempt: reports rollout availability only; source operations enforce their own policies. */

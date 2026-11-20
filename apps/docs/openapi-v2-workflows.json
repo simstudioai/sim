@@ -6242,7 +6242,7 @@
       "post": {
         "operationId": "planWorkflowSource",
         "summary": "Plan workflow source",
-        "description": "Report what Apply Workflow Source would do with this source, without writing: whether the draft changed since `base` (`E_APPLY_STALE`), the diff, and every finding, exactly as `dryRun=true` reports them, with `200`. A read: it needs only workspace read access, draws on the source-plan budget rather than the source-write budget (a server already running as many plans as it allows answers `429`), and records no audit or analytics event, so `sim workflows source status` never spends what an apply needs. `allowDelete=true` plans block deletes instead of reporting `E_APPLY_BLOCK_DELETE`. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "description": "Report what Apply Workflow Source would do with this source, without writing: whether the draft changed since `base` (`E_APPLY_STALE`), the diff, and every finding, exactly as `dryRun=true` reports them, with `200`. A read: it needs only workspace read access, draws on the source-plan budget rather than the source-write budget (a server already running as many plans as it allows answers `429`), and records no audit or analytics event, so `sim workflows source status` never spends what an apply needs. `allowDelete=true` plans block and variable deletes instead of reporting `E_APPLY_BLOCK_DELETE` or `E_APPLY_VARIABLE_DELETE`. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.source.plan",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -6271,9 +6271,9 @@
             "name": "allowDelete",
             "in": "query",
             "required": false,
-            "description": "Plan the deletes of blocks the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE`.",
+            "description": "Plan the deletes of blocks and variables the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE` or `E_APPLY_VARIABLE_DELETE`.",
             "schema": {
-              "description": "Plan the deletes of blocks the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE`.",
+              "description": "Plan the deletes of blocks and variables the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE` or `E_APPLY_VARIABLE_DELETE`.",
               "type": "boolean"
             }
           }

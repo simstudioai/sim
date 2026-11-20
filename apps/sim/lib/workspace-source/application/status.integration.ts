@@ -25,7 +25,7 @@ import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.
 import * as tableUseCases from '@/lib/table/application/tables'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
-import { readWorkspaceSourcePlan } from '@/lib/workspace-source/application/apply-workspace-source'
+import { planWorkspaceSource } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   sourceChecks,
   sourceRunner,
@@ -114,7 +114,7 @@ async function statusOf(read: ReadDirectory, local: Record<string, string>, whol
         )
       )
   const plan = await withPermissionGroupScope(() =>
-    readWorkspaceSourcePlan.execute({
+    planWorkspaceSource.execute({
       principal: owner,
       input: {
         workspaceId: read.workspaceId,

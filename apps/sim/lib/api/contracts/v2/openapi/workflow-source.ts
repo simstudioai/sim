@@ -142,7 +142,7 @@ export const workflowSourceOpenApiRoutes = [
       applicationOperation: workflowOperations.planSource,
       operationId: 'planWorkflowSource',
       summary: 'Plan workflow source',
-      description: `Report what Apply Workflow Source would do with this source, without writing: whether the draft changed since \`base\` (\`E_APPLY_STALE\`), the diff, and every finding, exactly as \`dryRun=true\` reports them, with \`200\`. A read: it needs only workspace read access, draws on the source-plan budget rather than the source-write budget (a server already running as many plans as it allows answers \`429\`), and records no audit or analytics event, so \`sim workflows source status\` never spends what an apply needs. \`allowDelete=true\` plans block deletes instead of reporting \`E_APPLY_BLOCK_DELETE\`. Returns \`403\` while workflows as code is not enabled. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Report what Apply Workflow Source would do with this source, without writing: whether the draft changed since \`base\` (\`E_APPLY_STALE\`), the diff, and every finding, exactly as \`dryRun=true\` reports them, with \`200\`. A read: it needs only workspace read access, draws on the source-plan budget rather than the source-write budget (a server already running as many plans as it allows answers \`429\`), and records no audit or analytics event, so \`sim workflows source status\` never spends what an apply needs. \`allowDelete=true\` plans block and variable deletes instead of reporting \`E_APPLY_BLOCK_DELETE\` or \`E_APPLY_VARIABLE_DELETE\`. Returns \`403\` while workflows as code is not enabled. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Workflows'],
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The evaluated source.', headers: RATE_LIMIT_HEADERS },
@@ -153,7 +153,7 @@ export const workflowSourceOpenApiRoutes = [
         v2PlanWorkflowSourceContract.query,
         'PlanWorkflowSourceQuery',
         'Plan workflow source query',
-        'Whether to plan block deletes.'
+        'Whether to plan block and variable deletes.'
       ),
       body: documentedSchema(
         v2PlanWorkflowSourceContract.body,

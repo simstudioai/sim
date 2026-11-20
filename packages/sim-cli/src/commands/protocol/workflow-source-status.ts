@@ -53,7 +53,7 @@ import { refreshWorkflowWorkspaceTypes, withSourceExitCode } from './source-tree
 import type { Diagnostic } from './source-ui'
 import { readBase, readLock, readSourceFiles } from './workflow-source-apply'
 
-type ApplyData = PlanWorkflowSourceResponse['data']
+type PlanData = PlanWorkflowSourceResponse['data']
 
 const PREFIX = 'sim workflows source'
 
@@ -107,11 +107,11 @@ interface WorkflowPlanSummary {
 }
 
 /** The dry run's findings the plan counts: all but `E_APPLY_STALE`, which the status lists. */
-function workflowPlanFindings(data: ApplyData): Diagnostic[] {
+function workflowPlanFindings(data: PlanData): Diagnostic[] {
   return planFindings(data.diagnostics, (code) => code === 'E_APPLY_STALE')
 }
 
-function planSummary(data: ApplyData): WorkflowPlanSummary {
+function planSummary(data: PlanData): WorkflowPlanSummary {
   const planned = workflowPlanFindings(data)
   const findings = (severity: string) =>
     planned.filter((finding) => finding.severity === severity).length
@@ -172,7 +172,7 @@ export function attachWorkflowSourceStatus(source: Command): void {
           : []
       let server: ServerCheck = options.offline ? 'offline' : 'checked'
       let note: string | undefined = options.offline ? 'Skipped with --offline.' : undefined
-      let data: ApplyData | null = null
+      let data: PlanData | null = null
       let serverChanges: ServerResourceChange[] = []
       let login: string | null = null
       if (!options.offline) {

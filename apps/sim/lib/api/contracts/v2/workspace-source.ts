@@ -12,6 +12,7 @@ import {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 import {
+  provenanceGitShaSchema,
   provenanceRepoSchema,
   SOURCE_PATH_MAX_LENGTH,
 } from '@/lib/api/contracts/v2/workflow-source'
@@ -284,9 +285,7 @@ const applyBodySchema = z
     provenance: z
       .object({
         client: z.enum(['cli', 'api']).describe('What submitted the directory.'),
-        gitSha: z
-          .string()
-          .regex(/^[0-9a-f]{7,64}$/, 'provenance.gitSha must be a hexadecimal commit hash')
+        gitSha: provenanceGitShaSchema
           .optional()
           .describe('The commit the directory was taken from; recorded in the audit log.'),
         repo: provenanceRepoSchema.optional(),

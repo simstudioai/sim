@@ -86,6 +86,11 @@ function carriesCredentials(repo: string): boolean {
   return url.username !== '' && /(^|\+)https?:$/i.test(url.protocol)
 }
 
+/** `provenance.gitSha`: the commit a source or directory was taken from. */
+export const provenanceGitShaSchema = z
+  .string()
+  .regex(/^[0-9a-f]{7,64}$/, 'provenance.gitSha must be a hexadecimal commit hash')
+
 /** `provenance.repo`: the repository a source or directory was taken from, never with credentials. */
 export const provenanceRepoSchema = z
   .string()
@@ -104,9 +109,7 @@ const provenanceSchema = z
         error: 'provenance.client: expected one of "cli" | "copilot" | "canvas" | "api"',
       })
       .describe('What submitted the source.'),
-    gitSha: z
-      .string()
-      .regex(/^[0-9a-f]{7,64}$/, 'provenance.gitSha must be a hexadecimal commit hash')
+    gitSha: provenanceGitShaSchema
       .optional()
       .describe('The commit the source was taken from; recorded in the audit log.'),
     repo: provenanceRepoSchema.optional(),
@@ -263,7 +266,7 @@ const planWorkflowSourceQuerySchema = z
     allowDelete: booleanQueryFlagSchema
       .optional()
       .describe(
-        'Plan the deletes of blocks the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE`.'
+        'Plan the deletes of blocks and variables the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE` or `E_APPLY_VARIABLE_DELETE`.'
       ),
   })
   .strict()
