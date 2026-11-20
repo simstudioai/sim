@@ -8,6 +8,7 @@
  *
  * Generators run one at a time, in package.json order, because some read what an earlier one
  * wrote: `generate:cli-docs` reads the operation table `generate:cli-api` emits,
+ * `generate:deployment-config` imports the integration metadata `generate:docs` writes,
  * `generate:docs-manifest` lists the pages `generate:cli-docs` and `generate:docs` write, and
  * `generate:sdk-fixture-catalog` projects through `generate:tool-metadata` and `generate:sdk-names`
  * output. Keep a new pair below the generators it reads.
