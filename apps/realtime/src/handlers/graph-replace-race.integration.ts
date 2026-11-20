@@ -3,25 +3,30 @@
  * locks the workflow row, re-reads the graph, then deletes and re-inserts every block from what it
  * read; a revert to a deployed version deletes and re-inserts without the lock. A keystroke flushed
  * inside either window must survive the replace or be reported to its sender as failed (the client
- * retries a retryable failure): it may never be confirmed and then vanish.
+ * retries a retryable failure): it may never be confirmed and then vanish. A variable keystroke
+ * racing an apply that rewrites the variables must not revert the apply's own change either.
  *
- * Drives the real `subblock-update` handler (real permission checks and flush) with only the
+ * Drives the real `subblock-update` and `variable-update` handlers (real permission checks and flush) with only the
  * socket and the room manager stood in, and runs the replace's SQL sequence by hand at each
  * interleaving point.
  */
 import { db, runOutsideTransactionContext } from '@sim/db'
 import { permissions, user, workflow, workflowBlocks, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { setupSubblocksHandlers } from '@/handlers/subblocks'
+import { setupVariablesHandlers } from '@/handlers/variables'
 import type { IRoomManager } from '@/rooms'
 
 const userId = generateId()
 const workspaceId = generateId()
 const workflowId = generateId()
 const blockId = generateId()
+const variableId = generateId()
+const otherVariableId = generateId()
 const SOCKET_ID = 'socket-typing'
 const BEFORE = 'before the apply'
 const TYPED = 'typed during the apply'
@@ -60,10 +65,9 @@ function connect() {
     updateUserActivity: async () => {},
     io: { to: (room: string) => ({ ...emitTo(room), except: () => emitTo(room) }) },
   }
-  setupSubblocksHandlers(
-    socket as unknown as Parameters<typeof setupSubblocksHandlers>[0],
-    roomManager as unknown as IRoomManager
-  )
+  const connected = socket as unknown as Parameters<typeof setupSubblocksHandlers>[0]
+  setupSubblocksHandlers(connected, roomManager as unknown as IRoomManager)
+  setupVariablesHandlers(connected, roomManager as unknown as IRoomManager)
   return { handlers, outcome }
 }
 
@@ -88,7 +92,7 @@ async function untilSettledOrBlocked(settled: Promise<unknown>): Promise<void> {
           where datname = current_database() and wait_event_type = 'Lock'`
     )
     if (waiting > 0) return
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await sleep(10)
   }
 }
 
@@ -122,41 +126,46 @@ async function replaceGraph(writer: Writer, point: Point, interleave: () => Prom
   })
 }
 
-describe('subblock flush racing a whole-graph replace', () => {
-  beforeAll(async () => {
-    const now = new Date()
-    await db.insert(user).values({
-      id: userId,
-      name: 'Subblock race fixture',
-      email: `${userId}@subblock-race.test`,
-      emailVerified: true,
-      createdAt: now,
-      updatedAt: now,
-    })
-    await insertWorkspaceFixture(db, {
-      id: workspaceId,
-      name: 'Subblock race',
-      ownerId: userId,
-      billedAccountUserId: userId,
-    })
-    await db.insert(permissions).values({
-      id: generateId(),
-      entityType: 'workspace',
-      entityId: workspaceId,
-      userId,
-      permissionType: 'write',
-    })
-    await db.insert(workflow).values({
-      id: workflowId,
-      userId,
-      workspaceId,
-      name: 'Subblock race',
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-    })
+beforeAll(async () => {
+  const now = new Date()
+  await db.insert(user).values({
+    id: userId,
+    name: 'Subblock race fixture',
+    email: `${userId}@subblock-race.test`,
+    emailVerified: true,
+    createdAt: now,
+    updatedAt: now,
   })
+  await insertWorkspaceFixture(db, {
+    id: workspaceId,
+    name: 'Subblock race',
+    ownerId: userId,
+    billedAccountUserId: userId,
+  })
+  await db.insert(permissions).values({
+    id: generateId(),
+    entityType: 'workspace',
+    entityId: workspaceId,
+    userId,
+    permissionType: 'write',
+  })
+  await db.insert(workflow).values({
+    id: workflowId,
+    userId,
+    workspaceId,
+    name: 'Subblock race',
+    lastSynced: now,
+    createdAt: now,
+    updatedAt: now,
+  })
+})
 
+afterAll(async () => {
+  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
+  await db.delete(user).where(eq(user.id, userId))
+})
+
+describe('subblock flush racing a whole-graph replace', () => {
   beforeEach(async () => {
     await db.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
     await db.insert(workflowBlocks).values({
@@ -168,11 +177,6 @@ describe('subblock flush racing a whole-graph replace', () => {
       positionY: '0',
       subBlocks: { code: { id: 'code', type: 'code', value: BEFORE } },
     })
-  })
-
-  afterAll(async () => {
-    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
-    await db.delete(user).where(eq(user.id, userId))
   })
 
   it.each<[Writer, Point]>([
@@ -196,5 +200,58 @@ describe('subblock flush racing a whole-graph replace', () => {
     const stored = await storedValue()
     expect({ reported, stored }).not.toEqual({ reported: 'operation-confirmed', stored: BEFORE })
     if (reported === 'operation-confirmed') expect(stored).toBe(TYPED)
+  })
+})
+
+describe('variable flush racing an apply that rewrites the variables', () => {
+  const variable = (id: string, value: string) => ({ id, name: id, type: 'plain', value })
+
+  beforeEach(async () => {
+    await db
+      .update(workflow)
+      .set({
+        variables: {
+          [variableId]: variable(variableId, BEFORE),
+          [otherVariableId]: variable(otherVariableId, BEFORE),
+        },
+      })
+      .where(eq(workflow.id, workflowId))
+  })
+
+  it("keeps both the keystroke and the apply's own variable change", async () => {
+    const { handlers, outcome } = connect()
+    const APPLIED = 'written by the apply'
+    await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ variables: workflow.variables })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+        .for('update')
+      await runOutsideTransactionContext(async () => {
+        await handlers['variable-update']({
+          workflowId,
+          variableId,
+          field: 'value',
+          value: TYPED,
+          timestamp: Date.now(),
+          operationId: generateId(),
+        })
+        await untilSettledOrBlocked(outcome)
+      })
+      const read = locked.variables as Record<string, ReturnType<typeof variable>>
+      await tx
+        .update(workflow)
+        .set({ variables: { ...read, [otherVariableId]: variable(otherVariableId, APPLIED) } })
+        .where(eq(workflow.id, workflowId))
+    })
+    const reported = await outcome
+    const [row] = await db
+      .select({ variables: workflow.variables })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+    const stored = row.variables as Record<string, { value: string }>
+    expect(stored[otherVariableId].value).toBe(APPLIED)
+    if (reported === 'operation-confirmed') expect(stored[variableId].value).toBe(TYPED)
   })
 })
