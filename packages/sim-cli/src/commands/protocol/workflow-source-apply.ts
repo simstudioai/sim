@@ -56,8 +56,6 @@ import {
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 
-type SourceBase = ApplyWorkflowSourceBody['base']
-
 interface SourceWriteOptions {
   dir: string
   dryRun?: boolean
