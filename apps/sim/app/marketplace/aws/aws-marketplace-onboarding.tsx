@@ -18,10 +18,10 @@ import {
   AWS_MARKETPLACE_SETUP_TURNAROUND,
   type AwsMarketplaceOnboardingError,
 } from '@/lib/billing/aws-marketplace/onboarding'
+import { SUPPORT_EMAIL } from '@/lib/branding/contact'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
-import { useBrandConfig } from '@/ee/whitelabeling'
 import {
   useAwsMarketplaceClaim,
   useAwsMarketplaceLicenses,
@@ -73,16 +73,11 @@ function authLink(path: '/login' | '/signup'): string {
   })
 }
 
-interface SupportContactProps {
-  supportEmail: string | undefined
-}
-
 /** AWS requires support contact options on the fulfillment landing page. */
-function SupportContact({ supportEmail }: SupportContactProps) {
-  if (!supportEmail) return null
+function SupportContact() {
   return (
     <p className='au:text-center au:text-sm'>
-      Questions? Email <AuthTextLink href={`mailto:${supportEmail}`}>{supportEmail}</AuthTextLink>
+      Questions? Email <AuthTextLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</AuthTextLink>
     </p>
   )
 }
@@ -165,8 +160,7 @@ export function AwsMarketplaceOnboarding({
   const claimQuery = useAwsMarketplaceClaim(registrationError ? null : viewerId)
   const linkLicense = useLinkAwsMarketplaceLicense()
   const registerToAccount = useRegisterAwsMarketplaceLicenseToAccount()
-  const { supportEmail } = useBrandConfig()
-  const supportContact = <SupportContact supportEmail={supportEmail} />
+  const supportContact = <SupportContact />
   const returnHome = { label: 'Return to Home', onClick: () => router.push('/') }
 
   /** A revoked session's cookie would send `/login` straight to the app, losing the way back. */

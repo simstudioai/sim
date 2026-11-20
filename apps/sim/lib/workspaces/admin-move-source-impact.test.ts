@@ -79,7 +79,6 @@ describe('resolveMoveEntitlements', () => {
         'organization usage monitoring',
         'audit logs',
         'data drains',
-        'whitelabel branding',
         'workspace forking',
         'custom blocks',
       ])

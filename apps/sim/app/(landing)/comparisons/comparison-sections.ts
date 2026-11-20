@@ -99,7 +99,6 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
       { key: 'thirdPartyVetting', label: 'Vetted first-party integrations' },
       { key: 'piiRedaction', label: 'PII redaction' },
       { key: 'dataRetention', label: 'Custom data retention' },
-      { key: 'whiteLabeling', label: 'White-labeling' },
     ],
   }),
   defineSection({

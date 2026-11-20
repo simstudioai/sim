@@ -46,13 +46,6 @@ import { WorkspaceHostProvider } from '@/app/workspace/[workspaceId]/providers/w
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import {
-  getBrandConfig,
-  mergeOrgBrandConfig,
-  type OrganizationWhitelabelSettings,
-} from '@/ee/whitelabeling'
-import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
-import { getOrgWhitelabelSettings } from '@/ee/whitelabeling/org-branding'
 
 interface WorkspaceLayoutProps {
   children: React.ReactNode
@@ -65,11 +58,6 @@ interface WorkspaceContentProps {
   session: NonNullable<Awaited<ReturnType<typeof getSession>>>
   queryClient: QueryClient
   hostContext: WorkspaceHostContext
-  orgSettings: Promise<OrganizationWhitelabelSettings | null>
-}
-
-interface WorkspaceLoadingProps {
-  orgSettings: Promise<OrganizationWhitelabelSettings | null>
 }
 
 export default async function WorkspaceLayout({ children, params }: WorkspaceLayoutProps) {
@@ -85,28 +73,18 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
     return <WorkspaceAccessDenied />
   }
 
-  const orgSettings = hostContext.hostOrganizationId
-    ? getOrgWhitelabelSettings(hostContext.hostOrganizationId)
-    : Promise.resolve(null)
-
   return (
-    <Suspense fallback={<WorkspaceLoading orgSettings={orgSettings} />}>
+    <Suspense fallback={<ApplicationLoading />}>
       <WorkspaceContent
         workspaceId={workspaceId}
         session={session}
         queryClient={queryClient}
         hostContext={hostContext}
-        orgSettings={orgSettings}
       >
         {children}
       </WorkspaceContent>
     </Suspense>
   )
-}
-
-async function WorkspaceLoading({ orgSettings }: WorkspaceLoadingProps) {
-  const brand = mergeOrgBrandConfig(await orgSettings, getBrandConfig())
-  return <ApplicationLoading brand={brand} />
 }
 
 async function WorkspaceContent({
@@ -115,7 +93,6 @@ async function WorkspaceContent({
   session,
   queryClient,
   hostContext,
-  orgSettings,
 }: WorkspaceContentProps) {
   const activeOrganizationId = getActiveOrganizationId(session)
   const principal = {
@@ -125,7 +102,6 @@ async function WorkspaceContent({
   } as const
   const [
     cookieStore,
-    initialOrgSettings,
     ,
     modelSelectorEnabled,
     planModeEnabled,
@@ -139,7 +115,6 @@ async function WorkspaceContent({
     simLinkOrganizationId,
   ] = await Promise.all([
     cookies(),
-    orgSettings,
     prefetchWorkspaceSidebar(
       queryClient,
       workspaceId,
@@ -181,43 +156,37 @@ async function WorkspaceContent({
       >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>
           <SimLinkOrganizationProvider organizationId={simLinkOrganizationId}>
-            <BrandingProvider
-              hostOrganizationId={hostContext.hostOrganizationId}
-              viewerIsHostOrganizationMember={hostContext.viewer.isHostOrganizationMember}
-              initialOrgSettings={initialOrgSettings}
-            >
-              <DesktopOAuthConnectListener />
-              <InFlightUploadGuard />
-              <SettingsLoader />
-              <ProviderModelsLoader />
-              <CustomBlocksLoader />
-              <BlockVisibilityLoader />
-              <GlobalCommandsProvider>
-                <WorkspaceViewport>
-                  <ImpersonationBanner />
-                  <SessionExpired />
-                  <WorkspacePermissionsProvider>
-                    <WorkspaceScopeSync />
-                    <SettingsNavigationProvider>
-                      <WorkspaceChrome
-                        sidebar={
-                          <Sidebar
-                            organizationHref={organizationHref}
-                            desktopExecutor={{
-                              available: isDesktopBackgroundExecutorAvailable(),
-                              registered: desktopExecutorRegistered,
-                            }}
-                          />
-                        }
-                        initialSidebarCollapsed={initialSidebarCollapsed}
-                      >
-                        {children}
-                      </WorkspaceChrome>
-                    </SettingsNavigationProvider>
-                  </WorkspacePermissionsProvider>
-                </WorkspaceViewport>
-              </GlobalCommandsProvider>
-            </BrandingProvider>
+            <DesktopOAuthConnectListener />
+            <InFlightUploadGuard />
+            <SettingsLoader />
+            <ProviderModelsLoader />
+            <CustomBlocksLoader />
+            <BlockVisibilityLoader />
+            <GlobalCommandsProvider>
+              <WorkspaceViewport>
+                <ImpersonationBanner />
+                <SessionExpired />
+                <WorkspacePermissionsProvider>
+                  <WorkspaceScopeSync />
+                  <SettingsNavigationProvider>
+                    <WorkspaceChrome
+                      sidebar={
+                        <Sidebar
+                          organizationHref={organizationHref}
+                          desktopExecutor={{
+                            available: isDesktopBackgroundExecutorAvailable(),
+                            registered: desktopExecutorRegistered,
+                          }}
+                        />
+                      }
+                      initialSidebarCollapsed={initialSidebarCollapsed}
+                    >
+                      {children}
+                    </WorkspaceChrome>
+                  </SettingsNavigationProvider>
+                </WorkspacePermissionsProvider>
+              </WorkspaceViewport>
+            </GlobalCommandsProvider>
           </SimLinkOrganizationProvider>
         </WorkspaceHostProvider>
       </FeatureFlagsProvider>

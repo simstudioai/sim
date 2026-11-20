@@ -1,7 +1,6 @@
 import { Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface WorkspaceAddedEmailProps {
   /** Name of the workspace the recipient was added to. */
@@ -17,15 +16,14 @@ export function WorkspaceAddedEmail({
   inviterName = 'Someone',
   workspaceLink = '',
 }: WorkspaceAddedEmailProps) {
-  const brand = getBrandConfig()
-  const preview = `You've been added to the "${workspaceName}" workspace on ${brand.name}`
+  const preview = `You've been added to the "${workspaceName}" workspace on Sim`
 
   return (
     <EmailLayout preview={preview} showUnsubscribe={false}>
       <Text style={baseStyles.greeting}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
         <EmailStrong>{inviterName}</EmailStrong> added you to the{' '}
-        <EmailStrong>{workspaceName}</EmailStrong> workspace on {brand.name}.
+        <EmailStrong>{workspaceName}</EmailStrong> workspace on Sim.
       </Text>
 
       <EmailButton href={workspaceLink}>Open workspace</EmailButton>

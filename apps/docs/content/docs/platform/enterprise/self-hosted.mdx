@@ -7,7 +7,7 @@ import { Callout } from '@/components/ui/callout'
 import { Step, Steps } from '@/components/ui/steps'
 import { Tab, Tabs } from '@/components/ui/tabs'
 
-On a self-hosted deployment with billing disabled, enable enterprise features through environment variables. Then create an organization and attach its workspaces: branding, PII redaction, permission groups, custom blocks, data drains, and organization audit scope depend on the organization that owns a workspace.
+On a self-hosted deployment with billing disabled, enable enterprise features through environment variables. Then create an organization and attach its workspaces: PII redaction, permission groups, custom blocks, data drains, and organization audit scope depend on the organization that owns a workspace.
 
 This guide covers the standard billing-disabled configuration. If billing is enabled, subscription gates apply and instance-organization variables are ignored.
 
@@ -144,15 +144,7 @@ curl "https://sim.example.com/api/v1/admin/dashboard/workspaces/$WORKSPACE_ID/mo
 
 Use the Settings UI or these API requests:
 
-<Tabs items={['Branding', 'Data retention', 'Session policy']}>
-<Tab value="Branding">
-```bash
-curl -X PATCH https://sim.example.com/api/v1/admin/organizations/$ORG_ID/whitelabel \
-  -H "x-admin-key: $ADMIN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"brandName": "Acme AI", "hidePoweredBySim": true}'
-```
-</Tab>
+<Tabs items={['Data retention', 'Session policy']}>
 <Tab value="Data retention">
 ```bash
 curl -X PATCH https://sim.example.com/api/v1/admin/organizations/$ORG_ID/data-retention \
@@ -244,7 +236,7 @@ OAuth token cleanup removes expired and revoked credentials independently of sig
 
 ## Feature flag reference
 
-Explicit individual flags override the master switch, including when set to `false`. With billing disabled and no enterprise flags set, custom branding, session policies, and the Sim Mailer inbox remain enabled by default. Other features require opt-in.
+Explicit individual flags override the master switch, including when set to `false`. With billing disabled and no enterprise flags set, session policies and the Sim Mailer inbox remain enabled by default. Other features require opt-in.
 
 | Feature | Server variable | Browser variable |
 | --- | --- | --- |
@@ -253,7 +245,6 @@ Explicit individual flags override the master switch, including when set to `fal
 | Permission groups | `ACCESS_CONTROL_ENABLED` | `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` |
 | SAML and OIDC sign-in | `SSO_ENABLED` | `NEXT_PUBLIC_SSO_ENABLED` |
 | Directory provisioning | `SCIM_ENABLED` | `NEXT_PUBLIC_SCIM_ENABLED` |
-| Custom branding — enabled by default | `WHITELABELING_ENABLED` | `NEXT_PUBLIC_WHITELABELING_ENABLED` |
 | Audit logs | `AUDIT_LOGS_ENABLED` | `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` |
 | Insights | `USAGE_MONITORING_ENABLED` | `NEXT_PUBLIC_USAGE_MONITORING_ENABLED` |
 | Custom blocks | `CUSTOM_BLOCKS_ENABLED` | `NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED` |
@@ -289,7 +280,7 @@ To inspect workspace ownership:
 SELECT id, name, workspace_mode, organization_id FROM workspace;
 ```
 
-A workspace with `personal` mode or a null `organization_id` does not inherit organization branding, PII redaction, permission groups, or drains.
+A workspace with `personal` mode or a null `organization_id` does not inherit organization PII redaction, permission groups, or drains.
 
 ## Related docs
 

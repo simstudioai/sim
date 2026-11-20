@@ -241,7 +241,6 @@ export const deploymentFeaturesSchema = z.object({
   sessionPolicies: z.boolean(),
   sso: z.boolean(),
   usageMonitoring: z.boolean(),
-  whitelabeling: z.boolean(),
 })
 
 export type DeploymentFeatures = z.output<typeof deploymentFeaturesSchema>

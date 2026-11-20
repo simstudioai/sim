@@ -888,15 +888,6 @@ export const langchainProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          "Not publicly documented: no LangSmith or LangGraph Platform page describes an option to replace LangChain/LangSmith branding with a customer's own across the product UI",
-        detail:
-          'No official documentation on customer-facing white-labeling or OEM/embed branding controls was found.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
       dataRetention: {
         value:
           "Yes: LangSmith's usage-based trace pricing offers two retention tiers a customer chooses per trace, base traces (14-day retention) and extended traces (400-day retention), giving org-level control over how long execution data is kept",

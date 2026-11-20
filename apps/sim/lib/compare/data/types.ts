@@ -126,8 +126,6 @@ export interface ComparisonFacts {
     modelAndToolGovernance: Fact
     /** Restricting which specific stored credentials/connections a role or permission group may use, distinct from feature-level RBAC or integration-level allow/deny. */
     credentialGovernance: Fact
-    /** Replacing vendor branding (logo, product name, theme colors) with the customer's own across the workspace/deployed-app UI. */
-    whiteLabeling: Fact
     /** Org-configurable retention windows for execution logs, soft-deleted resources, and similar data, versus a fixed platform-wide default. */
     dataRetention: Fact
     /** Detecting and redacting/blocking PII (emails, SSNs, etc.) in workflow content or retained logs, distinct from generic output-validation guardrails. */

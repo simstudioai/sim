@@ -788,15 +788,6 @@ export const stackaiProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'Unknown: StackAI does not document letting customers replace its logo, product name, or theme colors across the workspace or deployed-app UI. Deployed chat interfaces can be styled/branded, but full workspace-level white-labeling is unconfirmed.',
-        detail:
-          "Marketing pages reference brand guidelines for StackAI's own brand, and chat widgets can be styled to match a customer's site, but no source confirms full white-label replacement of vendor branding.",
-        shortValue: 'Unknown, not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
       dataRetention: {
         value:
           "Yes: StackAI's Trust Center and security documentation state the org can configure data retention durations, backed by a documented Data Retention and Disposal Policy, rather than a single fixed platform-wide default.",

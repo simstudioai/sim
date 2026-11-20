@@ -40,7 +40,6 @@ export type EnterpriseFeature =
   | 'sessionPolicies'
   | 'sso'
   | 'usageMonitoring'
-  | 'whitelabeling'
 
 /**
  * What each feature resolved to before `ENTERPRISE_ENABLED` existed, for a
@@ -89,7 +88,6 @@ export const ENTERPRISE_FEATURE_LEGACY_DEFAULTS: Readonly<Record<EnterpriseFeatu
   sessionPolicies: true,
   sso: false,
   usageMonitoring: false,
-  whitelabeling: true,
 } as const
 
 interface ResolveEnterpriseEntitlementParams {

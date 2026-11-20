@@ -2,22 +2,20 @@ import { Link, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface WelcomeEmailProps {
   userName?: string
 }
 
 export function WelcomeEmail({ userName }: WelcomeEmailProps) {
-  const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
 
   return (
-    <EmailLayout preview={`Welcome to ${brand.name}`} showUnsubscribe={false}>
+    <EmailLayout preview={`Welcome to Sim`} showUnsubscribe={false}>
       <Text style={baseStyles.greeting}>{userName ? `Hey ${userName},` : 'Hey,'}</Text>
       <Text style={baseStyles.paragraph}>
-        Welcome to {brand.name}! Your account is ready. Start building, testing, and deploying AI
-        workflows in minutes.
+        Welcome to Sim! Your account is ready. Start building, testing, and deploying AI workflows
+        in minutes.
       </Text>
 
       <EmailButton href={`${baseUrl}/login`}>Get Started</EmailButton>
@@ -34,7 +32,7 @@ export function WelcomeEmail({ userName }: WelcomeEmailProps) {
         with our team.
       </Text>
 
-      <Text style={baseStyles.paragraph}>- Emir, co-founder of {brand.name}</Text>
+      <Text style={baseStyles.paragraph}>- Emir, co-founder of Sim</Text>
 
       <div style={baseStyles.divider} />
 

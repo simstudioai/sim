@@ -18,7 +18,6 @@ import {
   isSessionPoliciesEnabled,
   isSsoEnabled,
   isUsageMonitoringEnabled,
-  isWhitelabelingEnabled,
 } from '@/lib/core/config/env-flags'
 
 /**
@@ -99,7 +98,6 @@ export function resolveDeploymentShape(): DeploymentShape {
       sessionPolicies: isSessionPoliciesEnabled,
       sso: isSsoEnabled,
       usageMonitoring: isUsageMonitoringEnabled,
-      whitelabeling: isWhitelabelingEnabled,
     },
   }
 }

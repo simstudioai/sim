@@ -939,31 +939,6 @@ export const retoolProfile: CompetitorProfile = {
           { url: 'https://retool.com/pricing', label: 'Retool Pricing', asOf: '2026-07-02' },
         ],
       },
-      whiteLabeling: {
-        value:
-          "Yes: Retool's Enterprise plan includes full white-labeling, letting orgs replace the Retool logo/favicon and remove references to the Retool name across login pages, headers, invite/password-reset emails, and app presentation mode. The Business plan gets custom branding with fewer white-label controls. Separately, white-labeled Retool Mobile apps can be requested for the iOS/Android app stores.",
-        detail:
-          'Custom domain (Business/Enterprise) is required alongside white-labeling for a fully de-branded experience.',
-        shortValue: 'Yes, full white-labeling on Enterprise plan',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://retool.com/pricing',
-            label: 'Retool Pricing',
-            asOf: '2026-11-02',
-          },
-          {
-            url: 'https://docs.retool.com/apps/mobile/guides/whitelabel',
-            label: 'White-labeled Retool Mobile apps',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://community.retool.com/t/change-retool-logo-for-custom-logo-at-retool-login-page-with-retool-branding-options/22734',
-            label: 'Change Retool Logo for Custom Logo (forum)',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'No: Retool Cloud has a fixed one-year audit log retention with only the most recent three months browsable in the UI; there is no documented org-configurable retention window on Cloud. Self-hosted orgs manage retention themselves via their own infrastructure, but that is operator-managed, not a Retool-provided configurable setting.',

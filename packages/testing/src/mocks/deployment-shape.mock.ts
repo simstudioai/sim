@@ -19,13 +19,12 @@ export interface MockDeploymentShape {
     sessionPolicies: boolean
     sso: boolean
     usageMonitoring: boolean
-    whitelabeling: boolean
   }
 }
 
 /**
  * Builds a deployment shape from the `env-flags` mock defaults (self-hosted, billing off, Chat on,
- * Live Search, inbox/whitelabeling/session policies on, everything else off), with shallow
+ * Live Search, inbox/session policies on, everything else off), with shallow
  * `features` overrides.
  */
 export function createMockDeploymentShape(
@@ -53,7 +52,6 @@ export function createMockDeploymentShape(
       sessionPolicies: true,
       sso: false,
       usageMonitoring: false,
-      whitelabeling: true,
       ...features,
     },
   }

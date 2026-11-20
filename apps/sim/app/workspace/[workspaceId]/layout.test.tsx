@@ -8,23 +8,19 @@ import { renderToReadableStream } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockBrandingProvider,
   mockIsDesktopPresenceAvailable,
   mockHasSignedInDesktopExecutor,
   mockWorkspaceChrome,
-  mockGetOrgWhitelabelSettings,
   mockPrefetchWorkspaceHostContext,
   mockPrefetchWorkspaceSidebar,
   mockPrefetchWorkspaceAccess,
   mockPrefetchWorkspaceForkAvailability,
 } = vi.hoisted(() => ({
-  mockBrandingProvider: vi.fn(({ children }: { children: ReactNode }) => children),
   mockIsDesktopPresenceAvailable: vi.fn(() => false),
   mockHasSignedInDesktopExecutor: vi.fn(async () => false),
   mockWorkspaceChrome: vi.fn(
     ({ children }: { children: ReactNode; sidebar: ReactNode }) => children
   ),
-  mockGetOrgWhitelabelSettings: vi.fn(),
   mockPrefetchWorkspaceHostContext: vi.fn(),
   mockPrefetchWorkspaceSidebar: vi.fn(),
   mockPrefetchWorkspaceAccess: vi.fn(),
@@ -55,12 +51,8 @@ vi.mock('@/app/workspace/[workspaceId]/prefetch-access', () => ({
   prefetchWorkspaceAccess: mockPrefetchWorkspaceAccess,
 }))
 
-vi.mock('@/ee/whitelabeling/org-branding', () => ({
-  getOrgWhitelabelSettings: mockGetOrgWhitelabelSettings,
-}))
-
-vi.mock('@/ee/whitelabeling/components/branding-provider', () => ({
-  BrandingProvider: mockBrandingProvider,
+vi.mock('@/app/_shell/application-loading', () => ({
+  ApplicationLoading: () => null,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/components/impersonation-banner', () => ({
@@ -170,18 +162,15 @@ describe('WorkspaceLayout host context', () => {
     mockPrefetchWorkspaceSidebar.mockResolvedValue(undefined)
     mockPrefetchWorkspaceAccess.mockResolvedValue(undefined)
     mockPrefetchWorkspaceForkAvailability.mockResolvedValue(undefined)
-    mockGetOrgWhitelabelSettings.mockResolvedValue({ brandName: 'Host B' })
   })
 
-  it('hydrates branding from routed workspace B instead of viewer organization A', async () => {
+  it('loads routed workspace B for a viewer whose active organization is A', async () => {
     const element = await WorkspaceLayout({
       children: <div>Workspace child</div>,
       params: Promise.resolve({ workspaceId: 'workspace-b' }),
     })
     await new Response(await renderToReadableStream(element)).text()
 
-    expect(mockGetOrgWhitelabelSettings).toHaveBeenCalledWith('org-b')
-    expect(mockGetOrgWhitelabelSettings).not.toHaveBeenCalledWith('org-a')
     expect(mockPrefetchWorkspaceSidebar).toHaveBeenCalledWith(
       expect.anything(),
       'workspace-b',
@@ -194,17 +183,9 @@ describe('WorkspaceLayout host context', () => {
       'workspace-b',
       createSessionPrincipal({ userId: 'viewer-1' })
     )
-    expect(mockBrandingProvider).toHaveBeenCalledWith(
-      expect.objectContaining({
-        hostOrganizationId: 'org-b',
-        viewerIsHostOrganizationMember: false,
-        initialOrgSettings: { brandName: 'Host B' },
-      }),
-      undefined
-    )
   })
 
-  it('renders an explicit denial without loading workspace data or branding', async () => {
+  it('renders an explicit denial without loading workspace data', async () => {
     mockPrefetchWorkspaceHostContext.mockResolvedValue(null)
 
     const element = await WorkspaceLayout({
@@ -217,7 +198,6 @@ describe('WorkspaceLayout host context', () => {
     expect(html).not.toContain('Secret workspace child')
     expect(mockPrefetchWorkspaceSidebar).not.toHaveBeenCalled()
     expect(mockPrefetchWorkspaceAccess).not.toHaveBeenCalled()
-    expect(mockGetOrgWhitelabelSettings).not.toHaveBeenCalled()
   })
 
   async function sidebarProps() {

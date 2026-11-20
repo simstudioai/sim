@@ -14,7 +14,6 @@ import { WorkspaceHostProvider } from '@/app/workspace/[workspaceId]/providers/w
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
-import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
 import {
   useWorkspaceHostContextQuery,
   WORKSPACE_HOST_CONTEXT_STALE_TIME,
@@ -50,25 +49,20 @@ export function ExtensionWorkspace({ workspaceId }: ExtensionWorkspaceProps) {
   }
   return (
     <WorkspaceHostProvider workspaceId={workspaceId} initialContext={data}>
-      <BrandingProvider
-        hostOrganizationId={data.hostOrganizationId}
-        viewerIsHostOrganizationMember={data.viewer.isHostOrganizationMember}
-      >
-        <WorkspacePermissionsProvider workspaceId={workspaceId}>
-          <SettingsLoader />
-          <ProviderModelsLoader workspaceId={workspaceId} />
-          <CustomBlocksLoader />
-          <BlockVisibilityLoader workspaceId={workspaceId} />
-          <WorkspaceScopeSync />
-          <PermissionAccessBoundary
-            configKey='hideCopilot'
-            navigationAction={<ChipLink href='/extension'>Back to chat</ChipLink>}
-          >
-            <ExtensionChat workspaceId={workspaceId} workspaceName={data.workspace.name} />
-          </PermissionAccessBoundary>
-          <ChatPlanModal />
-        </WorkspacePermissionsProvider>
-      </BrandingProvider>
+      <WorkspacePermissionsProvider workspaceId={workspaceId}>
+        <SettingsLoader />
+        <ProviderModelsLoader workspaceId={workspaceId} />
+        <CustomBlocksLoader />
+        <BlockVisibilityLoader workspaceId={workspaceId} />
+        <WorkspaceScopeSync />
+        <PermissionAccessBoundary
+          configKey='hideCopilot'
+          navigationAction={<ChipLink href='/extension'>Back to chat</ChipLink>}
+        >
+          <ExtensionChat workspaceId={workspaceId} workspaceName={data.workspace.name} />
+        </PermissionAccessBoundary>
+        <ChatPlanModal />
+      </WorkspacePermissionsProvider>
     </WorkspaceHostProvider>
   )
 }

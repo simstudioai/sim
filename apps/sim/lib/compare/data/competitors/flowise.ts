@@ -800,19 +800,6 @@ export const flowiseProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'Partial: the free plan includes Flowise\'s own embed branding, and paid plans support customizing the embedded chat widget\'s theme (colors, welcome message, tooltips). Community reports indicate fully removing the "Powered by Flowise" watermark requires workarounds, not a clean built-in option.',
-        shortValue: 'Partial: widget theming yes, full logo/brand removal unclear',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://github.com/FlowiseAI/Flowise/discussions/626',
-            label: 'GitHub Discussion #626: remove the Powered by flowise watermark',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Unknown: no documented org-configurable retention windows for execution logs or soft-deleted resources.',

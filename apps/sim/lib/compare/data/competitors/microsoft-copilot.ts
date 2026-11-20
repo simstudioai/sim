@@ -1238,22 +1238,6 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'No: agent-level branding is limited to a custom name, icon, and accent color in Settings, or fully hosting a custom canvas web app for the chat window (via CSS/JavaScript or the Bot Framework SDK). There is no option to remove Microsoft/Copilot Studio branding from the authoring canvas or the default published chat UI itself.',
-        detail:
-          'A custom canvas gives full programmatic control over the embedded chat experience, but that is a developer-built replacement UI, not a native white-labeling setting inside the product.',
-        shortValue: 'No, only name/icon/color or a fully custom-built chat canvas',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/customize-default-canvas',
-            label:
-              'Customize the look and feel of an agent - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Partial: conversation transcripts downloaded directly from Copilot Studio only cover the past 29 days, while the underlying Dataverse conversation-transcript and custom-analytics tables default to a 30-day retention period; extending retention beyond that default requires either an admin changing the Dataverse retention setting or exporting the data via Azure Synapse Link for Dataverse into Azure Data Lake Storage Gen2',

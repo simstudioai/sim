@@ -961,15 +961,6 @@ export const openClawProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'No: OpenClaw has no white-labeling feature. As a personal, self-hosted agent, not a product a business deploys to its own end customers under its own brand, rebranding the product UI/name is not a use case the docs address.',
-        detail:
-          'No documentation describes replacing OpenClaw branding for a deployed customer-facing product; the concept does not map cleanly onto a personal-assistant tool the way it does for a workflow platform with deployed apps.',
-        shortValue: 'No white-labeling feature documented',
-        confidence: 'estimated',
-        sources: [],
-      },
       dataRetention: {
         value:
           'Yes, operator-configurable: isolated sub-agent/cron sessions are pruned after a retention window (24 hours by default), and because all data lives in local files (session JSONL transcripts, memory Markdown files), the self-hosting operator has full control over retention (including deleting files immediately).',

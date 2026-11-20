@@ -69,36 +69,6 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
       },
-      // Brand logo domain if configured
-      ...(process.env.NEXT_PUBLIC_BRAND_LOGO_URL
-        ? (() => {
-            try {
-              return [
-                {
-                  protocol: 'https' as const,
-                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_LOGO_URL!).hostname,
-                },
-              ]
-            } catch {
-              return []
-            }
-          })()
-        : []),
-      // Brand favicon domain if configured
-      ...(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL
-        ? (() => {
-            try {
-              return [
-                {
-                  protocol: 'https' as const,
-                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL!).hostname,
-                },
-              ]
-            } catch {
-              return []
-            }
-          })()
-        : []),
     ],
   },
   typescript: {

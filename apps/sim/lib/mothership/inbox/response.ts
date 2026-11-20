@@ -5,7 +5,6 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { replaceUntilStable } from '@/lib/mothership/inbox/format'
 import type { InboxTask } from '@/lib/mothership/inbox/types'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 const logger = createLogger('InboxResponse')
 
@@ -34,11 +33,9 @@ export async function sendInboxResponse(
     ? `${getBaseUrl()}/workspace/${ctx.workspaceId}/chat/${inboxTask.chatId}`
     : `${getBaseUrl()}/workspace/${ctx.workspaceId}/home`
 
-  const brandName = getBrandConfig().name
-
   const text = result.success
-    ? `${result.content}\n\n[View full conversation](${chatUrl})\n\nBest,\n${brandName}`
-    : `I wasn't able to complete this task.\n\nError: ${result.error || 'Unknown error'}\n\n[View details](${chatUrl})\n\nBest,\n${brandName}`
+    ? `${result.content}\n\n[View full conversation](${chatUrl})\n\nBest,\nSim`
+    : `I wasn't able to complete this task.\n\nError: ${result.error || 'Unknown error'}\n\n[View details](${chatUrl})\n\nBest,\nSim`
 
   const html = result.success
     ? await renderInboxResponseEmail({

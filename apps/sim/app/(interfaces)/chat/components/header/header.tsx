@@ -5,7 +5,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { GithubIcon } from '@/components/icons'
 import { SITE_URL } from '@/lib/core/utils/urls'
-import { useBrandConfig } from '@/ee/whitelabeling'
 
 interface ChatHeaderProps {
   chatConfig: {
@@ -21,7 +20,6 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
-  const brand = useBrandConfig()
   const customImage = chatConfig?.customizations?.imageUrl || chatConfig?.customizations?.logoUrl
 
   return (
@@ -49,31 +47,27 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
         </div>
       </div>
 
-      {!brand.logoUrl && (
-        <div className='flex shrink-0 items-center gap-4'>
-          <a
-            href='https://github.com/simstudioai/sim'
-            target='_blank'
-            rel='noopener noreferrer'
-            className='hidden items-center gap-2 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-primary)] md:flex'
-            aria-label={`GitHub repository - ${starCount} stars`}
-          >
-            <GithubIcon className='size-[16px]' aria-hidden='true' />
-            <span aria-live='polite'>{starCount}</span>
-          </a>
-          {/* Only show Sim logo if no custom branding is set */}
-
-          <Link
-            href={SITE_URL}
-            target='_blank'
-            rel='noopener noreferrer'
-            aria-label='Sim home'
-            className='flex items-center'
-          >
-            <SimWordmark />
-          </Link>
-        </div>
-      )}
+      <div className='flex shrink-0 items-center gap-4'>
+        <a
+          href='https://github.com/simstudioai/sim'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='hidden items-center gap-2 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-primary)] md:flex'
+          aria-label={`GitHub repository - ${starCount} stars`}
+        >
+          <GithubIcon className='size-[16px]' aria-hidden='true' />
+          <span aria-live='polite'>{starCount}</span>
+        </a>
+        <Link
+          href={SITE_URL}
+          target='_blank'
+          rel='noopener noreferrer'
+          aria-label='Sim home'
+          className='flex items-center'
+        >
+          <SimWordmark />
+        </Link>
+      </div>
     </nav>
   )
 }

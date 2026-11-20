@@ -1134,26 +1134,6 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'No: ChatKit (the deployment surface for Agent Builder workflows) only supports surface-level theming, colors, typography, density, and rounded corners, not full white-labeling. Deeper brand replacement, such as changing the chat bubble shape, header layout, or removing OpenAI product identity, requires forking the ChatKit library.',
-        detail:
-          "A third-party technical review explicitly notes deep white-label branding is 'impossible without forking the entire ChatKit library.'",
-        shortValue: 'No, only color/theme customization, not full white-label',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://developers.openai.com/api/docs/guides/chatkit-themes',
-            label: 'Theming and customization in ChatKit | OpenAI API',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://quickchat.ai/post/openai-chatkit-review',
-            label: 'OpenAI ChatKit Review: Technical Deep Dive',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           "No: OpenAI's Compliance Logs Platform retains data for a fixed 30 days (not org-configurable), and API Platform audit logs have no fixed retention/TTL at all rather than an admin-adjustable window; there is no documented org-configurable retention setting for Agent Builder workflow execution logs specifically.",

@@ -1044,27 +1044,6 @@ export const workatoProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'Yes, partially self-service: Workato Embedded offers a Theme editor (Admin Console/Manage Customers > Settings > Branding) for customizing colors, fonts, and spacing, for partners embedding Workato in their own product. Adding a custom company logo is not part of the self-service Theme editor and instead requires contacting a Workato Success Representative.',
-        detail:
-          'Scoped to the Embedded/OEM offering, not the standard workspace UI. No current documentation supports white-labeling of error messages, notifications, or logs.',
-        shortValue: 'Yes: Embedded theme editor (colors/fonts/spacing); logo needs Support',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.workato.com/oem/branding.html',
-            label: 'Workato Docs: Branding - Theme editor',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://www.workato.com/product-hub/customization-possibilities-with-the-embedded-theme-editor/',
-            label:
-              'Workato Product Hub: Customization possibilities with the Embedded Theme editor',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Yes: Workato supports org-configurable data retention for recipe job logs, with a default of 30 to 90 days depending on the workspace plan. Enterprise Workspaces, or workspaces with the Data Monitoring/Advanced Security & Compliance capability, can set a workspace-wide custom retention period between 1 hour and 90 days; individual recipes can then be set to follow that workspace policy or to store no data at all.',

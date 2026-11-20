@@ -983,26 +983,6 @@ export const makeProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'Yes: Make offers a White Label / OEM product that lets a customer rebrand a Make instance with their own product name (shown in browser tab and emails), custom login-page and UI colors, custom favicon, and custom logos for light and dark backgrounds.',
-        detail:
-          'This is a separate enterprise/OEM offering from standard Make plans, documented in the Make White Label Developer Hub.',
-        shortValue: 'Yes: White Label OEM rebrand (name, colors, logo)',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://developers.make.com/white-label-documentation/customize-your-instance/rebrand-your-instance',
-            label: 'Rebrand your instance - Make White Label Developer Hub',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://developers.make.com/white-label-documentation',
-            label: 'Make White Label - Make Developer Hub',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Yes (partially): Execution/run history retention in Make is plan-dependent, with longer retention on higher-tier plans, rather than freely configurable by default. White Label instance admins can set organization log retention (default 60 days if unset), and audit logs can retain data for up to 365 days.',

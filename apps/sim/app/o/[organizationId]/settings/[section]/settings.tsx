@@ -76,11 +76,6 @@ const OrganizationSecuritySettings = dynamic(() =>
 const UsageMonitoring = dynamic(() =>
   import('@/ee/organization-usage/components/usage-monitoring').then((m) => m.UsageMonitoring)
 )
-const WhitelabelingSettings = dynamic(() =>
-  import('@/ee/whitelabeling/components/whitelabeling-settings').then(
-    (m) => m.WhitelabelingSettings
-  )
-)
 
 interface OrganizationSettingsProps {
   section: OrganizationSettingsSection
@@ -136,7 +131,6 @@ export function OrganizationSettings({ section }: OrganizationSettingsProps) {
       {section === 'security' && <OrganizationSecuritySettings organizationId={organizationId} />}
       {section === 'data-retention' && <DataRetentionSettings organizationId={organizationId} />}
       {section === 'data-drains' && <DataDrainsSettings organizationId={organizationId} />}
-      {section === 'whitelabeling' && <WhitelabelingSettings organizationId={organizationId} />}
     </SettingsSectionProvider>
   )
 }
