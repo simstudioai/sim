@@ -5,6 +5,7 @@
  * be guessed from.
  */
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { withoutAuthScheme } from '@sim/workflow-code'
 import { fingerprintOf, type ResourceFingerprint } from '@sim/workspace-code'
 import {
   holdsLiteralSecret,
@@ -75,13 +76,12 @@ export function declOf(row: McpServerRow): McpServerDecl {
   }
 }
 
-/** `{{NAME}}` env references, and the auth scheme word a header value may open with. */
+/** `{{NAME}}` env references. */
 const ENV_REFERENCES = /\{\{[A-Za-z_][A-Za-z0-9_]*\}\}/g
-const LEADING_AUTH_SCHEME = /^\s*(?:bearer|basic|token|bot|apikey)\s+/i
 
 /** Whether a header value is only env references (after an optional auth scheme word). */
 function isEnvReferenceOnly(value: string): boolean {
-  return value.replace(LEADING_AUTH_SCHEME, '').replace(ENV_REFERENCES, '').trim() === ''
+  return withoutAuthScheme(value).replace(ENV_REFERENCES, '').trim() === ''
 }
 
 /**

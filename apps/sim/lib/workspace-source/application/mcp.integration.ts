@@ -712,7 +712,7 @@ describe('MCP servers as workspace source', () => {
           workspaceId,
           name: 'Tenant',
           url,
-          headers: { 'X-Tenant': tenant, Authorization: 'Bearer {{GH_TOKEN}}' },
+          headers: { 'X-Tenant': tenant, Authorization: 'Digest {{GH_TOKEN}}' },
           authType: 'headers',
         },
       })
@@ -724,7 +724,7 @@ describe('MCP servers as workspace source', () => {
       const read = await runner.get(workspaceId, reader)
       expect(JSON.stringify(read)).not.toContain(tenant)
       expect(read.files[path]).toContain("'X-Tenant': stored()")
-      expect(read.files[path]).toContain('Bearer {{GH_TOKEN}}')
+      expect(read.files[path]).toContain('Digest {{GH_TOKEN}}')
       const address: `mcp-server:${string}` = `mcp-server:${path.slice(4, -3)}`
       expect(read.base.resources[address]).toEqual(written.base.resources[address])
 
@@ -741,7 +741,7 @@ describe('MCP servers as workspace source', () => {
       )
       expect(renamed.applied).toMatchObject([{ action: 'update', fields: ['name'] }])
       expect((await liveServers(workspaceId)).map((server) => server.headers)).toEqual([
-        { 'X-Tenant': tenant, Authorization: 'Bearer {{GH_TOKEN}}' },
+        { 'X-Tenant': tenant, Authorization: 'Digest {{GH_TOKEN}}' },
       ])
     }
   )
