@@ -785,6 +785,13 @@ describe('hints that name the fix', () => {
     )
   })
 
+  it('tells a reference to a non-block const named like an SDK export to inline its value', () => {
+    const result = run(["const table = 'users'", "const a = api('A', { url: table })"].join('\n'))
+    expect(findings(result, 'E_UNKNOWN_IDENTIFIER')[0]?.hint).toBe(
+      'table is a const that holds a value, which a workflow file cannot name: write the value here.'
+    )
+  })
+
   it.each([
     ['an untagged template', "const a = api('A', { url: `https://${start.host}` })"],
     ['an unknown identifier', "const a = api('A', { url: process.env.API_URL })"],

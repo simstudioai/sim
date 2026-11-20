@@ -311,7 +311,7 @@ export function reportUnresolvedIdentifier(
     )
     return null
   }
-  if (isSdkImportable(ctx, identifier.name)) {
+  if (!ctx.valueConsts.has(identifier.name) && isSdkImportable(ctx, identifier.name)) {
     // A read of `agent` beside a block named agent1 is a typo of the handle more often than a
     // missing import: the did-you-mean leads, and the import is the second clause.
     const near = didYouMean(identifier.name, visibleNames(scope))
