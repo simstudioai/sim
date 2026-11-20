@@ -171,7 +171,7 @@ describe('organization configuration authorization', () => {
     await expect(
       updateOrganizationSessionPolicy.execute({
         principal: session,
-        input: { organizationId: 'org', settings: { maxSessionHours: 72 } },
+        input: { organizationId: 'org', settings: { maxSessionHours: 72, idleTimeoutHours: null } },
       })
     ).rejects.toMatchObject({
       code: 'forbidden',

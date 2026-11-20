@@ -1680,7 +1680,6 @@
     "apps/sim/lib/workspaces/__integration__/pagination.integration.ts": 2,
     "apps/sim/lib/workspaces/application/list-organization-workspaces.ts": 1,
     "apps/sim/lib/workspaces/naming.ts": 1,
-    "apps/sim/next.config.ts": 2,
     "apps/sim/providers/__fixtures__/anthropic/fixtures.test.ts": 4,
     "apps/sim/providers/azure-openai/index.ts": 1,
     "apps/sim/providers/conversation-continuation.test.ts": 3,
