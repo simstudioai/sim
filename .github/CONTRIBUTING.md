@@ -516,10 +516,10 @@ In addition, you will need to update the registries:
    Ensure that your tool functions correctly by making test requests and verifying the responses.
 
 8. **Generate Documentation:**
-   Run the documentation generator (from `apps/sim`) to create docs for your new tool:
+   Regenerate every derived artifact, including your tool's docs page, from the repo root:
 
    ```bash
-   cd apps/sim && bun run generate-docs
+   bun run generate
    ```
 
 ### Naming Conventions

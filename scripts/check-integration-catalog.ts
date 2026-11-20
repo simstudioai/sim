@@ -146,7 +146,7 @@ function verifyIntegrationCatalog(): void {
   )
   if (JSON.stringify(INTEGRATION_METADATA) !== JSON.stringify(expectedMetadata)) {
     throw new Error(
-      'Integration metadata is stale. Run `bun run scripts/generate-docs.ts` and commit the result.'
+      'Integration metadata is stale. Run `bun run generate:docs` and commit the result.'
     )
   }
   const expectedByType = new Map(expected.map((block) => [block.type, expectedEntry(block)]))
@@ -190,7 +190,7 @@ function verifyIntegrationCatalog(): void {
 
   if (issues.length > 0) {
     throw new Error(
-      `Generated integration catalog is stale:\n- ${issues.join('\n- ')}\nRun \`bun run scripts/generate-docs.ts\` and commit the generated catalog.`
+      `Generated integration catalog is stale:\n- ${issues.join('\n- ')}\nRun \`bun run generate:docs\` and commit the generated catalog.`
     )
   }
   process.stdout.write(

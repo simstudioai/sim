@@ -5702,7 +5702,7 @@ if (import.meta.main) {
         if (stale.length > 0) {
           console.error(
             `Generated integration docs are stale:\n- ${stale.join('\n- ')}\n` +
-              'Run `bun run scripts/generate-docs.ts` and commit the result.'
+              'Run `bun run generate:docs` and commit the result.'
           )
           process.exit(1)
         }
