@@ -238,7 +238,8 @@ async function deployStep(
   data: SourceApplyData,
   options: { deploy?: boolean; dir: string; verb: string; machine: boolean }
 ): Promise<DeployOutcome> {
-  const deployCommand = `sim workflows deploy ${data.workflowId}`
+  // Pinned to the draft this write stored, as `--deploy` is: an edit made since is never deployed.
+  const deployCommand = `sim workflows deploy ${data.workflowId} --expected-draft-fingerprint ${data.base.fingerprint}`
   if (!options.deploy) {
     if (!data.needsRedeployment) return {}
     return {
