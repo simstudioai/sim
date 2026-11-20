@@ -27,11 +27,14 @@ import type {
 
 /**
  * What makes two findings the same one, for a write that re-reports what its plan found (a
- * workflow's commit runs its pipeline again) with the block ids the write gave it: a finding
+ * workflow's commit runs its pipeline again) with the block ids the write gave it (a workflow
+ * folder's findings carry the pipeline's `blockKey` and `blockId` beside the flat fields): a finding
  * naming its block by key matches on the key, whatever id it carries, and one naming its block
  * only by id keeps the id, so two such findings on different blocks never merge.
  */
-export function findingIdentity(diagnostic: WorkspaceSourceDiagnostic): string {
+export function findingIdentity(
+  diagnostic: WorkspaceSourceDiagnostic & { blockKey?: string; blockId?: string }
+): string {
   return stableStringify({
     ...diagnostic,
     blockId: diagnostic.blockKey === undefined ? diagnostic.blockId : undefined,
