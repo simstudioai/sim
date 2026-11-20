@@ -195,7 +195,7 @@ Code that does not fit a block goes in a Function block, kept in its own file:
 const score = fn('Score lead', { code: codeFile('./functions/score-lead.js') })
 ```
 
-In the file, `$ref.block.path` reads another block's output and `$env.NAME` reads an environment variable. `block` is the block's key: its name lowercased with all whitespace and every `.` removed (`$ref.triageagent.content` for "Triage Agent", `$ref.v2result.text` for "V2. Result"). A `$ref` that names no block is a warning, because it would not resolve when the workflow runs. Python and shell files are saved as written.
+In the file, `$ref.block.path` reads another block's output and `$env.NAME` reads an environment variable. `block` is the block's key: its name lowercased with all whitespace and every `.` removed (`$ref.triageagent.content` for "Triage Agent", `$ref.v2result.text` for "V2. Result"). Inside a loop body, `$ref.loop.currentItem` and `$ref.loop.index` read the iteration's item and position; inside a parallel body, `$ref.parallel.currentItem` and `$ref.parallel.index`. A `$ref` that names no block is a warning, because it would not resolve when the workflow runs. Python and shell files are saved as written.
 
 ## Use it in CI
 

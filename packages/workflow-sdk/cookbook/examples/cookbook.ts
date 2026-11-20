@@ -103,9 +103,12 @@ export default workflow('Cookbook', { description: 'One example of each common b
     else: true,
   })
 
-  // Loop over a list: p.currentItem is one element; the loop's results is the list of
-  // iteration outputs. In js`` code a reference is the value itself, not text spliced in: write
-  // it where an expression goes, never inside quotes ('${x}' would give the JSON, quotes included).
+  // Loop over a list: p.currentItem is one element and p.index its position; the loop's results
+  // is the list of iteration outputs. In js`` code a reference is the value itself, not text
+  // spliced in: write it where an expression goes, never inside quotes ('${x}' would give the
+  // JSON, quotes included). A function code file (code: codeFile('./functions/line.js')) reads
+  // other blocks as $ref.<block key>.<path> ($ref.recentorders.rows) and, inside the loop body,
+  // the iteration as $ref.loop.currentItem and $ref.loop.index.
   const each = loop.forEach('Each Order', { collection: recent.rows }, (p) => {
     const line = fn('Line', {
       code: js`return ${p.currentItem.data.orderId} + ': ' + ${p.currentItem.data.status}`,
