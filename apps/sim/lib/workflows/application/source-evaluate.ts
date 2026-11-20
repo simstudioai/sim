@@ -321,13 +321,36 @@ function listNames(names: readonly string[]): string {
   return names.length > 10 ? `${shown}, and ${names.length - 10} more` : shown
 }
 
-/** `E_APPLY_VARIABLE_DELETE` for the stored variables an apply removes, by name. */
-function variableDeleteRefusal(names: readonly string[], span: SourceSpan | undefined): Diagnostic {
+/** A variable as a delete refusal names it. */
+interface NamedVariable {
+  name: string
+  type: string
+}
+
+/**
+ * `E_APPLY_VARIABLE_DELETE` for the stored variables an apply removes, by name. When it removes
+ * one and adds one of the same type, the edit may be a rename the apply could not tie to the
+ * stored variable (its value changed too, or says nothing), so the hint says how to keep the id.
+ */
+function variableDeleteRefusal(
+  removed: readonly NamedVariable[],
+  added: readonly NamedVariable[],
+  span: SourceSpan | undefined
+): Diagnostic {
+  const names = removed.map((variable) => variable.name)
+  const [former] = removed
+  const [next] = added
+  const rename =
+    removed.length === 1 && added.length === 1 && former.type === next.type
+      ? `If ${next.name} renames ${former.name}, apply the new key with the value ${former.name} holds first and change the value in a second apply, so the variable keeps its id; or pass --allow-delete (allowDelete=true) to replace it.`
+      : undefined
   return {
     code: 'E_APPLY_VARIABLE_DELETE',
     severity: 'error',
     message: `This apply deletes ${names.length} variable${names.length === 1 ? '' : 's'} the source no longer declares: ${listNames(names)}.`,
-    hint: 'Pass --allow-delete (allowDelete=true) to delete them, or declare them again in workflow(name, { variables }) to keep them.',
+    hint:
+      rename ??
+      'Pass --allow-delete (allowDelete=true) to delete them, or declare them again in workflow(name, { variables }) to keep them.',
     ...withSpan(span),
   }
 }
@@ -838,15 +861,22 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     sourceRefusals.push(blockDeleteRefusal(removedBlocks, addedBlocks, metaSpan()))
   }
   const keptVariableIds = new Set(Object.values(materialized.identity.variables))
+  const storedVariableIds = new Set(Object.values(storedCanonical.identity.variables))
   const removedVariables = isNew
     ? []
-    : Object.entries(storedCanonical.identity.variables).flatMap(([key, id]) =>
-        keptVariableIds.has(id)
-          ? []
-          : [getOwn(storedCanonical.workflow.variables, key)?.name ?? key]
-      )
+    : Object.entries(storedCanonical.identity.variables).flatMap(([key, id]) => {
+        if (keptVariableIds.has(id)) return []
+        const variable = getOwn(storedCanonical.workflow.variables, key)
+        return [{ name: variable?.name ?? key, type: variable?.type ?? '' }]
+      })
   if (removedVariables.length > 0 && !input.allowDelete) {
-    sourceRefusals.push(variableDeleteRefusal(removedVariables, metaSpan()))
+    const addedVariables = Object.entries(materialized.identity.variables).flatMap(([key, id]) => {
+      const variable = getOwn(materialized.workflow.variables, key)
+      return storedVariableIds.has(id) || !variable
+        ? []
+        : [{ name: variable.name, type: variable.type }]
+    })
+    sourceRefusals.push(variableDeleteRefusal(removedVariables, addedVariables, metaSpan()))
   }
   const renameWarnings = input.allowDelete
     ? probableRenames(removedBlocks, addedBlocks).map(

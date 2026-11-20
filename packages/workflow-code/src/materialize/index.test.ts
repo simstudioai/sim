@@ -952,6 +952,26 @@ describe('materialize: identity', () => {
     ])
   })
 
+  it('ties no variable rename on a value as common as 0, false or true', () => {
+    for (const [type, value] of [
+      ['number', 0],
+      ['boolean', false],
+      ['boolean', true],
+    ] as const) {
+      const pulled = {
+        ...base(),
+        variables: { 'var-1': { id: 'var-1', name: 'Retries', type, value } },
+      }
+      const replaced = edit(canonical(pulled).workflow, (draft) => {
+        draft.variables = { offset: { key: 'offset', name: 'Offset', type, value } }
+      })
+
+      expect(Object.keys(run(replaced, null, { prev: pulled }).state.variables ?? {})).toEqual([
+        'new-1',
+      ])
+    }
+  })
+
   it('leaves an inputFormat id two fields share out of the identity items', () => {
     const prev = workflowState([
       blockState('start', 'start_trigger', 'Start', {

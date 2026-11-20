@@ -2964,7 +2964,10 @@ describe('workflow variables in source', () => {
       const source = await getSource(seeded.workflowId)
       const files = withVariables(source.files, "{ retries: { type: 'number', value: 5 } }")
 
-      await expectRejected(apply(source, files), 'E_APPLY_VARIABLE_DELETE')
+      const error = await expectRejected(apply(source, files), 'E_APPLY_VARIABLE_DELETE')
+      expect(error.diagnostics.find((d) => d.code === 'E_APPLY_VARIABLE_DELETE')?.hint).toMatch(
+        /If retries renames threshold, .* second apply, .* --allow-delete/
+      )
       const allowed = await apply(source, files, { allowDelete: true, dryRun: true })
       expect(allowed.diff.variables).toMatchObject({
         added: ['retries'],

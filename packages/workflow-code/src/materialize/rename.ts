@@ -17,9 +17,14 @@ export function soleRename<I, K>(
   return continues(item, formerKey) ? { item, id } : null
 }
 
-/** Whether `value` says something about the item that holds it: not absent, empty or blank. */
+/**
+ * Whether `value` says something about the item that holds it: not absent, empty or blank, and
+ * not a value as common as `0`, `false` or `true`, which two unrelated items often both hold.
+ */
 function isEvidence(value: unknown): boolean {
-  if (value === undefined || value === null) return false
+  if (value === undefined || value === null || typeof value === 'boolean' || value === 0) {
+    return false
+  }
   if (typeof value === 'string') return value.trim() !== ''
   if (Array.isArray(value)) return value.length > 0
   if (typeof value === 'object') return Object.keys(value).length > 0
