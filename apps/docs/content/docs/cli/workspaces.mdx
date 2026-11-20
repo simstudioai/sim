@@ -756,7 +756,7 @@ sim workspaces source apply [options]
 | `-y, --yes` | No | Apply without asking for confirmation. |
 | `--allow-delete` | No | Delete resources, columns and data the directory no longer declares. |
 | `--only <kinds>` | No | Apply only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
-| `--to <workspaceId>` | No | Promote the directory to another workspace (dev to prod): its resources bind by key to that workspace's own and are updated in place; the directory is not changed. |
+| `--to <workspaceId>` | No | Promote the directory to another workspace (dev to prod): its resources bind by key to that workspace's own and are updated in place. Only .sim/targets/&lt;workspaceId&gt;.json changes, the record the next promotion compares with: a resource changed there since is kept, or refused as stale (exit 5) when the directory changed it too. |
 
 </CommandTable>
 

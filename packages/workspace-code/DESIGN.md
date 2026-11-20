@@ -313,9 +313,19 @@ each folder's `.sim/lock.json` and `.sim/base.json` replaced by the target's fol
 directory declares unless `--allow-delete`. The server sees an ordinary apply against its own base,
 so every rule holds unchanged: a resource bound under the key is updated in place (a workflow keeps
 its id and block ids through the target's lock), an unbound one of the same name is adopted, a
-missing one created, a change in the target between the read and the apply is `E_APPLY_STALE`, and
-secrets and credentials bind by name and key to the target's own. The answer is not saved: the
-directory stays bound to the workspace it was read from. Without `--to`, the CLI refuses a
+missing one created, and secrets and credentials bind by name and key to the target's own. The
+directory stays bound to the workspace it was read from; the one thing a promotion saves is the
+target's promotion record, `.sim/targets/<workspaceId>.json` (`promotionRecord`): the target's
+base entries after the apply and, per workflow folder, the target workflow's fingerprint and a
+digest of the folder as promoted. The next promotion composes with it: each base entry the record
+holds for the same id stands in for the target's live one, so the server's three-way rule compares
+with what the last promotion left (a target edit since is kept when the directory left the resource
+alone, `E_APPLY_STALE` when it changed it too); a workflow folder whose digest is unchanged is sent
+as its base alone (a no-op), and an edited one whole with the recorded fingerprint, so a target edit
+since is the folder's 409. Without a record entry (the first promotion, or a resource created in
+the target since) the live entry is the base and the target is updated to match the directory;
+deleting the record re-takes the target as it stands. Read alone, the target's live base could
+never look changed. Without `--to`, the CLI refuses a
 directory read from another workspace (`SOURCE_OTHER_WORKSPACE`); `--workspace <target>` instead
 applies it as a copy whose base the server ignores (`W_BASE_OTHER_WORKSPACE`), which only a first
 apply to an empty target survives (a second is `E_APPLY_NO_BASE` for everything it created).

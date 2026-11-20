@@ -289,6 +289,46 @@ describe('workspaces source apply', () => {
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(LEADS)
   })
 
+  it('records what a promotion left in the target, and compares the next promotion with it rather than the target as read then', async () => {
+    const leads = (fingerprint: string) => ({
+      id: 'tbl_prod',
+      fingerprint: `rf1:${fingerprint.repeat(64)}`,
+    })
+    let live = { version: 1, workspaceId: 'ws_prod', resources: { 'table:leads': leads('a') } }
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table'],
+            files: { 'tables/leads.ts': LEADS },
+            blobs: [],
+            base: live,
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      return answer({ workspaceId: 'ws_prod', base: live })
+    })
+
+    await apply('--to', 'ws_prod', '--only', 'tables', '--dry-run')
+    expect(existsSync(join(dir, '.sim/targets/ws_prod.json'))).toBe(false)
+    await apply('--to', 'ws_prod', '--only', 'tables', '--yes')
+    expect(JSON.parse(readFileSync(join(dir, '.sim/targets/ws_prod.json'), 'utf8'))).toMatchObject({
+      version: 1,
+      workspaceId: 'ws_prod',
+      resources: { 'table:leads': leads('a') },
+    })
+
+    live = { ...live, resources: { 'table:leads': leads('b') } }
+    request.mockClear()
+    await apply('--to', 'ws_prod', '--only', 'tables', '--yes')
+
+    const post = request.mock.calls.find(([, options]) => options.body !== undefined)
+    expect(post?.[1].body.base.resources['table:leads']).toEqual(leads('a'))
+  })
+
   it('counts the changes that delete data in a dry run, and says re-applying an older directory does not restore it', async () => {
     request.mockResolvedValue(
       answer({

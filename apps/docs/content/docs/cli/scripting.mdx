@@ -403,11 +403,13 @@ jobs:
 
 `check` runs first because it is offline and fast, and it regenerates `.sim/sdk/workspace.d.ts`, so the `tsc` step after it types resources the pull request adds. A workspace API key can apply tables, rows, knowledge bases, files, custom tools, MCP servers and credential bindings. Workflows, skills, secrets and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory (each `.sim/base.json`, ids it allocated, values the server normalized), and the next apply compares with them, so the last step commits them back to the branch; `[skip ci]` keeps that commit from running the job again. Where the branch is protected, run `sim workspaces source get --dir workspace` on a new branch instead and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
 
-To promote the same directory to a second workspace, add a step with `--to`:
+To promote the same directory to a second workspace, add a step with `--to` before the step that commits the files back:
 
 ```bash
 sim workspaces source apply --dir workspace --to "$PROD_WORKSPACE_ID" --yes
 ```
+
+The promotion writes `workspace/.sim/targets/<workspaceId>.json`, what it left in that workspace. Committing it lets the next run tell a change made in that workspace since (kept, or exit `5` when the directory changed the same resource) from one to promote.
 
 ## Related docs
 
