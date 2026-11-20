@@ -2339,6 +2339,115 @@ describe('renames in source', () => {
     expect(result.files['functions/report.js']).toBe('return $ref.bang.result + $ref.total.result')
   })
 
+  check('two blocks that swap display names are two renames that move no edge', async () => {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    const files = edit(
+      edit(edit(source.files, "fn('Boom'", "fn('Swap'"), "fn('Tally'", "fn('Boom'"),
+      "fn('Swap'",
+      "fn('Tally'"
+    )
+
+    const result = await apply(source, files)
+
+    expect(result.applied).toBe(true)
+    expect(result.diff.blocks.added).toEqual([])
+    expect(result.diff.blocks.removed).toEqual([])
+    expect(result.diff.blocks.renamed).toEqual([
+      { id: seeded.ids.boom, from: 'boom', to: 'tally' },
+      { id: seeded.ids.tally, from: 'tally', to: 'boom' },
+    ])
+    expect(
+      result.diff.blocks.modified
+        .filter((block) => block.id === seeded.ids.boom || block.id === seeded.ids.tally)
+        .map((block) => block.fields)
+    ).toEqual([['name'], ['name']])
+    expect(result.diff.edges).toEqual({ added: 0, removed: 0 })
+  })
+
+  check('a retype is reported as a removed and an added block with all their edges', async () => {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    const entry = source.files['workflow.ts']
+      .replace(/import \{ /, 'import { api, ')
+      .replace(
+        / {2}const tally = fn\('Tally'.*\n/,
+        "  const tally = api('Tally', { url: 'https://x.test' })\n"
+      )
+    expect(entry).toContain("api('Tally'")
+    const files = { ...omit(source.files, ['functions/tally.js']), 'workflow.ts': entry }
+
+    const result = await apply(source, files)
+
+    expect(result.applied).toBe(true)
+    expect(codes(result.diagnostics)).toContain('W_MAT_RETYPE_RECREATED')
+    expect(result.diff.blocks.removed).toEqual([
+      { id: seeded.ids.tally, key: 'tally', type: 'function' },
+    ])
+    expect(result.diff.blocks.added).toEqual([
+      expect.objectContaining({ key: 'tally', type: 'api' }),
+    ])
+    expect(result.diff.blocks.modified.map((block) => block.key)).not.toContain('tally')
+    expect(result.diff.edges).toEqual({ added: 2, removed: 2 })
+  })
+
+  check(
+    'after a name collision, renaming one block and dropping the other key override keeps both ids',
+    async () => {
+      const workflowId = generateId()
+      const now = new Date()
+      await db.insert(workflow).values({
+        id: workflowId,
+        userId: ownerId,
+        workspaceId,
+        name: `Source collision ${workflowId}`,
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const block = (name: string, type: string, code?: string): BlockState => ({
+        id: generateId(),
+        type,
+        name,
+        position: { x: 0, y: 0 },
+        subBlocks: code === undefined ? {} : { code: { id: 'code', type: 'code', value: code } },
+        outputs: {},
+        enabled: true,
+      })
+      const start = block('Start', 'start_trigger')
+      const first = block('Fetch Data', 'function', 'return 1')
+      const second = block('Fetch.Data', 'function', 'return 2')
+      const saved = await saveWorkflowToNormalizedTables(workflowId, {
+        blocks: { [start.id]: start, [first.id]: first, [second.id]: second },
+        edges: [
+          { id: generateId(), source: start.id, target: first.id },
+          { id: generateId(), source: first.id, target: second.id },
+        ],
+        loops: {},
+        parallels: {},
+      })
+      if (!saved.success) throw new Error(`Seeding the workflow failed: ${saved.error}`)
+      const source = await getSource(workflowId)
+      const entry = source.files['workflow.ts']
+      expect(entry).toContain("key: 'fetchdata~2'")
+      const edited = entry
+        .replace("fn('Fetch Data'", "fn('Get Data'")
+        .replace(/,?\s*key: 'fetchdata~2',?/, '')
+        .replace(/, \{\s*\}\)/, ')')
+
+      const result = await apply(source, { ...source.files, 'workflow.ts': edited })
+
+      expect(codes(result.diagnostics)).not.toContain('E_APPLY_BLOCK_DELETE')
+      expect(result.applied).toBe(true)
+      expect(result.diff.blocks.removed).toEqual([])
+      expect(result.diff.blocks.added).toEqual([])
+      expect(result.diff.blocks.renamed).toEqual([
+        { id: first.id, from: 'fetchdata', to: 'getdata' },
+        { id: second.id, from: 'fetchdata~2', to: 'fetchdata' },
+      ])
+    }
+  )
+
   check(
     'a block whose name and const both change while its wiring changes keeps its id',
     async () => {

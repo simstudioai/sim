@@ -63,7 +63,7 @@ export {
   type SourceSpan,
   splitLines,
 } from './diagnostics/frame'
-export { type CanonicalDiff, diffCanonical, renamesBetween } from './diff'
+export { type CanonicalDiff, diffCanonical, renamesBetween, replacedBetween } from './diff'
 export {
   canonicalDigests,
   canonicalEquals,

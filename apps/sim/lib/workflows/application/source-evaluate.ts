@@ -24,6 +24,7 @@ import {
   type ResourceKeyResolver,
   type ResourceKind,
   renamesBetween,
+  replacedBetween,
   type SourceBase,
   type SourceHints,
   type SourceSpan,
@@ -824,10 +825,12 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
    * member) that materialize keeps from the stored block is no change.
    */
   const blockRenames = renamesBetween(storedCanonical.identity, materialized.identity)
+  const replacedKeys = replacedBetween(storedCanonical.identity, materialized.identity)
   const canonicalDiff = diffCanonical(
     storedCanonical.workflow,
     { ...materialized.workflow, meta: storedCanonical.workflow.meta },
-    blockRenames
+    blockRenames,
+    replacedKeys
   )
   const renamedKeys = new Map([...blockRenames].map(([key, storedKey]) => [storedKey, key]))
   const storedKeyOf = new Map([...renamedKeys].map(([storedKey, key]) => [key, storedKey]))
@@ -874,9 +877,15 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       ...withSpan(metaSpan(field)),
     }))
   )
-  const removedKeys = isNew ? [] : canonicalDiff.blocks.removed
+  // A block replaced under its key (a retype) is reported removed and added, but it is the
+  // same declaration, which W_MAT_RETYPE_RECREATED covers, so it needs no allowDelete.
+  const removedKeys = isNew
+    ? []
+    : canonicalDiff.blocks.removed.filter((key) => !replacedKeys.has(key))
   const removedBlocks = removedKeys.map((key) => storedCanonical.workflow.blocks[key])
-  const addedBlocks = canonicalDiff.blocks.added.map((key) => materialized.workflow.blocks[key])
+  const addedBlocks = canonicalDiff.blocks.added
+    .filter((key) => !replacedKeys.has(key))
+    .map((key) => materialized.workflow.blocks[key])
   if (removedKeys.length > 0 && !input.allowDelete) {
     sourceRefusals.push(blockDeleteRefusal(removedBlocks, addedBlocks, metaSpan()))
   }
