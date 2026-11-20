@@ -5,7 +5,8 @@
  *
  * The reading is deliberately narrow: every `return` outside a nested function must return an
  * object literal, and a field counts only when each of them sets it to an expression whose kind
- * is certain (a literal, arithmetic, a comparison, `String(…)`, `.length`, a local variable never
+ * is certain (a literal, arithmetic, a comparison, `String(…)`, the `.length` of a string or an
+ * array, a local variable never
  * reassigned to another kind, …). Anything else stays unknown, and the reference keeps its
  * warning: a wrong "typed" would store a string bare and break the JSON at run time.
  */
@@ -172,6 +173,16 @@ function collectBindings(program: Node): Bindings {
         list.push({ operator: '=', value: null })
         writes.set(n, list)
       })
+    } else if (
+      (node.type === 'ForOfStatement' || node.type === 'ForInStatement') &&
+      node.left.type !== 'VariableDeclaration'
+    ) {
+      // `for (x of …)` reassigns an existing `x` each pass, with no assignment expression.
+      walkPatternNames(node.left, (n) => {
+        const list = writes.get(n) ?? []
+        list.push({ operator: '=', value: null })
+        writes.set(n, list)
+      })
     } else if (node.type === 'UpdateExpression' && node.argument.type === 'Identifier') {
       const list = writes.get(node.argument.name) ?? []
       list.push({ operator: '++', value: null })
@@ -242,7 +253,10 @@ class Inference {
         return 'number'
       case 'MemberExpression':
       case 'OptionalMemberExpression':
-        return memberName(node) === 'length' ? 'number' : undefined
+        return memberName(node) === 'length' &&
+          (this.kind(node.object) === 'string' || this.isArray(node.object))
+          ? 'number'
+          : undefined
       case 'CallExpression':
       case 'OptionalCallExpression':
         return this.call(node.callee)
@@ -284,6 +298,32 @@ class Inference {
   }
 
   /**
+   * Whether `node` is certainly an array: a literal, an array method's result, `Object.keys`
+   * (`values`, `entries`), or a local variable set to one and never reassigned. Any other object
+   * can hold anything under `length`.
+   */
+  private isArray(node: Node): boolean {
+    if (node.type === 'ArrayExpression') return true
+    if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
+      const method = memberName(node.callee)
+      if (method === null || !('object' in node.callee)) return false
+      if (node.callee.object.type === 'Identifier' && node.callee.object.name === 'Object') {
+        return method === 'keys' || method === 'values' || method === 'entries'
+      }
+      return ARRAY_METHODS.has(method)
+    }
+    if (node.type !== 'Identifier') return false
+    const init = this.bindings.initial.get(node.name)
+    if (!init || this.bindings.writes.has(node.name) || this.resolving.has(node.name)) return false
+    this.resolving.add(node.name)
+    try {
+      return this.isArray(init)
+    } finally {
+      this.resolving.delete(node.name)
+    }
+  }
+
+  /**
    * A local variable's kind: its initializer's, kept only when every later assignment keeps it
    * (`+=` of a number to a number, of anything to a string; `++`; `=` of the same kind).
    */
@@ -317,26 +357,32 @@ class Inference {
   }
 }
 
-/** The fields one returned object literal sets, by name; a spread makes earlier ones unknown. */
+/**
+ * The fields one returned object literal sets, by name. A spread, or a key not known statically
+ * (computed, or any other key syntax), may replace any field before it, so it makes earlier ones
+ * unknown; a method or accessor makes its own field unknown.
+ */
 function returnedFields(
   object: ObjectExpression,
   inference: Inference
 ): Map<string, JsKind | undefined> {
   const fields = new Map<string, JsKind | undefined>()
   for (const property of object.properties) {
-    if (property.type === 'SpreadElement') {
-      for (const key of fields.keys()) fields.set(key, undefined)
+    const key =
+      property.type === 'SpreadElement' || property.computed
+        ? null
+        : property.key.type === 'Identifier'
+          ? property.key.name
+          : property.key.type === 'StringLiteral'
+            ? property.key.value
+            : property.key.type === 'NumericLiteral'
+              ? String(property.key.value)
+              : null
+    if (key === null) {
+      for (const known of fields.keys()) fields.set(known, undefined)
       continue
     }
-    if (property.type !== 'ObjectProperty' || property.computed) continue
-    const key =
-      property.key.type === 'Identifier'
-        ? property.key.name
-        : property.key.type === 'StringLiteral'
-          ? property.key.value
-          : null
-    if (key === null) continue
-    fields.set(key, inference.kind(property.value))
+    fields.set(key, property.type === 'ObjectProperty' ? inference.kind(property.value) : undefined)
   }
   return fields
 }

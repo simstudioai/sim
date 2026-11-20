@@ -174,9 +174,10 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
       'const tax = Math.round(items.length * 10) / 100',
       'let score = $ref.start.total > 2000 ? 90 : 20',
       "if ($ref.start.tier === 'new') score += 10",
-      'return { tax, score, ok: score >= 70, count: items.length, list: items.map((i) => i.sku), meta: {} }',
+      "const names = 'a,b'.split(',')",
+      'return { tax, score, ok: score >= 70, count: names.length, chars: "ab".length, list: items.map((i) => i.sku), meta: {} }',
     ].join('\n')
-    for (const field of ['tax', 'score', 'ok', 'count', 'list', 'meta']) {
+    for (const field of ['tax', 'score', 'ok', 'count', 'chars', 'list', 'meta']) {
       expect(untyped(code, field), field).toEqual([])
     }
   })
@@ -198,8 +199,26 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
     expect(untyped('return { v: 1 ', 'v')).toHaveLength(1)
   })
 
+  it('keeps the warning when a computed key, a loop or an object length may make the field text', () => {
+    // A computed key or a getter of the same name replaces the field written before it.
+    expect(untyped("const key = 'v'\nreturn { v: 1, [key]: 'text' }", 'v')).toHaveLength(1)
+    expect(untyped("return { v: 1, get v() { return 'text' } }", 'v')).toHaveLength(1)
+    // A for-of or for-in loop over an existing variable reassigns it without an assignment.
+    expect(untyped("let v = 1\nfor (v of ['a']) {}\nreturn { v }", 'v')).toHaveLength(1)
+    expect(untyped('let v = 1\nfor (v in { a: 1 }) {}\nreturn { v }', 'v')).toHaveLength(1)
+    expect(untyped("let v = 1\nfor ([v] of [['a']]) {}\nreturn { v }", 'v')).toHaveLength(1)
+    // `length` is a number only on a string or an array: an object can hold anything there.
+    expect(untyped("return { v: ({ length: 'oops' }).length }", 'v')).toHaveLength(1)
+    expect(
+      untyped("let list = []\nlist = { length: 'oops' }\nreturn { v: list.length }", 'v')
+    ).toHaveLength(1)
+    expect(
+      untyped('const items = $ref.start.items || []\nreturn { v: items.length }', 'v')
+    ).toHaveLength(1)
+  })
+
   it('reads only the returns of the body, not those of a callback inside it', () => {
-    const code = "const f = (x) => { return { v: 'text' } }\nreturn { v: f(1).length }"
+    const code = "const f = (x) => { return { v: 'text' } }\nreturn { v: 1 }"
     expect(untyped(code, 'v')).toEqual([])
   })
 
@@ -210,5 +229,13 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
 
     expect(untyped(code, 'v', printed)).toEqual([])
     expect(untyped(code, 'w', printed)).toHaveLength(1)
+  })
+
+  it('on an apply, warns on an unchanged JSON field when the Function it reads now returns text there', () => {
+    const printed = compile('return { v: 1 }', 'v').workflow
+    if (!printed) throw new Error('the source did not compile')
+
+    expect(untyped('return { v: 2 }', 'v', printed)).toEqual([])
+    expect(untyped("return { v: 'one' }", 'v', printed)).toHaveLength(1)
   })
 })

@@ -667,8 +667,19 @@ function compileEntry(
     setOwn(params, id, { kind: 'value', value })
     for (const ref of refs) {
       if (refValueKind(ref.token, refTypes) !== 'untyped') continue
-      if (referencedResultKind(ref.token, refTypes.block) === 'typed') continue
-      if (storedHolds(input.stored, ref.blockKey, id, value)) continue
+      const returned = referencedResultKind(ref.token, refTypes.block)
+      if (returned === 'typed') continue
+      // An unchanged field stays quiet only while what it reads is too: a Function that now
+      // returns text where it returned a number makes the same bare token break the JSON.
+      if (
+        storedHolds(input.stored, ref.blockKey, id, value) &&
+        referencedResultKind(
+          ref.token,
+          (key) => input.stored && getOwn(input.stored.blocks, key)
+        ) === returned
+      ) {
+        continue
+      }
       reporter.report(
         'W_JSON_REF_UNTYPED',
         `Nothing declares the type of ${ref.token}; it is stored bare, so a string value would break the JSON.`,
