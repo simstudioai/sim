@@ -244,7 +244,25 @@ describe('materialize: params keep prev bytes unless they changed', () => {
       prev: state,
       resources: { ...RESOURCES, keysOf: () => [] },
     }).diagnostics
-    expect(none?.hint).toBe('This workspace has no knowledge-base a source can name yet.')
+    expect(none?.hint).toBe(
+      'This workspace has no knowledge-base a source can name yet. Create it with `sim knowledge create`; a source names it by its key, which `sim workflows source resources` lists.'
+    )
+  })
+
+  it('names the command that creates a credential the workspace lacks, the dead end an agent hit', () => {
+    const state = workflowState([blockState('s1', 'slack', 'Notify', {})])
+    const target = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.notify.params.credential = {
+        kind: 'value',
+        value: { $sim: 'resource', kind: 'credential', key: 'team-slack' },
+      }
+    })
+    const keysOf = (kind: string) => (kind === 'credential' ? ['ops-gmail'] : [])
+    const [finding] = run(target, null, {
+      prev: state,
+      resources: { ...RESOURCES, keysOf },
+    }).diagnostics.filter((d) => d.code === 'E_MAT_UNKNOWN_RESOURCE')
+    expect(finding?.hint).toContain('sim credentials connect <provider> --name "<Name>"')
   })
 
   it('recomputes stored outputs when an edit changes what they derive from', () => {

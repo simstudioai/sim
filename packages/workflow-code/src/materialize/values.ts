@@ -49,8 +49,33 @@ export function unliftValue(
 const LISTED_KEYS = 20
 
 /**
+ * The `sim` command that creates a resource of each kind a source names by key, so an unknown-key
+ * hint says how to make the one the source wants, not only that it is missing. A source names a
+ * resource by the key its name slugs to; `sim workflows source resources` lists them.
+ */
+const CREATE_COMMANDS: Partial<Record<ResourceKind, string>> = {
+  credential:
+    '`sim credentials connect <provider> --name "<Name>"` (OAuth; hand the link to the person who owns the account) or `sim credentials create <provider>`',
+  table: '`sim tables create`',
+  'knowledge-base': '`sim knowledge create`',
+  skill: '`sim skills create`',
+  'custom-tool': '`sim custom-tools create`',
+  'mcp-server': '`sim mcp-servers create`',
+  workflow: '`sim workflows source create --dir <new dir>`',
+}
+
+/** How to create a missing resource of `kind`, as a sentence, or empty when no command does. */
+function createHint(kind: ResourceKind): string {
+  const command = CREATE_COMMANDS[kind]
+  return command
+    ? ` Create it with ${command}; a source names it by its key, which \`sim workflows source resources\` lists.`
+    : ''
+}
+
+/**
  * The hint of an unknown resource key: the closest available key, then the keys of that kind the
- * workspace holds (or that it holds none). `undefined` when the caller loaded no keys.
+ * workspace holds (or that it holds none), then the command that creates one. `undefined` when the
+ * caller loaded no keys.
  */
 function availableKeysHint(
   kind: ResourceKind,
@@ -58,9 +83,10 @@ function availableKeysHint(
   written: string
 ): string | undefined {
   if (keys === undefined) return undefined
-  if (keys.length === 0) return `This workspace has no ${kind} a source can name yet.`
+  if (keys.length === 0)
+    return `This workspace has no ${kind} a source can name yet.${createHint(kind)}`
   const near = closest(written, keys)
-  return `${near !== null ? `Did you mean ${near}? ` : ''}Keys: ${listed(keys)}.`
+  return `${near !== null ? `Did you mean ${near}? ` : ''}Keys: ${listed(keys)}.${near !== null ? '' : createHint(kind)}`
 }
 
 /** The first {@link LISTED_KEYS} keys, then how many more there are. */
