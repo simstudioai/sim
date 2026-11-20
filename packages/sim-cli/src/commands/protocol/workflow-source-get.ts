@@ -13,6 +13,7 @@ import { callsOperations, type OperationClient } from '../../runtime/called-oper
 import { buildRequest } from '../../runtime/request'
 import { printProtocolResult } from './result'
 import {
+  absoluteDirOption,
   assertPrintedSourcePaths,
   locallyEditedFiles,
   readPreviousLock,
@@ -325,6 +326,7 @@ export function attachWorkflowSourceGet(source: Command): void {
     `--${FORCE_FLAG}`,
     "With --dir: replace another workflow's source or edits no apply has saved"
   )
+  absoluteDirOption(get)
   get.addHelpText('after', `${GET_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}`)
   get.action(async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
     const flags = command.optsWithGlobals() as Record<string, unknown>

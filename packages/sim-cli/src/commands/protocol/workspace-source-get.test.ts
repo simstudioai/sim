@@ -18,7 +18,7 @@ import { fingerprintOf } from '@sim/workspace-code'
 import { knowledgeCodec } from '@sim/workspace-code/kinds/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
-import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
 import { runWorkflowSourceCheck, runWorkspaceSource } from '../../test/workspace-source-command'
 import { blobBytes, blobDigests } from './workspace-source-blobs'
 import { kindFolders } from './workspace-source-dir'
@@ -90,7 +90,11 @@ beforeEach(() => {
   contextMockState.workspaceSource = 'config'
   request.mockReset()
   requestRaw.mockReset()
-  contextMockFns.mockProfileFrom.mockReturnValue({ workspaceId: 'ws_local', output: 'json' })
+  contextMockFns.mockProfileFrom.mockReturnValue({
+    ...mockedProfile(),
+    workspaceId: 'ws_local',
+    output: 'json',
+  })
   rootDir = mkdtempSync(join(tmpdir(), 'sim-workspace-get-'))
   dir = join(rootDir, 'out')
   vi.stubEnv('SIM_CONFIG_DIR', join(rootDir, 'config'))
@@ -650,7 +654,7 @@ describe('workspaces source get', () => {
       '---\nname: fresh\ndescription: New\n---\nAdded after the get.\n'
     )
     expect(typecheck(uses('fresh'))).toContain('"fresh"')
-    contextMockFns.mockProfileFrom.mockReturnValue({ output: 'json' })
+    contextMockFns.mockProfileFrom.mockReturnValue({ ...mockedProfile(), output: 'json' })
     request.mockClear()
     await runWorkspaceSource('check', dir)
     expect(request).not.toHaveBeenCalled()

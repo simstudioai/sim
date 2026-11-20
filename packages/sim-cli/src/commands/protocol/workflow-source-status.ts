@@ -22,6 +22,7 @@ import type { ApplyWorkflowSourceResponse, GetWorkflowSourceResponse } from '../
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
 import {
+  absoluteDirOption,
   digest,
   listSourceFiles,
   readFolderWritten,
@@ -134,6 +135,7 @@ interface StatusOptions {
  */
 export function attachWorkflowSourceStatus(source: Command): void {
   const [command, connect] = apiCommand(source, 'status', ['applyWorkflowSource'])
+  absoluteDirOption(command)
   command
     .option('--dir <dir>', 'Source directory: workflow.ts, functions/* and .sim/', '.')
     .option('--offline', 'Report local changes only, without asking the server')
@@ -231,6 +233,7 @@ interface DiffOptions {
  */
 export function attachWorkflowSourceDiff(source: Command): void {
   const [command, connect] = apiCommand(source, 'diff', ['getWorkflowSource'])
+  absoluteDirOption(command)
   command
     .argument('[paths...]', 'Files or folders to compare (default: every file)')
     .option('--dir <dir>', 'Source directory: workflow.ts, functions/* and .sim/', '.')

@@ -33,7 +33,9 @@ import type {
 import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
 import {
+  absoluteDirOption,
   digest,
+  directoryWorkspace,
   readSourceJson,
   readSourceText,
   readWritten,
@@ -146,17 +148,24 @@ function localPaths(local: LocalWorkspace): string[] {
 }
 
 /**
- * The workspace a status or diff asks about: the one `--workspace` names, else the one the
- * directory was read from, else the profile's.
+ * The workspace a status or diff asks about: the one the directory was read from (a `--workspace`
+ * naming another is refused), else the profile's.
  */
 function targetWorkspace(
   connection: Connection<'applyWorkspaceSource' | 'getWorkspaceSource'>,
+  dir: string,
   readFrom: string | null
 ): string {
   const { client, profile } = connection
-  return profile.sources.workspaceId === 'flag' || readFrom === null
-    ? client.requireWorkspace()
-    : readFrom
+  return client.requireWorkspace(
+    directoryWorkspace(
+      dir,
+      readFrom,
+      profile,
+      (from, named) =>
+        `Run it without --workspace to compare with ${from}, or get ${named} into another directory.`
+    ) ?? undefined
+  )
 }
 
 /** The resources `.sim/skipped.json` lists: never written by a get, so never drift. */
@@ -285,6 +294,7 @@ interface StatusOptions {
  */
 export function attachWorkspaceSourceStatus(source: Command): void {
   const [command, connect] = apiCommand(source, 'status', ['applyWorkspaceSource'])
+  absoluteDirOption(command)
   command
     .option('--dir <dir>', 'Workspace source directory written by `workspaces source get`', '.')
     .option('--only <kinds>', `Report only these kinds (${ONLY_KINDS_HELP})`)
@@ -314,10 +324,11 @@ export function attachWorkspaceSourceStatus(source: Command): void {
           let login: string | null = null
           if (!options.offline) {
             const connection = connect()
-            const target = targetWorkspace(connection, local.readFrom)
+            const target = targetWorkspace(connection, options.dir, local.readFrom)
             workspaceId = target
             const { profile } = connection
-            if (profile.sources.workspaceId === 'flag' || profile.workspaceId !== target) {
+            // A directory with a base is bound to its workspace; only one without names it.
+            if (local.readFrom === null && profile.sources.workspaceId === 'flag') {
               workspaceScope = ` --workspace ${target}`
             }
             let submission = local.submission
@@ -523,6 +534,7 @@ function serverDiffs(
  */
 export function attachWorkspaceSourceDiff(source: Command): void {
   const [command, connect] = apiCommand(source, 'diff', ['getWorkspaceSource'])
+  absoluteDirOption(command)
   command
     .argument('[paths...]', 'Files, folders or kind:key resources to compare (default: every file)')
     .option('--dir <dir>', 'Workspace source directory written by `workspaces source get`', '.')
@@ -543,7 +555,7 @@ export function attachWorkspaceSourceDiff(source: Command): void {
           const selects = filter.selects
           const read = async (kinds: readonly WorkspaceKind[]) => {
             const connection = connect()
-            const workspaceId = targetWorkspace(connection, local.readFrom)
+            const workspaceId = targetWorkspace(connection, options.dir, local.readFrom)
             try {
               const response = await connection.client.request<GetWorkspaceSourceResponse>(
                 'getWorkspaceSource',

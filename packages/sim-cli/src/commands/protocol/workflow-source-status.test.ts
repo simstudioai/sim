@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { REQUEST_CANCELLED, SimApiError } from '../../http/client'
-import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
 import { digest } from './source-dir'
 import { attachWorkflowSourceDiff, attachWorkflowSourceStatus } from './workflow-source-status'
 
@@ -102,7 +102,7 @@ const STALE = { code: 'E_APPLY_STALE', severity: 'error', message: 'The workflow
 beforeEach(() => {
   contextMockState.output = 'json'
   mockRequest.mockReset()
-  mockProfileFrom.mockReturnValue({ workspaceId: WORKSPACE_ID, output: 'json' })
+  mockProfileFrom.mockReturnValue({ ...mockedProfile(), workspaceId: WORKSPACE_ID, output: 'json' })
   root = mkdtempSync(join(tmpdir(), 'sim-workflow-status-'))
   writeWorkflowDir(root, null)
   vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -409,7 +409,11 @@ describe('workflows source diff', () => {
   it('prints a colorless unified diff for a person when stdout is not a terminal', async () => {
     write(root, 'functions/score.js', 'return 2\n')
     mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
-    mockProfileFrom.mockReturnValue({ workspaceId: WORKSPACE_ID, output: 'text' })
+    mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: WORKSPACE_ID,
+      output: 'text',
+    })
 
     await run(root, 'diff')
 

@@ -5,7 +5,7 @@ import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { cacheCatalogText } from '../../test/catalog-cache'
-import { contextMockFns } from '../../test/context-mock'
+import { contextMockFns, mockedProfile } from '../../test/context-mock'
 import { attachWorkspaceSourceCheck } from './workspace-source-check'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -77,7 +77,11 @@ beforeEach(() => {
   )
   cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, readFileSync(FIXTURE_CATALOG, 'utf8'))
   vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
-  contextMockFns.mockProfileFrom.mockReturnValue({ workspaceId: 'ws_other', output: 'json' })
+  contextMockFns.mockProfileFrom.mockReturnValue({
+    ...mockedProfile(),
+    workspaceId: 'ws_other',
+    output: 'json',
+  })
   contextMockFns.mockRequest.mockReset()
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})

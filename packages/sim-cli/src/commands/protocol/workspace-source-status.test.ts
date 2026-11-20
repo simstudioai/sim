@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
-import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
 import { digest } from './source-dir'
 import { attachWorkspaceSourceDiff, attachWorkspaceSourceStatus } from './workspace-source-status'
 
@@ -94,7 +94,7 @@ beforeEach(() => {
   contextMockState.workspaceSource = 'config'
   contextMockState.workspaceId = WORKSPACE_ID
   mockRequest.mockReset()
-  mockProfileFrom.mockReturnValue({ workspaceId: WORKSPACE_ID, output: 'json' })
+  mockProfileFrom.mockReturnValue({ ...mockedProfile(), workspaceId: WORKSPACE_ID, output: 'json' })
   dir = mkdtempSync(join(tmpdir(), 'sim-workspace-status-'))
   write('.sim/base.json', JSON.stringify(BASE))
   for (const [path, text] of Object.entries(GOT)) write(path, text)
@@ -277,17 +277,25 @@ describe('workspaces source status', () => {
     })
   })
 
-  it('recommends the workspace a status was pointed at with --workspace', async () => {
-    contextMockState.workspaceSource = 'flag'
+  it('compares with the workspace the directory was read from, whatever the profile default', async () => {
     contextMockState.workspaceId = 'ws_other'
     write('tables/leads.ts', LEADS.replace('columns: {}', 'columns: { email: column.string() }'))
     mockRequest.mockResolvedValue(dryRun([{ kind: 'table', key: 'leads', action: 'update' }]))
 
     await run('status')
 
+    expect(mockRequest.mock.calls[0][0]).toBe(`/api/v2/workspaces/${WORKSPACE_ID}/source`)
     expect(printed().next).toMatchObject({
-      command: `sim workspaces source apply --dir ${dir} --yes --workspace ws_other`,
+      command: `sim workspaces source apply --dir ${dir} --yes`,
     })
+  })
+
+  it('refuses a --workspace naming another workspace than the directory was read from', async () => {
+    contextMockState.workspaceSource = 'flag'
+    contextMockState.workspaceId = 'ws_other'
+
+    await expect(run('status')).rejects.toMatchObject({ code: 'SOURCE_OTHER_WORKSPACE' })
+    expect(mockRequest).not.toHaveBeenCalled()
   })
 
   it('recommends --allow-delete for an update that drops data, as applying it needs', async () => {
@@ -561,7 +569,11 @@ describe('workspaces source status', () => {
   it('prints one screen ending with the next command for a person', async () => {
     write('tables/leads.ts', `${LEADS}// edited\n`)
     mockRequest.mockResolvedValue(dryRun([{ kind: 'table', key: 'leads', action: 'update' }]))
-    mockProfileFrom.mockReturnValue({ workspaceId: WORKSPACE_ID, output: 'text' })
+    mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: WORKSPACE_ID,
+      output: 'text',
+    })
 
     await run('status')
 

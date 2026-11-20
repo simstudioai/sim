@@ -27,6 +27,8 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
+  absoluteDirOption,
+  directoryWorkspace,
   isMissing,
   orphanedCodeFiles,
   readSourceJson,
@@ -82,8 +84,9 @@ Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printe
 file:line:column with its frame and hint), or changes were held back because they use a declared
 secret the workspace has no value for or a declared credential key nothing binds to (the rest was
 applied: set the secret or connect the credential, then apply again), the directory was read from
-another workspace than the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose, or --to
-to promote it), its
+another workspace than the one --workspace names (SOURCE_OTHER_WORKSPACE: drop --workspace, or
+promote it with --to; without --workspace an apply targets the workspace the directory was read
+from), its
 base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the
 command failed; 5 a resource changed or was deleted on the server since the directory was read
 (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource (a
@@ -336,26 +339,6 @@ async function saveApplied(
   })
 }
 
-/**
- * Refuses a directory read from another workspace than the one targeted, unless `--workspace`
- * names the target: applying it would create every resource anew there, so the choice is the
- * caller's to make explicitly.
- */
-function assertBaseWorkspace(
-  dir: string,
-  base: unknown,
-  workspaceId: string,
-  explicit: boolean
-): void {
-  const readFrom = baseWorkspaceOf(base)
-  if (readFrom === null || readFrom === workspaceId || explicit) return
-  throw new SimApiError(
-    `${dir} was read from workspace ${readFrom}, but this profile targets ${workspaceId}. Pass --workspace ${readFrom} to apply it there, or --to ${workspaceId} to promote it: its resources bind by key to that workspace's own, and the directory stays bound to ${readFrom}.`,
-    0,
-    'SOURCE_OTHER_WORKSPACE'
-  )
-}
-
 /** The workflow a directory's base belongs to (a workflow source directory), or `null`. */
 function baseWorkflowOf(base: unknown): string | null {
   return isRecordLike(base) && typeof base.workflowId === 'string' ? base.workflowId : null
@@ -419,6 +402,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     'getWorkspaceSource',
     'getSourceCatalog',
   ])
+  absoluteDirOption(command)
   command
     .requiredOption('--dir <dir>', 'Workspace source directory written by `workspaces source get`')
     .option('--dry-run', 'Plan and check without writing anything')
@@ -436,7 +420,18 @@ export function attachWorkspaceSourceApply(source: Command): void {
       requireConsent(options, 'writes the workspace', 'apply')
       const only = parseKinds(options.only)
       const { client, profile } = connect()
-      const workspaceId = options.to ?? client.requireWorkspace()
+      const readFrom = baseWorkspaceOf(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
+      const workspaceId =
+        options.to ??
+        client.requireWorkspace(
+          directoryWorkspace(
+            options.dir,
+            readFrom,
+            profile,
+            (from, named) =>
+              `Run it without --workspace to apply it to ${from}, or promote it with --to ${named}: its resources bind by key to that workspace's own, and the directory stays bound to ${from}.`
+          ) ?? undefined
+        )
       const post = async (submission: WorkspaceSubmission, dryRun: boolean) => {
         const body: ApplyWorkspaceSourceBody = {
           files: submission.files,
@@ -508,14 +503,6 @@ export function attachWorkspaceSourceApply(source: Command): void {
           // directory's base, needs the full check (which refuses with the reason).
           if (read.kinds.length === 0 || baseWorkflowOf(read.base) !== null) {
             await assertWorkspaceDir(options.dir)
-          }
-          if (!options.to) {
-            assertBaseWorkspace(
-              options.dir,
-              read.base,
-              workspaceId,
-              profile.sources.workspaceId === 'flag'
-            )
           }
           assertBlobsFetched(options.dir, read, written.digests)
           const submission = options.to

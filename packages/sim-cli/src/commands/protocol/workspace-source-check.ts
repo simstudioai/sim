@@ -7,7 +7,13 @@ import { profileFrom } from '../../context'
 import { AUTH_REQUIRED_CODE } from '../../exit-codes'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
-import { readSourceJson, SOURCE_DIR_BUSY_HELP, withSourceDirLock } from './source-dir'
+import {
+  absoluteDirOption,
+  directoryWorkspace,
+  readSourceJson,
+  SOURCE_DIR_BUSY_HELP,
+  withSourceDirLock,
+} from './source-dir'
 import { unreachableReason } from './source-status'
 import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
 import {
@@ -89,6 +95,7 @@ async function fetchedCatalog(
  */
 export function attachWorkspaceSourceCheck(source: Command): void {
   const [command, connect] = apiCommand(source, 'check', ['getSourceCatalog'])
+  absoluteDirOption(command)
   strictFlags(
     command.option(
       '--dir <dir>',
@@ -105,8 +112,12 @@ export function attachWorkspaceSourceCheck(source: Command): void {
       const profile = profileFrom(command)
       const base = toRecord(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
       await assertWorkspaceDir(options.dir)
-      const workspaceId =
-        typeof base.workspaceId === 'string' ? base.workspaceId : profile.workspaceId
+      const workspaceId = directoryWorkspace(
+        options.dir,
+        typeof base.workspaceId === 'string' ? base.workspaceId : null,
+        profile,
+        (from) => `Run it without --workspace to check it against the catalog of ${from}.`
+      )
       if (!workspaceId) {
         throw new SimApiError(
           `${options.dir} has no ${WORKSPACE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`,

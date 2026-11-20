@@ -21,6 +21,7 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
+  absoluteDirOption,
   FILE_CONCURRENCY,
   lockCodeFiles,
   readSourceText,
@@ -197,6 +198,11 @@ export async function readLock(directory: string): Promise<WorkflowLockV1> {
   )
 }
 
+/** The directory's `workflow.ts`, or a refusal naming the command that writes one. */
+export function requireEntry(directory: string): Promise<string> {
+  return requireText(directory, ENTRY_FILE, GET_HINT)
+}
+
 /**
  * The files a write sends: the entry file and the code files it or the lock references. A
  * referenced file that is missing is left out, and the server reports it with its source line.
@@ -205,7 +211,7 @@ export async function readSourceFiles(
   directory: string,
   lock: WorkflowLockV1 | null
 ): Promise<Record<string, string>> {
-  const entry = await requireText(directory, ENTRY_FILE, GET_HINT)
+  const entry = await requireEntry(directory)
   const files: Record<string, string> = { [ENTRY_FILE]: entry }
   const paths = codeFilePaths(entry, lock)
   const texts = await mapWithConcurrency(paths, FILE_CONCURRENCY, (path) =>
@@ -315,6 +321,7 @@ const DIR_DESCRIPTION =
  */
 export function attachWorkflowSourceApply(source: Command): void {
   const [command, connectApply] = apiCommand(source, 'apply', ['applyWorkflowSource'])
+  absoluteDirOption(command)
   command
     .argument(
       '[workflowId]',
@@ -376,6 +383,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
     'getSourceCatalog',
     'getSourceResources',
   ])
+  absoluteDirOption(command)
   command
     .requiredOption(
       '--dir <dir>',

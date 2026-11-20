@@ -23,7 +23,14 @@ import { profileFrom } from '../../context'
 import { setSoftExitCode } from '../../embed-context'
 import { SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
-import { readSourceJson, readSourceText, workspaceFolderOf } from './source-dir'
+import {
+  absoluteDirOption,
+  directoryWorkspace,
+  readSourceJson,
+  readSourceText,
+  readStarterWorkspace,
+  workspaceFolderOf,
+} from './source-dir'
 import {
   cachedCatalog,
   cachedSourceCatalog,
@@ -33,7 +40,7 @@ import {
 } from './source-tree'
 import { printNewDiagnostics, resultDiagnostics } from './source-ui'
 import { readStoredEdges } from './stored-edges'
-import { readSourceFiles } from './workflow-source-apply'
+import { readSourceFiles, requireEntry } from './workflow-source-apply'
 import { WORKFLOW_TREE } from './workflow-source-get'
 import {
   kindFolders,
@@ -528,9 +535,11 @@ export function requireCachedCatalog(workspaceId: string, get: string): BlockCat
  */
 export function attachWorkflowSourceCheck(source: Command): void {
   strictFlags(
-    source
-      .command('check')
-      .option('--dir <dir>', 'Source directory: workflow.ts, functions/* and .sim/', '.')
+    absoluteDirOption(source.command('check')).option(
+      '--dir <dir>',
+      'Source directory: workflow.ts, functions/* and .sim/',
+      '.'
+    )
   )
     .allowExcessArguments(false)
     .description('Compile a workflow source directory locally, without the server')
@@ -548,11 +557,21 @@ export function attachWorkflowSourceCheck(source: Command): void {
           0
         )
       }
+      await requireEntry(options.dir)
       const workspace = await workspaceFolderOf(options.dir)
-      const workspaceId =
+      const recorded =
         typeof base.workspaceId === 'string'
           ? base.workspaceId
-          : (workspace?.workspaceId ?? profile.workspaceId)
+          : (workspace?.workspaceId ??
+            (profile.sources.workspaceId === 'flag'
+              ? null
+              : await readStarterWorkspace(options.dir)))
+      const workspaceId = directoryWorkspace(
+        options.dir,
+        recorded,
+        profile,
+        (from) => `Run it without --workspace to check it against the catalog of ${from}.`
+      )
       if (!workspaceId) {
         throw new SimApiError(
           `${options.dir} has no ${SOURCE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`,

@@ -37,6 +37,8 @@ import {
   SOURCE_LOCK_FILE,
 } from '@sim/workflow-code/limits'
 import { fingerprintOf, KIND_DIRS } from '@sim/workspace-code'
+import type { Command } from 'commander'
+import type { ResolvedProfile } from '../../config/index'
 import { embedStore } from '../../embed-context'
 import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
 import { SimApiError } from '../../http/client'
@@ -179,6 +181,45 @@ export async function readSourceJson(dir: string, path: string): Promise<unknown
   } catch {
     return null
   }
+}
+
+/**
+ * Makes `command`'s `--dir` (given or defaulted) an absolute path before its action runs, so every
+ * message names the directory it read wherever the CLI ran: a wrapper that changes directory
+ * first made `.` name a folder its caller never meant. An embedded run keeps its host's path.
+ */
+export function absoluteDirOption(command: Command): Command {
+  return command.hook('preAction', (_hooked, action) => {
+    const dir: unknown = action.getOptionValue('dir')
+    if (typeof dir === 'string' && !embedStore.getStore()) {
+      action.setOptionValue('dir', resolve(dir))
+    }
+  })
+}
+
+/**
+ * The workspace a source command acts on for a directory read from `readFrom`: that workspace,
+ * whatever the profile's default, so a directory stays bound to where it came from. Only a
+ * `--workspace` naming another one is refused, with `next` saying what to run instead (given the
+ * workspace the directory was read from and the one named). A directory that records no workspace
+ * takes the profile's (`null` when none is selected).
+ */
+export function directoryWorkspace(
+  dir: string,
+  readFrom: string | null,
+  profile: Pick<ResolvedProfile, 'workspaceId' | 'sources'>,
+  next: (readFrom: string, named: string) => string
+): string | null {
+  const named = profile.workspaceId
+  if (readFrom === null) return named
+  if (profile.sources.workspaceId !== 'flag' || named === null || named === readFrom) {
+    return readFrom
+  }
+  throw new SimApiError(
+    `${dir} was read from workspace ${readFrom}, but --workspace names ${named}. ${next(readFrom, named)}`,
+    0,
+    'SOURCE_OTHER_WORKSPACE'
+  )
 }
 
 /** The workspace {@link SOURCE_STARTER_FILE} names, or `null` when the directory holds no starter. */

@@ -5,7 +5,7 @@ import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SimApiError } from '../../http/client'
 import { cacheCatalogText } from '../../test/catalog-cache'
-import { contextMockFns } from '../../test/context-mock'
+import { contextMockFns, mockedProfile } from '../../test/context-mock'
 import { attachWorkflowSourceCheck } from './workflow-source-check'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -205,7 +205,11 @@ beforeEach(() => {
     JSON.stringify({ workflowId: 'wf', workspaceId: WORKSPACE_ID, fingerprint: 'sf1:a' })
   )
   vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
-  contextMockFns.mockProfileFrom.mockReturnValue({ workspaceId: 'ws_other', output: 'json' })
+  contextMockFns.mockProfileFrom.mockReturnValue({
+    ...mockedProfile(),
+    workspaceId: 'ws_other',
+    output: 'json',
+  })
   contextMockFns.mockRequest.mockReset()
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -294,6 +298,29 @@ describe('sim workflows source check', () => {
 
     expect((error as SimApiError).code).toBe('CATALOG_NOT_CACHED')
     expect((error as SimApiError).message).toContain('sim workflows source get')
+  })
+
+  it('refuses a directory without workflow.ts before looking for a catalog, by its absolute path', async () => {
+    const error = await check().catch((caught: unknown) => caught)
+
+    expect((error as SimApiError).code).not.toBe('CATALOG_NOT_CACHED')
+    expect((error as SimApiError).message).toContain(`${dir} has no workflow.ts`)
+  })
+
+  it('refuses a --workspace naming another workspace than .sim/base.json, and only that', async () => {
+    cacheCatalog()
+    writeFileSync(join(dir, 'workflow.ts'), CLEAN)
+    contextMockFns.mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: 'ws_other',
+      output: 'json',
+      sources: { workspaceId: 'flag' },
+    })
+
+    const error = await check().catch((caught: unknown) => caught)
+
+    expect((error as SimApiError).code).toBe('SOURCE_OTHER_WORKSPACE')
+    expect((error as SimApiError).message).toContain(`was read from workspace ${WORKSPACE_ID}`)
   })
 
   it('points a workspace root at the workspace check', async () => {

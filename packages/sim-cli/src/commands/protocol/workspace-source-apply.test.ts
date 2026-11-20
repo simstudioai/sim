@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   truncateSync,
   unlinkSync,
@@ -13,7 +14,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -196,9 +197,8 @@ describe('workspaces source apply', () => {
     expect(Object.keys(bodies()[0].files)).toContain('workflows/ingest/workflow.ts')
   })
 
-  it('sends an unchanged workflow folder whole when applying a copy to another workspace', async () => {
+  it('sends an unchanged workflow folder copied from another workspace whole', async () => {
     const copied = folderBase('ws_other')
-    write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
     write('workflows/ingest/.sim/base.json', copied)
     write(
       '.sim/written.json',
@@ -209,7 +209,6 @@ describe('workspaces source apply', () => {
         },
       })
     )
-    contextMockState.workspaceSource = 'flag'
     request.mockResolvedValue(answer())
 
     await apply('--yes')
@@ -767,17 +766,36 @@ describe('workspaces source apply', () => {
     await expect(apply('--yes')).rejects.toThrow(/unsafe file path/)
   })
 
-  it('refuses a directory read from another workspace unless --workspace names the target', async () => {
+  it('applies to the workspace the directory was read from, refusing only a --workspace naming another', async () => {
     write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
     request.mockResolvedValue(answer())
 
-    await expect(apply('--yes')).rejects.toMatchObject({ code: 'SOURCE_OTHER_WORKSPACE' })
-    expect(request).not.toHaveBeenCalled()
-
-    contextMockState.workspaceSource = 'flag'
     await apply('--yes')
 
     expect(request).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0][0]).toBe('/api/v2/workspaces/ws_other/source')
+
+    write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
+    contextMockState.workspaceSource = 'flag'
+    await expect(apply('--yes')).rejects.toMatchObject({
+      code: 'SOURCE_OTHER_WORKSPACE',
+      message: expect.stringContaining('--to ws_local'),
+    })
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+
+  it('names the directory by its absolute path when --dir is relative', async () => {
+    const cwd = process.cwd()
+    process.chdir(dirname(dir))
+    try {
+      contextMockState.workspaceSource = 'flag'
+      write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
+      await expect(runWorkspaceSource('apply', basename(dir), '--yes')).rejects.toMatchObject({
+        message: expect.stringContaining(`${realpathSync(dir)} was read from workspace ws_other`),
+      })
+    } finally {
+      process.chdir(cwd)
+    }
   })
 
   it('refuses a base that records blobs no get downloaded, but sends one the user removed', async () => {
