@@ -58,7 +58,7 @@ import {
 } from '@/lib/workflows/application/deployments'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
+import { readDraftFingerprint } from '@/lib/workflows/application/read-workflow-source'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
 import {
   ResourceChangedError,
@@ -399,11 +399,10 @@ async function vouchedDraft(
   if (!workflowId) return undefined
   const base = folder?.decl ? workflowSourceBase(folder.decl) : null
   if (!base && (folder || !options.firstDeploy)) return undefined
-  const read = await readWorkflowSource.execute({
+  const fingerprint = await readDraftFingerprint.execute({
     principal: ctx.principal,
     input: { workflowId },
   })
-  const fingerprint = read.base.fingerprint
   if (base && (base.workflowId !== workflowId || base.fingerprint !== fingerprint)) return undefined
   return { fingerprint }
 }
@@ -593,11 +592,12 @@ async function planDeployment(
   // A chat write redeploys a draft that differs from the live version: it may publish only the
   // draft the plan vouched for, or else the one it saw, never one edited since.
   if (writesChat && !detail.draft && workflowId) {
-    const seen = await readWorkflowSource.execute({
-      principal: ctx.principal,
-      input: { workflowId },
-    })
-    detail.draft = { fingerprint: seen.base.fingerprint }
+    detail.draft = {
+      fingerprint: await readDraftFingerprint.execute({
+        principal: ctx.principal,
+        input: { workflowId },
+      }),
+    }
   }
   // A chat the apply keeps goes live with the edited draft all the same.
   const publishesEditedDraft = detail.deploy && draftEdited

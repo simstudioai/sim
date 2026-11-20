@@ -40,6 +40,11 @@ interface StoredResourceScope {
    * credential access bounds which credentials print by key. `null` for an actorless caller.
    */
   createdBy: string | null
+  /**
+   * `false` resolves only the resource keys already bound, allocating none, so a plan or a
+   * fingerprint check writes nothing.
+   */
+  allocate?: boolean
 }
 
 /** The resolver for a workflow's remembered references, loaded before its graph is. */
@@ -58,6 +63,7 @@ export async function prefetchStoredResources(
   const loaded = referencesByWorkflow.get(scope.workflowId) ?? { ids: [], keys: [] }
   const resources = await loadResourceKeyResolver(scope.workspaceId, loaded, {
     actorUserId: scope.createdBy,
+    allocate: scope.allocate,
   })
   return { ...scope, loaded, resources }
 }
@@ -78,6 +84,7 @@ export async function prefetchStoredResourcesFor(
   }
   const resources = await loadResourceKeyResolver(scope.workspaceId, loaded, {
     actorUserId: scope.createdBy,
+    allocate: scope.allocate,
   })
   return { ...scope, loaded, resources }
 }
@@ -112,11 +119,12 @@ function unionReferences(base: ResourceReferences, extra: ResourceReferences): R
  * Canonicalizes the stored graph with its resource keys, normally in one pass. The result equals
  * a recording pass followed by a pass over a resolver for exactly the recorded references. This is
  * the single entry point for canonicalizing a stored workflow with resources: keys come only from
- * the workspace's persisted resource keys (`resolveKeys` / `resolveIds`), allocated on first reference.
+ * the workspace's persisted resource keys (`resolveKeys` / `resolveIds`), allocated on first reference
+ * unless the prefetch was made with `allocate: false`.
  */
 export async function canonicalizeStored(input: StoredCanonicalInput): Promise<StoredCanonical> {
   const { state, meta, catalog } = input
-  const { workflowId, workspaceId, createdBy } = input.prefetched
+  const { workflowId, workspaceId, createdBy, allocate } = input.prefetched
   let { loaded, resources } = input.prefetched
   for (;;) {
     const referenced: ResourceReferences = { ids: [], keys: [] }
@@ -147,6 +155,9 @@ export async function canonicalizeStored(input: StoredCanonicalInput): Promise<S
       return { canonical, resources }
     }
     loaded = unionReferences(loaded, missing)
-    resources = await loadResourceKeyResolver(workspaceId, loaded, { actorUserId: createdBy })
+    resources = await loadResourceKeyResolver(workspaceId, loaded, {
+      actorUserId: createdBy,
+      allocate,
+    })
   }
 }

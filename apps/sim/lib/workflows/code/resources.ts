@@ -140,6 +140,8 @@ interface LoadResourceKeyResolverOptions {
    * which sees the shared credentials only.
    */
   actorUserId: string | null
+  /** `false` resolves only the keys already bound, allocating none (a plan writes nothing). */
+  allocate?: boolean
 }
 
 /**
@@ -164,7 +166,7 @@ export async function loadResourceKeyResolver(
     resolveKeys(
       workspaceId,
       idRefs.filter((ref) => ref.kind !== 'credential' || !hiddenRefIds.has(ref.id)),
-      { createdBy: options.actorUserId }
+      { createdBy: options.actorUserId, allocate: options.allocate }
     ),
     withoutHiddenCredentials(workspaceId, actorUserId, boundIdsByKey),
   ])

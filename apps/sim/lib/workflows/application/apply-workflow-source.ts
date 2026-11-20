@@ -479,6 +479,7 @@ async function runSourceApply(
           workflowId: context.workflowId,
           workspaceId: context.workspaceId,
           createdBy,
+          allocate: !dryRun,
         }),
         (shared.envNames ??= loadEnvNames(context.workspaceId, subjectUserId)),
       ])

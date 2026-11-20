@@ -10,11 +10,12 @@ import {
   workspaceEnvironment,
 } from '@sim/db/schema'
 import {
+  createPersonalApiKeyPrincipal,
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
-import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
 import { toArray, toRecord } from '@sim/utils/object'
@@ -335,6 +336,39 @@ describe('workspace source: deployments', () => {
     expect(result.files[DEPLOYMENT]).toContain("live: 'draft'")
     expect(result.base.resources['deployment:nightly']?.id).toBe(await workflowId(workspaceId))
   })
+
+  check(
+    'plans a redeploy of a draft the directory vouches for without recording a source read',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Plan vouches quietly', ownerId })
+      const created = await apply(workspaceId, { [WORKFLOW]: NIGHTLY, [DEPLOYMENT]: DRAFT })
+      expect(created.failed).toBeUndefined()
+      const { [DEPLOYMENT]: _deployment, ...workflowFiles } = created.files
+      const edited = await apply(
+        workspaceId,
+        { ...workflowFiles, [WORKFLOW]: created.files[WORKFLOW].replace("'02:00'", "'03:00'") },
+        { kinds: ['workflow'], base: created.base }
+      )
+      expect(edited.failed).toBeUndefined()
+      const read = await getAll(workspaceId, ['workflow', 'deployment'])
+      posthogServerMockFns.mockCaptureServerEvent.mockClear()
+
+      const plan = await apply(
+        workspaceId,
+        { ...read.files, [DEPLOYMENT]: DRAFT },
+        {
+          base: read.base,
+          dryRun: true,
+          principal: createPersonalApiKeyPrincipal({ userId: ownerId, keyId: generateId() }),
+        }
+      )
+
+      expect(actions(plan.plan)).toContain('update deployment:nightly')
+      expect(
+        posthogServerMockFns.mockCaptureServerEvent.mock.calls.map(([, event]) => event)
+      ).not.toContain('workflow_source_read')
+    }
+  )
 
   check(
     'a get prints a deployment for each deployed workflow and applies back as a no-op',
