@@ -1735,7 +1735,8 @@ describe('iteration references outside their container', () => {
       ),
       {
         'workflows/functions/inner.js': 'return [$ref.parallel.index, $ref.fan.currentItem]',
-        'workflows/functions/after.js': 'return [$ref.loop.index, $ref.fan.index, $ref.fan.results]',
+        'workflows/functions/after.js':
+          'return [$ref.loop.index, $ref.fan.index, $ref.fan.results]',
       }
     )
     expect(codes(result).map((d) => [d.blockKey, d.span.file])).toEqual([
@@ -1791,7 +1792,9 @@ describe('reference tags written in a code file', () => {
   it('checks tags in JavaScript strings as it checks $ref chains', () => {
     const result = run(
       source(
-        [START, "const f = fn('F', { code: codeFile('./functions/f.js') })", 'start.to(f)'].join('\n')
+        [START, "const f = fn('F', { code: codeFile('./functions/f.js') })", 'start.to(f)'].join(
+          '\n'
+        )
       ),
       {
         'workflows/functions/f.js': [
