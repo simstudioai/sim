@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import type {
   BlockCatalog,
+  ResourceKind,
   SourceBase,
   SourceFingerprint,
   WorkflowLockV1,
@@ -9,6 +10,7 @@ import { diagnostic } from '@sim/workflow-code/diagnostics'
 import { isEqual } from 'es-toolkit'
 import { withCatalogBlockScope } from '@/lib/catalog/application/context'
 import { assertCreateNameFree } from '@/lib/workflows/application/source-commit'
+import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import {
   type WorkflowSourceDiagnostic,
   WorkflowSourceRejectedError,
@@ -20,6 +22,7 @@ import {
   evaluateSource,
   type PendingResource,
   type SourcePlan,
+  type SourceReference,
 } from '@/lib/workflows/application/source-pipeline/evaluate'
 import {
   type LoadedTarget,
@@ -31,7 +34,7 @@ import { printPlanned } from '@/lib/workflows/application/source-pipeline/outcom
 import type { PrintedSource, StoredSource } from '@/lib/workflows/code/print-stored'
 
 /** What a source submission carries to a plan. */
-interface SourceSubmission {
+export interface SourceSubmission {
   /** Repo-relative path → text: `workflow.ts` plus any function-code files it references. */
   files: Record<string, string>
   /** The identity lock returned by `source get` (or a previous apply); empty for a create. */
@@ -48,7 +51,11 @@ export function principalKey(principal: Principal): string {
   return JSON.stringify(principal)
 }
 
-/** A plan that passed every check, bound to the workflow and principal it was made for. */
+/**
+ * A plan that passed every check, bound to the workflow and principal it was made for. Outside the
+ * pipeline, read only `kind` and `workflowId`, and the rest through {@link summarizePlan}; the
+ * other fields are what the pipeline's commit and preview read.
+ */
 export interface PlannedSource {
   kind: 'planned'
   /** The workflow the plan writes: the stored one, or the id a create takes. */
@@ -63,6 +70,96 @@ export interface PlannedSource {
    * and whether that differs from what is stored (new idents, order or comments).
    */
   noop?: { printed: PrintedSource; sourceMetaChanged: boolean }
+  /**
+   * Set when the plan resolved a stand-in id of a resource the enclosing apply has yet to create:
+   * such a plan cannot be committed as it is, so the commit plans `submission` again (with `loads`)
+   * once that resource is written under its real id.
+   */
+  replan?: { submission: SourceSubmission; loads?: SourceLoads }
+}
+
+/** What a caller outside the pipeline reads of a plan, refused or not. */
+export interface SourcePlanSummary {
+  diagnostics: readonly WorkflowSourceDiagnostic[]
+  /** Empty for a refusal, which plans no change. */
+  diff: SourceDiffSummary
+  /** What the source references, as the compiler read it; empty when it did not compile. */
+  references: readonly SourceReference[]
+  envReferences: readonly string[]
+  /** Whether a graph no-op still changes source meta (idents, order or comments). */
+  sourceMetaChanged: boolean
+  /** The workflow's name after the write; absent for a refusal. */
+  workflowName?: string
+  /** Each block of the planned graph, by id; absent for a refusal. */
+  blocks?: ReadonlyArray<{ id: string; name: string }>
+  /** The id the plan resolved for a resource the source names by key, or null. */
+  resolveId(kind: ResourceKind, key: string): string | null
+}
+
+/** The {@link SourcePlanSummary} of a plan or a refusal. */
+export function summarizePlan(outcome: PlannedSource | RefusedSource): SourcePlanSummary {
+  if (outcome.kind === 'refused') {
+    return {
+      diagnostics: outcome.diagnostics,
+      diff: emptyDiffSummary(),
+      references: outcome.compiledReferences?.references ?? [],
+      envReferences: outcome.compiledReferences?.envReferences ?? [],
+      sourceMetaChanged: false,
+      resolveId: () => null,
+    }
+  }
+  const { plan } = outcome
+  return {
+    diagnostics: plan.diagnostics,
+    diff: plan.diff,
+    references: plan.references,
+    envReferences: plan.envReferences,
+    sourceMetaChanged: outcome.noop?.sourceMetaChanged ?? false,
+    workflowName: plan.meta.name,
+    blocks: Object.values(plan.blocks).map(({ id, name }) => ({ id, name })),
+    resolveId: (kind, key) => plan.resources.toId(kind, key),
+  }
+}
+
+/**
+ * Whether `references` name a resource of `pending` by a stand-in id. A workflow the enclosing
+ * apply creates is no stand-in: its id is minted at plan time and is the one its create stores.
+ */
+function resolvesPlaceholder(
+  references: readonly SourceReference[],
+  pending: readonly PendingResource[]
+): boolean {
+  return references.some((ref) =>
+    pending.some((entry) => entry.placeholder && entry.kind === ref.kind && entry.key === ref.key)
+  )
+}
+
+/**
+ * The plan a commit writes: `planned` itself, or (when it resolved a stand-in id) the submission
+ * planned again onto `target` with every resource but the workflows the apply creates read as
+ * stored, since the apply writes those first; a refusal of that plan throws. The workflows still
+ * resolve from pending, as a create of one may not have run yet.
+ */
+export async function planForCommit(
+  principal: Principal,
+  planned: PlannedSource,
+  target: SourceTarget
+): Promise<PlannedSource> {
+  if (!planned.replan) return planned
+  const { submission, loads } = planned.replan
+  const replanned = await planSource(
+    principal,
+    target,
+    {
+      ...submission,
+      pendingResources: (submission.pendingResources ?? []).filter(
+        (entry) => entry.kind === 'workflow'
+      ),
+    },
+    { ...(loads ? { loads } : {}), allocate: true }
+  )
+  if (replanned.kind === 'refused') throw refusalError(replanned)
+  return replanned
 }
 
 /** A plan refused: the findings, and what its dry-run answer echoes. */
@@ -166,6 +263,12 @@ export async function planSource(
       target,
       loaded,
       plan,
+    }
+    if (
+      submission.pendingResources &&
+      resolvesPlaceholder(plan.references, submission.pendingResources)
+    ) {
+      planned.replan = { submission, ...(options.loads ? { loads: options.loads } : {}) }
     }
     if (target.kind === 'new') {
       await assertCreateNameFree(plan, {

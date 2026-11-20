@@ -59,16 +59,13 @@ import {
   readWorkflowSource,
   readWorkflowSources,
 } from '@/lib/workflows/application/read-workflow-source'
-import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-diff'
-import {
-  type WorkflowSourceDiagnostic,
-  WorkflowSourceRejectedError,
-} from '@/lib/workflows/application/source-error'
+import type { SourceDiffSummary } from '@/lib/workflows/application/source-diff'
+import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import {
   type PendingResource,
   type PlannedSource,
-  type RefusedSource,
-  type SourceReference,
+  type SourcePlanSummary,
+  summarizePlan,
   workflowSourceCreate,
   workflowSourceUpdate,
 } from '@/lib/workflows/application/source-pipeline'
@@ -196,15 +193,7 @@ export interface WorkflowPlan {
    * a workflow that calls this one back) name it before it is written.
    */
   workflowId?: string
-  /**
-   * The workflows this apply creates, by key with their minted ids: a write that evaluates again
-   * resolves those not written yet, as its plan did.
-   */
-  created?: PendingResource[]
-  /**
-   * The workflow's plan, which the write commits without planning again; absent when it resolved
-   * a resource this apply creates first, whose stand-in id the write must replace.
-   */
+  /** The workflow's plan, which the write commits. */
   planned?: PlannedSource
 }
 
@@ -217,13 +206,9 @@ type WorkflowChange = PlannedChange<'workflow'>
  * key is its path), which the plan matches to that kind's change; and each secret it reads by name
  * (`env.NAME`).
  */
-function sourceRefs(
-  references: readonly SourceReference[],
-  envReferences: readonly string[],
-  planned: PlannedSource | undefined
-): NonNullable<WorkflowChange['refs']> {
+function sourceRefs(summary: SourcePlanSummary): NonNullable<WorkflowChange['refs']> {
   const refs = new Map<string, NonNullable<WorkflowChange['refs']>[number]>()
-  for (const { kind, key, member, span } of references) {
+  for (const { kind, key, member, span } of summary.references) {
     if (!isWorkspaceKind(kind)) continue
     if (isResourceKeyed(kind)) {
       const id = JSON.stringify([kind, key, member ?? null])
@@ -236,19 +221,19 @@ function sourceRefs(
       })
       continue
     }
-    const id = planned?.plan.resources.toId(kind, key)
+    const id = summary.resolveId(kind, key)
     if (id) refs.set(JSON.stringify([kind, key, null]), { kind, key, id })
   }
-  for (const name of envReferences) {
+  for (const name of summary.envReferences) {
     refs.set(JSON.stringify(['secret', name, null]), { kind: 'secret', key: name })
   }
   return [...refs.values()]
 }
 
 /** The planned graph's blocks, id to normalized name, as a change's `blocks`. */
-function blocksOf(planned: PlannedSource | undefined): Pick<WorkflowChange, 'blocks'> {
-  if (!planned) return {}
-  const blocks = Object.values(planned.plan.blocks).map((block): [string, string] => [
+function blocksOf(summary: SourcePlanSummary): Pick<WorkflowChange, 'blocks'> {
+  if (!summary.blocks) return {}
+  const blocks = summary.blocks.map((block): [string, string] => [
     block.id,
     normalizeWorkflowBlockName(block.name),
   ])
@@ -418,51 +403,6 @@ function classifyFolder(
   return { change, create: true }
 }
 
-/** What a folder's plan reports, refused or not: a refusal plans no change of its own. */
-interface FolderPlan {
-  diagnostics: readonly WorkflowSourceDiagnostic[]
-  diff: SourceDiffSummary
-  references: readonly SourceReference[]
-  envReferences: readonly string[]
-  sourceMetaChanged: boolean
-  planned?: PlannedSource
-}
-
-function folderPlan(outcome: PlannedSource | RefusedSource): FolderPlan {
-  if (outcome.kind === 'refused') {
-    return {
-      diagnostics: outcome.diagnostics,
-      diff: emptyDiffSummary(),
-      references: outcome.compiledReferences?.references ?? [],
-      envReferences: outcome.compiledReferences?.envReferences ?? [],
-      sourceMetaChanged: false,
-    }
-  }
-  const { plan } = outcome
-  return {
-    diagnostics: plan.diagnostics,
-    diff: plan.diff,
-    references: plan.references,
-    envReferences: plan.envReferences,
-    sourceMetaChanged: outcome.noop?.sourceMetaChanged ?? false,
-    planned: outcome,
-  }
-}
-
-/**
- * Whether a plan's evaluation still holds at write time: it resolved no stand-in id of a resource
- * this apply creates first (those get their real ids only once written). A workflow this apply
- * creates is no stand-in: its id is minted at plan time and is the one the create stores.
- */
-function commitsAsPlanned(
-  references: readonly SourceReference[],
-  pending: readonly PendingResource[]
-): boolean {
-  return !references.some((ref) =>
-    pending.some((entry) => entry.placeholder && entry.kind === ref.kind && entry.key === ref.key)
-  )
-}
-
 /**
  * Evaluates an edited folder of a stored workflow (plan only, no write). `pending` holds the
  * resources this apply creates or adopts first, which the evaluation resolves.
@@ -481,39 +421,35 @@ async function planUpdate(
     change.diagnostics.push(...read.diagnostics)
     return change
   }
-  const result = folderPlan(
-    await workflowSourceUpdate.plan.execute({
-      principal: ctx.principal,
-      input: {
-        workflowId: update.workflowId,
-        files: decl.files,
-        lock: read.lock,
-        base: update.base,
-        allowDelete: ctx.allowDelete,
-        pendingResources: pending,
-        loads: ctx.loads,
-      },
-    })
-  )
+  const outcome = await workflowSourceUpdate.plan.execute({
+    principal: ctx.principal,
+    input: {
+      workflowId: update.workflowId,
+      files: decl.files,
+      lock: read.lock,
+      base: update.base,
+      allowDelete: ctx.allowDelete,
+      pendingResources: pending,
+      loads: ctx.loads,
+    },
+  })
+  const result = summarizePlan(outcome)
   change.diagnostics.push(...inFolder(key, result.diagnostics))
-  if (result.planned && result.diff.meta?.includes('name')) {
-    renamed.set(key, result.planned.plan.meta.name)
+  if (result.workflowName !== undefined && result.diff.meta?.includes('name')) {
+    renamed.set(key, result.workflowName)
   }
   // A graph no-op that changes only idents, order or comments still writes its source meta.
   const metaOnly = result.diff.noop && result.sourceMetaChanged
-  const planned =
-    result.planned && commitsAsPlanned(result.references, pending) ? result.planned : undefined
   return {
     ...change,
     action: result.diff.noop && !metaOnly ? 'noop' : 'update',
     storedId: update.workflowId,
     fields: metaOnly ? ['names, order or comments'] : diffFields(result.diff),
-    refs: sourceRefs(result.references, result.envReferences, result.planned),
-    ...blocksOf(result.planned),
+    refs: sourceRefs(result),
+    ...blocksOf(result),
     detail: {
       update: { lock: read.lock, base: update.base, allowDelete: ctx.allowDelete },
-      created: pending.filter((entry) => entry.kind === 'workflow'),
-      ...(planned ? { planned } : {}),
+      ...(outcome.kind === 'planned' ? { planned: outcome } : {}),
     },
   }
 }
@@ -532,36 +468,32 @@ async function planCreate(
 ): Promise<{ change: WorkflowChange; name?: string }> {
   const { decl } = change
   if (!decl) return { change }
-  const result = folderPlan(
-    await workflowSourceCreate.plan.execute({
-      principal: ctx.principal,
-      input: {
-        workspaceId: ctx.workspace.workspaceId,
-        workflowId: created.id,
-        files: decl.files,
-        pendingResources: pending,
-        loads: ctx.loads,
-      },
-    })
-  )
+  const outcome = await workflowSourceCreate.plan.execute({
+    principal: ctx.principal,
+    input: {
+      workspaceId: ctx.workspace.workspaceId,
+      workflowId: created.id,
+      files: decl.files,
+      pendingResources: pending,
+      loads: ctx.loads,
+    },
+  })
+  const result = summarizePlan(outcome)
   change.diagnostics.push(...inFolder(change.key, result.diagnostics))
-  const planned =
-    result.planned && commitsAsPlanned(result.references, pending) ? result.planned : undefined
   return {
     change: {
       ...change,
       action: 'create',
       pending: created,
       fields: diffFields(result.diff),
-      refs: sourceRefs(result.references, result.envReferences, result.planned),
-      ...blocksOf(result.planned),
+      refs: sourceRefs(result),
+      ...blocksOf(result),
       detail: {
         workflowId: created.id,
-        created: pending.filter((entry) => entry.kind === 'workflow'),
-        ...(planned ? { planned } : {}),
+        ...(outcome.kind === 'planned' ? { planned: outcome } : {}),
       },
     },
-    ...(result.planned ? { name: result.planned.plan.meta.name } : {}),
+    ...(result.workflowName !== undefined ? { name: result.workflowName } : {}),
   }
 }
 
@@ -890,47 +822,27 @@ export const workflowAdapter: KindAdapter<'workflow', StoredWorkflowState> = {
 
   async apply(change, ctx) {
     const { principal } = ctx
-    const workspaceId = ctx.workspace.workspaceId
     if (change.action === 'delete') {
       if (!change.storedId) throw new Error('A workflow delete needs the stored workflow id')
       await deleteWorkflow.execute({ principal, input: { workflowId: change.storedId } })
       return { id: change.storedId, text: {} }
     }
-    const decl = change.decl
-    if (!decl) throw new Error('A workflow write needs its files')
     const update = change.detail?.update
-    if (change.action !== 'create' && (!update || !change.storedId)) {
-      throw new Error('A workflow update needs its plan')
-    }
     const planned = change.detail?.planned
-    // Planned again at write time when the plan resolved a stand-in id, with the workflows this
-    // apply creates (their ids are the ones their creates store).
-    const submission = {
-      files: decl.files,
-      pendingResources: change.detail?.created ?? [],
-      loads: ctx.loads,
+    if (!planned || (change.action !== 'create' && !update)) {
+      throw new Error('A workflow write needs its plan')
     }
     const provenance = ctx.provenance ? { provenance: ctx.provenance } : {}
     // A new folder has no base, so no later apply could adopt a workflow whose create committed
     // without its key: the create claims it in its own transaction, and a failed claim undoes it.
     const claimed: WorkspaceSourceDiagnostic[] = []
     const write = () =>
-      update && change.storedId
-        ? workflowSourceUpdate.commit.execute({
-            principal,
-            input: {
-              planned: planned ?? { workflowId: change.storedId, ...update, ...submission },
-              ...provenance,
-            },
-          })
+      update
+        ? workflowSourceUpdate.commit.execute({ principal, input: { planned, ...provenance } })
         : workflowSourceCreate.commit.execute({
             principal,
             input: {
-              planned: planned ?? {
-                workspaceId,
-                workflowId: change.detail?.workflowId ?? generateId(),
-                ...submission,
-              },
+              planned,
               ...provenance,
               withinCreate: async (tx, workflowId) => {
                 claimed.splice(0, claimed.length, ...(await claimKey(change, ctx, workflowId, tx)))

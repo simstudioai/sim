@@ -25,9 +25,9 @@ import type { SourceLoads, SourceTarget } from '@/lib/workflows/application/sour
 import type { SourceOutcome } from '@/lib/workflows/application/source-pipeline/outcome'
 import {
   type PlannedSource,
+  planForCommit,
   planSource,
   type RefusedSource,
-  refusalError,
 } from '@/lib/workflows/application/source-pipeline/plan'
 import {
   type ActiveWorkspaceApplicationContext,
@@ -57,22 +57,6 @@ interface CreatePlanInput {
   files: Record<string, string>
   pendingResources: readonly PendingResource[]
   loads: SourceLoads
-}
-
-/** Whether a commit was handed its plan, rather than the submission to plan at write time. */
-function isPlanned(
-  planned: PlannedSource | UpdatePlanInput | CreatePlanInput
-): planned is PlannedSource {
-  return 'kind' in planned
-}
-
-/** The plan of a write: `planned` as it is, or planned now, throwing a refusal. */
-async function planOrRefuse(
-  planned: PlannedSource | Promise<PlannedSource | RefusedSource>
-): Promise<PlannedSource> {
-  const outcome = await planned
-  if (outcome.kind === 'refused') throw refusalError(outcome)
-  return outcome
 }
 
 /** The update target of a stored workflow's plan, under the workflow context resolved now. */
@@ -117,7 +101,7 @@ export const workflowSourceUpdate = {
   }),
   commit: defineAuthorizedWorkflowUseCase({
     operation: workflowOperations.applySource,
-    resolveContext: ({ principal, input }: { principal: Principal; input: UpdateCommitInput }) =>
+    resolveContext: ({ principal, input }: { principal: Principal; input: CommitInput }) =>
       resolvePrincipalWorkflowContext({
         principal,
         input: { workflowId: input.planned.workflowId },
@@ -132,22 +116,15 @@ export const workflowSourceUpdate = {
       )
       try {
         await requireMutableWorkflow(context.workflowId)
-        const submitted = input.planned
-        const planned = await planOrRefuse(
-          isPlanned(submitted)
-            ? submitted
-            : planSource(
-                principal,
-                updateTarget(context, submitted),
-                {
-                  files: submitted.files,
-                  lock: submitted.lock,
-                  pendingResources: submitted.pendingResources,
-                },
-                { loads: submitted.loads, allocate: true }
-              )
-        )
-        return await commitSource(principal, planned, { kind: 'existing', context })
+        const { planned } = input
+        if (planned.target.kind !== 'existing') {
+          throw new Error('An update commits a plan made for a stored workflow')
+        }
+        const target: SourceTarget = { ...planned.target, context }
+        return await commitSource(principal, await planForCommit(principal, planned, target), {
+          kind: 'existing',
+          context,
+        })
       } catch (error) {
         recordSourceRefused({ ...facts, workflowId: context.workflowId }, error)
         throw error
@@ -160,28 +137,16 @@ export const workflowSourceUpdate = {
   }),
 }
 
-/** What a workspace source apply commits for a stored workflow. */
-interface UpdateCommitInput {
-  /**
-   * The plan, or the submission to plan again at write time: a plan that resolved a stand-in id
-   * of a resource this apply creates first cannot be committed as it is.
-   */
-  planned: PlannedSource | UpdatePlanInput
+/** What a workspace source apply commits: a plan its `plan` step made. */
+interface CommitInput {
+  planned: PlannedSource
   provenance?: SourceProvenance
 }
 
 /** What a workspace source apply commits for a workflow it creates. */
-interface CreateCommitInput {
-  /** The plan, or the submission to plan again at write time (see {@link UpdateCommitInput}). */
-  planned: PlannedSource | CreatePlanInput
-  provenance?: SourceProvenance
+interface CreateCommitInput extends CommitInput {
   /** Runs inside the create's transaction, so what it writes commits with the workflow. */
   withinCreate: (tx: DbTransaction, workflowId: string) => Promise<void>
-}
-
-/** The workspace a create's plan, or its submission, writes to. */
-function createWorkspaceId(planned: PlannedSource | CreatePlanInput): string {
-  return isPlanned(planned) ? planned.loaded.scope.workspaceId : planned.workspaceId
 }
 
 /**
@@ -208,7 +173,7 @@ export const workflowSourceCreate = {
   commit: defineAuthorizedWorkflowUseCase({
     operation: workflowOperations.createFromSource,
     resolveContext: ({ input }: { input: CreateCommitInput }) =>
-      resolveActiveWorkspaceApplicationContext(createWorkspaceId(input.planned)),
+      resolveActiveWorkspaceApplicationContext(input.planned.loaded.scope.workspaceId),
     async execute({ principal, input, context }): Promise<SourceOutcome> {
       const facts = sourceAnalyticsFacts(
         principal,
@@ -218,22 +183,8 @@ export const workflowSourceCreate = {
         false
       )
       try {
-        const submitted = input.planned
-        const target = await createTarget(context, submitted.workflowId)
-        const planned = await planOrRefuse(
-          isPlanned(submitted)
-            ? submitted
-            : planSource(
-                principal,
-                target,
-                {
-                  files: submitted.files,
-                  lock: EMPTY_LOCK,
-                  pendingResources: submitted.pendingResources,
-                },
-                { loads: submitted.loads, allocate: true }
-              )
-        )
+        const target = await createTarget(context, input.planned.workflowId)
+        const planned = await planForCommit(principal, input.planned, target)
         return await commitSource(principal, planned, target, {
           withinCreate: input.withinCreate,
         })
