@@ -847,6 +847,11 @@ describe('Function execution request', () => {
     it.each([
       ['a require call', 'const path = require("node:path")\nreturn path.sep', 1],
       ['code that does not parse', 'import path from "node:path"\nreturn (', 0],
+      [
+        'code whose only error a parser can recover from',
+        'import path from "node:path"\nlet a = 1\nlet a = 2\nreturn path.sep',
+        0,
+      ],
     ])('sends %s to the remote sandbox only when it loads modules', async (_, code, calls) => {
       envFlagsMock.isRemoteSandboxEnabled = true
 

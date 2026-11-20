@@ -418,7 +418,7 @@ function extractJavaScriptImports(code: string): {
 } {
   let program: Program
   try {
-    program = parseUserJavaScript(code, { errorRecovery: true }).program
+    program = parseUserJavaScript(code).program
   } catch {
     return { imports: '', remainingCode: code, hasRequireCalls: false, identifierNames: new Set() }
   }

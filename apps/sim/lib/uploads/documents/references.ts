@@ -52,7 +52,8 @@ function* javascriptTokens(source: string): Generator<SourceToken> {
     if (error instanceof SyntaxError) throw new DocCompileUserError(error.message)
     throw error
   }
-  for (const [index, token] of lexed.entries()) {
+  for (let index = 0; index < lexed.length; index++) {
+    const token = lexed[index]
     if (token.label === 'eof') continue
     if (token.label === 'string') {
       yield {
@@ -62,13 +63,14 @@ function* javascriptTokens(source: string): Generator<SourceToken> {
       }
       continue
     }
-    /* A template is a string only when nothing is substituted into it: `...` with one chunk. */
-    if (
-      token.label === 'template' &&
-      lexed[index - 1]?.label === '`' &&
-      lexed[index + 1]?.label === '`'
-    ) {
-      yield { kind: 'string', value: source.slice(token.start, token.end), start: token.start }
+    /*
+     * A template with nothing substituted into it is one string, as a quoted literal is: its
+     * backticks are not tokens of their own, so a call's `(` stays right before the string.
+     */
+    const chunk = lexed[index + 1]
+    if (token.label === '`' && chunk?.label === 'template' && lexed[index + 2]?.label === '`') {
+      yield { kind: 'string', value: source.slice(chunk.start, chunk.end), start: chunk.start }
+      index += 2
       continue
     }
     yield {
