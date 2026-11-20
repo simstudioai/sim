@@ -7,16 +7,6 @@ import { profileFrom } from '../../context'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
 import {
-  absoluteDirOption,
-  directoryWorkspace,
-  readSourceJson,
-  SOURCE_DIR_BUSY_HELP,
-  withSourceDirLock,
-} from './source-dir'
-import { credentialRefused, unreachableReason } from './source-status'
-import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
-import { verboseFlag } from './source-ui'
-import {
   type CheckFinding,
   checkWorkflowDir,
   refreshWorkspaceTsconfigs,
@@ -29,7 +19,17 @@ import {
   withWorkflowInputs,
   workspaceWorkflowInputs,
   workspaceWorkflowKeys,
-} from './workflow-source-check'
+} from './source-check'
+import {
+  absoluteDirOption,
+  directoryWorkspace,
+  readSourceJson,
+  SOURCE_DIR_BUSY_HELP,
+  withSourceDirLock,
+} from './source-dir'
+import { credentialRefused, unreachableReason } from './source-status'
+import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
+import { verboseFlag } from './source-ui'
 import { assertWorkspaceDir, readWorkspaceDeclarations } from './workspace-source-dir'
 
 const CHECK_HELP = `

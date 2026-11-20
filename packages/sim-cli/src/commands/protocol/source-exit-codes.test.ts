@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import * as exitCodes from '../../exit-codes'
-import { WORKFLOW_TREE } from './workflow-source-get'
+import { WORKFLOW_TREE } from './workflow-dir'
 import { WORKSPACE_TREE } from './workspace-source-dir'
 
 /**

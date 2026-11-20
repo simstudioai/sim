@@ -18,6 +18,7 @@ import {
   type BlobEntry,
   type FlatDiagnostic,
   isFileKind,
+  isWorkspaceKind,
   KIND_DIRS,
   WORKSPACE_KIND_SPECS,
   type WorkspaceDiagnosticCode,
@@ -38,6 +39,7 @@ import {
   DECLARATION_EXTENSION,
   DECLARATION_MODULES,
   isWorkspaceSourcePath,
+  KIND_BY_DIR,
   kindOfPath,
   WORKSPACE_BASE_FILE,
 } from '@sim/workspace-code/layout'
@@ -685,4 +687,31 @@ export async function readWorkspaceDir(
 /** `.sim/skipped.json`, or `null` when nothing was skipped. */
 export function skippedFile(skipped: readonly unknown[]): string | null {
   return skipped.length > 0 ? `${JSON.stringify(skipped, null, 2)}\n` : null
+}
+
+/** `--only`'s help: every kind by its folder. */
+export const ONLY_KINDS_HELP = `comma-separated folders: ${APPLY_ORDER.map((kind) => KIND_DIRS[kind]).join(', ')}`
+
+/** `--only tables,workflows` (folders) or `--only table,workflow` (kinds) as kinds. */
+export function parseKinds(value: string | undefined): WorkspaceKind[] | undefined {
+  if (value === undefined) return undefined
+  const names = value
+    .split(',')
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0)
+  if (names.length === 0) {
+    throw new SimApiError(
+      `--only names no kind; name a folder (${[...KIND_BY_DIR.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`,
+      0
+    )
+  }
+  const kinds = names.map((name) => (isWorkspaceKind(name) ? name : KIND_BY_DIR.get(name)))
+  const unknown = names.filter((_, index) => kinds[index] === undefined)
+  if (unknown.length > 0) {
+    throw new SimApiError(
+      `Unknown kind ${unknown.join(', ')}; name a folder (${[...KIND_BY_DIR.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`,
+      0
+    )
+  }
+  return [...new Set(kinds.filter((kind) => kind !== undefined))]
 }

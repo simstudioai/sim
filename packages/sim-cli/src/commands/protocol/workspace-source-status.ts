@@ -49,6 +49,7 @@ import {
   baseUnavailable,
   DIFF_HELP,
   type DiffReport,
+  destructiveChanges,
   type FileDiff,
   loginCommand,
   type NextStep,
@@ -67,14 +68,14 @@ import {
 } from './source-status'
 import { withSourceExitCode } from './source-tree'
 import type { Diagnostic } from './source-ui'
-import { destructiveChanges } from './workspace-source-apply'
 import {
   assertWorkspaceDir,
+  ONLY_KINDS_HELP,
+  parseKinds,
   readWorkspaceDir,
   type WorkspaceSubmission,
   withUnchangedWorkflowsPruned,
 } from './workspace-source-dir'
-import { ONLY_KINDS_HELP, parseKinds } from './workspace-source-get'
 
 type PlanData = PlanWorkspaceSourceResponse['data']
 type ServerSource = GetWorkspaceSourceResponse['data']

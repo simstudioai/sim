@@ -2,19 +2,9 @@ import { mkdir, mkdtemp, realpath, rename, rm, rmdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import {
-  APPLY_ORDER,
-  isWorkspaceKind,
-  KIND_DIRS,
-  parseWorkspaceBase,
-  type WorkspaceKind,
-} from '@sim/workspace-code'
+import { isWorkspaceKind, parseWorkspaceBase } from '@sim/workspace-code'
 import { isBlobPath } from '@sim/workspace-code/kinds/registry'
-import {
-  KIND_BY_DIR,
-  WORKSPACE_BASE_FILE,
-  WORKSPACE_SKIPPED_FILE,
-} from '@sim/workspace-code/layout'
+import { WORKSPACE_BASE_FILE, WORKSPACE_SKIPPED_FILE } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
@@ -68,6 +58,8 @@ import {
   keepFile,
   kindFolders,
   localDeclarations,
+  ONLY_KINDS_HELP,
+  parseKinds,
   seedRowsFiles,
   skippedFile,
   WORKSPACE_TREE,
@@ -87,33 +79,6 @@ binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was writte
 has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's
 retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and
 running the get again downloads only the rest.`
-
-/** `--only`'s help: every kind by its folder. */
-export const ONLY_KINDS_HELP = `comma-separated folders: ${APPLY_ORDER.map((kind) => KIND_DIRS[kind]).join(', ')}`
-
-/** `--only tables,workflows` (folders) or `--only table,workflow` (kinds) as kinds. */
-export function parseKinds(value: string | undefined): WorkspaceKind[] | undefined {
-  if (value === undefined) return undefined
-  const names = value
-    .split(',')
-    .map((name) => name.trim())
-    .filter((name) => name.length > 0)
-  if (names.length === 0) {
-    throw new SimApiError(
-      `--only names no kind; name a folder (${[...KIND_BY_DIR.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`,
-      0
-    )
-  }
-  const kinds = names.map((name) => (isWorkspaceKind(name) ? name : KIND_BY_DIR.get(name)))
-  const unknown = names.filter((_, index) => kinds[index] === undefined)
-  if (unknown.length > 0) {
-    throw new SimApiError(
-      `Unknown kind ${unknown.join(', ')}; name a folder (${[...KIND_BY_DIR.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`,
-      0
-    )
-  }
-  return [...new Set(kinds.filter((kind) => kind !== undefined))]
-}
 
 /**
  * The base a get writes: the answer's, plus the directory's entries for the kinds this get did not

@@ -1,13 +1,5 @@
-import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { toRecord } from '@sim/utils/object'
-import { parseSourceBase, parseWorkflowLock, type WorkflowLockV1 } from '@sim/workflow-code'
-import { codeFileReferences } from '@sim/workflow-code/code-files/references'
-import {
-  SOURCE_BASE_FILE as BASE_FILE,
-  CODE_FILE_EXTENSIONS,
-  SOURCE_ENTRY_FILE as ENTRY_FILE,
-  SOURCE_LOCK_FILE as LOCK_FILE,
-} from '@sim/workflow-code/limits'
+import { SOURCE_ENTRY_FILE as ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { DEFERRED_INTERRUPT_BOUND_MS, deferInterrupts } from '#sim-cli/terminal/interrupts'
@@ -27,13 +19,10 @@ import {
   absoluteDirOption,
   assertSendableCodeFiles,
   assertSourceDirKind,
-  FILE_CONCURRENCY,
-  lockCodeFiles,
   readSourceText,
   readStarterWorkspace,
   SOURCE_AGENTS_FILE,
   SOURCE_STARTER_FILE,
-  sourceRelativePath,
   updateSourceDir,
   WORKSPACE_FOLDER_BUSY_HELP,
   withWorkspaceFolderLock,
@@ -58,13 +47,14 @@ import {
 } from './source-ui'
 import { storedEdgesWrite } from './stored-edges'
 import {
+  createCommand,
+  readBase,
+  readLock,
+  readSourceFiles,
   refreshWorkflowTsconfigs,
   writeSourceDirectory,
   writeSourceScaffold,
-} from './workflow-source-get'
-
-/** The only files an apply sends beside the entry: function code in a language a block runs. */
-const CODE_FILE_EXTENSION = new RegExp(`\\.(?:${Object.values(CODE_FILE_EXTENSIONS).join('|')})$`)
+} from './workflow-dir'
 
 const APPLY_EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
@@ -96,50 +86,6 @@ interface SourceWriteOptions {
   allowDelete?: boolean
   verbose?: boolean
   deploy?: boolean
-}
-
-/**
- * The text of a file the directory must hold, or a refusal that says how to write it: `hint`, or
- * for a starter no workflow was created from yet, the create that makes it one.
- */
-async function requireText(directory: string, path: string, hint: string): Promise<string> {
-  const text = await readSourceText(directory, path)
-  if (text !== null) return text
-  const starterWorkspace = await readStarterWorkspace(directory)
-  throw new SimApiError(
-    `${directory} has no ${path}. ${
-      starterWorkspace === null
-        ? hint
-        : `It holds a starter no workflow was created from yet: run \`${createCommand(directory, starterWorkspace)} --dry-run\`, then the same with --yes.`
-    }`,
-    0
-  )
-}
-
-async function readJson(directory: string, path: string, hint: string): Promise<unknown> {
-  const text = await requireText(directory, path, hint)
-  try {
-    return JSON.parse(text)
-  } catch {
-    throw new SimApiError(`${path} in ${directory} is not valid JSON. ${hint}`, 0)
-  }
-}
-
-/**
- * The function-code files the source can reference: every `codeFile(…)` call the entry file makes,
- * found by parsing it as compile does (an aliased import or spacing before the parenthesis still
- * counts; a comment or string that spells one does not), plus every `codeFile` the lock records,
- * limited to `.js`, `.py` and `.sh` files inside the directory. Only those are sent, so a
- * reference to any other file never uploads it; the server reports a referenced file that is
- * missing or of another kind.
- */
-function codeFilePaths(entry: string, lock: WorkflowLockV1 | null): string[] {
-  const candidates = lockCodeFiles(lock)
-  for (const literal of codeFileReferences(entry)) {
-    const path = sourceRelativePath(literal)
-    if (path) candidates.add(path)
-  }
-  return [...candidates].filter((path) => CODE_FILE_EXTENSION.test(path))
 }
 
 /**
@@ -179,75 +125,6 @@ function diffSummary(data: SourceApplyData): string {
   }${blocks.removed.length > 0 ? `\nRemoved: ${typed(blocks.removed)}` : ''}${
     modified.length > 0 ? `\nModified: ${modified.join('; ')}` : ''
   }${variableChanges.length > 0 ? `\nVariables: ${variableChanges.join('; ')}` : ''}`
-}
-
-const GET_HINT = 'Write the directory with `sim workflows source get` first.'
-
-/**
- * The base an apply sends, refused when it is not the named workflow's: a directory written for
- * one workflow and applied to another would replace that workflow's draft with a stranger's
- * source. Without a `workflowId` the apply targets the workflow the base names.
- */
-export async function readBase(
-  directory: string,
-  workflowId: string | undefined
-): Promise<SourceBase> {
-  await assertSourceDirKind(directory, 'workflow')
-  const parsed = parseSourceBase(await readJson(directory, BASE_FILE, GET_HINT))
-  if ('problem' in parsed) {
-    throw new SimApiError(
-      `${BASE_FILE} in ${directory} is not a base: ${parsed.problem} ${GET_HINT}`,
-      0
-    )
-  }
-  const { base } = parsed
-  if (workflowId !== undefined && base.workflowId !== workflowId) {
-    throw new SimApiError(
-      `${directory} holds the source of workflow ${base.workflowId}, not ${workflowId}. Apply it to ${base.workflowId}, or write this workflow's source with \`sim workflows source get ${workflowId} --dir <dir>\`.`,
-      0,
-      'SOURCE_WORKFLOW_MISMATCH'
-    )
-  }
-  return base
-}
-
-/** The directory's lock, refused with every problem the lock parser finds. */
-export async function readLock(directory: string): Promise<WorkflowLockV1> {
-  const parsed = parseWorkflowLock(await readJson(directory, LOCK_FILE, GET_HINT))
-  if (parsed.lock) return parsed.lock
-  const problems = parsed.diagnostics.map(
-    (finding) => `${finding.path === '' ? '' : `${finding.path}: `}${finding.message}`
-  )
-  throw new SimApiError(
-    `${LOCK_FILE} in ${directory} is not a valid lock: ${problems.join('; ')}`,
-    0
-  )
-}
-
-/** The directory's `workflow.ts`, or a refusal naming the command that writes one. */
-export function requireEntry(directory: string): Promise<string> {
-  return requireText(directory, ENTRY_FILE, GET_HINT)
-}
-
-/**
- * The files a write sends: the entry file and the code files it or the lock references. A
- * referenced file that is missing is left out, and the server reports it with its source line.
- */
-export async function readSourceFiles(
-  directory: string,
-  lock: WorkflowLockV1 | null
-): Promise<Record<string, string>> {
-  const entry = await requireEntry(directory)
-  const files: Record<string, string> = { [ENTRY_FILE]: entry }
-  const paths = codeFilePaths(entry, lock)
-  const texts = await mapWithConcurrency(paths, FILE_CONCURRENCY, (path) =>
-    readSourceText(directory, path)
-  )
-  paths.forEach((path, index) => {
-    const text = texts[index]
-    if (text !== null) files[path] = text
-  })
-  return files
 }
 
 type SourceWriteOperation = 'applyWorkflowSource' | 'createWorkflowFromSource'
@@ -642,11 +519,6 @@ function variablesChanged(variables: SourceApplyData['diff']['variables']): bool
     renamedVariables(variables).length > 0 ||
     variables.modified.length > 0
   )
-}
-
-/** The create command for `dir` in `workspaceId`, as the next step a starter prints. */
-function createCommand(dir: string, workspaceId: string): string {
-  return `sim workflows source create --dir ${dir} --workspace ${workspaceId}`
 }
 
 /**

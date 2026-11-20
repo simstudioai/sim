@@ -50,6 +50,7 @@ import {
   writtenRecord,
 } from './source-dir'
 import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
+import { destructiveChanges } from './source-status'
 import { cachedCatalog } from './source-tree'
 import {
   confirm,
@@ -78,10 +79,11 @@ import {
 import {
   assertWorkspaceDir,
   assertWorkspacePaths,
+  ONLY_KINDS_HELP,
+  parseKinds,
   readWorkspaceDir,
   type WorkspaceSubmission,
 } from './workspace-source-dir'
-import { ONLY_KINDS_HELP, parseKinds } from './workspace-source-get'
 
 type ApplyData = ApplyWorkspaceSourceResponse['data']
 type Change = ApplyData['plan'][number]
@@ -240,12 +242,6 @@ function printPlan(
       `${destructive} change(s) delete data that applying an older directory (a reverted commit) does not bring back: a deleted resource stays deleted, and its rows, documents, run history and webhook URLs are gone.`
     )
   }
-}
-
-/** The changes that delete something (a resource, rows, documents, columns, a deployment). */
-export function destructiveChanges(changes: readonly Change[]): number {
-  return changes.filter((change) => change.action === 'delete' || change.destructive !== undefined)
-    .length
 }
 
 /**

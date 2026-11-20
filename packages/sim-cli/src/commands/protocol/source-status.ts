@@ -17,11 +17,15 @@ import {
   SOURCE_LOCAL_CHANGES_EXIT_CODE,
   SOURCE_TOO_LARGE_EXIT_CODE,
 } from '../../exit-codes'
+import type { ApplyWorkspaceSourceResponse } from '../../generated/v2-api'
 import { noAnswer, SimApiError } from '../../http/client'
 import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
 import { type Diagnostic, findingsOutput } from './source-ui'
+
+/** One change of a workspace apply's plan. */
+type WorkspacePlanChange = ApplyWorkspaceSourceResponse['data']['plan'][number]
 
 /** Whether the server was asked: `checked`, `unreachable` (degraded to local), or `offline`. */
 export type ServerCheck = 'checked' | 'unreachable' | 'offline'
@@ -479,4 +483,12 @@ export async function readPlan<T>(plan: () => Promise<T>, dryRun: () => Promise<
     if (!(error instanceof SimApiError) || error.status !== 404) throw error
     return dryRun()
   }
+}
+
+/** The changes that delete something (a resource, rows, documents, columns, a deployment). */
+export function destructiveChanges(
+  changes: ReadonlyArray<Pick<WorkspacePlanChange, 'action' | 'destructive'>>
+): number {
+  return changes.filter((change) => change.action === 'delete' || change.destructive !== undefined)
+    .length
 }
