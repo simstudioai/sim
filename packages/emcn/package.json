@@ -26,6 +26,10 @@
       "types": "./src/icons/index.ts",
       "default": "./src/icons/index.ts"
     },
+    "./syntax-theme": {
+      "types": "./src/components/code/syntax-theme.ts",
+      "default": "./src/components/code/syntax-theme.ts"
+    },
     "./*": {
       "types": "./src/*",
       "default": "./src/*"

@@ -24,7 +24,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 /** How a changed value should be rendered in the change list. */
-type ValueKind = 'text' | 'scalar' | 'json' | 'secret' | 'toggle' | 'structured'
+export type ValueKind = 'text' | 'scalar' | 'json' | 'secret' | 'toggle' | 'structured'
 
 const INLINE_TEXT_MAX_LENGTH = 60
 
