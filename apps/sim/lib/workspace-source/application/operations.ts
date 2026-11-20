@@ -37,7 +37,7 @@ export const workspaceSourceOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    ...SOURCE_PRINCIPAL_POLICY,
+    ...SOURCE_OPERATION_POLICY,
   }),
   // permission-group-exempt: each change runs through the use case that owns it, which applies that kind's capability
   apply: defineWorkspaceOperation({

@@ -278,7 +278,6 @@ export const readWorkspaceSourcePlan = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ApplyWorkspaceSourceResult> {
-    await requireWorkflowCodeEnabled(principal, context)
     const plan = await planWorkspaceSource(input, sourceContext(principal, context))
     return planned(plan, context.workspaceId, true)
   },

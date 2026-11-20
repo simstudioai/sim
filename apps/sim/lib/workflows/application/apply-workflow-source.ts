@@ -317,7 +317,6 @@ export const planWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.planSource,
   resolveContext: resolvePrincipalWorkflowContext<PlanWorkflowSourceInput>,
   async execute({ principal, input, context }): Promise<ApplyWorkflowSourceResult> {
-    await requireWorkflowCodeEnabled(principal, context)
     return runSourceApply(
       principal,
       { files: input.files, lock: input.lock, dryRun: true },

@@ -73,9 +73,10 @@ and "The catalog".
 
 One global flag, `workflow-code` (`lib/core/config/feature-flags.ts`, env fallback
 `WORKFLOW_CODE`), gates workflow source, workspace source, the source catalog and resources, and
-the Code tab. Every use case calls `requireWorkflowCodeEnabled()`
-(`lib/workflows/code/feature-flag.ts`); the UI reads it from the workspace layout's flags. A new
-surface gates through the same function, never its own check.
+the Code tab. Every operation declares `feature: WORKFLOW_CODE_FEATURE`
+(`lib/workflows/application/operations.ts`), which the shared use-case wrapper checks after
+authorization (`FEATURE_NOT_ENABLED`); the UI reads it from the workspace layout's flags. A new
+operation declares the same feature, never its own check.
 
 ## Adding things
 

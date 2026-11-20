@@ -1,4 +1,4 @@
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { compareStrings } from '@sim/utils/string'

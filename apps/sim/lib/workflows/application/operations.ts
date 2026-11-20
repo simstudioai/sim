@@ -261,6 +261,7 @@ export const workflowOperations = {
   // permission-group-exempt: a plan stores nothing; the block and value gates it reports are judged per block against the principal's human subject, as for applySource
   planSource: defineWorkspaceOperation({
     id: 'workflows.source.plan',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
