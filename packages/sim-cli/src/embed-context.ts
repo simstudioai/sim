@@ -75,8 +75,11 @@ export function setSoftExitCode(code: number): void {
 
 export const embedStore = new AsyncLocalStorage<EmbedContext>()
 
-/** Thrown in place of process.exit inside an embedded run. */
-export class EmbeddedExit extends Error {
+/**
+ * Thrown in place of `process.exit`: an embedded run returns its code to the host, and the
+ * terminal CLI exits with it once its output is written out.
+ */
+export class CliExit extends Error {
   constructor(readonly code: number) {
     super(`CLI exited with code ${code}`)
   }
@@ -106,8 +109,7 @@ export function embeddedProfile(): ResolvedProfile | null {
   }
 }
 
-/** Exits the terminal CLI without terminating an embedding host. */
+/** Ends the command with `code`, without terminating an embedding host. */
 export function exitCli(code: number): never {
-  if (embedStore.getStore()) throw new EmbeddedExit(code)
-  return process.exit(code)
+  throw new CliExit(code)
 }

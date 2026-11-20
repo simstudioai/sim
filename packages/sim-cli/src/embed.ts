@@ -2,9 +2,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type Command, CommanderError, type OutputConfiguration } from 'commander'
 import { ProfileConfigError } from './config/index'
 import {
+  CliExit,
   type EmbedContext,
   type EmbeddedCliIdentity,
-  EmbeddedExit,
   type EmbeddedFileSnapshot,
   embedStore,
 } from './embed-context'
@@ -173,7 +173,7 @@ export async function runEmbeddedCli(
 /** Mirrors the installed CLI's top-level error handling (src/index.ts), minus process.exit. */
 function renderEmbeddedError(ctx: EmbedContext, error: unknown): number {
   if (error instanceof EmbeddedOutputLimitError) return 1
-  if (error instanceof EmbeddedExit) return error.code
+  if (error instanceof CliExit) return error.code
   if (error instanceof CommanderError) {
     // commander's CommanderError from exitOverride: usage/parse errors already
     // printed through the (captured) output; help/version exit 0.
