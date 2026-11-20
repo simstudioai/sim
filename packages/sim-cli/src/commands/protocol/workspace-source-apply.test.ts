@@ -553,6 +553,48 @@ describe('workspaces source apply', () => {
     expect(stderr).not.toContain('resource(s) that only workspace ws_prod holds')
   })
 
+  it('names only the target-only deletes a promotion that stopped part-way wrote', async () => {
+    const target = {
+      version: 1,
+      workspaceId: 'ws_prod',
+      resources: { 'table:one': { id: 'tbl_one' }, 'table:two': { id: 'tbl_two' } },
+    }
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table'],
+            files: { 'tables/one.ts': LEADS, 'tables/two.ts': LEADS },
+            blobs: [],
+            base: target,
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      return answer({
+        workspaceId: 'ws_prod',
+        base: target,
+        plan: [
+          { kind: 'table', key: 'one', action: 'delete' },
+          { kind: 'table', key: 'two', action: 'delete' },
+        ],
+        applied: [{ kind: 'table', key: 'one', action: 'delete' }],
+        failed: { kind: 'table', key: 'two', code: 'E_APPLY_FAILED', message: 'failed' },
+      })
+    })
+
+    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--yes')
+
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(
+      summary.diagnostics
+        .filter((finding: { code: string }) => finding.code === 'W_PROMOTE_DELETES_TARGET_ONLY')
+        .map((finding: { key: string }) => finding.key)
+    ).toEqual(['one'])
+  })
+
   it('refuses --to naming the workspace the directory was read from', async () => {
     await expect(apply('--to', 'ws_local', '--yes')).rejects.toThrow(/apply it without --to/)
     expect(request).not.toHaveBeenCalled()

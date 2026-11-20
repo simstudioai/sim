@@ -564,9 +564,12 @@ function promotionDiagnostics(diagnostics: readonly Finding[], promotion: Promot
 /**
  * The warnings only a promotion knows to give: each declared resource the target deleted since the
  * last promotion (kept deleted), and each resource only the target holds that `--allow-delete`
- * deletes there.
+ * deletes there (of an apply that stopped part-way, each it deleted).
  */
-function promotionWarnings(promotion: Promotion, plan: readonly Change[]): Finding[] {
+function promotionWarnings(
+  promotion: Promotion,
+  outcome: Pick<ApplyData, 'plan' | 'applied' | 'failed'>
+): Finding[] {
   const { target } = promotion
   const deleted = promotion.deletedInTarget.flatMap((address): Finding[] => {
     const parsed = parseResourceAddress(address)
@@ -582,8 +585,10 @@ function promotionWarnings(promotion: Promotion, plan: readonly Change[]): Findi
       },
     ]
   })
-  const targetOnly = plan
-    .filter((change) => change.action === 'delete')
+  const targetOnly = outcome.plan
+    .filter(
+      (change) => change.action === 'delete' && (!outcome.failed || wasWritten(change, outcome))
+    )
     .map(
       (change): Finding => ({
         code: 'W_PROMOTE_DELETES_TARGET_ONLY',
@@ -760,7 +765,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               ? {
                   ...data,
                   diagnostics: [
-                    ...promotionWarnings(promotion, data.plan),
+                    ...promotionWarnings(promotion, data),
                     ...promotionDiagnostics(data.diagnostics, promotion),
                   ],
                 }
