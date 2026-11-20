@@ -597,6 +597,59 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'gpt-6.2-astra',
+        pricing: {
+          input: 8.0,
+          cachedInput: 0.4,
+          output: 40.0,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 16.0,
+              cachedInput: 0.8,
+              output: 60.0,
+            },
+          ],
+          updatedAt: '2026-11-20',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high', 'xhigh', 'max'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-11-17',
+      },
+      {
+        id: 'gpt-6.2-sol',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.1,
+          output: 10.0,
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 4.0,
+              cachedInput: 0.2,
+              output: 15.0,
+            },
+          ],
+          updatedAt: '2026-11-20',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high', 'xhigh', 'max'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-11-17',
+      },
+      {
         id: 'gpt-6-astra',
         pricing: {
           input: 10.0,
@@ -2596,6 +2649,60 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     icon: GeminiIcon,
     color: '#4285F4',
     models: [
+      {
+        id: 'gemini-4-neon',
+        pricing: {
+          input: 3,
+          cachedInput: 0.15,
+          output: 15,
+          updatedAt: '2026-11-20',
+        },
+        capabilities: {
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh'],
+            default: 'high',
+          },
+          maxOutputTokens: 65536,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-11-18',
+      },
+      {
+        id: 'gemini-4-hydrogen',
+        pricing: {
+          input: 1.5,
+          cachedInput: 0.075,
+          output: 7.5,
+          updatedAt: '2026-11-20',
+        },
+        capabilities: {
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh'],
+            default: 'high',
+          },
+          maxOutputTokens: 65536,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-11-12',
+      },
+      {
+        id: 'gemini-4-carbon',
+        pricing: {
+          input: 2,
+          cachedInput: 0.1,
+          output: 10,
+          updatedAt: '2026-11-20',
+        },
+        capabilities: {
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+          maxOutputTokens: 65536,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-11-10',
+      },
       {
         id: 'gemini-4-argon',
         pricing: {

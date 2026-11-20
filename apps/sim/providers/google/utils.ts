@@ -410,6 +410,9 @@ export function mapToThinkingLevel(level: string): ThinkingLevel {
       return ThinkingLevel.MEDIUM
     case 'high':
       return ThinkingLevel.HIGH
+    case 'xhigh':
+      // @google/genai 2.x predates the XHIGH enum member; the wire value is the plain string.
+      return 'XHIGH' as ThinkingLevel
     default:
       return ThinkingLevel.HIGH
   }
