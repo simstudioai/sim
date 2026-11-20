@@ -1797,7 +1797,7 @@ export default workflow('', {}, () => {
 
       const error = await expectRejected(apply(source, emptied), 'E_APPLY_BLOCK_DELETE')
       expect(error.diagnostics.find((d) => d.code === 'E_APPLY_BLOCK_DELETE')).toMatchObject({
-        message: 'This apply deletes 2 blocks the source no longer declares: Start, Score.',
+        message: 'This apply deletes 2 blocks the source no longer declares: Score, Start.',
         file: 'workflow.ts',
         ...positionOf(emptied['workflow.ts'], "'Source apply edge"),
       })
