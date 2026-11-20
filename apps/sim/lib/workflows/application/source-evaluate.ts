@@ -13,6 +13,7 @@ import {
   compileWorkflow,
   type Diagnostic,
   diffCanonical,
+  EDITED_CODE_FILE_REFUSALS,
   encodeAnchor,
   getOwn,
   type LocatedDiagnostic,
@@ -309,32 +310,34 @@ function withoutRenameSettledFindings(
 }
 
 /**
- * `diagnostics` with each function code file `W_UNRESOLVED_REF` on a block whose code the source
- * changed (`codeChanged`, by block key) refused as `E_APPLY_UNRESOLVED_REF`: a `$ref` the edit
- * wrote that names no block fails at run time. On code the stored workflow already holds it stays
- * a warning, so a workflow saved with a dangling reference still applies unchanged.
+ * `diagnostics` with each function code file finding of {@link EDITED_CODE_FILE_REFUSALS} on a
+ * block whose code the source changed (`codeChanged`, by block key) refused under its error code:
+ * a `$ref` naming no block, a `$ref` in a Python file, fail at run time. On code the stored
+ * workflow already holds it stays a warning, so a workflow saved with one still applies unchanged.
  */
 function withEditedCodeFileRefsRefused(
   diagnostics: CompileResult['diagnostics'],
   codeChanged: (blockKey: string) => boolean
 ): LocatedDiagnostic[] {
   return diagnostics.map((diagnostic): LocatedDiagnostic => {
+    const refusal = EDITED_CODE_FILE_REFUSALS.get(diagnostic.code)
     if (
-      diagnostic.code !== 'W_UNRESOLVED_REF' ||
+      refusal === undefined ||
       diagnostic.span.file === SOURCE_ENTRY_FILE ||
       diagnostic.blockKey === undefined ||
       !codeChanged(diagnostic.blockKey)
     ) {
       return diagnostic
     }
-    return { ...diagnostic, code: 'E_APPLY_UNRESOLVED_REF', severity: 'error' }
+    return { ...diagnostic, code: refusal, severity: 'error' }
   })
 }
 
 /**
  * The apply's handling of compile's `W_REF_OUT_OF_SCOPE`, an iteration field read from outside
  * its container: refused as `E_APPLY_REF_OUT_OF_SCOPE` on a block the write adds, changes or
- * moves (`changed`, by block key), which would fail at run time; a warning on a block the stored
+ * moves (`changed`, by block key), which would fail at run time (a code file the edit changed
+ * already refused it); a warning on a block the stored
  * workflow already holds as it is, so such a workflow still applies unchanged. The lint's finding
  * for the same block is dropped from `lint`, as compile's is the one located at the source line.
  */
@@ -346,11 +349,11 @@ function withOutOfScopeRefsRefused(
 ): { diagnostics: LocatedDiagnostic[]; lint: WorkflowLintReport } {
   const reported = new Set<string>()
   const refused = diagnostics.map((diagnostic): LocatedDiagnostic => {
-    if (diagnostic.code !== 'W_REF_OUT_OF_SCOPE' || diagnostic.blockKey === undefined) {
-      return diagnostic
-    }
+    const scoped =
+      diagnostic.code === 'W_REF_OUT_OF_SCOPE' || diagnostic.code === 'E_APPLY_REF_OUT_OF_SCOPE'
+    if (!scoped || diagnostic.blockKey === undefined) return diagnostic
     reported.add(diagnostic.blockKey)
-    return changed(diagnostic.blockKey)
+    return diagnostic.code === 'W_REF_OUT_OF_SCOPE' && changed(diagnostic.blockKey)
       ? { ...diagnostic, code: 'E_APPLY_REF_OUT_OF_SCOPE', severity: 'error' }
       : diagnostic
   })

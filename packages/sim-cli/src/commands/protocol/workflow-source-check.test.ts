@@ -525,6 +525,36 @@ export default workflow('W', {}, () => {
     expect(process.exitCode).toBeUndefined()
   })
 
+  it('fails on $ref in a Python function file, naming the tag the file writes instead', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(join(dir, 'functions/total.py'), 'q = $ref.start.q\nreturn q\n')
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { q: 'string' } })
+  const total = fn('Total', { language: 'python', code: codeFile('./functions/total.py') })
+  start.to(total)
+})
+`
+    )
+
+    await check()
+    expect(result().diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'E_APPLY_CODE_FILE_REF_SYNTAX',
+        severity: 'error',
+        file: 'functions/total.py',
+        line: 1,
+        hint: 'Python files are saved as written: write <start.q>.',
+      })
+    )
+    expect(process.exitCode).toBe(1)
+  })
+
   it('fails on a dangling $ref in a new function file by default, and on any with --strict', async () => {
     cacheCatalog()
     mkdirSync(join(dir, 'functions'), { recursive: true })

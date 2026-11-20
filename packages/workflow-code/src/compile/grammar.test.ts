@@ -1812,3 +1812,58 @@ describe('reference tags written in a code file', () => {
     ])
   })
 })
+
+describe('$ref and $env in a Python or shell code file', () => {
+  const syntax = (result: CompileResult) =>
+    result.diagnostics
+      .filter((d) => d.code === 'W_CODE_FILE_REF_SYNTAX')
+      .map((d) => ({ hint: d.hint, file: d.span.file, line: d.span.line, column: d.span.column }))
+
+  it('names the tag a Python file writes instead of $ref, and {{NAME}} instead of $env', () => {
+    const result = run(
+      source(
+        [
+          START,
+          "const f = fn('F', { language: 'python', code: codeFile('./fns/f.py') })",
+          'start.to(f)',
+        ].join('\n')
+      ),
+      { 'workflows/fns/f.py': "q = $ref.start.q\nkey = $env.API_KEY\nreturn '$5 ok'" }
+    )
+    expect(syntax(result)).toEqual([
+      {
+        hint: 'Python files are saved as written: write <start.q>.',
+        file: 'workflows/fns/f.py',
+        line: 1,
+        column: 5,
+      },
+      {
+        hint: 'Python files are saved as written: write {{API_KEY}}.',
+        file: 'workflows/fns/f.py',
+        line: 2,
+        column: 7,
+      },
+    ])
+  })
+
+  it('reports $ref in a shell file and leaves JavaScript files to the rewrite', () => {
+    const result = run(
+      source(
+        [
+          START,
+          "const sh = fn('Sh', { language: 'shell', code: codeFile('./fns/s.sh') })",
+          "const js = fn('Js', { code: codeFile('./fns/j.js') })",
+          'start.to(sh)',
+          'sh.to(js)',
+        ].join('\n')
+      ),
+      {
+        'workflows/fns/s.sh': 'echo "$ref.start.q" "$HOME"',
+        'workflows/fns/j.js': 'return $ref.start.q',
+      }
+    )
+    expect(syntax(result).map((d) => [d.file, d.hint])).toEqual([
+      ['workflows/fns/s.sh', 'Shell files are saved as written: write <start.q>.'],
+    ])
+  })
+})

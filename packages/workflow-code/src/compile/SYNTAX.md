@@ -270,7 +270,10 @@ template.
 `code: codeFile('./functions/x.js')`, relative to `workflow.ts`, with the extension matching
 `language` (default `javascript`). Otherwise `E_CODE_FILE_PATH`; a file the request did not send is
 `E_CODE_FILE_MISSING`. JavaScript files use `$ref.block.path` for `<block.path>` and `$env.NAME` for
-`{{NAME}}`, rewritten back on compile; Python and shell files are verbatim. `$ref` names a block by
+`{{NAME}}`, rewritten back on compile; Python and shell files are verbatim, so they write
+`<block.path>` and `{{NAME}}` themselves, and a `$ref` or `$env` in one is
+`W_CODE_FILE_REF_SYNTAX` (the apply refuses it in a file the edit changed). A `<block.path>` tag in
+any code file (a JavaScript string included) is checked like a `$ref` chain. `$ref` names a block by
 its key (`$ref.triageagent.content`), not its ident; a chain that names no block or variable is
 `W_UNRESOLVED_REF` at the file location (the hint names the key when the head is an ident or a
 block name), and a path no output has is `W_UNKNOWN_OUTPUT_PATH`. When the stored code

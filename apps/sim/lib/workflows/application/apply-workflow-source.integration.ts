@@ -2531,6 +2531,38 @@ describe('renames in source', () => {
   )
 
   check(
+    'a $ref the edit wrote into a Python function file is refused, naming the tag',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      const entry = source.files['workflow.ts'].replace(
+        /fn\('Boom', \{.*\}\)/,
+        "fn('Boom', { language: 'python', code: codeFile('./functions/boom.py') })"
+      )
+      expect(entry).toContain('boom.py')
+      const files = {
+        ...omit(source.files, ['functions/boom.js']),
+        'workflow.ts': entry,
+        'functions/boom.py': 'return $ref.start.value\n',
+      }
+
+      const dryRun = await apply(source, files, { dryRun: true })
+
+      expect(
+        dryRun.diagnostics
+          .filter((d) => d.severity === 'error')
+          .map((d) => ({ code: d.code, file: d.file, hint: d.hint }))
+      ).toEqual([
+        {
+          code: 'E_APPLY_CODE_FILE_REF_SYNTAX',
+          file: 'functions/boom.py',
+          hint: 'Python files are saved as written: write <start.value>.',
+        },
+      ])
+    }
+  )
+
+  check(
     'a dangling reference the stored code already holds stays a warning, whatever else the apply changes',
     async () => {
       const seeded = await seedChain('return <ghost.result>')

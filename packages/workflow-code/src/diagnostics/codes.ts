@@ -116,6 +116,13 @@ const COMPILE_SCOPE_CODES = [
    * `E_APPLY_REF_OUT_OF_SCOPE`.
    */
   'W_REF_OUT_OF_SCOPE',
+  /**
+   * `$ref.key.path` or `$env.NAME` in a Python or shell code file, which is saved as written (only
+   * JavaScript files are rewritten), so the run reads it as text; `hint` names the `<key.path>` or
+   * `{{NAME}}` form those files take. A warning so stored code that holds the text still
+   * round-trips; refused as `E_APPLY_CODE_FILE_REF_SYNTAX` in a file the edit changed.
+   */
+  'W_CODE_FILE_REF_SYNTAX',
 ] as const
 
 /** Wiring. */
@@ -473,6 +480,8 @@ const APPLY_DIAGNOSTIC_CODES = [
    * fails at run time.
    */
   'E_APPLY_REF_OUT_OF_SCOPE',
+  /** A `W_CODE_FILE_REF_SYNTAX` in a code file the edit changed, which breaks the code at run time. */
+  'E_APPLY_CODE_FILE_REF_SYNTAX',
   /** A non-blocking workflow lint finding, mapped to a source line. */
   'W_APPLY_LINT',
   /** A table row write (insert, upsert, update) with a key that is not a column of its table. */
@@ -511,6 +520,27 @@ export const DIAGNOSTIC_CODES = [
   ...APPLY_DIAGNOSTIC_CODES,
 ] as const
 export type DiagnosticCode = (typeof DIAGNOSTIC_CODES)[number]
+
+/** The error codes {@link EDITED_CODE_FILE_REFUSALS} refuses a code file warning under. */
+type EditedCodeFileRefusal =
+  | 'E_APPLY_UNRESOLVED_REF'
+  | 'E_APPLY_REF_OUT_OF_SCOPE'
+  | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+
+/**
+ * Code file warnings refused under an error code in a function code file the edit changed: the
+ * server refuses them on a block whose code the source changed, and an offline check in a file
+ * changed since the get wrote it. On code the stored workflow already holds they stay warnings, so
+ * a workflow saved with one still applies unchanged.
+ */
+export const EDITED_CODE_FILE_REFUSALS: ReadonlyMap<string, EditedCodeFileRefusal> = new Map<
+  CompileDiagnosticCode,
+  EditedCodeFileRefusal
+>([
+  ['W_UNRESOLVED_REF', 'E_APPLY_UNRESOLVED_REF'],
+  ['W_REF_OUT_OF_SCOPE', 'E_APPLY_REF_OUT_OF_SCOPE'],
+  ['W_CODE_FILE_REF_SYNTAX', 'E_APPLY_CODE_FILE_REF_SYNTAX'],
+])
 
 /**
  * Whether a finding with `code` may carry a code frame. A finding about a literal secret in

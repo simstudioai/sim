@@ -7,6 +7,7 @@ import {
   codePointLabel,
   compileWorkflow,
   didYouMean,
+  EDITED_CODE_FILE_REFUSALS,
   encodeAnchor,
   getOwn,
   parseJsonField,
@@ -93,19 +94,6 @@ const STORED_EXEMPT_CODES: ReadonlySet<string> = new Set(['W_BRANCH_UNWIRED'])
 const EDIT_SCOPED_CODES: ReadonlySet<string> = new Set(['W_JSON_REF_UNTYPED'])
 
 /**
- * Warnings in a function code file a check refuses under the server's error code, whatever the
- * strict mode, when that file changed since the get wrote it (or is new; a file only moved from
- * the path the lock bound its block to is unchanged while its text matches that path's digest):
- * the server refuses them on code the edit changed, and keeps them as warnings only on code the
- * stored workflow already holds. `W_UNRESOLVED_REF`, a `$ref` naming no block or variable, which fails at run time, is
- * `E_APPLY_UNRESOLVED_REF`.
- */
-const EDITED_FILE_REFUSALS: ReadonlyMap<string, CheckFinding['code']> = new Map([
-  ['W_UNRESOLVED_REF', 'E_APPLY_UNRESOLVED_REF'],
-  ['W_REF_OUT_OF_SCOPE', 'E_APPLY_REF_OUT_OF_SCOPE'],
-])
-
-/**
  * Warnings a check refuses under the server's error code, whatever the strict mode, on a block the
  * lock binds that the source moved into another container: the server refuses them on any block
  * the edit changed. `W_REF_OUT_OF_SCOPE`, an iteration field the move left outside its container.
@@ -152,7 +140,7 @@ does not bind (a block added since the get, or every block of a new workflow):
 ${[...STRICT_CODES].map((code) => `  ${code}`).join(',\n')}.
 --strict fails on them in every block, except ${[...STORED_EXEMPT_CODES].join(', ')} on a block the
 lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails
-on none of them. In a function file changed since the get, ${[...EDITED_FILE_REFUSALS]
+on none of them. In a function file changed since the get, ${[...EDITED_CODE_FILE_REFUSALS]
   .map(([warning, refusal]) => `${warning} is the error ${refusal}`)
   .join(', ')} in every mode, as the server refuses it; so is ${[...MOVED_BLOCK_REFUSALS]
   .map(([warning, refusal]) => `${warning} (${refusal})`)
@@ -512,6 +500,7 @@ export async function checkWorkflowDir(
   const bound = (blockKey: string | undefined) =>
     lock !== undefined && blockKey !== undefined && Object.hasOwn(lock.blocks, blockKey)
   const written = await readFolderWritten(dir)
+  // A file only moved from the path the lock bound its block to is unedited while its text matches that path's digest.
   const edited = (file: string, blockKey: string | undefined) => {
     const text = files[file]
     if (text === undefined) return true
@@ -533,7 +522,7 @@ export async function checkWorkflowDir(
   }
   const editedRefusal = (code: string, file: string | undefined, blockKey: string | undefined) =>
     (file !== undefined && file !== SOURCE_ENTRY_FILE && edited(file, blockKey)
-      ? EDITED_FILE_REFUSALS.get(code)
+      ? EDITED_CODE_FILE_REFUSALS.get(code)
       : undefined) ?? (moved(blockKey) ? MOVED_BLOCK_REFUSALS.get(code) : undefined)
   const fails = (code: string, blockKey: string | undefined) =>
     STRICT_CODES.has(code) &&

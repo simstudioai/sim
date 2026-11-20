@@ -431,9 +431,45 @@ function parseCodeFile(
     }
     return null
   }
+  if (language !== 'javascript') reportScriptRefSyntax(ctx, path, text, language, decl.key)
   const refs = [...back.refs, ...referenceTags(text)].sort((a, b) => a.start - b.start)
   if (refs.length > 0) ctx.codeFiles.chains.push({ path, blockKey: decl.key, refs })
   return back.code
+}
+
+/** A `$ref` chain or `$env` name, as a JavaScript code file writes one. */
+const SCRIPT_REF = /\$(ref|env)((?:\.[A-Za-z0-9_$-]+)+)/g
+
+const SCRIPT_LANGUAGE_LABEL: Record<Exclude<CodeFileLanguage, 'javascript'>, string> = {
+  python: 'Python',
+  shell: 'Shell',
+}
+
+/**
+ * `W_CODE_FILE_REF_SYNTAX` on each `$ref.key.path` and `$env.NAME` in a Python or shell file:
+ * only JavaScript files are rewritten, so these reach the run as text and break the code. The
+ * hint names the form those files take, the stored `<key.path>` tag or `{{NAME}}`, which the run
+ * resolves with the language's own quoting.
+ */
+function reportScriptRefSyntax(
+  ctx: CompileContext,
+  path: string,
+  text: string,
+  language: Exclude<CodeFileLanguage, 'javascript'>,
+  blockKey: BlockKey
+): void {
+  const label = SCRIPT_LANGUAGE_LABEL[language]
+  for (const match of text.matchAll(SCRIPT_REF)) {
+    const [written, root, members] = match
+    const names = members.slice(1).split('.')
+    const form = root === 'env' ? `{{${names[0]}}}` : `<${names.join('.')}>`
+    ctx.reporter.report(
+      'W_CODE_FILE_REF_SYNTAX',
+      `${written} is the JavaScript code file form; a ${label} file is saved as written, so the run reads it as text and the code breaks.`,
+      { file: path, start: match.index, end: match.index + written.length },
+      { hint: `${label} files are saved as written: write ${form}.`, blockKey }
+    )
+  }
 }
 
 /**
