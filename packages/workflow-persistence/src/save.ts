@@ -7,99 +7,250 @@ import {
   normalizeWorkflowEdgeTargetHandle,
   SUBFLOW_TYPES,
 } from '@sim/workflow-types/workflow'
-import type { InferInsertModel } from 'drizzle-orm'
-import { eq } from 'drizzle-orm'
+import type { InferInsertModel, SQL } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import type { PgInsertValue } from 'drizzle-orm/pg-core'
 import { pruneWorkflowSourceMeta } from './source-meta'
 import { generateLoopBlocks, generateParallelBlocks } from './subflow-helpers'
 import type { DbOrTx } from './types'
 
 const logger = createLogger('WorkflowPersistenceSave')
 
-type SubflowInsert = InferInsertModel<typeof workflowSubflows>
+type GraphTable = typeof workflowBlocks | typeof workflowEdges | typeof workflowSubflows
+type BlockRow = InferInsertModel<typeof workflowBlocks>
+type EdgeRow = InferInsertModel<typeof workflowEdges>
+type SubflowRow = InferInsertModel<typeof workflowSubflows>
 
+/** Columns the database stamps; the save never compares them. */
+const UNCOMPARED_COLUMNS = new Set(['createdAt', 'updatedAt'])
+
+/** A table's rows split into what the save inserts, rewrites and deletes. */
+interface RowPlan<Row> {
+  inserts: Row[]
+  updates: Row[]
+  deleteIds: string[]
+}
+
+function toBlockRow(workflowId: string, block: BlockState): BlockRow {
+  return {
+    id: block.id,
+    workflowId,
+    type: block.type,
+    name: block.name || '',
+    positionX: String(block.position?.x || 0),
+    positionY: String(block.position?.y || 0),
+    enabled: block.enabled ?? true,
+    horizontalHandles: block.horizontalHandles ?? true,
+    isWide: false,
+    advancedMode: block.advancedMode ?? false,
+    triggerMode: block.triggerMode ?? false,
+    height: String(block.height || 0),
+    subBlocks: block.subBlocks || {},
+    outputs: block.outputs || {},
+    errorEnabled: block.errorEnabled ?? false,
+    /**
+     * Persisted verbatim, including a disabled policy, so the configured
+     * numbers survive switching retry off and back on. Whether it runs is
+     * decided by `resolveBlockRetryConfig` at execution time.
+     */
+    retry: block.retry ?? null,
+    data: block.data || {},
+    locked: block.locked ?? false,
+  }
+}
+
+function toSubflowRows(workflowId: string, blocks: Record<string, BlockState>): SubflowRow[] {
+  return [
+    ...Object.values(generateLoopBlocks(blocks)).map((loop) => ({
+      id: loop.id,
+      workflowId,
+      type: SUBFLOW_TYPES.LOOP,
+      config: loop,
+    })),
+    ...Object.values(generateParallelBlocks(blocks)).map((parallel) => ({
+      id: parallel.id,
+      workflowId,
+      type: SUBFLOW_TYPES.PARALLEL,
+      config: parallel,
+    })),
+  ]
+}
+
+function sortedKeys(_key: string, value: unknown): unknown {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return value
+  const record = value as Record<string, unknown>
+  return Object.fromEntries(
+    Object.keys(record)
+      .sort()
+      .map((key) => [key, record[key]])
+  )
+}
+
+/**
+ * A column value as it reads back from Postgres: jsonb drops `undefined` members and ignores
+ * key order, so both sides serialize to JSON with sorted keys.
+ */
+function storedForm(value: unknown): string {
+  return JSON.stringify(value ?? null, sortedKeys)
+}
+
+function rowChanged(stored: Record<string, unknown>, desired: Record<string, unknown>): boolean {
+  for (const [column, value] of Object.entries(desired)) {
+    if (UNCOMPARED_COLUMNS.has(column)) continue
+    if (storedForm(stored[column]) !== storedForm(value)) return true
+  }
+  return false
+}
+
+/**
+ * Diffs the desired rows against the stored ones by id. A repeated desired id goes to the
+ * inserts, so Postgres refuses it with the same unique violation a full re-insert raised.
+ */
+function planRows<Row extends { id: string }>(
+  stored: readonly (Record<string, unknown> & { id: string })[],
+  desired: readonly Row[]
+): RowPlan<Row> {
+  const storedById = new Map(stored.map((row) => [row.id, row]))
+  const seen = new Set<string>()
+  const plan: RowPlan<Row> = { inserts: [], updates: [], deleteIds: [] }
+  for (const row of desired) {
+    const current = storedById.get(row.id)
+    if (!current || seen.has(row.id)) {
+      plan.inserts.push(row)
+    } else if (rowChanged(current, row)) {
+      plan.updates.push(row)
+    }
+    seen.add(row.id)
+  }
+  for (const row of stored) {
+    if (!seen.has(row.id)) plan.deleteIds.push(row.id)
+  }
+  return plan
+}
+
+const BLOCK_UPDATE_SET = {
+  type: sql`excluded.type`,
+  name: sql`excluded.name`,
+  positionX: sql`excluded.position_x`,
+  positionY: sql`excluded.position_y`,
+  enabled: sql`excluded.enabled`,
+  horizontalHandles: sql`excluded.horizontal_handles`,
+  isWide: sql`excluded.is_wide`,
+  advancedMode: sql`excluded.advanced_mode`,
+  triggerMode: sql`excluded.trigger_mode`,
+  errorEnabled: sql`excluded.error_enabled`,
+  retry: sql`excluded.retry`,
+  locked: sql`excluded.locked`,
+  height: sql`excluded.height`,
+  subBlocks: sql`excluded.sub_blocks`,
+  outputs: sql`excluded.outputs`,
+  data: sql`excluded.data`,
+  updatedAt: sql`now()`,
+} as const
+
+const EDGE_UPDATE_SET = {
+  sourceBlockId: sql`excluded.source_block_id`,
+  targetBlockId: sql`excluded.target_block_id`,
+  sourceHandle: sql`excluded.source_handle`,
+  targetHandle: sql`excluded.target_handle`,
+} as const
+
+const SUBFLOW_UPDATE_SET = {
+  type: sql`excluded.type`,
+  config: sql`excluded.config`,
+  updatedAt: sql`now()`,
+} as const
+
+/**
+ * Rewrites rows the transaction holds in `workflowId`, one statement per table. The update is
+ * confined to this workflow, so a row it skips aborts the save instead of vanishing.
+ */
+async function updateRows<T extends GraphTable>(
+  tx: DbOrTx,
+  table: T,
+  workflowId: string,
+  rows: PgInsertValue<T>[],
+  set: Partial<Record<keyof T['$inferInsert'], SQL>>
+): Promise<void> {
+  if (rows.length === 0) return
+  const written = await tx
+    .insert(table)
+    .values(rows)
+    .onConflictDoUpdate({ target: table.id, set, setWhere: eq(table.workflowId, workflowId) })
+    .returning({ id: table.id })
+  if (written.length !== rows.length) {
+    throw new Error(`Failed to update ${rows.length - written.length} stored workflow graph rows`)
+  }
+}
+
+async function deleteRows(
+  tx: DbOrTx,
+  table: GraphTable,
+  workflowId: string,
+  ids: string[]
+): Promise<void> {
+  if (ids.length === 0) return
+  await tx.delete(table).where(and(eq(table.workflowId, workflowId), inArray(table.id, ids)))
+}
+
+/**
+ * Makes the workflow's normalized block, edge and subflow rows match `state`, leaving the rows a
+ * delete-all and re-insert would leave. Only the difference is written: rows whose stored columns
+ * already match are untouched (keeping their timestamps), changed rows are rewritten, and missing
+ * or extra rows are inserted or deleted, so an edit costs its size rather than the graph's.
+ *
+ * The stored rows are read `FOR UPDATE`, the rows a delete-all would lock. Writes run in
+ * foreign-key order: an edge is retargeted before the block it left is deleted, so that block's
+ * `ON DELETE CASCADE` never removes an edge the new state keeps.
+ */
 export async function saveWorkflowToNormalizedTables(
   workflowId: string,
   state: WorkflowState,
   externalTx?: DbOrTx
 ): Promise<{ success: boolean; error?: string }> {
   const blockRecords = state.blocks as Record<string, BlockState>
-  const canonicalLoops = generateLoopBlocks(blockRecords)
-  const canonicalParallels = generateParallelBlocks(blockRecords)
+  const desiredBlocks = Object.values(blockRecords).map((block) => toBlockRow(workflowId, block))
+  const desiredEdges: EdgeRow[] = state.edges.map((edge) => ({
+    id: edge.id,
+    workflowId,
+    sourceBlockId: edge.source,
+    targetBlockId: edge.target,
+    sourceHandle: normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) ?? null,
+    targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle) ?? null,
+  }))
+  const desiredSubflows = toSubflowRows(workflowId, blockRecords)
 
   const execute = async (tx: DbOrTx) => {
-    await Promise.all([
-      tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
-      tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
-      tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
+    const [storedBlocks, storedEdges, storedSubflows] = await Promise.all([
+      tx
+        .select()
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.workflowId, workflowId))
+        .for('update'),
+      tx.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)).for('update'),
+      tx
+        .select()
+        .from(workflowSubflows)
+        .where(eq(workflowSubflows.workflowId, workflowId))
+        .for('update'),
     ])
+    const blocks = planRows(storedBlocks, desiredBlocks)
+    const edges = planRows(storedEdges, desiredEdges)
+    const subflows = planRows(storedSubflows, desiredSubflows)
 
-    if (Object.keys(state.blocks).length > 0) {
-      const blockInserts = Object.values(state.blocks).map((block) => ({
-        id: block.id,
-        workflowId,
-        type: block.type,
-        name: block.name || '',
-        positionX: String(block.position?.x || 0),
-        positionY: String(block.position?.y || 0),
-        enabled: block.enabled ?? true,
-        horizontalHandles: block.horizontalHandles ?? true,
-        advancedMode: block.advancedMode ?? false,
-        triggerMode: block.triggerMode ?? false,
-        height: String(block.height || 0),
-        subBlocks: block.subBlocks || {},
-        outputs: block.outputs || {},
-        errorEnabled: block.errorEnabled ?? false,
-        /**
-         * Persisted verbatim, including a disabled policy, so the configured
-         * numbers survive switching retry off and back on. Whether it runs is
-         * decided by `resolveBlockRetryConfig` at execution time.
-         */
-        retry: block.retry ?? null,
-        data: block.data || {},
-        parentId: block.data?.parentId || null,
-        extent: block.data?.extent || null,
-        locked: block.locked ?? false,
-      }))
+    await deleteRows(tx, workflowEdges, workflowId, edges.deleteIds)
+    await deleteRows(tx, workflowSubflows, workflowId, subflows.deleteIds)
 
-      await tx.insert(workflowBlocks).values(blockInserts)
-    }
+    if (blocks.inserts.length > 0) await tx.insert(workflowBlocks).values(blocks.inserts)
+    await updateRows(tx, workflowBlocks, workflowId, blocks.updates, BLOCK_UPDATE_SET)
 
-    if (state.edges.length > 0) {
-      const edgeInserts = state.edges.map((edge) => ({
-        id: edge.id,
-        workflowId,
-        sourceBlockId: edge.source,
-        targetBlockId: edge.target,
-        sourceHandle: normalizeWorkflowEdgeSourceHandle(edge.sourceHandle),
-        targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle),
-      }))
+    if (edges.inserts.length > 0) await tx.insert(workflowEdges).values(edges.inserts)
+    await updateRows(tx, workflowEdges, workflowId, edges.updates, EDGE_UPDATE_SET)
 
-      await tx.insert(workflowEdges).values(edgeInserts)
-    }
+    await deleteRows(tx, workflowBlocks, workflowId, blocks.deleteIds)
 
-    const subflowInserts: SubflowInsert[] = []
-
-    Object.values(canonicalLoops).forEach((loop) => {
-      subflowInserts.push({
-        id: loop.id,
-        workflowId,
-        type: SUBFLOW_TYPES.LOOP,
-        config: loop,
-      })
-    })
-
-    Object.values(canonicalParallels).forEach((parallel) => {
-      subflowInserts.push({
-        id: parallel.id,
-        workflowId,
-        type: SUBFLOW_TYPES.PARALLEL,
-        config: parallel,
-      })
-    })
-
-    if (subflowInserts.length > 0) {
-      await tx.insert(workflowSubflows).values(subflowInserts)
-    }
+    if (subflows.inserts.length > 0) await tx.insert(workflowSubflows).values(subflows.inserts)
+    await updateRows(tx, workflowSubflows, workflowId, subflows.updates, SUBFLOW_UPDATE_SET)
 
     const savedBlockIds = new Set(Object.keys(state.blocks))
     await pruneWorkflowSourceMeta(tx, workflowId, { blocks: (id) => savedBlockIds.has(id) })
