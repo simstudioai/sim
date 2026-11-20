@@ -343,5 +343,10 @@
     "method": "POST",
     "path": "/api/v2/workspaces/[workspaceId]/source/blobs/missing",
     "operation": "workspaces.source.blobs.missing"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source/plan",
+    "operation": "workspaces.source.plan"
   }
 ]
