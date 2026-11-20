@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -162,6 +163,42 @@ function offsetAt(text: string, { line, character }: Position): number {
   return Math.min(offset + character, text.length)
 }
 
+const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff
+const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff
+
+/**
+ * The one span that differs between `before` and `after`: everything between their common
+ * prefix and suffix, as `[start, end)` offsets into `before` and its replacement. Null when they
+ * are equal. Never splits a surrogate pair, so both ends map to character positions.
+ */
+function differingSpan(
+  before: string,
+  after: string
+): { start: number; end: number; text: string } | null {
+  if (before === after) return null
+  /* A stream appends: settle it with one native comparison instead of a scan. */
+  if (after.startsWith(before) && !isHighSurrogate(before.charCodeAt(before.length - 1))) {
+    return { start: before.length, end: before.length, text: after.slice(before.length) }
+  }
+  const shorter = Math.min(before.length, after.length)
+  let prefix = 0
+  while (prefix < shorter && before.charCodeAt(prefix) === after.charCodeAt(prefix)) prefix++
+  if (prefix > 0 && isHighSurrogate(before.charCodeAt(prefix - 1))) prefix--
+  let suffix = 0
+  while (
+    suffix < shorter - prefix &&
+    before.charCodeAt(before.length - 1 - suffix) === after.charCodeAt(after.length - 1 - suffix)
+  ) {
+    suffix++
+  }
+  if (suffix > 0 && isLowSurrogate(before.charCodeAt(before.length - suffix))) suffix--
+  return {
+    start: prefix,
+    end: before.length - suffix,
+    text: after.slice(prefix, after.length - suffix),
+  }
+}
+
 function endOf(text: string): Position {
   const lines = text.split('\n')
   return { line: lines.length - 1, character: lines.at(-1)?.length ?? 0 }
@@ -202,13 +239,38 @@ export function CodeEditor({
   valueRef.current = value
   const followingRef = useRef(true)
 
-  /* What the editor holds, and the external document last handed to it. */
+  /* What the editor holds, and the document handed to Pierre when it has no editor to edit. */
   const [editorText, setEditorText] = useState(value)
   const [published, setPublished] = useState({ contents: value, version: 0 })
-  if (value !== editorText) {
-    setEditorText(value)
-    setPublished({ contents: value, version: published.version + 1 })
-  }
+
+  /*
+   * An external value (a stream, a refresh, a reload) reaches the editor as the one span that
+   * changed, so a streamed append costs the size of the append rather than of the document,
+   * and the scroll position, selection and tokens of every unchanged line stay put. The edit
+   * reports back through `handleEditChange`, which keeps it out of the undo history. Before the
+   * editor attaches, the item itself carries the value.
+   */
+  useLayoutEffect(() => {
+    if (value === editorText) return
+    const editor = editorRef.current
+    const document = editor?.getEditState()?.document
+    if (!editor || !document) {
+      setPublished((current) => ({ contents: value, version: current.version + 1 }))
+      setEditorText(value)
+      return
+    }
+    const span = differingSpan(editorText, value)
+    if (!span) return
+    editor.applyEdits(
+      [
+        {
+          range: { start: document.positionAt(span.start), end: document.positionAt(span.end) },
+          newText: span.text,
+        },
+      ],
+      false
+    )
+  }, [value, editorText])
 
   const items = useMemo(
     (): CodeViewFileItem[] => [
@@ -346,7 +408,7 @@ export function CodeEditor({
   useEffect(() => {
     if (!followOutput || !followingRef.current) return
     viewRef.current?.scrollTo({ type: 'item', id: ITEM_ID, align: 'end' })
-  }, [followOutput, published])
+  }, [followOutput, value])
 
   /* CodeView rebuilds on any new option or callback identity, so each one is stable. */
   const options = useMemo(
