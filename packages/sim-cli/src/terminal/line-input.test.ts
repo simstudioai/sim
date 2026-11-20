@@ -20,7 +20,6 @@ beforeEach(() => {
 
 afterEach(() => {
   Object.defineProperty(process.stderr, 'isTTY', { value: undefined, configurable: true })
-  vi.restoreAllMocks()
 })
 
 describe('askLine', () => {

@@ -14,13 +14,17 @@ function interruptedWithBackedUpPipe(): Promise<{ bytes: number; signal: string 
   const script = `
     const { deferInterrupts } = await import(${JSON.stringify(interrupts)})
     const { writeStdout } = await import(${JSON.stringify(io)})
+    const { sleep } = await import('@sim/utils/helpers')
     await deferInterrupts(async () => {
       process.stderr.write('ready\\n')
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await sleep(300)
       writeStdout('x'.repeat(${OUTPUT_BYTES}))
     }, { waiting: 'waiting', abandoned: 'abandoned' })
   `
-  const child = spawn('bun', ['-e', script], { stdio: ['ignore', 'pipe', 'pipe'] })
+  const child = spawn('bun', ['-e', script], {
+    cwd: join(import.meta.dirname, '../..'),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
   let bytes = 0
   child.stdout.pause()
   child.stdout.on('data', (chunk: Buffer) => {
