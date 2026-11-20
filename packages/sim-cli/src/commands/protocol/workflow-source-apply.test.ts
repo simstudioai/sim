@@ -180,6 +180,25 @@ describe('sim workflows source apply', () => {
     expect(stderrLines().join('\n')).toContain('Blocks: 1 added')
   })
 
+  it('prints the whole next command in a table, never clipping the flag it names', async () => {
+    setTerminal(false)
+    contextMockState.output = 'table'
+    const deep = join(dir, 'a-directory-name-long-enough-that-the-next-command-runs-past-any-clamp')
+    mkdirSync(join(deep, '.sim'), { recursive: true })
+    writeFileSync(join(deep, 'workflow.ts'), ENTRY)
+    writeFileSync(join(deep, '.sim/lock.json'), JSON.stringify(LOCK))
+    writeFileSync(join(deep, '.sim/base.json'), JSON.stringify(BASE))
+    request.mockResolvedValue(outcome({ dryRun: true }))
+
+    await apply(WORKFLOW_ID, '--dir', deep, '--allow-delete')
+
+    const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
+    expect(lines.find((line) => line.includes('next:'))).toContain(
+      `sim workflows source apply --dir ${deep} --allow-delete --yes`
+    )
+    expect(process.exitCode).toBe(14)
+  })
+
   it('without --yes, exits with the refusal and names no next step when the plan has errors', async () => {
     setTerminal(false)
     request.mockResolvedValue(
