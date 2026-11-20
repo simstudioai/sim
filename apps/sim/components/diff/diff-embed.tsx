@@ -7,6 +7,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { DiffView } from '@/components/diff/diff-view'
+import { PatchView } from '@/components/diff/patch-view'
 import { type DiffSource, parseUnifiedDiff, sameSource, type UnifiedDiff } from '@/lib/diff/unified'
 import { workspaceResourcePath } from '@/lib/resources'
 import { useDocumentQuery } from '@/hooks/queries/kb/knowledge'
@@ -189,7 +190,7 @@ function DocumentComparison({ diff, oldHeading, newHeading, wrapLines }: Documen
           <SourceHeading heading={newHeading} side='After' />
         </header>
       </div>
-      <DiffView hunks={diff.hunks} prose wrapLines={wrapLines} />
+      <DiffView hunks={diff.hunks} wrapLines={wrapLines} />
     </div>
   )
 }
@@ -201,7 +202,7 @@ function CodeDiff({ diff, heading, wrapLines }: CodeDiffProps) {
         <SourceHeading heading={heading} />
         <ChangeCounts diff={diff} />
       </header>
-      <DiffView hunks={diff.hunks} wrapLines={wrapLines} />
+      <PatchView diff={diff} fallbackName={heading.title} wrapLines={wrapLines} />
     </div>
   )
 }
