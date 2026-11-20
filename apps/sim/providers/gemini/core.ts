@@ -1016,10 +1016,12 @@ export async function executeGeminiRequest(
     // 'none' sends the lowest declared level (levels are listed lowest-first; MINIMAL is closest to off).
     // The catalog keys Vertex entries as vertex/<bare id>, so resource-name IDs are reduced first.
     const catalogModelId = `${providerType === 'vertex' ? 'vertex/' : ''}${toBareGeminiModelId(model)}`
+    const declaredLevels = getThinkingLevelsForModel(catalogModelId)
+    const requestedLevel =
+      isGemini3 && request.thinkingLevel === 'none' ? declaredLevels?.[0] : request.thinkingLevel
+    // A saved or variable-resolved 'xhigh' bypasses the picker; models without it reject XHIGH.
     const thinkingLevel =
-      isGemini3 && request.thinkingLevel === 'none'
-        ? getThinkingLevelsForModel(catalogModelId)?.[0]
-        : request.thinkingLevel
+      requestedLevel === 'xhigh' && !declaredLevels?.includes('xhigh') ? 'high' : requestedLevel
     if (thinkingLevel && thinkingLevel !== 'none') {
       const thinkingConfig: ThinkingConfig = { includeThoughts: request.agentEvents === true }
       if (isGemini3) {

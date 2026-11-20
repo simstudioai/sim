@@ -620,6 +620,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1050000,
         releaseDate: '2026-11-17',
+        recommended: true,
       },
       {
         id: 'gpt-6.2-sol',
@@ -648,6 +649,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1050000,
         releaseDate: '2026-11-17',
+        recommended: true,
       },
       {
         id: 'gpt-6-astra',
@@ -674,7 +676,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 1050000,
         releaseDate: '2026-09-03',
         featured: true,
-        recommended: true,
       },
       {
         id: 'gpt-6.1-sol',
@@ -2666,6 +2667,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-11-18',
+        recommended: true,
       },
       {
         id: 'gemini-4-hydrogen',
@@ -2684,6 +2686,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-11-12',
+        recommended: true,
       },
       {
         id: 'gemini-4-carbon',
@@ -2702,6 +2705,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-11-10',
+        recommended: true,
       },
       {
         id: 'gemini-4-argon',
@@ -2720,7 +2724,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-09-30',
-        recommended: true,
       },
       {
         id: 'gemini-3.8-flash',
