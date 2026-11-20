@@ -38,7 +38,7 @@ Arrays yield their values as `currentItem`. Objects yield `[key, value]` pairs, 
 
 After completion, use the container's normalized name: `<processtasks.results>`. Generic `<parallel.*>` references select an enclosing parallel context, not a completed container outside it.
 
-Results retain input/instance order, even when branches finish out of order. Each entry contains that branch's block outputs. For a single API per branch, read a field with `<processtasks.results[10][0].data.id>`. Indexed paths hydrate oversized entries only when needed.
+Results retain input/instance order, even when branches finish out of order. Each entry contains that branch's block outputs. For a single API per branch, read a field with `<processtasks.results[10][0].data.id>`. Indexed paths hydrate oversized entries only when needed. See [keep loop results small](/workflows/large-data#keep-loop-results-small).
 
 ## State and failures
 

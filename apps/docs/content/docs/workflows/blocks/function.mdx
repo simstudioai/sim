@@ -427,9 +427,9 @@ const chunk = await sim.files.readTextChunk(file, { offset: 0, length: 1024 * 10
 const bytes = await sim.files.readBase64Chunk(file, { offset: 0, length: 1024 * 1024 });
 ```
 
-`sim.files.readText`, `readBase64`, and the `…Chunk` variants stream from execution storage under memory caps. `sim.values.read(ref)` and `sim.values.readArray(ref)` read large value and array references. Chunk `offset` and `length` are byte-based, so for exact Unicode parsing prefer smaller structured references. For large generated data in a remote Function block, write files under `/tmp/sim/outputs` and pass them to a compatible File or Table action. The separate Function tool exposes `outputPath`, `outputSandboxPath`, and `outputTable` for explicit persistence; those are not builder fields.
+`sim.files` reads a file of up to 64 MiB and returns at most 10 MiB per call, so read larger files in chunks. `sim.values.read(ref)` and `sim.values.readArray(ref)` read large value and array references. Chunk `offset` and `length` are byte-based, so for exact Unicode parsing prefer smaller structured references. For large generated data in a remote Function block, write files under `/tmp/sim/outputs` and pass them to a compatible File or Table action. The separate Function tool exposes `outputPath`, `outputSandboxPath`, and `outputTable` for explicit persistence; those are not builder fields.
 
-The lazy `sim.files` and `sim.values` helpers are available only in JavaScript functions without imports. JavaScript with imports, Python, and Shell do not support them yet.
+The lazy `sim.files` and `sim.values` helpers are available only in JavaScript functions without imports. JavaScript with imports, Python, and Shell do not support them yet. See [Large data](/workflows/large-data) for every size limit.
 
 ## Errors and timeout
 
