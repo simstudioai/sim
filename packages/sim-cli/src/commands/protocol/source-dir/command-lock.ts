@@ -114,6 +114,9 @@ export async function withSourceDirLock<T>(
   options: { readOnly?: boolean } = {}
 ): Promise<T> {
   if (embedStore.getStore()) return run()
+  // `mkdir` resolves `..` after following links and the cleanup climbs lexically: resolved, both
+  // walk one path.
+  dir = resolve(dir)
   const absent = async (path: string) =>
     lstat(path).then(
       () => false,
@@ -122,10 +125,15 @@ export async function withSourceDirLock<T>(
   /** The outermost folder the lock created on the way to `dir`, when `dir` was missing. */
   let createdFrom: string | undefined
   let root: string
-  let records: string
-  let createdRecords: boolean
+  let records: string | undefined
+  let createdRecords = false
   let lock: string
   let held = false
+  /** Removes the folders the lock alone created, each only while it is empty. */
+  const removeCreatedFolders = async () => {
+    if (createdRecords && records !== undefined) await rmdir(records).catch(() => {})
+    if (createdFrom !== undefined) await removeEmptyFolders(dir, createdFrom)
+  }
   try {
     createdFrom = await mkdir(dir, { recursive: true })
     root = await realpath(dir)
@@ -147,16 +155,27 @@ export async function withSourceDirLock<T>(
       }
     }
   } catch (error) {
-    if (!UNWRITABLE_CODES.has(errorCode(error) ?? '')) throw error
+    if (!UNWRITABLE_CODES.has(errorCode(error) ?? '')) {
+      await removeCreatedFolders()
+      throw error
+    }
     // Nothing can rewrite a directory no one may write, so a command that only reads it needs
     // no lock; one that writes it is refused with the reason instead of a stack trace.
-    if (options.readOnly) return run()
+    if (options.readOnly) {
+      try {
+        return await run()
+      } finally {
+        await removeCreatedFolders()
+      }
+    }
+    await removeCreatedFolders()
     throw new SourceDirError(
       `${dir} cannot be written (${errorCode(error)}), and this command writes it; nothing was read or written. Make it writable, or run the command on a writable copy.`,
       { code: 'SOURCE_DIR_UNWRITABLE' }
     )
   }
   if (!held) {
+    await removeCreatedFolders()
     throw new SourceDirError(
       `Another sim command is using ${dir}; nothing was read or written. Run this one again once it finished. If none is running, remove ${join(dir, SOURCE_DIR_LOCK)}.`,
       { code: 'SOURCE_DIR_BUSY', exitCode: SOURCE_BUSY_EXIT_CODE }
@@ -173,15 +192,14 @@ export async function withSourceDirLock<T>(
     disposeSignalRelease()
     await rm(await checkedPath(root, SOURCE_DIR_LOCK, new Set()), { recursive: true, force: true })
     // Folders the lock alone created go with it; one the command filled stays.
-    if (createdRecords) await rmdir(records).catch(() => {})
-    if (createdFrom !== undefined) await removeEmptyFolders(dir, createdFrom)
+    await removeCreatedFolders()
   }
 }
 
 /** Removes `dir` and each parent up to `outermost`, stopping at the first that is not empty. */
 async function removeEmptyFolders(dir: string, outermost: string): Promise<void> {
   const last = resolve(outermost)
-  for (let folder = resolve(dir); ; folder = dirname(folder)) {
+  for (let folder = dir; ; folder = dirname(folder)) {
     try {
       await rmdir(folder)
     } catch {

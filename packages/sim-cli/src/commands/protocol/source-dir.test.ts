@@ -146,6 +146,27 @@ describe('withSourceDirLock', () => {
     expect(readFileSync(join(dir, 'out', 'kept.txt'), 'utf8')).toBe('kept')
   })
 
+  it('keeps an empty folder that was there before the lock created the ones under it', async () => {
+    mkdirSync(join(dir, 'out'))
+
+    expect(await withSourceDirLock(join(dir, 'out', 'a', 'b'), async () => 'ran')).toBe('ran')
+
+    expect(existsSync(join(dir, 'out', 'a'))).toBe(false)
+    expect(existsSync(join(dir, 'out'))).toBe(true)
+  })
+
+  it('removes the folders it created and keeps an empty one it did not, through a path holding ..', async () => {
+    mkdirSync(join(dir, 'ws', 'a', 'keep'), { recursive: true })
+
+    expect(
+      await withSourceDirLock(`${join(dir, 'ws', 'a', 'new')}/../keep/leaf`, async () => 'ran')
+    ).toBe('ran')
+
+    expect(existsSync(join(dir, 'ws', 'a', 'keep'))).toBe(true)
+    expect(existsSync(join(dir, 'ws', 'a', 'keep', 'leaf'))).toBe(false)
+    expect(existsSync(join(dir, 'ws', 'a', 'new'))).toBe(false)
+  })
+
   it('releases the lock when an interrupt ends the command holding it', () => {
     const script = `
       import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir/index.ts'))}
