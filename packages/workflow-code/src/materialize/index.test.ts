@@ -1065,6 +1065,43 @@ describe('materialize: preserved UI state comes from prev', () => {
     expect(subBlockValue(result.state, 's1', 'text')).toBe('saw <load.result>')
   })
 
+  it.each([
+    ['a chain', { fetch: 'report', report: 'summary' }, 'saw <report.result> and <summary.result>'],
+    ['a swap', { fetch: 'report', report: 'fetch' }, 'saw <report.result> and <fetch.result>'],
+  ])(
+    'rewrites a restored inactive value through %s of renames at once',
+    (_label, moves, expected) => {
+      const state = workflowState([
+        blockState('a1', 'function', 'Fetch', { code: 'return 1' }),
+        blockState('a2', 'function', 'Report', { code: 'return 2' }),
+        blockState('s1', 'slack', 'Post', {
+          operation: 'read',
+          channel: 'C1',
+          text: 'saw <fetch.result> and <report.result>',
+        }),
+      ])
+      const lock = lockFor(state)
+      const renamed: Record<string, string> = moves
+      const target = edit(canonical(state, lock).workflow, (draft) => {
+        const blocks = { ...draft.blocks }
+        draft.blocks = omit(draft.blocks, ['fetch', 'report'])
+        for (const [from, to] of Object.entries(renamed)) {
+          draft.blocks[to] = { ...blocks[from], key: to, name: to[0].toUpperCase() + to.slice(1) }
+        }
+        draft.blocks.post.params = omit(draft.blocks.post.params, ['text'])
+      })
+      const result = run(target, lock, {
+        prev: state,
+        compiledIdents: Object.fromEntries(
+          Object.entries(renamed).map(([from, to]) => [to, lock.blocks[from].ident])
+        ),
+      })
+      expect(result.identity.blocks[renamed.fetch].id).toBe('a1')
+      expect(result.identity.blocks[renamed.report].id).toBe('a2')
+      expect(subBlockValue(result.state, 's1', 'text')).toBe(expected)
+    }
+  )
+
   it('clears a standalone advanced field that source emptied instead of restoring it', () => {
     const state = workflowState([
       blockState('s1', 'slack', 'Post', { operation: 'send', text: 'hi', threadTs: '123.456' }),

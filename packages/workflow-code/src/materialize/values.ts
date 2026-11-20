@@ -198,9 +198,11 @@ export function renamedReferenceRewriter(
 }
 
 /**
- * Rewrites `<oldkey.` reference tokens to `<newkey.` after a rename. Case-insensitive,
- * because the block resolver lowercases names (`BlockResolver`). A
- * rename whose old key is still a key of `workflow` is skipped: the token still names that block.
+ * Rewrites `<oldkey.` reference tokens in source text to `<newkey.` after a rename.
+ * Case-insensitive, because the block resolver lowercases names (`BlockResolver`). A rename whose
+ * old key is still a key of `workflow` is skipped: in source the token names the block declared
+ * under that key, as compile resolves it. Text that holds stored keys only (a value restored from
+ * the stored block) goes through {@link rewriteStoredBlockReferences} instead.
  */
 export function rewriteRenamedReferences(
   workflow: CanonicalWorkflow,
@@ -214,4 +216,16 @@ export function rewriteRenamedReferences(
     setOwn(blocks, key, rewriteBlock(block, rewrite))
   }
   return { ...workflow, blocks }
+}
+
+/**
+ * `block` (a stored block, whose text names blocks by their stored keys) with every `<oldkey.`
+ * token rewritten to its new key through all `renames` at once, so a chain or swap of renames
+ * lands each token on the block it named.
+ */
+export function rewriteStoredBlockReferences(
+  block: CanonicalBlock,
+  renames: ReadonlyArray<{ from: BlockKey; to: BlockKey }>
+): CanonicalBlock {
+  return renames.length === 0 ? block : rewriteBlock(block, renamedReferenceRewriter(renames))
 }
