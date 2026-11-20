@@ -221,6 +221,17 @@ describe('selectedOutputs on a run that calls a child workflow', () => {
     })
   })
 
+  it('matches a child block name regardless of case and spacing, as the parent does', async () => {
+    const childSelector = `${childWorkflowId}.Child Done.data.answer`
+    const result = await run([childSelector, 'Done.data.answer'])
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: 'completed',
+      blockOutputs: { [childSelector]: 'from child', 'Done.data.answer': 'from child' },
+    })
+  })
+
   it('returns a child block output selected by child block ID', async () => {
     const childSelector = `${childWorkflowId}.${blockIds.childDone}.data.answer`
     const result = await run([childSelector])
