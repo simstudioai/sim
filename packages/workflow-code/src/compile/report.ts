@@ -109,10 +109,14 @@ export class Reporter {
    */
   readonly withheld: LocatedDiagnostic<CompileDiagnosticCode>[] = []
   /**
-   * Every other warning a cap left out, by code and block only (no text, span or frame is built
-   * for one), so a caller can still count every finding.
+   * Every other warning a cap left out, counted by code and block (no text, span or frame is built
+   * for one), so a caller can still count every finding while what is kept stays one entry per
+   * code and block however many warnings come.
    */
-  readonly omitted: OmittedFinding[] = []
+  get omitted(): OmittedFinding[] {
+    return [...this.omittedCounts.values()]
+  }
+  private readonly omittedCounts = new Map<string, OmittedFinding>()
   /** The code, block and file of each refusable warning listed or withheld. */
   private readonly refusableHeld = new Set<string>()
   private readonly indexes = new Map<string, LineIndex>()
@@ -216,9 +220,17 @@ export class Reporter {
   ): void {
     const held = refusableKey(code, at, extras)
     if (held === undefined || this.refusableHeld.has(held)) {
-      this.omitted.push(
-        extras.blockKey === undefined ? { code } : { code, blockKey: extras.blockKey }
-      )
+      const key = `${code}\u0000${extras.blockKey ?? ''}`
+      const counted = this.omittedCounts.get(key)
+      if (counted) counted.count++
+      else {
+        this.omittedCounts.set(
+          key,
+          extras.blockKey === undefined
+            ? { code, count: 1 }
+            : { code, blockKey: extras.blockKey, count: 1 }
+        )
+      }
       return
     }
     this.refusableHeld.add(held)
@@ -296,10 +308,12 @@ export class Reporter {
   }
 }
 
-/** A warning a compile's caps left out of every list, as {@link Reporter.omitted} keeps it. */
+/** The warnings of one code and block a compile's caps left out of every list ({@link Reporter.omitted}). */
 export interface OmittedFinding {
   code: CompileDiagnosticCode
   blockKey?: BlockKey
+  /** How many warnings of this code and block were left out. */
+  count: number
 }
 
 /** The code, block and file a refusable warning is withheld by; none for any other finding. */

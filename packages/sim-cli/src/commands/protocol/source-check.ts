@@ -595,13 +595,15 @@ export async function checkWorkflowDir(
   // refusal raised is listed already.
   const unlisted: UnlistedCounts = { errors: 0, warnings: 0 }
   const edit = { changed, codeEdited }
-  for (const { code, blockKey } of [
+  for (const { code, blockKey, count } of [
     ...compiled.omitted,
-    ...compiled.withheld.filter((finding) => !refusable(finding) || !refusesEdited(finding, edit)),
+    ...compiled.withheld
+      .filter((finding) => !refusable(finding) || !refusesEdited(finding, edit))
+      .map(({ code, blockKey }) => ({ code, blockKey, count: 1 })),
   ]) {
     if (!reported(code, blockKey)) continue
-    if (fails(code, blockKey)) unlisted.errors++
-    else unlisted.warnings++
+    if (fails(code, blockKey)) unlisted.errors += count
+    else unlisted.warnings += count
   }
   return { findings, entry: entryText, unlisted }
 }

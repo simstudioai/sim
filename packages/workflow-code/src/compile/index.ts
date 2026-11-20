@@ -115,7 +115,10 @@ export interface CompileResult {
    * what `refuseEditedFindings` reads beside `diagnostics`, so a cap never hides a refusal.
    */
   withheld: LocatedDiagnostic<CompileDiagnosticCode>[]
-  /** Every other warning the caps left out, by code and block, so a caller counts every finding. */
+  /**
+   * Every other warning the caps left out, counted per code and block, so a caller counts every
+   * finding.
+   */
   omitted: OmittedFinding[]
   /** Where each anchor sits, to map later server findings back to lines. */
   spans: Partial<Record<AnchorKey, SourceSpan>>
