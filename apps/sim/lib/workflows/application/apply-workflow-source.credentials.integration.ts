@@ -236,6 +236,29 @@ check(
   }
 )
 
+check('a dry run of source naming an unkeyed credential allocates no key for it', async () => {
+  const credentialId = await seedHiddenCredential()
+  const { workflowId } = await seedWorkflow(credentialId)
+  const source = await getSource(reader, workflowId)
+  expect(await credentialKeyRows(credentialId)).toEqual([])
+
+  const answer = await withPermissionGroupScope(() =>
+    applyWorkflowSource.execute({
+      principal: owner,
+      input: {
+        workflowId,
+        files: edit(source.files, 'js`return 1`', 'js`return 2`'),
+        lock: source.lock,
+        base: source.base,
+        dryRun: true,
+      },
+    })
+  )
+
+  expect(answer.dryRun).toBe(true)
+  expect(await credentialKeyRows(credentialId)).toEqual([])
+})
+
 check('a reader never sees the key an admin already allocated from the name', async () => {
   const credentialId = await seedHiddenCredential()
   const { workflowId } = await seedWorkflow(credentialId)

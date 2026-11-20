@@ -1747,19 +1747,49 @@ export default workflow('', {}, () => {
     )
   }
 
-  check('a plan made by one principal is refused when another commits it', async () => {
+  check(
+    'a plan made in one session is refused when another session of the same user commits it',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const files = edit(source.files, SCORE_CODE, 'return 44')
+      const plan = await planned(source, files)
+      const before = await snapshot(seeded.workflowId)
+
+      await expect(
+        commit(plan, createSessionPrincipal({ userId: ownerId, sessionId: generateId() }))
+      ).rejects.toThrow()
+      expect(await snapshot(seeded.workflowId)).toEqual(before)
+
+      expect((await commit(plan)).applied).toBe(true)
+    }
+  )
+
+  check('a dry-run create under a name its folder already holds is refused at plan', async () => {
     const seeded = await seedWorkflow()
-    const source = await getSource(seeded.workflowId)
-    const files = edit(source.files, SCORE_CODE, 'return 44')
-    const plan = await planned(source, files)
-    const before = await snapshot(seeded.workflowId)
+    const taken = await storedName(seeded.workflowId)
 
-    await expect(
-      commit(plan, createPersonalApiKeyPrincipal({ userId: ownerId, keyId: generateId() }))
-    ).rejects.toThrow('A planned source commits only as the principal it was planned by')
-    expect(await snapshot(seeded.workflowId)).toEqual(before)
+    const created = withPermissionGroupScope(() =>
+      createWorkflowFromSource.execute({
+        principal,
+        input: {
+          workspaceId,
+          name: taken,
+          dryRun: true,
+          files: {
+            'workflow.ts': `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
 
-    expect((await commit(plan)).applied).toBe(true)
+export default workflow('Fresh', {}, () => {
+  trigger.start('Start', {})
+})
+`,
+          },
+        },
+      })
+    )
+
+    await expect(created).rejects.toMatchObject({ name: 'WorkflowSourceNameTakenError' })
   })
 
   check(
