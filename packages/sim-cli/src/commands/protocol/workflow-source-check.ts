@@ -142,8 +142,9 @@ into another container, or when it compiles differently than in the source the l
 apply printed (.sim/stored-edges.json records a digest of each block). That last comparison
 needs the catalog the source was printed with in the cache: without it, a bound block that did
 not move counts as unchanged, so the server may refuse what the check passes. A $ref in a
-function file to a block the lock binds that the source no longer declares stays a warning: the
-server may infer that block was renamed and rewrite the reference, and refuses it otherwise.
+function file to a block the lock binds that the source no longer declares stays a warning, unless
+a warning cap left findings out: the server may infer that block was renamed and rewrite the
+reference, and refuses it otherwise.
 ${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not bind, and with
 --strict on every block.`
 
@@ -564,8 +565,12 @@ export async function checkWorkflowDir(
    * declares: the server may infer that block's rename (name and const both changed) and then
    * rewrite the reference, which only it can tell, so the check keeps the warning.
    */
+  // Past a warning cap the compile keeps one finding per code, block and file, which could stand
+  // for a reference no rename settles, so then nothing is exempt.
+  const listedEvery = !compiled.diagnostics.some((d) => d.code === 'W_TOO_MANY_WARNINGS')
   const mayBeRenamed = (finding: (typeof compiled.diagnostics)[number]) => {
-    if (finding.code !== 'W_UNRESOLVED_REF' || finding.span.file === SOURCE_ENTRY_FILE) return false
+    if (!listedEvery || finding.code !== 'W_UNRESOLVED_REF') return false
+    if (finding.span.file === SOURCE_ENTRY_FILE) return false
     const text = files[finding.span.file]?.slice(finding.span.start, finding.span.end) ?? ''
     const head = /^(?:\$ref\.|<)([A-Za-z0-9_]+)/.exec(text)?.[1]
     return head !== undefined && removedKeys.has(head)

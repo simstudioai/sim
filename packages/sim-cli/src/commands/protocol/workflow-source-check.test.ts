@@ -821,6 +821,38 @@ export default workflow('W', {}, () => {
     )
   })
 
+  it('still fails on a missing block past the warning cap when the listed ones may be renames', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const bang = fn('Bang', { code: 'return 1' })
+  const report = fn('Report', { code: codeFile('./functions/report.js') })
+  start.to(bang)
+  bang.to(report)
+})
+`
+    )
+    writeLock(['start', 'boom', 'report'])
+    writeWritten({ 'functions/report.js': 'return 1\n' })
+    const renamed = Array.from({ length: 20 }, (_, i) => `$ref.boom.r${i}`)
+    writeFileSync(
+      join(dir, 'functions/report.js'),
+      `return [${[...renamed, '$ref.nosuchblock.value'].join(', ')}]\n`
+    )
+
+    await check()
+
+    expect(result().diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'E_APPLY_UNRESOLVED_REF', file: 'functions/report.js' })
+    )
+  })
+
   describe('a reference to an output the block lacks', () => {
     /** Start → Call (an HTTP request) → Done, whose JSON body reads `call.<output>`. */
     const reads = (output: string) =>
