@@ -38,7 +38,9 @@ stored workflow (see "Preserved state"). There is no verbose mode.
 Two escape hatches carry state that runs but has no SDK syntax:
 
 - `meta.extra`: stored params of a schema-agnostic custom block, the agent's legacy prompt fields,
-  a container's stored params.
+  a container's stored params other than those `block.data` supersedes (the config inputs the
+  editing engine copies into `data`, `SUPERSEDED_CONTAINER_PARAMS`), which never run and are
+  preserved state.
 - `meta.subflowData`: a loop or parallel's `block.data` subflow keys canonicalize could not read as
   config, which the serializer passes on. Kept apart from `extra` because canvas containers often
   store params under the same names.
@@ -372,7 +374,8 @@ then writes the stored graph so that a no-op is byte-identical (O1):
   filled into fields that never run are dropped);
 - the fields of the loop or parallel types not in effect, and prev's whole config when it runs the
   same;
-- unknown `block.data` source does not carry.
+- unknown `block.data` source does not carry;
+- a container's subBlocks `block.data` supersedes (`iterations`, `loopType`, …).
 
 Canonicalize's output already holds all of this, so restoring onto it changes nothing.
 

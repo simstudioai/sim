@@ -32,6 +32,18 @@ export const SUBFLOW_DATA_KEYS: ReadonlySet<string> = new Set([
   'batchSize',
 ])
 
+/**
+ * Container subBlocks `block.data` supersedes: the config inputs the editing engine copies into
+ * `data` (`iterations` → `count`, `condition` → `whileCondition`) and may also leave stored as
+ * subBlocks. The serializer reads a container's config from `data` only, so these never run:
+ * preserved state, which print leaves out and apply restores from the stored block.
+ */
+export const SUPERSEDED_CONTAINER_PARAMS: ReadonlySet<string> = new Set([
+  ...SUBFLOW_DATA_KEYS,
+  'iterations',
+  'condition',
+])
+
 /** A subflow config with the `block.data` keys whose stored value it could not represent. */
 interface SubflowResult<S> {
   spec: S

@@ -9,13 +9,14 @@
  *   editor defaults compile filled into fields that never run;
  * - the config fields of the loop or parallel types not in effect, and prev's spelling of a config
  *   that runs the same (`count: 0` and `count: 5`);
- * - unknown `block.data` extra data source does not carry.
+ * - unknown `block.data` extra data source does not carry;
+ * - a container's subBlocks `block.data` supersedes (`SUPERSEDED_CONTAINER_PARAMS`).
  *
  * Canonicalize's output already holds all of this, so restoring onto it changes nothing and the
  * no-op round trip stays byte-identical.
  */
 
-import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { SUBFLOW_DATA_KEYS, SUPERSEDED_CONTAINER_PARAMS } from '../canonicalize/subflows'
 import { canonicalActivityInputs, isInactive, withStoredValue } from '../catalog/activity'
 import { type CanonicalGroup, isCanonicalPair } from '../catalog/canonical-index'
 import { serializedCanonicalIndex } from '../catalog/surface'
@@ -245,7 +246,10 @@ export function restorePreserved(
     restorePairs(next, prev, declared, catalog)
     restoreInactive(next, prev, declared, catalog)
   }
-  if (target.subflow) next.subflow = restoreSubflow(target.subflow, prev.subflow)
+  if (target.subflow) {
+    next.subflow = restoreSubflow(target.subflow, prev.subflow)
+    for (const id of SUPERSEDED_CONTAINER_PARAMS) setParam(next.params, id, getOwn(prev.params, id))
+  }
   setOrDelete(next, 'extra', restoreExtra(target, prev))
   return next
 }
