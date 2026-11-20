@@ -823,6 +823,38 @@ describe('Function execution request', () => {
   })
 
   describe('Basic Function Execution', () => {
+    it('hoists every static import, with the comment above it, and keeps the body on its lines', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: [
+            'const label = "sep"',
+            '// joins paths',
+            'import path from "node:path"',
+            'return label + path.sep',
+          ].join('\n'),
+          language: 'javascript',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      const code: string = mockExecuteInSandbox.mock.calls.at(-1)?.[0].code
+      expect(code).toContain('// joins paths\nimport path from "node:path"\n')
+      expect(code).toContain('const label = "sep"\n      \n      \n      return label + path.sep')
+    })
+
+    it.each([
+      ['a require call', 'const path = require("node:path")\nreturn path.sep', 1],
+      ['code that does not parse', 'import path from "node:path"\nreturn (', 0],
+    ])('sends %s to the remote sandbox only when it loads modules', async (_, code, calls) => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      await POST(createMockRequest('POST', { code, language: 'javascript' }))
+
+      expect(mockExecuteInSandbox).toHaveBeenCalledTimes(calls)
+    })
+
     it('compacts large array result fields to manifests when execution context is durable', async () => {
       // Compaction cost scales with element count, so a few wide rows cross the threshold cheaply.
       const rowCount = 64
