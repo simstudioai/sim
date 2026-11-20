@@ -496,6 +496,7 @@ export function attachWorkflowSourceApply(source: Command): void {
     .action(async (named: string | undefined, options: SourceWriteOptions) =>
       withWorkspaceFolderLock(options.dir, async () => {
         assertDeployable(options)
+        await assertSourceDirKind(options.dir, 'workflow')
         const { client, profile } = connectApply()
         const lock = await readLock(options.dir)
         const base = await readBase(options.dir, named)

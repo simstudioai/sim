@@ -288,6 +288,20 @@ describe('sim workflows source apply', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('refuses a workspace source directory by its kind before reading a lock', async () => {
+    setTerminal(false)
+    rmSync(join(dir, '.sim/lock.json'))
+    writeFileSync(
+      join(dir, '.sim/base.json'),
+      JSON.stringify({ version: 1, workspaceId: WORKSPACE_ID, resources: {} })
+    )
+
+    await expect(apply('--dir', dir, '--yes')).rejects.toMatchObject({
+      code: 'SOURCE_DIR_KIND_MISMATCH',
+    })
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('points tsconfig.json at a block the applied source added, from the cached catalog', async () => {
     setTerminal(false)
     vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
