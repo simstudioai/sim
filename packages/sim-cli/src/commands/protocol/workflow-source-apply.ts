@@ -16,6 +16,7 @@ import type {
   ApplyWorkflowSourceBody,
   ApplyWorkflowSourceResponse,
   CreateWorkflowFromSourceBody,
+  DeployWorkflowResponse,
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
@@ -84,6 +85,7 @@ interface SourceWriteOptions {
   yes?: boolean
   allowDelete?: boolean
   verbose?: boolean
+  deploy?: boolean
 }
 
 /**
@@ -242,7 +244,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   options: SourceWriteOptions
   creating: boolean
   question: string
-  client: OperationClient<Operation>
+  client: OperationClient<Operation | 'deployWorkflow'>
   operation: Operation
   params: Record<string, string>
   body: ApplyWorkflowSourceBody | CreateWorkflowFromSourceBody
@@ -273,12 +275,18 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   }
   const findings = findingsOutput(args.output, options.verbose)
   const notes = new Set<string>()
-  const report = (data: SourceApplyData) => {
-    const result = summarize(data, creating, findings.machine)
+  const report = (data: SourceApplyData, deployment: DeployOutcome = {}) => {
+    const result = { ...summarize(data, creating, findings.machine), ...deployment }
     printProtocolResult(
       args.output,
       { ...result, ...findings.result(data.diagnostics) },
-      result.created ? { created: createdText(result.created) } : {}
+      {
+        ...(result.created ? { created: createdText(result.created) } : {}),
+        ...(deployment.next ? { next: deployment.next.command } : {}),
+        ...(deployment.deployed
+          ? { deployed: `version ${deployment.deployed.version ?? '?'}` }
+          : {}),
+      }
     )
   }
   if (!options.dryRun && !options.yes) {
@@ -296,10 +304,11 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   }
 
   const verb = creating ? 'create' : 'apply'
+  let refused = false
   const sendAndSave = async (): Promise<SourceApplyData> => {
     const data = await send(options.dryRun === true)
     printFindings(data, findings, notes)
-    const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+    refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
     if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
     if (!data.dryRun && !refused && (data.applied || !creating)) await args.save(data)
     return data
@@ -311,7 +320,92 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
         abandoned: `Stopped before the ${verb} answered. ${args.ifAnswerLost}`,
       })
 
-  report(data)
+  const stored = !data.dryRun && !refused && (data.applied || !creating)
+  report(
+    data,
+    stored
+      ? await deployStep(args.client, data, { ...options, verb, machine: findings.machine })
+      : {}
+  )
+}
+
+/** What a write adds to its result about deploying: the deploy it ran, or the one to run. */
+interface DeployOutcome {
+  deployed?: { version?: number; isDeployed: boolean; warnings?: string[] }
+  needsRedeployment?: boolean
+  next?: { command: string; reason: string }
+}
+
+/**
+ * After a stored write: with `--deploy`, deploys the workflow through the same operation as
+ * `sim workflows deploy` (so the same permission check, on the server); without it, names that
+ * command as the next step when the workflow is deployed and its draft now differs. A failed
+ * deploy says the write itself was saved.
+ */
+async function deployStep(
+  client: OperationClient<'deployWorkflow'>,
+  data: SourceApplyData,
+  options: { deploy?: boolean; dir: string; verb: string; machine: boolean }
+): Promise<DeployOutcome> {
+  const deployCommand = `sim workflows deploy ${data.workflowId}`
+  if (!options.deploy) {
+    if (!data.needsRedeployment) return {}
+    return {
+      next: {
+        command: deployCommand,
+        reason: `The workflow is deployed and its draft now differs from the live version: deploy to make the change live (or ${options.verb} with --deploy).`,
+      },
+    }
+  }
+  const deployed = await client
+    .request<DeployWorkflowResponse>('deployWorkflow', {
+      params: { workflowId: data.workflowId },
+      body: {},
+    })
+    .then(
+      (response) => response.data,
+      (error: unknown) => {
+        throw deployFailure(error, options, deployCommand)
+      }
+    )
+  if (!options.machine) {
+    for (const warning of deployed.warnings) printError(`deploy warning: ${warning}`)
+  }
+  return {
+    deployed: {
+      ...(deployed.version !== undefined ? { version: deployed.version } : {}),
+      isDeployed: deployed.isDeployed,
+      ...(options.machine && deployed.warnings.length > 0 ? { warnings: deployed.warnings } : {}),
+    },
+    needsRedeployment: false,
+  }
+}
+
+/** A failed deploy after a saved write, saying the write itself stands and how to deploy it. */
+function deployFailure(
+  error: unknown,
+  options: { dir: string; verb: string },
+  deployCommand: string
+): unknown {
+  if (!(error instanceof SimApiError)) return error
+  return new SimApiError(
+    `The ${options.verb} was saved into ${options.dir}, but the deploy failed: ${error.message} Fix that, then run \`${deployCommand}\`.`,
+    error.status,
+    error.code,
+    error.details,
+    error.exitCode,
+    error.requestId
+  )
+}
+
+/** Refuses `--deploy` beside `--dry-run`: a dry run stores nothing to deploy. */
+function assertDeployable(options: SourceWriteOptions): void {
+  if (options.deploy && options.dryRun) {
+    throw new SimApiError(
+      '--deploy deploys what the write saves, and --dry-run saves nothing: drop one of them.',
+      0
+    )
+  }
 }
 
 const DIR_DESCRIPTION =
@@ -328,7 +422,10 @@ const DIR_DESCRIPTION =
  * needs `--yes`. `--dry-run` writes nothing, so it never asks.
  */
 export function attachWorkflowSourceApply(source: Command): void {
-  const [command, connectApply] = apiCommand(source, 'apply', ['applyWorkflowSource'])
+  const [command, connectApply] = apiCommand(source, 'apply', [
+    'applyWorkflowSource',
+    'deployWorkflow',
+  ])
   absoluteDirOption(command)
   verboseFlag(command)
   command
@@ -339,6 +436,10 @@ export function attachWorkflowSourceApply(source: Command): void {
     .requiredOption('--dir <dir>', DIR_DESCRIPTION)
     .option('--dry-run', 'Check the source and show the outcome without saving or writing files')
     .option('-y, --yes', 'Apply without asking for confirmation')
+    .option(
+      '--deploy',
+      'After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does)'
+    )
     .option(
       '--allow-delete',
       'Delete blocks the source no longer declares; without it, an apply that deletes a block is refused'
@@ -351,6 +452,7 @@ export function attachWorkflowSourceApply(source: Command): void {
     )
     .action(async (named: string | undefined, options: SourceWriteOptions) =>
       withWorkspaceFolderLock(options.dir, async () => {
+        assertDeployable(options)
         requireConsent(options, 'writes the workflow draft', 'apply')
         const { client, profile } = connectApply()
         const lock = await readLock(options.dir)
@@ -391,6 +493,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
     'createWorkflowFromSource',
     'getSourceCatalog',
     'getSourceResources',
+    'deployWorkflow',
   ])
   absoluteDirOption(command)
   verboseFlag(command)
@@ -403,6 +506,10 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .option('--name <name>', "The workflow name (default: the source's)")
     .option('--folder <path>', 'The folder to create it in (default: the root)')
     .option('-y, --yes', 'Create without asking for confirmation')
+    .option(
+      '--deploy',
+      'After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does)'
+    )
     .allowExcessArguments(false)
     .description('Create a workflow from a workflow source directory')
     .addHelpText(
@@ -427,6 +534,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
           printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
           return
         }
+        assertDeployable(options)
         requireConsent(options, 'creates a workflow', 'create')
         const { client, profile } = connectCreate()
         const workspaceId = client.requireWorkspace()

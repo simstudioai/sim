@@ -1359,12 +1359,13 @@ sim workflows source create [options]
 | `--name <name>` | No | The workflow name (default: the source's). |
 | `--folder <path>` | No | The folder to create it in (default: the root). |
 | `-y, --yes` | No | Create without asking for confirmation. |
+| `--deploy` | No | After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does). |
 
 </CommandTable>
 
 Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflow name is taken (SOURCE_NAME_TAKEN: pass --name), a starter written for another workspace (SOURCE_OTHER_WORKSPACE: pass --workspace), or the command failed; 6 the folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a minute and run it again. Exit 10 (busy, retry): --dir is a workflow folder of a workspace directory another sim command is using (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished. Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first; a second Ctrl-C stops at once and prints that it may have been written and how to check.
 
-API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources).
+API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [deployWorkflow](/api-reference/workflows/deployWorkflow).
 
 ### Apply a workflow source directory to a workflow draft
 
@@ -1392,13 +1393,14 @@ sim workflows source apply [workflowId] [options]
 | `--dir <dir>` | Yes | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. |
 | `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
+| `--deploy` | No | After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does). |
 | `--allow-delete` | No | Delete blocks the source no longer declares; without it, an apply that deletes a block is refused. |
 
 </CommandTable>
 
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was written: wait a minute and run it again. Exit 10 (busy, retry): --dir is a workflow folder of a workspace directory another sim command is using (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished. Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first; a second Ctrl-C stops at once and prints that it may have been written and how to check.
 
-API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource).
+API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [deployWorkflow](/api-reference/workflows/deployWorkflow).
 
 ### Show the block catalog workflow source is checked against
 

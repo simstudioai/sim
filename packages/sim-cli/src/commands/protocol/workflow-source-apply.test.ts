@@ -684,6 +684,83 @@ describe('sim workflows source apply', () => {
     })
   })
 
+  describe('--deploy', () => {
+    const DEPLOY_PATH = `/api/v2/workflows/${WORKFLOW_ID}/deploy`
+    const deployed = {
+      data: {
+        id: WORKFLOW_ID,
+        isDeployed: true,
+        deployedAt: null,
+        warnings: [],
+        activeDeployment: null,
+        latestDeploymentAttempt: null,
+        version: 4,
+        lint: null,
+      },
+    }
+
+    it('deploys through the deploy operation once the apply is saved', async () => {
+      setTerminal(false)
+      request.mockImplementation(async (path: string) =>
+        path === DEPLOY_PATH ? deployed : outcome()
+      )
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+
+      expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH, DEPLOY_PATH])
+      expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
+      expect(stdoutJson()).toMatchObject({
+        applied: true,
+        deployed: { version: 4, isDeployed: true },
+        needsRedeployment: false,
+      })
+    })
+
+    it('without --deploy, names the deploy command when the deployed workflow now differs', async () => {
+      setTerminal(false)
+      request.mockResolvedValue(outcome())
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+
+      expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
+      expect(stdoutJson()).toMatchObject({
+        needsRedeployment: true,
+        next: { command: `sim workflows deploy ${WORKFLOW_ID}` },
+      })
+    })
+
+    it('deploys nothing after a refused apply, and refuses beside --dry-run', async () => {
+      setTerminal(false)
+      request.mockResolvedValue(outcome({ diagnostics: [STALE] }))
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+      expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
+
+      request.mockClear()
+      await expect(apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--deploy')).rejects.toThrow(
+        /--dry-run saves nothing/
+      )
+      expect(request).not.toHaveBeenCalled()
+    })
+
+    it('says the apply was saved when the deploy after it fails', async () => {
+      setTerminal(false)
+      request.mockImplementation(async (path: string) => {
+        if (path === DEPLOY_PATH) throw new SimApiError('Forbidden', 403, 'FORBIDDEN')
+        return outcome()
+      })
+
+      const error = await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy').catch(
+        (caught: unknown) => caught
+      )
+
+      expect(error).toMatchObject({ status: 403, code: 'FORBIDDEN' })
+      expect((error as Error).message).toContain(`The apply was saved into ${dir}`)
+      expect((error as Error).message).toContain(`sim workflows deploy ${WORKFLOW_ID}`)
+      expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
+    })
+  })
+
   it('exits 5 when a dry run finds the directory stale', async () => {
     setTerminal(false)
     request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [STALE] }))
