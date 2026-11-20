@@ -18,6 +18,11 @@ import { buildSearchCatalog, buildSearchIndex } from '@/lib/search/build'
 
 const logger = createLogger('DocsContent')
 const DOCS_ROOT = path.resolve(import.meta.dirname, '..')
+/** The Shiki scope mapping docs highlight with; it lives in emcn, outside the docs tree. */
+const SYNTAX_THEME_FILE = path.resolve(
+  DOCS_ROOT,
+  '../../packages/emcn/src/components/code/syntax-theme.ts'
+)
 const CONTENT_ROOT = path.join(DOCS_ROOT, 'content/docs')
 const OUTPUT_ROOT = path.join(DOCS_ROOT, '.content')
 const MAX_CONTENT_BYTES = 64 * 1024 * 1024
@@ -197,6 +202,7 @@ async function generate() {
     path.join(DOCS_ROOT, 'lib/content/markdown.ts'),
     path.join(DOCS_ROOT, 'lib/content/output.ts'),
     path.join(DOCS_ROOT, 'lib/shiki-theme.ts'),
+    SYNTAX_THEME_FILE,
     path.join(DOCS_ROOT, 'components/workflow-preview/examples.ts'),
     path.join(DOCS_ROOT, 'components/workflow-preview/block-display-workflows.ts'),
     path.join(DOCS_ROOT, 'package.json'),
@@ -449,6 +455,12 @@ if (process.argv.includes('--watch')) {
       }
     }
   }
+  const scheduleRefresh = () => {
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      void refresh()
+    }, 150)
+  }
   watch(DOCS_ROOT, { recursive: true }, (_, filename) => {
     const changed = filename?.toString().replaceAll('\\', '/') ?? ''
     if (
@@ -459,11 +471,9 @@ if (process.argv.includes('--watch')) {
       !['scripts/compile-content.ts', 'lib/shiki-theme.ts', ...OPENAPI_SPEC_FILES].includes(changed)
     )
       return
-    clearTimeout(timer)
-    timer = setTimeout(() => {
-      void refresh()
-    }, 150)
+    scheduleRefresh()
   })
+  watch(SYNTAX_THEME_FILE, scheduleRefresh)
   logger.info('Watching documentation source')
   await refresh()
 } else await generate()
