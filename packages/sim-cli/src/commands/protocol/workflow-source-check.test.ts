@@ -366,8 +366,9 @@ describe('sim workflows source check', () => {
 
     const error = await check().catch((caught: unknown) => caught)
 
+    expect((error as SimApiError).message).toContain('is a workspace source directory')
     expect((error as SimApiError).message).toContain(
-      `is a workspace source directory: check it with \`sim workspaces source check --dir ${dir}\``
+      `\`sim workspaces source\` (check, status, apply) --dir ${dir}`
     )
   })
 

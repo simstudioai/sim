@@ -41,7 +41,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
 
    This writes `workflow.ts`, any function code under `functions/`, and type declarations for the blocks the workflow uses and for your workspace's tables, credentials, knowledge bases, and environment variable names, with `.sim/sdk/INDEX.md` listing those blocks' builders. The declarations of every block are generated once per block catalog into the CLI's cache (`~/.sim/cache/source-catalog/`) and shared by every directory. It also writes a `tsconfig.json` that resolves them and type-checks the blocks the workflow uses, and a `tsconfig.full.json` that type-checks every block through that cache, unless the directory already has files of those names, which are left as they are. For coding agents it writes `.sim/AGENTS.md`, the primer `get` prints followed by a reference, and example workflows under `.sim/examples/` with one correct example of each common block to copy from. The examples name placeholder resources, so the tsconfig files leave them out of the type-check.
 
-   `get` into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them.
+   `get` into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them. A workspace source directory is always refused, `--force` included (and `sim workspaces source get` refuses a workflow directory the same way).
 
 2. Edit `workflow.ts`, then compile it on your machine with Sim's compiler, without a request:
 

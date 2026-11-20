@@ -6,7 +6,6 @@
  */
 import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
-import { toRecord } from '@sim/utils/object'
 import type { WorkflowInput } from '@sim/workflow-code'
 import {
   SOURCE_COMPILER_OPTIONS,
@@ -47,11 +46,11 @@ import { SOURCE_TOO_LARGE_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkspaceSourceBody } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import {
+  assertSourceDirKind,
   checkedPath,
   digest,
   FILE_CONCURRENCY,
   listSourceFiles,
-  readSourceJson,
   readSourceText,
   SOURCE_DIR_LOCK,
   SOURCE_DOWNLOADS_DIR,
@@ -519,13 +518,7 @@ export async function kindFolders(
  * workflow folder fails instead of passing with nothing checked or applied.
  */
 export async function assertWorkspaceDir(dir: string): Promise<void> {
-  const base = toRecord(await readSourceJson(dir, WORKSPACE_BASE_FILE))
-  if (typeof base.workflowId === 'string') {
-    throw new SimApiError(
-      `${dir} is a workflow source directory: use \`sim workflows source\` (check, apply) with --dir ${dir}.`,
-      0
-    )
-  }
+  await assertSourceDirKind(dir, 'workspace')
   const { present } = await kindFolders(dir, APPLY_ORDER)
   if (present.length > 0) return
   throw new SimApiError(

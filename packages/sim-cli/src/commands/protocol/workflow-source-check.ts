@@ -27,6 +27,7 @@ import { SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
+  assertSourceDirKind,
   digest,
   directoryWorkspace,
   readFolderWritten,
@@ -613,17 +614,8 @@ export function attachWorkflowSourceCheck(source: Command): void {
     .action(
       async (options: { dir: string; verbose?: boolean } & StrictOptions, command: Command) => {
         const profile = profileFrom(command)
+        await assertSourceDirKind(options.dir, 'workflow')
         const base = toRecord(await readSourceJson(options.dir, SOURCE_BASE_FILE))
-        if (
-          typeof base.workspaceId === 'string' &&
-          base.workflowId === undefined &&
-          (await readSourceText(options.dir, SOURCE_ENTRY_FILE)) === null
-        ) {
-          throw new SimApiError(
-            `${options.dir} is a workspace source directory: check it with \`sim workspaces source check --dir ${options.dir}\`.`,
-            0
-          )
-        }
         await requireEntry(options.dir)
         const workspace = await workspaceFolderOf(options.dir)
         const recorded =

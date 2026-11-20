@@ -351,6 +351,25 @@ describe('sim workflows source get --dir', () => {
     expect(request).toHaveBeenCalledTimes(1)
   })
 
+  it('refuses a workspace source directory, --force included, keeping its base and unapplied edits', async () => {
+    const base = JSON.stringify({ version: 1, workspaceId: WORKSPACE_ID, resources: {} })
+    mkdirSync(join(outDir, '.sim'), { recursive: true })
+    mkdirSync(join(outDir, 'tables'))
+    writeFileSync(join(outDir, '.sim/base.json'), base)
+    writeFileSync(join(outDir, 'tables/leads.ts'), '// my unapplied edit\n')
+    serve()
+
+    for (const flags of [[], ['--force']]) {
+      await expect(get('--dir', outDir, ...flags)).rejects.toMatchObject({
+        code: 'SOURCE_DIR_KIND_MISMATCH',
+        message: expect.stringContaining('is a workspace source directory'),
+      })
+    }
+    expect(readFileSync(join(outDir, '.sim/base.json'), 'utf8')).toBe(base)
+    expect(existsSync(join(outDir, 'workflow.ts'))).toBe(false)
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('prints the response unchanged without --dir', async () => {
     request.mockResolvedValue(source())
 

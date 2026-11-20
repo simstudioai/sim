@@ -14,6 +14,7 @@ import { buildRequest } from '../../runtime/request'
 import {
   absoluteDirOption,
   assertPrintedSourcePaths,
+  assertSourceDirKind,
   locallyEditedFiles,
   readPreviousLock,
   readSourceJson,
@@ -289,9 +290,10 @@ async function assertNoLocalEdits(dir: string, source: PrintedSource): Promise<v
 }
 
 const GET_EXIT_CODES_HELP = `
-Exit codes with --dir: 0 written; 1 the command failed, or the directory holds another workflow's
-source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them,
-get into another directory, or pass --force); 7 the workflow is too large to print as source;
+Exit codes with --dir: 0 written; 1 the command failed, the directory is a workspace source
+directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source
+(SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into
+another directory, or pass --force); 7 the workflow is too large to print as source;
 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again.`
 
 /**
@@ -340,6 +342,7 @@ export function attachWorkflowSourceGet(source: Command): void {
     }
     await withWorkspaceFolderLock(dir, async () => {
       const force = flags[FORCE_FLAG] === true
+      await assertSourceDirKind(dir, 'workflow')
       if (!force) await assertSameWorkflow(dir, workflowId)
       const { client, profile } = connectGet()
       const request = await buildRequest(

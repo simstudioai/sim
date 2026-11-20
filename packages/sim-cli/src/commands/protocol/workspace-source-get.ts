@@ -23,6 +23,7 @@ import { apiCommand } from '../../runtime/called-operations'
 import { removeStagingOnSignal } from './files-get'
 import {
   absoluteDirOption,
+  assertSourceDirKind,
   checkedPath,
   directoryWorkspace,
   editedFiles,
@@ -79,7 +80,8 @@ whatever the profile's default workspace.
 
 Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved
 (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace names
-another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), or a downloaded
+another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), the directory
+is a workflow source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or a downloaded
 binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace
 has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's
 retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and
@@ -384,6 +386,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
       await withSourceDirLock(options.dir, async () => {
+        await assertSourceDirKind(options.dir, 'workspace')
         // Read as leniently as an apply reads it: a base the parser refuses still names its workspace.
         const recorded = toRecord(
           await readSourceJson(options.dir, WORKSPACE_BASE_FILE)

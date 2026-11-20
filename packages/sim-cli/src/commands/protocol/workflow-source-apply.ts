@@ -23,6 +23,7 @@ import { apiCommand, type OperationClient } from '../../runtime/called-operation
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
+  assertSourceDirKind,
   FILE_CONCURRENCY,
   lockCodeFiles,
   readSourceText,
@@ -185,6 +186,7 @@ export async function readBase(
   directory: string,
   workflowId: string | undefined
 ): Promise<SourceBase> {
+  await assertSourceDirKind(directory, 'workflow')
   const parsed = parseSourceBase(await readJson(directory, BASE_FILE, GET_HINT))
   if ('problem' in parsed) {
     throw new SimApiError(
@@ -550,6 +552,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
     )
     .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) =>
       withWorkspaceFolderLock(options.dir, async () => {
+        await assertSourceDirKind(options.dir, 'workflow')
         if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
           if (options.dryRun || options.yes) {
             throw new SimApiError(

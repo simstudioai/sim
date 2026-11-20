@@ -222,6 +222,46 @@ export function directoryWorkspace(
   )
 }
 
+/** Which source command family a directory belongs to: one workflow's, or a whole workspace's. */
+export type SourceDirKind = 'workflow' | 'workspace'
+
+/**
+ * What `dir` holds, by its `.sim/base.json` (read leniently, as an apply reads it: a base the
+ * parser refuses still names what it is): a workflow base names its `workflowId`, a workspace base
+ * only its `workspaceId`. Without a base, a `workflow.ts` or a starter record at the root is a
+ * workflow directory (a workspace directory keeps its workflows under `workflows/<key>/`). `null`
+ * for a directory that holds neither, such as a new one.
+ */
+export async function sourceDirKind(
+  dir: string
+): Promise<{ kind: SourceDirKind; readFrom: string | null } | null> {
+  const base = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE))
+  if (typeof base.workflowId === 'string') return { kind: 'workflow', readFrom: base.workflowId }
+  if (typeof base.workspaceId === 'string') {
+    return { kind: 'workspace', readFrom: base.workspaceId }
+  }
+  const starter = await readStarterWorkspace(dir)
+  if (starter !== null || (await readSourceText(dir, SOURCE_ENTRY_FILE)) !== null) {
+    return { kind: 'workflow', readFrom: null }
+  }
+  return null
+}
+
+/**
+ * Refuses a `kind` command on a directory of the other kind, whatever `--force` says: a workflow
+ * get into a workspace directory (or the reverse) would replace its base, so staleness could no
+ * longer be detected and its unapplied edits would sit in a directory neither command reads.
+ */
+export async function assertSourceDirKind(dir: string, kind: SourceDirKind): Promise<void> {
+  const held = await sourceDirKind(dir)
+  if (held === null || held.kind === kind) return
+  const message =
+    held.kind === 'workspace'
+      ? `${dir} is a workspace source directory${held.readFrom ? ` (workspace ${held.readFrom})` : ''}, so a \`sim workflows source\` command would replace its base. Edit a workflow of it in ${dir}/${KIND_DIRS.workflow}/<key> with \`sim workspaces source\` (check, status, apply) --dir ${dir}, or get the workflow into another directory.`
+      : `${dir} is a workflow source directory${held.readFrom ? ` (workflow ${held.readFrom})` : ''}, so a \`sim workspaces source\` command would replace its base. Use \`sim workflows source\` (get, check, status, apply) --dir ${dir}, or get the workspace into another directory.`
+  throw new SimApiError(message, 0, 'SOURCE_DIR_KIND_MISMATCH')
+}
+
 /** The workspace {@link SOURCE_STARTER_FILE} names, or `null` when the directory holds no starter. */
 export async function readStarterWorkspace(dir: string): Promise<string | null> {
   const workspaceId = toRecord(await readSourceJson(dir, SOURCE_STARTER_FILE)).workspaceId
