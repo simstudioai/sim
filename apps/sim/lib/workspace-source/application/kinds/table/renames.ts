@@ -133,7 +133,7 @@ export async function checkColumnRenamesInUse(
             ? (
                 await readWorkflowSource.execute({
                   principal: ctx.principal,
-                  input: { workflowId: workflow.id },
+                  input: { workflowId: workflow.id, plan: true },
                 })
               ).files[SOURCE_ENTRY_FILE]
             : undefined

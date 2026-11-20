@@ -14,7 +14,7 @@ import {
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
-import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
@@ -801,6 +801,60 @@ export default workflow('Notes', {}, () => {
 
       expect(applied.failed).toBeUndefined()
       expect((await get(workspaceId)).files[path]).toContain('// leads land here')
+    }
+  )
+
+  check(
+    'a plan comparing many folders and fingerprinting delete candidates binds no key and records no read',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const names = ['Ingest A', 'Ingest B', 'Ingest C', 'Ingest D', 'Doomed']
+      const created = await apply(workspaceId, {
+        ...STARTER,
+        ...Object.fromEntries(
+          names.map((name) => [
+            `workflows/${name.toLowerCase().replace(' ', '-')}/workflow.ts`,
+            INGEST.replace("workflow('Ingest'", `workflow('${name}'`),
+          ])
+        ),
+      })
+      expect(created.failed).toBeUndefined()
+      const read = await get(workspaceId)
+      const tableKeys = () =>
+        db
+          .select({ key: workspaceResourceKey.key })
+          .from(workspaceResourceKey)
+          .where(
+            and(
+              eq(workspaceResourceKey.workspaceId, workspaceId),
+              eq(workspaceResourceKey.kind, 'table')
+            )
+          )
+      expect(await tableKeys()).toEqual([{ key: 'leads' }])
+      await db
+        .delete(workspaceResourceKey)
+        .where(
+          and(
+            eq(workspaceResourceKey.workspaceId, workspaceId),
+            eq(workspaceResourceKey.kind, 'table')
+          )
+        )
+      const files = Object.fromEntries(
+        Object.entries(read.files).filter(([path]) => !path.startsWith('workflows/doomed/'))
+      )
+      posthogServerMockFns.mockCaptureServerEvent.mockClear()
+
+      await apply(workspaceId, files, {
+        base: read.base,
+        kinds: ['workflow'],
+        allowDelete: true,
+        dryRun: true,
+      }).catch(() => undefined)
+
+      expect(await tableKeys()).toEqual([])
+      expect(
+        posthogServerMockFns.mockCaptureServerEvent.mock.calls.map(([, event]) => event)
+      ).not.toContain('workflow_source_read')
     }
   )
 

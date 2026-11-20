@@ -56,6 +56,7 @@ import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
 import {
   type ReadWorkflowSourceResult,
+  readDraftFingerprint,
   readWorkflowSource,
   readWorkflowSources,
 } from '@/lib/workflows/application/read-workflow-source'
@@ -121,16 +122,20 @@ function workflowFingerprint(source: SourceBase): ResourceFingerprint {
   return fingerprintOf({ source: source.fingerprint })
 }
 
-/** The fingerprint of workflow `workflowId` as it is stored now. */
+/**
+ * The fingerprint of workflow `workflowId` as it is stored now: the `sf1:` fingerprint a read
+ * would report as `base.fingerprint`, computed without printing, so it writes nothing, records no
+ * read and holds for a workflow grown past the print limits.
+ */
 async function readStoredFingerprint(
   ctx: SourceContext,
   workflowId: string
 ): Promise<ResourceFingerprint> {
-  const source = await readWorkflowSource.execute({
+  const fingerprint = await readDraftFingerprint.execute({
     principal: ctx.principal,
     input: { workflowId },
   })
-  return workflowFingerprint(source.base)
+  return fingerprintOf({ source: fingerprint })
 }
 
 /** Why `workflow` cannot be deleted for a lock (its own or its folder's), if so. */
@@ -569,6 +574,7 @@ async function foldersAsStored(
         input: {
           workspaceId: ctx.workspace.workspaceId,
           workflowIds: batch.map((step) => step.update.workflowId),
+          plan: true,
         },
       })
     } catch (error) {

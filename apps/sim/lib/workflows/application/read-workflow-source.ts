@@ -60,6 +60,11 @@ interface GetWorkflowSourceInput {
   assertedWorkspaceId?: string
   /** `files` (default): function code in `functions/*` files; `inline`: tagged templates. */
   functionCode?: 'inline' | 'files'
+  /**
+   * A plan's read (never a route's): a resource with no key stays unkeyed instead of binding one,
+   * and no source read is recorded, so a plan writes nothing.
+   */
+  plan?: boolean
 }
 
 /** A canonicalize or print finding, without source spans (the read path has no input text). */
@@ -294,13 +299,14 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,
         createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
+        ...(input.plan ? { allocate: false } : {}),
       }),
     ])
     const read = await printLoadedSource(
       { scope: context, stored, gate, sourceMeta, prefetched },
       input.functionCode ?? 'files'
     )
-    recordSourceRead(principal, context)
+    if (!input.plan) recordSourceRead(principal, context)
     return read
   },
 })
@@ -323,6 +329,8 @@ interface ReadWorkflowSourcesInput {
   workspaceId: string
   /** Workflows of the workspace to read; one archived or in another workspace reads as missing. */
   workflowIds: readonly string[]
+  /** A plan's read: a resource with no key stays unkeyed instead of binding one. */
+  plan?: boolean
 }
 
 /** Workflows a batched read prints at once: each may wait on its own resolver queries. */
@@ -351,7 +359,10 @@ export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
       loadWorkflowGraphs(workspaceId, input.workflowIds),
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
       readWorkflowSourceMetas(db, input.workflowIds),
-      prefetchStoredResourcesFor({ workspaceId, createdBy }, input.workflowIds),
+      prefetchStoredResourcesFor(
+        { workspaceId, createdBy, ...(input.plan ? { allocate: false } : {}) },
+        input.workflowIds
+      ),
     ])
     const printed = await mapWithConcurrency(
       input.workflowIds,
