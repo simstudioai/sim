@@ -379,6 +379,7 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
     })
     await check('assigning a permanent chat ID lets an active drag finish', async () => {
       await page.getByRole('button', { name: 'pending:chat', exact: true }).click()
+      await expectWidth(720)
       await dragTo(620)
       const rect = await beginDrag()
       await page.mouse.move(rect.x + 100, rect.y + 100, { steps: 12 })
@@ -402,6 +403,7 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
       'cancelling before the first animation frame restores native browser bounds',
       async () => {
         await page.getByRole('button', { name: 'pending:native', exact: true }).click()
+        await expectWidth(720)
         await dragTo(698)
         await shell.evaluate(({ app, BrowserWindow }) => {
           app.focus({ steal: true })
