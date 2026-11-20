@@ -124,7 +124,8 @@ export function lockCodeFiles(lock: unknown): Set<string> {
 /**
  * The function files a write leaves behind: named by the lock the directory held (so the CLI
  * wrote them), no longer named by the new lock, and not being written now. A file the person
- * added and no lock ever named is never pruned.
+ * added and no lock ever named is never pruned, nor is an entry that is no code file (such as
+ * `functions/`), whose removal would take the whole folder.
  */
 export function orphanedCodeFiles(
   previousLock: unknown,
@@ -134,7 +135,7 @@ export function orphanedCodeFiles(
   const kept = lockCodeFiles(nextLock)
   for (const path of written) kept.add(path)
   return [...lockCodeFiles(previousLock)].filter(
-    (path) => path.startsWith(`${SOURCE_FUNCTIONS_DIR}/`) && !kept.has(path)
+    (path) => path.startsWith(`${SOURCE_FUNCTIONS_DIR}/`) && isCodeFilePath(path) && !kept.has(path)
   )
 }
 
