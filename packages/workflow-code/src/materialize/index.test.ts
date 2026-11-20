@@ -244,7 +244,28 @@ describe('materialize: params keep prev bytes unless they changed', () => {
       prev: state,
       resources: { ...RESOURCES, keysOf: () => [] },
     }).diagnostics
-    expect(none?.hint).toBe('This workspace has no knowledge-base a source can name yet.')
+    expect(none?.hint).toBe(
+      'This workspace has no knowledge-base a source can name yet. Create it with `sim knowledge create`; a source names it by its key, which `sim workflows source resources` lists.'
+    )
+  })
+
+  it('names the command that creates a credential the workspace lacks, the dead end an agent hit', () => {
+    const state = workflowState([blockState('s1', 'slack', 'Notify', {})])
+    const target = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.notify.params.credential = {
+        kind: 'value',
+        value: { $sim: 'resource', kind: 'credential', key: 'team-slack' },
+      }
+    })
+    const keysOf = (kind: string) => (kind === 'credential' ? ['ops-gmail'] : [])
+    const [finding] = run(target, null, {
+      prev: state,
+      resources: { ...RESOURCES, keysOf },
+    }).diagnostics.filter((d) => d.code === 'E_MAT_UNKNOWN_RESOURCE')
+    expect(finding?.hint).toContain('sim credentials connect <provider> --name "<Name>"')
+    expect(finding?.hint).toContain(
+      'sim credentials create <provider> --name "<Name>" --credentials @<file>'
+    )
   })
 
   it('recomputes stored outputs when an edit changes what they derive from', () => {
@@ -430,6 +451,56 @@ describe('materialize: branches', () => {
     const raw = subBlockValue(result.state, 'c1', 'conditions')
     expect(typeof raw).toBe('string')
     expect(JSON.parse(String(raw))[0]).toEqual({ id: 'c1-if', value: 'b' })
+  })
+
+  it('keeps the row id of the one branch whose key changed, and its edge with it', () => {
+    const prev = workflowState(
+      [
+        blockState('c1', 'condition', 'Gate', {
+          conditions: JSON.stringify([
+            { id: 'c1-a', key: 'one', value: 'x' },
+            { id: 'c1-b', key: 'two', value: 'y' },
+            { id: 'c1-else', value: '' },
+          ]),
+        }),
+        blockState('n1', 'function', 'Next', { code: 'return 1' }),
+      ],
+      { edges: [{ ...edge('e1', 'c1', 'n1'), sourceHandle: 'condition-c1-a' }] }
+    )
+    const target = edit(canonical(prev).workflow, (draft) => {
+      const rows = draft.blocks.gate.branches?.rows ?? []
+      rows[0].key = 'single'
+      draft.edges = draft.edges.map((e) =>
+        e.port.kind === 'branch' ? { ...e, port: { kind: 'branch', key: 'single' } } : e
+      )
+    })
+    const result = run(target, null, { prev })
+    const stored = JSON.parse(String(subBlockValue(result.state, 'c1', 'conditions')))
+    expect(stored.map((row: { id: string }) => row.id)).toEqual(['c1-a', 'c1-b', 'c1-else'])
+    expect(result.state.edges.map((e) => [e.id, e.sourceHandle])).toEqual([
+      ['e1', 'condition-c1-a'],
+    ])
+  })
+
+  it('mints new row ids when more than one branch key changed, which nothing pairs', () => {
+    const prev = workflowState([
+      blockState('c1', 'condition', 'Gate', {
+        conditions: JSON.stringify([
+          { id: 'c1-a', key: 'one', value: 'x' },
+          { id: 'c1-b', key: 'two', value: 'y' },
+          { id: 'c1-else', value: '' },
+        ]),
+      }),
+    ])
+    const target = edit(canonical(prev).workflow, (draft) => {
+      const rows = draft.blocks.gate.branches?.rows ?? []
+      rows[0].key = 'uno'
+      rows[1].key = 'dos'
+    })
+    const result = run(target, null, { prev })
+    const stored = JSON.parse(String(subBlockValue(result.state, 'c1', 'conditions')))
+    expect(stored[0].id).not.toBe('c1-a')
+    expect(stored[1].id).not.toBe('c1-b')
   })
 
   it('keeps never-persisted rows null and routes edges to the implicit ids', () => {
@@ -827,6 +898,81 @@ describe('materialize: identity', () => {
     expect(result.identity.blocks.start.items).toEqual({
       inputFormat: [{ name: 'question', id: 'f-q' }],
     })
+  })
+
+  it('keeps the id of the one inputFormat field renamed with its type and description', () => {
+    const prev = workflowState([
+      blockState('start', 'start_trigger', 'Start', {
+        inputFormat: [
+          { id: 'f-n', name: 'n', type: 'number', description: 'How many' },
+          { id: 'f-q', name: 'q', type: 'string' },
+        ],
+      }),
+    ])
+    const renamed = (to: string, type: string, description = 'How many') =>
+      edit(canonical(prev).workflow, (draft) => {
+        const inputFormat = draft.blocks.start.params.inputFormat
+        if (inputFormat.kind === 'value' && Array.isArray(inputFormat.value)) {
+          inputFormat.value[0] = { name: to, type, description }
+        }
+      })
+    const ids = (workflow: CanonicalWorkflow) =>
+      (
+        subBlockValue(run(workflow, null, { prev }).state, 'start', 'inputFormat') as Array<{
+          id: string
+        }>
+      ).map((field) => field.id)
+
+    expect(ids(renamed('num', 'number'))).toEqual(['f-n', 'f-q'])
+    expect(ids(renamed('label', 'string'))).toEqual(['new-1', 'f-q'])
+    // A shared type alone ties nothing: another field of that type is a delete and an add.
+    expect(ids(renamed('count', 'number', 'Rows to fetch'))).toEqual(['new-1', 'f-q'])
+  })
+
+  it('keeps the id of the one variable renamed to a key of the same type', () => {
+    const pulled = base()
+    const renamed = (type: 'number' | 'plain') =>
+      edit(canonical(pulled).workflow, (draft) => {
+        draft.variables = {
+          total: { key: 'total', name: 'Total', type, value: type === 'number' ? 1 : '1' },
+        }
+      })
+    const ids = (workflow: CanonicalWorkflow) =>
+      Object.keys(run(workflow, null, { prev: pulled }).state.variables ?? {})
+
+    expect(ids(renamed('number'))).toEqual(['var-1'])
+    expect(ids(renamed('plain'))).toEqual(['new-1'])
+  })
+
+  it('treats an unrelated variable of the same type added beside a removed one as a delete and an add', () => {
+    const pulled = base()
+    const replaced = edit(canonical(pulled).workflow, (draft) => {
+      draft.variables = { region: { key: 'region', name: 'Region', type: 'number', value: 42 } }
+    })
+
+    expect(Object.keys(run(replaced, null, { prev: pulled }).state.variables ?? {})).toEqual([
+      'new-1',
+    ])
+  })
+
+  it('ties no variable rename on a value as common as 0, false or true', () => {
+    for (const [type, value] of [
+      ['number', 0],
+      ['boolean', false],
+      ['boolean', true],
+    ] as const) {
+      const pulled = {
+        ...base(),
+        variables: { 'var-1': { id: 'var-1', name: 'Retries', type, value } },
+      }
+      const replaced = edit(canonical(pulled).workflow, (draft) => {
+        draft.variables = { offset: { key: 'offset', name: 'Offset', type, value } }
+      })
+
+      expect(Object.keys(run(replaced, null, { prev: pulled }).state.variables ?? {})).toEqual([
+        'new-1',
+      ])
+    }
   })
 
   it('leaves an inputFormat id two fields share out of the identity items', () => {

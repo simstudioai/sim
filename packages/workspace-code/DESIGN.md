@@ -63,9 +63,13 @@ resource's fingerprint as the last get or apply saw it. Workflows keep their own
 fingerprint that guards a delete).
 
 A get binds a key to every stored resource (`allocate`). An apply never allocates, so a resource
-no source has named yet can be **adopted** by a declaration of the same name. A write claims its key
-only after it succeeds (`claimKey`), so a failed write leaves the key free and the next apply
-adopts the resource.
+no source has named yet can be **adopted** by a declaration of the same name. The directory never
+read that resource, so an adopt may only add to it (`refuseUnreadAdopt`): it binds the key when
+the declaration matches, and adds what the resource lacks (a column, rows into an empty table, a
+knowledge base document); one that would change or remove anything the resource holds is
+`E_APPLY_NO_BASE` (get it first), even with `--allow-delete`. A write claims its key only after it
+succeeds (`claimKey`), so a failed write leaves the key free and the next apply adopts the
+resource, finishing what the write left.
 
 A key never changes: a declaration whose file was renamed (the base read the same resource under
 the old key, which the directory no longer declares) is `E_KEY_RENAMED`, and the resource is not
@@ -89,13 +93,13 @@ and on the server now:
 
 | local vs base | server vs base | outcome |
 |---|---|---|
-| equal | any | `noop` (`I_SERVER_CHANGED` when the server drifted) |
+| equal | any | `noop` (`W_SERVER_CHANGED` when the server drifted) |
 | differs | equal | `apply` |
 | differs | differs | `noop` if local equals server (base refreshed), else `stale` |
 
 With no stored resource under the key: a resource the base records but the server no longer holds
-was deleted there and stays deleted; otherwise an unbound resource of the same name is adopted,
-else one is created. A stored resource with no base entry is a no-op when it matches exactly and
+was deleted there and stays deleted; otherwise an unbound resource of the same name is adopted
+(adding to it only, see above), else one is created. A stored resource with no base entry is a no-op when it matches exactly and
 `no-base` (get first) otherwise.
 
 Undeclared resources (`planUndeclared`, `application/findings.ts`): only one the base records is
@@ -225,7 +229,13 @@ workflow's key and claims none (`WORKSPACE_KIND_SPECS[kind].resourceKind` is `nu
 is the workflow's id. The three-way rule covers what the server stores (public API, chat); `live`
 is outside the fingerprint and read on every apply against the server's `needsRedeployment`:
 `'draft'` deploys when the apply edits the workflow or the draft already differs, `'pinned'` never
-redeploys and reports `I_DEPLOY_DRAFT_NOT_LIVE`. A deploy's idempotency key hashes the deployment's
+redeploys and reports `I_DEPLOY_DRAFT_NOT_LIVE`. `'draft'` publishes only a draft the directory
+vouches for: the one this apply's workflow write stored, or one that still prints as the workflow
+folder's base. A draft holding edits made outside source is not deployed
+(`W_DEPLOY_DRAFT_NOT_SOURCE`; a chat write, which would deploy it, is `E_DEPLOY_DRAFT_NOT_SOURCE_CHAT`),
+and every deploy, and every chat write (which redeploys a draft that differs), names the vouched
+draft's `sf1:` fingerprint (`expectedDraftFingerprint`), so a draft edited between the plan and the
+write is refused as stale rather than published. A deploy's idempotency key hashes the deployment's
 fingerprint and the live version it replaces. The flag, the deploy and the chat are separate writes, so the
 apply checks what the chat write refuses (an identifier another chat holds,
 `E_DEPLOY_CHAT_IDENTIFIER`, at plan time and again before the first write; the password, the

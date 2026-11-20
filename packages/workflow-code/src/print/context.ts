@@ -8,6 +8,7 @@ import type { BlockCatalog } from '../catalog/types'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { RefTypeScope } from '../json-fields'
+import { isCodeFilePath } from '../limits'
 import type { SourceHints } from '../lock'
 import type { BlockKey, CanonicalBlock, CanonicalEdge, CanonicalWorkflow } from '../model'
 import { getOwn } from '../records'
@@ -123,7 +124,11 @@ export function createPrintContext(input: PrintInput): PrintContext {
   }
   for (const key of blocks.keys()) {
     const hinted = getOwn(ctx.hints.blocks, key)?.codeFile
-    if (hinted !== undefined && !ctx.codePathOwners.has(foldCodePath(hinted))) {
+    if (
+      hinted !== undefined &&
+      isCodeFilePath(hinted) &&
+      !ctx.codePathOwners.has(foldCodePath(hinted))
+    ) {
       ctx.codePathOwners.set(foldCodePath(hinted), key)
     }
   }

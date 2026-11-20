@@ -555,6 +555,13 @@ export const workflowEdges = pgTable(
       table.workflowId,
       table.targetBlockId
     ),
+    /**
+     * Serve the `ON DELETE CASCADE` lookups (`WHERE source_block_id = $1`) Postgres runs once
+     * per deleted `workflow_blocks` row; the composite indexes above lead with `workflow_id`
+     * and cannot, so without these every deleted block seq-scans the whole edges table.
+     */
+    sourceBlockFkIdx: index('workflow_edges_source_block_fk_idx').on(table.sourceBlockId),
+    targetBlockFkIdx: index('workflow_edges_target_block_fk_idx').on(table.targetBlockId),
   })
 )
 

@@ -6,6 +6,7 @@ import {
   type CanonicalWorkflow,
   type Diagnostic,
   type SourceBase,
+  type SourceFingerprint,
   sourceDepthOverflow,
   type WorkflowLockV1,
   type WorkflowSourceMetaV1,
@@ -19,6 +20,7 @@ import {
   readWorkflowSourceMeta,
   readWorkflowSourceMetas,
 } from '@sim/workflow-persistence/source-meta'
+import type { WorkflowState } from '@sim/workflow-types/workflow'
 import {
   type CatalogGate,
   resolveCatalogGate,
@@ -36,19 +38,21 @@ import {
 import { recordSourceRead } from '@/lib/workflows/application/source-analytics'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
   type PrintedSource,
   printStoredSource,
   type StoredSource,
   storedCanonicalHash,
+  storedSourceFingerprint,
 } from '@/lib/workflows/code/print-stored'
 import {
   canonicalizeStored,
   type PrefetchedStoredResources,
   prefetchStoredResources,
   prefetchStoredResourcesFor,
+  type StoredCanonical,
 } from '@/lib/workflows/code/stored-canonical'
+import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 interface GetWorkflowSourceInput {
@@ -56,6 +60,11 @@ interface GetWorkflowSourceInput {
   assertedWorkspaceId?: string
   /** `files` (default): function code in `functions/*` files; `inline`: tagged templates. */
   functionCode?: 'inline' | 'files'
+  /**
+   * A plan's read (never a route's): a resource with no key stays unkeyed instead of binding one,
+   * and no source read is recorded, so a plan writes nothing.
+   */
+  plan?: boolean
 }
 
 /** A canonicalize or print finding, without source spans (the read path has no input text). */
@@ -151,6 +160,67 @@ export async function loadStoredSource(
   }
 }
 
+/**
+ * Runs `use` on `stored` canonicalized against its source catalog and resource keys, inside the
+ * gate's custom block scope: the one canonicalization a source read prints and a fingerprint check
+ * hashes, so the two cannot disagree.
+ */
+function withStoredCanonical<R>(
+  loaded: {
+    organizationId: string | null
+    gate: CatalogGate
+    prefetched: PrefetchedStoredResources
+    stored: StoredSource
+  },
+  use: (canonical: StoredCanonical, catalog: ReturnType<typeof buildSourceCatalog>) => Promise<R>
+): Promise<R> {
+  const { gate, prefetched, stored } = loaded
+  return withCatalogBlockScope(gate, async () => {
+    const catalog = buildSourceCatalog({
+      gate,
+      organizationId: loaded.organizationId,
+      storedTypes: storedCatalogTypes(Object.values(stored.state.blocks)),
+    })
+    const canonical = await canonicalizeStored({ prefetched, ...stored, catalog })
+    return use(canonical, catalog)
+  })
+}
+
+/**
+ * The `sf1:` fingerprint a source read of `draft` would report as `base.fingerprint`: `draft` is a
+ * graph of the workflow in `context` as the normalized tables load it (a deploy's snapshot), read
+ * under the workflow's current name and description. A caller holding the fingerprint an apply
+ * answered with tells from it whether `draft` is still the draft that apply wrote. Writes nothing:
+ * a resource with no key yet stays unkeyed (a draft holding one is not the draft any read printed).
+ */
+export async function draftSourceFingerprint(
+  principal: Principal,
+  context: ActiveWorkflowApplicationContext,
+  draft: Pick<WorkflowState, 'blocks' | 'edges' | 'loops' | 'parallels' | 'variables'>
+): Promise<SourceFingerprint> {
+  const [gate, prefetched] = await Promise.all([
+    resolveCatalogGate(principal, context, { customBlockInputs: true }),
+    prefetchStoredResources({
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
+      allocate: false,
+    }),
+  ])
+  const state = {
+    blocks: draft.blocks,
+    edges: draft.edges,
+    loops: draft.loops,
+    parallels: draft.parallels,
+    variables: parseWorkflowVariables(draft.variables) ?? {},
+  }
+  const meta = { name: context.workflow.name, description: context.workflow.description ?? null }
+  return withStoredCanonical(
+    { organizationId: context.workspaceOrganizationId, gate, prefetched, stored: { state, meta } },
+    async ({ canonical, resources }) => storedSourceFingerprint(canonical, resources)
+  )
+}
+
 /** Everything one workflow's source read prints from, loaded by a single or a batched read. */
 interface LoadedSource {
   scope: { workflowId: string; workspaceId: string; workspaceOrganizationId: string | null }
@@ -172,42 +242,39 @@ async function printLoadedSource(
   const { state, meta } = loaded.stored
   const counts = { blocks: Object.keys(state.blocks).length, edges: state.edges.length }
   assertFitsSourceLimits({ files: {}, entryDepth: 0 }, counts)
-  return withCatalogBlockScope(gate, async () => {
-    const catalog = buildSourceCatalog({
-      gate,
-      organizationId: scope.workspaceOrganizationId,
-      storedTypes: storedCatalogTypes(Object.values(state.blocks)),
-    })
-    const { canonical, resources } = await canonicalizeStored({ prefetched, state, meta, catalog })
-    const canonicalHash = storedCanonicalHash(canonical, resources)
-    const printed = printStoredSource({
-      state,
-      meta,
-      catalog,
-      resources,
-      sourceMeta,
-      functionCode,
-      lockless: canonical,
-    })
-    assertFitsSourceLimits(printed, counts)
-    return {
-      workflowId: scope.workflowId,
-      workspaceId: scope.workspaceId,
-      files: printed.files,
-      lock: printed.lock,
-      base: {
-        version: 1,
+  return withStoredCanonical(
+    { organizationId: scope.workspaceOrganizationId, gate, prefetched, stored: loaded.stored },
+    async ({ canonical, resources }, catalog) => {
+      const canonicalHash = storedCanonicalHash(canonical, resources)
+      const printed = printStoredSource({
+        state,
+        meta,
+        catalog,
+        resources,
+        sourceMeta,
+        functionCode,
+        lockless: canonical,
+      })
+      assertFitsSourceLimits(printed, counts)
+      return {
         workflowId: scope.workflowId,
         workspaceId: scope.workspaceId,
-        fingerprint: printed.fingerprint,
-        catalogHash: catalog.hash,
-      },
-      canonicalHash,
-      sdkMajor: catalog.sdkMajor,
-      blockTypes: usedBlockTypes(canonical.workflow),
-      diagnostics: [...canonical.diagnostics, ...printed.diagnostics].map(toReadDiagnostic),
+        files: printed.files,
+        lock: printed.lock,
+        base: {
+          version: 1,
+          workflowId: scope.workflowId,
+          workspaceId: scope.workspaceId,
+          fingerprint: printed.fingerprint,
+          catalogHash: catalog.hash,
+        },
+        canonicalHash,
+        sdkMajor: catalog.sdkMajor,
+        blockTypes: usedBlockTypes(canonical.workflow),
+        diagnostics: [...canonical.diagnostics, ...printed.diagnostics].map(toReadDiagnostic),
+      }
     }
-  })
+  )
 }
 
 /**
@@ -222,11 +289,7 @@ async function printLoadedSource(
  */
 export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
-  resolveContext: async (args: { principal: Principal; input: GetWorkflowSourceInput }) => {
-    const context = await resolvePrincipalWorkflowContext(args)
-    await requireWorkflowCodeEnabled(args.principal, context)
-    return context
-  },
+  resolveContext: resolvePrincipalWorkflowContext<GetWorkflowSourceInput>,
   async execute({ principal, input, context }): Promise<ReadWorkflowSourceResult> {
     const [stored, gate, sourceMeta, prefetched] = await Promise.all([
       loadStoredSource(context),
@@ -236,14 +299,29 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,
         createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
+        ...(input.plan ? { allocate: false } : {}),
       }),
     ])
     const read = await printLoadedSource(
       { scope: context, stored, gate, sourceMeta, prefetched },
       input.functionCode ?? 'files'
     )
-    recordSourceRead(principal, context)
+    if (!input.plan) recordSourceRead(principal, context)
     return read
+  },
+})
+
+/**
+ * The `sf1:` fingerprint of the workflow's stored draft ({@link draftSourceFingerprint}), for a
+ * caller that needs only to tell whether the draft is one it vouches for (a workspace plan's
+ * deployment). Prints nothing, so no source limit applies, and records and writes nothing.
+ */
+export const readDraftFingerprint = defineAuthorizedWorkflowUseCase({
+  operation: workflowOperations.readSource,
+  resolveContext: resolvePrincipalWorkflowContext<{ workflowId: string }>,
+  async execute({ principal, context }): Promise<SourceFingerprint> {
+    const { state } = await loadStoredSource(context)
+    return draftSourceFingerprint(principal, context, state)
   },
 })
 
@@ -251,6 +329,8 @@ interface ReadWorkflowSourcesInput {
   workspaceId: string
   /** Workflows of the workspace to read; one archived or in another workspace reads as missing. */
   workflowIds: readonly string[]
+  /** A plan's read: a resource with no key stays unkeyed instead of binding one. */
+  plan?: boolean
 }
 
 /** Workflows a batched read prints at once: each may wait on its own resolver queries. */
@@ -270,17 +350,8 @@ export type WorkflowSourceRead =
  */
 export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
-  resolveContext: async ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: ReadWorkflowSourcesInput
-  }) => {
-    const context = await resolveActiveWorkspaceApplicationContext(input.workspaceId)
-    await requireWorkflowCodeEnabled(principal, context)
-    return context
-  },
+  resolveContext: ({ input }: { input: ReadWorkflowSourcesInput }) =>
+    resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ principal, input, context }): Promise<Map<string, WorkflowSourceRead>> {
     const { workspaceId } = context
     const createdBy = resolvePrincipalSubjectUserId(principal) ?? null
@@ -288,7 +359,10 @@ export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
       loadWorkflowGraphs(workspaceId, input.workflowIds),
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
       readWorkflowSourceMetas(db, input.workflowIds),
-      prefetchStoredResourcesFor({ workspaceId, createdBy }, input.workflowIds),
+      prefetchStoredResourcesFor(
+        { workspaceId, createdBy, ...(input.plan ? { allocate: false } : {}) },
+        input.workflowIds
+      ),
     ])
     const printed = await mapWithConcurrency(
       input.workflowIds,

@@ -53,6 +53,7 @@ function changeCount({ blocks, edges, variables }: SourceDiffSummary): number {
     edges.removed +
     variables.added.length +
     variables.removed.length +
+    variables.renamed.length +
     variables.modified.length
   )
 }

@@ -217,6 +217,13 @@ const DEPLOYMENT_CODES = [
   'E_DEPLOY_PINNED_CHAT',
   /** An apply edits a deployed workflow that no `live: 'draft'` deployment republishes. */
   'W_DEPLOYED_DRAFT_CHANGED',
+  /**
+   * A `live: 'draft'` deployment whose draft holds edits the directory does not declare (made in
+   * the editor, say): the apply does not publish it.
+   */
+  'W_DEPLOY_DRAFT_NOT_SOURCE',
+  /** A chat change while the draft holds edits the directory does not: deploying a chat publishes it. */
+  'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT',
   /** A pinned deployment's draft differs from its live version, which keeps running. */
   'I_DEPLOY_DRAFT_NOT_LIVE',
 ] as const
@@ -263,12 +270,22 @@ const PLAN_CODES = [
   'W_UNDECLARED',
   /** The directory's base was read from another workspace: every resource is created anew. */
   'W_BASE_OTHER_WORKSPACE',
-  /** The server changed a resource the directory leaves as it was; the next get shows it. */
-  'I_SERVER_CHANGED',
+  /**
+   * A promotion (`apply --to`) keeps deleted a resource the directory declares that the target
+   * deleted since the last promotion: the target no longer holds it.
+   */
+  'W_PROMOTE_TARGET_DELETED',
+  /**
+   * A promotion with `--allow-delete` deletes a resource only the target holds (the directory does
+   * not declare it).
+   */
+  'W_PROMOTE_DELETES_TARGET_ONLY',
+  /** The server changed a resource the directory leaves alone; the apply keeps it. */
+  'W_SERVER_CHANGED',
   /** The server deleted a resource the directory leaves as it was; it is not created again. */
-  'I_SERVER_DELETED',
+  'W_SERVER_DELETED',
   /** The server moved a resource the directory leaves as it was; it is not created again. */
-  'I_SERVER_MOVED',
+  'W_SERVER_MOVED',
   /** A key bound to a deleted resource was bound to the one this apply wrote. */
   'I_KEY_REBOUND',
   /** A declaration under a new key for a resource the base read under another: keys never move. */

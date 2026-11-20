@@ -353,11 +353,13 @@ function workspaceTypesFrom(
 export async function loadWorkspaceTypes(
   client: OperationClient<'getSourceResources'>,
   workspaceId: string,
-  local: LocalDeclarations = {}
+  local: LocalDeclarations = {},
+  options: { optional?: boolean } = {}
 ): Promise<WorkspaceTypes | null> {
   try {
     const { data } = await client.request<GetSourceResourcesResponse>('getSourceResources', {
       params: { workspaceId },
+      ...(options.optional ? { retryRateLimited: false } : {}),
     })
     return workspaceTypesFrom(workspaceManifestFrom(data), local)
   } catch (error) {
@@ -390,6 +392,39 @@ export async function refreshWorkspaceTypes(dir: string, local: LocalDeclaration
   if (types && types.text !== current) {
     await updateSourceDir(dir, { write: [[WORKSPACE_TYPES_FILE, types.text]] })
   }
+}
+
+/**
+ * Re-reads the workspace's resources into a workflow directory's `workspace.d.ts` and the manifest
+ * kept beside it, so `tsc` types a resource created since the last get (a child workflow, a table,
+ * a credential) instead of refusing its key, and stops accepting one deleted since. The commands
+ * that already talk to the server (apply, create, status) call it; an offline
+ * check cannot. Only a directory holding types the CLI wrote is touched (a workflow folder of a
+ * workspace directory types its workflows at the root, which the workspace commands refresh), only
+ * a file whose text changes is rewritten, and a failure to list the resources (a rate limit, a
+ * dropped connection) leaves the files as they are: the types are a convenience, never the write,
+ * so a rate-limited listing is not resent. A dry run, which writes no files, does not call it.
+ */
+export async function refreshWorkflowWorkspaceTypes(
+  client: OperationClient<'getSourceResources'>,
+  dir: string,
+  workspaceId: string
+): Promise<void> {
+  const [types, manifest] = await Promise.all([
+    readSourceText(dir, WORKSPACE_TYPES_FILE),
+    readSourceText(dir, WORKSPACE_MANIFEST_FILE),
+  ])
+  if (types === null || manifest === null) return
+  const fresh = await loadWorkspaceTypes(client, workspaceId, {}, { optional: true }).catch(
+    () => null
+  )
+  if (!fresh?.stored) return
+  const stored = `${JSON.stringify(fresh.stored, null, 2)}\n`
+  const write = [
+    ...(fresh.text !== types ? [[WORKSPACE_TYPES_FILE, fresh.text] as const] : []),
+    ...(stored !== manifest ? [[WORKSPACE_MANIFEST_FILE, stored] as const] : []),
+  ]
+  if (write.length > 0) await updateSourceDir(dir, { write })
 }
 
 /**

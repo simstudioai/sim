@@ -19,6 +19,7 @@ import {
   promotionRecordPath,
   promotionSubmission,
 } from '@sim/workspace-code/promote'
+import { serverResourceChanges } from '@sim/workspace-code/status'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { DEFERRED_INTERRUPT_BOUND_MS, deferInterrupts } from '#sim-cli/terminal/interrupts'
@@ -31,6 +32,8 @@ import type {
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
+import { searchTasks } from '../search'
+import { gitProvenance } from './git-provenance'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
@@ -40,11 +43,10 @@ import {
   readSourceJson,
   readWritten,
   recordedStats,
-  SOURCE_WRITTEN_FILE,
   updateSourceDir,
   type Written,
   withSourceDirLock,
-  writtenFile,
+  writtenFiles,
   writtenRecord,
 } from './source-dir'
 import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
@@ -152,17 +154,73 @@ function refusesApply(data: ApplyData): boolean {
   )
 }
 
-/** The plan as a person reads it: per kind, the counts, then each change with what it touches. */
-function printPlan(plan: Change[]): void {
+/** What an apply that wrote did, for the plan reprinted after it stopped part-way. */
+type PlanOutcome = Pick<ApplyData, 'applied' | 'failed'>
+
+const sameChange = (a: Pick<Change, 'kind' | 'key'>, b: Pick<Change, 'kind' | 'key'>) =>
+  a.kind === b.kind && a.key === b.key
+
+/** Whether `change`, which the plan writes, was written: not held back, and in `applied`. */
+function wasWritten(change: Change, outcome: PlanOutcome): boolean {
+  return outcome.applied.some((written) => sameChange(written, change))
+}
+
+/** The changes a stopped apply planned to write and did not, as `kind:key`. */
+function notWritten(data: ApplyData): string[] {
+  return data.plan
+    .filter((change) => change.action !== 'noop' && !change.held && !wasWritten(change, data))
+    .map((change) => `${change.kind}:${change.key}`)
+}
+
+/** How a stopped apply left one planned write: written, the one that failed, or not attempted. */
+function outcomeText(change: Change, outcome: PlanOutcome): string {
+  if (change.held) return ''
+  if (wasWritten(change, outcome)) return ' — written'
+  return outcome.failed && sameChange(outcome.failed, change)
+    ? ' — failed, not written'
+    : ' — not written'
+}
+
+/**
+ * The plan as a person reads it: per kind, the counts, then each change with what it touches. A
+ * resource the apply leaves alone that the server changed, deleted or moved since the directory
+ * was read (`diagnostics` say which) counts as that, never as unchanged, and is listed with `!`.
+ * With `outcome` (an apply that stopped part-way), each change says whether it was written.
+ */
+function printPlan(
+  plan: Change[],
+  diagnostics: ApplyData['diagnostics'],
+  outcome?: PlanOutcome
+): void {
+  const drifted = new Map<string, string>(
+    serverResourceChanges(diagnostics)
+      .filter((change) => change.server !== 'added')
+      .map((change) => [`${change.kind}:${change.key}`, change.server])
+  )
+  const driftOf = (change: Change) =>
+    change.action === 'noop' ? drifted.get(`${change.kind}:${change.key}`) : undefined
   for (const kind of APPLY_ORDER) {
     const changes = plan.filter((change) => change.kind === kind)
     if (changes.length === 0) continue
     const counts = new Map<string, number>()
-    for (const change of changes) counts.set(change.action, (counts.get(change.action) ?? 0) + 1)
+    for (const change of changes) {
+      const drift = driftOf(change)
+      const label = drift
+        ? `${drift} on the server`
+        : change.action === 'noop'
+          ? 'unchanged'
+          : change.action
+      counts.set(label, (counts.get(label) ?? 0) + 1)
+    }
     printError(
-      `${KIND_DIRS[kind]}: ${[...counts].map(([action, count]) => `${count} ${action === 'noop' ? 'unchanged' : action}`).join(', ')}`
+      `${KIND_DIRS[kind]}: ${[...counts].map(([label, count]) => `${count} ${label}`).join(', ')}`
     )
     for (const change of changes) {
+      const drift = driftOf(change)
+      if (drift) {
+        printError(`  ! ${change.key} (${drift} on the server; kept as the server has it)`)
+        continue
+      }
       if (change.action === 'noop') continue
       const fields =
         change.fields && change.fields.length > 0 ? ` (${change.fields.join(', ')})` : ''
@@ -172,7 +230,8 @@ function printPlan(plan: Change[]): void {
           ? ` — deletes ${lost.map(([what, count]) => `${count} ${what}`).join(', ')}`
           : ''
       const held = change.held ? ' — held back (see its error)' : ''
-      printError(`  ${SYMBOLS[change.action]} ${change.key}${fields}${loses}${held}`)
+      const status = outcome ? outcomeText(change, outcome) : ''
+      printError(`  ${SYMBOLS[change.action]} ${change.key}${fields}${loses}${held}${status}`)
     }
   }
   const destructive = destructiveChanges(plan)
@@ -349,7 +408,7 @@ async function saveApplied(
     write: [
       ...Object.entries(data.files),
       [WORKSPACE_BASE_FILE, `${JSON.stringify(data.base, null, 2)}\n`],
-      [SOURCE_WRITTEN_FILE, writtenFile(record)],
+      ...writtenFiles(record),
       ...records,
     ],
     remove: [...orphaned, ...removedWorkflowRecords(deleted)],
@@ -373,6 +432,10 @@ interface Promotion {
   files: Record<string, string>
   /** The record the last promotion to this target left, if any. */
   record: PromotionRecord | undefined
+  /** The target workspace. */
+  target: string
+  /** What the target deleted since the last promotion that the directory declares (addresses). */
+  deletedInTarget: string[]
 }
 
 /**
@@ -420,6 +483,8 @@ async function promoted(
     submission: { ...submission, files: composed.files, base: composed.base },
     files: submission.files,
     record,
+    target,
+    deletedInTarget: composed.deletedInTarget,
   }
 }
 
@@ -450,6 +515,121 @@ async function savePromotion(
   await updateSourceDir(dir, { write: [[path, `${JSON.stringify(record, null, 2)}\n`]] })
 }
 
+type Finding = ApplyData['diagnostics'][number]
+
+/** `tables/leads`, or `secrets.ts KEY` for a root file's entry: how a promotion finding names one. */
+function resourceWhere(kind: WorkspaceKind, key: string): string {
+  return isFileKind(kind) ? `${KIND_DIRS[kind]} ${key}` : `${KIND_DIRS[kind]}/${key}`
+}
+
+/**
+ * The hint a promotion to `target` gives a refusal the server words for an apply to the
+ * directory's own workspace ("get it into a fresh directory"), which a promotion cannot follow.
+ */
+function promotionHint(code: string, target: string): string | undefined {
+  const record = promotionRecordPath(target) ?? '.sim/targets/<workspaceId>.json'
+  if (code === 'E_APPLY_STALE') {
+    return `Workspace ${target} changed this resource since the last promotion from this directory. Carry that change into the directory, or undo it in ${target}, then promote again; to take ${target} as it stands now, delete ${record} first.`
+  }
+  if (code === 'E_APPLY_NO_BASE') {
+    return `Workspace ${target} holds this resource, but no promotion from this directory recorded it. Rename the declaration, or rename or delete the resource in ${target}, then promote again.`
+  }
+  return undefined
+}
+
+/** `finding` with the hint a promotion to `target` gives its code, when it gives one. */
+function withPromotionHint<F extends { hint?: string }>(
+  finding: F,
+  code: string,
+  target: string
+): F {
+  const hint = promotionHint(code, target)
+  return hint === undefined ? finding : { ...finding, hint }
+}
+
+/**
+ * The server's findings as a promotion reports them: refusals carry the promotion's hint, and the
+ * server's `W_SERVER_DELETED` for a resource the promotion warns about itself
+ * (`W_PROMOTE_TARGET_DELETED`) is left out.
+ */
+function promotionDiagnostics(diagnostics: readonly Finding[], promotion: Promotion): Finding[] {
+  const warned = new Set(promotion.deletedInTarget)
+  return diagnostics.flatMap((finding) =>
+    finding.code === 'W_SERVER_DELETED' && warned.has(`${finding.kind}:${finding.key}`)
+      ? []
+      : [withPromotionHint(finding, finding.code, promotion.target)]
+  )
+}
+
+/**
+ * The warnings only a promotion knows to give: each declared resource the target deleted since the
+ * last promotion (kept deleted), and each resource only the target holds that `--allow-delete`
+ * deletes there (of an apply that stopped part-way, each it deleted).
+ */
+function promotionWarnings(
+  promotion: Promotion,
+  outcome: Pick<ApplyData, 'plan' | 'applied' | 'failed'>
+): Finding[] {
+  const { target } = promotion
+  const deleted = promotion.deletedInTarget.flatMap((address): Finding[] => {
+    const parsed = parseResourceAddress(address)
+    if (!parsed) return []
+    return [
+      {
+        code: 'W_PROMOTE_TARGET_DELETED',
+        severity: 'warning',
+        message: `${resourceWhere(parsed.kind, parsed.key)} was deleted in workspace ${target} since the last promotion; this promotion keeps it deleted there.`,
+        hint: `To create it in ${target} again, remove its entry from ${promotionRecordPath(target) ?? 'the promotion record'}, then promote again.`,
+        kind: parsed.kind,
+        key: parsed.key,
+      },
+    ]
+  })
+  const targetOnly = outcome.plan
+    .filter(
+      (change) => change.action === 'delete' && (!outcome.failed || wasWritten(change, outcome))
+    )
+    .map(
+      (change): Finding => ({
+        code: 'W_PROMOTE_DELETES_TARGET_ONLY',
+        severity: 'warning',
+        message: `${resourceWhere(change.kind, change.key)} is only in workspace ${target}, not in this directory, so --allow-delete deletes it there.`,
+        hint: 'Promote without --allow-delete to keep it, or declare it in this directory.',
+        kind: change.kind,
+        key: change.key,
+      })
+    )
+  return [...deleted, ...targetOnly]
+}
+
+/**
+ * `refusal` with its findings as a promotion reports them (see {@link promotionDiagnostics}): a
+ * new error, the caller's left as it was.
+ */
+function rehinted(refusal: unknown, promotion: Promotion): unknown {
+  if (!(refusal instanceof SimApiError) || !isRecordLike(refusal.details)) return refusal
+  const { diagnostics } = refusal.details
+  if (!Array.isArray(diagnostics)) return refusal
+  const details = {
+    ...refusal.details,
+    diagnostics: diagnostics.map((finding) =>
+      isRecordLike(finding) && typeof finding.code === 'string'
+        ? withPromotionHint(finding, finding.code, promotion.target)
+        : finding
+    ),
+  }
+  const copy = new SimApiError(
+    refusal.message,
+    refusal.status,
+    refusal.code,
+    details,
+    refusal.exitCode,
+    refusal.requestId
+  )
+  copy.retryAfterMs = refusal.retryAfterMs
+  return copy
+}
+
 /**
  * `sim workspaces source apply --dir <dir>`: applies a directory `workspaces source get` wrote.
  * On a terminal it shows the plan and asks; anywhere else it needs `--yes`. Binary files are
@@ -467,8 +647,13 @@ export function attachWorkspaceSourceApply(source: Command): void {
   ])
   absoluteDirOption(command)
   verboseFlag(command)
+  searchTasks(command, [
+    'promote dev to prod',
+    'copy every workflow from a dev workspace into a prod workspace (--to)',
+    'save bulk edits to every workflow',
+  ])
   command
-    .requiredOption('--dir <dir>', 'Workspace source directory written by `workspaces source get`')
+    .option('--dir <dir>', 'Workspace source directory written by `workspaces source get`', '.')
     .option('--dry-run', 'Plan and check without writing anything')
     .option('-y, --yes', 'Apply without asking for confirmation')
     .option('--allow-delete', 'Delete resources, columns and data the directory no longer declares')
@@ -496,6 +681,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               `Run it without --workspace to apply it to ${from}, or promote it with --to ${named}: its resources bind by key to that workspace's own, and the directory stays bound to ${from}.`
           ) ?? undefined
         )
+      const provenance = await gitProvenance(options.dir)
       const post = async (submission: WorkspaceSubmission, dryRun: boolean) => {
         const body: ApplyWorkspaceSourceBody = {
           files: submission.files,
@@ -506,7 +692,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
             ...(options.allowDelete ? { allowDelete: true } : {}),
             ...(only ? { only } : {}),
           },
-          provenance: { client: 'cli' },
+          provenance: { client: 'cli', ...provenance },
         }
         const response = await client.request<ApplyWorkspaceSourceResponse>(
           'applyWorkspaceSource',
@@ -535,6 +721,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
        * Sends the directory. A commit the server refuses only for blobs that are not staged (the
        * CLI's guess from the base missed one) stages those and is sent once more.
        */
+      let promotion: Promotion | null = null
       const send = async (submission: WorkspaceSubmission, dryRun: boolean): Promise<ApplyData> => {
         let refusal: unknown
         try {
@@ -551,7 +738,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
             refusal = error
           }
         }
-        return printRefusal(refusal, profile.output, {
+        return printRefusal(promotion ? rehinted(refusal, promotion) : refusal, profile.output, {
           ...(dryRun ? {} : { ifAnswerLost: answerLostHint(options.dir) }),
           verbose: options.verbose === true,
         })
@@ -568,10 +755,21 @@ export function attachWorkspaceSourceApply(source: Command): void {
             await assertWorkspaceDir(options.dir)
           }
           assertBlobsFetched(options.dir, read, written.digests)
-          const promotion = options.to
+          promotion = options.to
             ? await promoted(client, options.dir, read, options.to, options.allowDelete === true)
             : null
           const submission = promotion?.submission ?? read
+          /** `data` as this apply reports it: a promotion's own wording and warnings added. */
+          const reported = (data: ApplyData): ApplyData =>
+            promotion
+              ? {
+                  ...data,
+                  diagnostics: [
+                    ...promotionWarnings(promotion, data),
+                    ...promotionDiagnostics(data.diagnostics, promotion),
+                  ],
+                }
+              : data
           // The apply repeats findings the preview already showed: each is printed once.
           const findings = findingsOutput(profile.output, options.verbose)
           const notSent = notSentFindings(submission.ignored)
@@ -588,8 +786,8 @@ export function attachWorkspaceSourceApply(source: Command): void {
           }
           let preview: ApplyData | null = null
           if (mode !== 'write') {
-            preview = await send(submission, true)
-            printPlan(preview.plan)
+            preview = reported(await send(submission, true))
+            printPlan(preview.plan, preview.diagnostics)
             findings.print(preview.diagnostics)
             const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
             if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
@@ -611,12 +809,12 @@ export function attachWorkspaceSourceApply(source: Command): void {
           await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
           const data = await deferInterrupts(
             async () => {
-              const answer = await send(submission, false)
+              const answer = reported(await send(submission, false))
               findings.print(answer.diagnostics)
               // A promotion leaves the directory bound to the workspace it was read from, and
               // records what it left in the target for the next promotion to compare with.
-              if (promotion && options.to) {
-                await savePromotion(options.dir, options.to, promotion, answer)
+              if (promotion) {
+                await savePromotion(options.dir, promotion.target, promotion, answer)
               } else {
                 const workspaceCatalog = cachedCatalog(workspaceId)
                 const { records, unrecorded } = workspaceCatalog
@@ -633,7 +831,10 @@ export function attachWorkspaceSourceApply(source: Command): void {
               abandoned: `Stopped before the apply answered. ${answerLostHint(options.dir)}`,
             }
           )
-          if (mode === 'write') printPlan(data.plan)
+          if (data.failed) {
+            printError('The apply stopped part-way; each planned change:')
+            printPlan(data.plan, data.diagnostics, data)
+          } else if (mode === 'write') printPlan(data.plan, data.diagnostics)
           const held = data.plan.filter((change) => change.held)
           if (held.length > 0) {
             printError(
@@ -704,7 +905,9 @@ function summarize(data: ApplyData) {
     destructive: destructiveChanges(changes),
     unchanged: data.plan.filter((change) => change.action === 'noop').length,
     held: data.plan.filter((change) => change.held).length,
-    ...(data.failed ? { failed: `${data.failed.kind}:${data.failed.key}` } : {}),
+    ...(data.failed
+      ? { failed: `${data.failed.kind}:${data.failed.key}`, notWritten: notWritten(data) }
+      : {}),
     ...(data.applyId ? { applyId: data.applyId } : {}),
     errors: data.diagnostics.filter((finding) => finding.severity === 'error').length,
     warnings: data.diagnostics.filter((finding) => finding.severity === 'warning').length,

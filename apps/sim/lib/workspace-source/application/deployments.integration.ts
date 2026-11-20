@@ -10,15 +10,17 @@ import {
   workspaceEnvironment,
 } from '@sim/db/schema'
 import {
+  createPersonalApiKeyPrincipal,
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
-import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
 import { toArray, toRecord } from '@sim/utils/object'
 import type { WorkspaceBaseV1, WorkspaceKind } from '@sim/workspace-code'
+import { unchangedFiles } from '@sim/workspace-code/kinds/workflow'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 
@@ -27,8 +29,11 @@ vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { replaceWorkflowChatDeployment } from '@/lib/chat-deployments/application/workflow-chat-deployment'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+import { deployWorkflow } from '@/lib/workflows/application/deployments'
+import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { listWorkflowTriggers } from '@/lib/workflows/application/triggers'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
 import { deploymentAdapter } from '@/lib/workspace-source/application/kinds/deployment/adapter'
@@ -251,6 +256,39 @@ async function serveChat(id: string, identifier: string) {
   })
 }
 
+/**
+ * Edits the Answer agent's prompt in the stored draft directly, as the editor's realtime save
+ * does: no source apply sees it.
+ */
+async function editDraftOutOfBand(id: string, text: string) {
+  const [row] = await db
+    .select({ id: workflowBlocks.id, subBlocks: workflowBlocks.subBlocks })
+    .from(workflowBlocks)
+    .where(and(eq(workflowBlocks.workflowId, id), eq(workflowBlocks.name, 'Answer')))
+  if (!row) throw new Error('No Answer block')
+  const stored = JSON.stringify(row.subBlocks)
+  const subBlocks = JSON.parse(stored.replace(/(Question|Asked): /, text))
+  if (JSON.stringify(subBlocks) === stored) throw new Error('The edit changed nothing')
+  await db.update(workflowBlocks).set({ subBlocks }).where(eq(workflowBlocks.id, row.id))
+}
+
+/** The `sf1:` fingerprint a source read of workflow `id` reports now. */
+async function draftFingerprint(id: string): Promise<string> {
+  const read = await readWorkflowSource.execute({ principal: owner, input: { workflowId: id } })
+  return read.base.fingerprint
+}
+
+/** `files` as the CLI sends them: the workflow folder, unchanged since the last write, as its base alone. */
+function asSent(files: Files, workspaceId: string): Files {
+  const folder = Object.fromEntries(
+    Object.entries(files).filter(([path]) => path.startsWith('workflows/nightly/'))
+  )
+  const rest = Object.fromEntries(
+    Object.entries(files).filter(([path]) => !path.startsWith('workflows/nightly/'))
+  )
+  return { ...rest, ...unchangedFiles('nightly', folder, workspaceId) }
+}
+
 function edited(files: Files): Files {
   return { ...files, [WORKFLOW]: files[WORKFLOW].replace('Question: ', 'Asked: ') }
 }
@@ -298,6 +336,39 @@ describe('workspace source: deployments', () => {
     expect(result.files[DEPLOYMENT]).toContain("live: 'draft'")
     expect(result.base.resources['deployment:nightly']?.id).toBe(await workflowId(workspaceId))
   })
+
+  check(
+    'plans a redeploy of a draft the directory vouches for without recording a source read',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Plan vouches quietly', ownerId })
+      const created = await apply(workspaceId, { [WORKFLOW]: NIGHTLY, [DEPLOYMENT]: DRAFT })
+      expect(created.failed).toBeUndefined()
+      const { [DEPLOYMENT]: _deployment, ...workflowFiles } = created.files
+      const edited = await apply(
+        workspaceId,
+        { ...workflowFiles, [WORKFLOW]: created.files[WORKFLOW].replace("'02:00'", "'03:00'") },
+        { kinds: ['workflow'], base: created.base }
+      )
+      expect(edited.failed).toBeUndefined()
+      const read = await getAll(workspaceId, ['workflow', 'deployment'])
+      posthogServerMockFns.mockCaptureServerEvent.mockClear()
+
+      const plan = await apply(
+        workspaceId,
+        { ...read.files, [DEPLOYMENT]: DRAFT },
+        {
+          base: read.base,
+          dryRun: true,
+          principal: createPersonalApiKeyPrincipal({ userId: ownerId, keyId: generateId() }),
+        }
+      )
+
+      expect(actions(plan.plan)).toContain('update deployment:nightly')
+      expect(
+        posthogServerMockFns.mockCaptureServerEvent.mock.calls.map(([, event]) => event)
+      ).not.toContain('workflow_source_read')
+    }
+  )
 
   check(
     'a get prints a deployment for each deployed workflow and applies back as a no-op',
@@ -995,7 +1066,7 @@ describe('workspace source: deployments', () => {
     )
     expect(codes(stale.diagnostics)).toEqual(['E_APPLY_STALE'])
     const unchanged = await apply(workspaceId, files, { base })
-    expect(codes(unchanged.diagnostics, 'info')).toContain('I_SERVER_CHANGED')
+    expect(codes(unchanged.diagnostics, 'warning')).toContain('W_SERVER_CHANGED')
   })
 
   check('warns when an apply edits a deployed workflow no deployment file covers', async () => {
@@ -1115,4 +1186,136 @@ describe('workspace source: deployments', () => {
     const refused = await refusal(apply(workspaceId, { 'deployments/missing.ts': DRAFT }))
     expect(codes(refused.diagnostics)).toEqual(['E_DEPLOY_WORKFLOW'])
   })
+
+  check(
+    'a deploy carrying the draft fingerprint it expects refuses a draft edited since, deploying nothing',
+    async () => {
+      const { id } = await deployedWorkspace(PINNED)
+      const reviewed = await draftFingerprint(id)
+      await editDraftOutOfBand(id, 'Edited in the editor: ')
+
+      const refused = await deployWorkflow
+        .execute({
+          principal: owner,
+          input: { workflowId: id, requestId: generateId(), expectedDraftFingerprint: reviewed },
+        })
+        .then(
+          () => null,
+          (error: unknown) => error
+        )
+      expect(refused).toBeInstanceOf(OrchestrationError)
+      expect((refused as OrchestrationError).code).toBe('conflict')
+      expect((await deployState(id)).versions).toBe(1)
+
+      const current = await draftFingerprint(id)
+      expect(current).not.toBe(reviewed)
+      await deployWorkflow.execute({
+        principal: owner,
+        input: { workflowId: id, requestId: generateId(), expectedDraftFingerprint: current },
+      })
+      expect((await deployState(id)).versions).toBe(2)
+    }
+  )
+
+  check(
+    "live: 'draft' does not publish a draft edited outside source, and says which workflow",
+    async () => {
+      const { workspaceId, id, files, base } = await deployedWorkspace()
+      await editDraftOutOfBand(id, 'Edited in the editor: ')
+
+      const result = await apply(workspaceId, asSent(files, workspaceId), { base })
+      expect(result.failed).toBeUndefined()
+      expect(actions(result.plan)).toEqual(['noop workflow:nightly', 'noop deployment:nightly'])
+      expect(result.applied).toEqual([])
+      const warning = result.diagnostics.find(
+        (finding) => finding.code === 'W_DEPLOY_DRAFT_NOT_SOURCE'
+      )
+      expect(warning).toMatchObject({ severity: 'warning', kind: 'deployment', key: 'nightly' })
+      expect(warning?.message).toContain('workflows/nightly')
+      expect((await deployState(id)).versions).toBe(1)
+
+      // Writing the chat would publish that draft too, so it is refused before anything is written.
+      const chat = await refusal(
+        apply(
+          workspaceId,
+          { ...asSent(files, workspaceId), [DEPLOYMENT]: answerChat('not-source-chat') },
+          { base }
+        )
+      )
+      expect(codes(chat.diagnostics)).toEqual(['E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'])
+      expect((await deployState(id)).versions).toBe(1)
+    }
+  )
+
+  check(
+    "live: 'draft' deploys a draft that still is the directory's workflow, applied before without its deploy",
+    async () => {
+      const { workspaceId, id, files, base } = await deployedWorkspace(PINNED)
+      const written = await apply(workspaceId, edited(files), { base })
+      expect(actions(written.applied)).toEqual(['update workflow:nightly'])
+      expect((await deployState(id)).versions).toBe(1)
+
+      const now = { ...edited(files), ...written.files, [DEPLOYMENT]: DRAFT }
+      const result = await apply(workspaceId, asSent(now, workspaceId), { base: written.base })
+      expect(result.failed).toBeUndefined()
+      expect(actions(result.applied)).toEqual(['update deployment:nightly'])
+      expect(codes(result.diagnostics, 'warning')).not.toContain('W_DEPLOY_DRAFT_NOT_SOURCE')
+      expect((await deployState(id)).versions).toBe(2)
+    }
+  )
+
+  check(
+    'a deploy refuses a draft edited between the plan and the deploy, publishing nothing',
+    async () => {
+      const { workspaceId, id, files, base } = await deployedWorkspace()
+      const check = deploymentAdapter.storedFingerprintNow
+      if (!check) throw new Error('The deployment adapter checks fingerprints before writing')
+      // A teammate edits the draft after the workflow write, just before the deploy.
+      const racing = vi
+        .spyOn(deploymentAdapter, 'storedFingerprintNow')
+        .mockImplementation(async (change, ctx) => {
+          await editDraftOutOfBand(id, 'Edited meanwhile: ')
+          return check.call(deploymentAdapter, change, ctx)
+        })
+      try {
+        const result = await apply(workspaceId, edited(files), { base })
+        expect(racing).toHaveBeenCalledOnce()
+        expect(actions(result.applied)).toEqual(['update workflow:nightly'])
+        expect([result.failed?.key, result.failed?.code]).toEqual(['nightly', 'E_APPLY_STALE'])
+        expect((await deployState(id)).versions).toBe(1)
+      } finally {
+        racing.mockRestore()
+      }
+    }
+  )
+
+  check(
+    'a chat write refuses a draft edited between the plan and the write, publishing nothing',
+    async () => {
+      const { workspaceId, id, files, base } = await deployedWorkspace()
+      const check = deploymentAdapter.storedFingerprintNow
+      if (!check) throw new Error('The deployment adapter checks fingerprints before writing')
+      // A teammate edits the draft just before the chat write, which would redeploy it.
+      const racing = vi
+        .spyOn(deploymentAdapter, 'storedFingerprintNow')
+        .mockImplementation(async (change, ctx) => {
+          await editDraftOutOfBand(id, 'Edited meanwhile: ')
+          return check.call(deploymentAdapter, change, ctx)
+        })
+      try {
+        const result = await apply(
+          workspaceId,
+          { ...asSent(files, workspaceId), [DEPLOYMENT]: answerChat('racing-chat') },
+          { base }
+        )
+        expect(racing).toHaveBeenCalledOnce()
+        expect([result.failed?.key, result.failed?.code]).toEqual(['nightly', 'E_APPLY_STALE'])
+        const after = await deployState(id)
+        expect(after.versions).toBe(1)
+        expect(after.chat).toBeUndefined()
+      } finally {
+        racing.mockRestore()
+      }
+    }
+  )
 })

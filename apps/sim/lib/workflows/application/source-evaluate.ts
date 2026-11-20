@@ -22,7 +22,9 @@ import {
   parseWorkflowLock,
   type ResourceKeyResolver,
   type ResourceKind,
+  refuseEditedFindings,
   renamesBetween,
+  replacedBetween,
   type SourceBase,
   type SourceHints,
   type SourceSpan,
@@ -51,6 +53,7 @@ import {
   lintDiagnostics,
   normalizeChangedValues,
 } from '@/lib/workflows/application/source-locate'
+import { foreignResourceRefusals } from '@/lib/workflows/application/source-resource-scope'
 import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
 import { gateSourceDiff } from '@/lib/workflows/code/apply/gates'
 import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
@@ -239,36 +242,35 @@ function withoutPendingReferences(
 }
 
 /**
- * `lint` without the block-output references compile already reported in a function's code
- * file (`W_UNRESOLVED_REF`, or `E_APPLY_UNRESOLVED_REF` on code the edit changed, on that block,
- * located at the file line): the same dangling `$ref` is one finding there, as an offline check
- * reports it, not also a lint finding on the `codeFile()` call.
+ * `lint` without the block-output findings compile already reported at their source line, so a
+ * dangling reference is one finding, as an offline check reports it: on a block whose
+ * `workflow.ts` reads a path no output has (`W_UNKNOWN_OUTPUT_PATH`, or its refusal), every
+ * block-output finding; on a block whose code file `$ref` names nothing (`W_UNRESOLVED_REF`, or
+ * its refusal), the one on its code.
  */
-function withoutCodeFileReferences(
+function withoutCompiledReferences(
   lint: WorkflowLintReport,
   compiled: readonly LocatedDiagnostic[],
   keyOf: (id: string) => string | undefined
 ): WorkflowLintReport {
-  const reported = new Set(
-    compiled.flatMap((diagnostic) =>
-      (diagnostic.code === 'W_UNRESOLVED_REF' || diagnostic.code === 'E_APPLY_UNRESOLVED_REF') &&
-      diagnostic.blockKey !== undefined &&
-      diagnostic.span.file !== SOURCE_ENTRY_FILE
-        ? [diagnostic.blockKey]
-        : []
-    )
-  )
-  if (reported.size === 0) return lint
+  const inEntry = new Set<string>()
+  const inCode = new Set<string>()
+  for (const { code, blockKey, span } of compiled) {
+    if (blockKey === undefined) continue
+    if (span.file === SOURCE_ENTRY_FILE) {
+      if (code === 'W_UNKNOWN_OUTPUT_PATH' || code === 'E_APPLY_UNRESOLVED_REF')
+        inEntry.add(blockKey)
+    } else if (code === 'W_UNRESOLVED_REF' || code === 'E_APPLY_UNRESOLVED_REF') {
+      inCode.add(blockKey)
+    }
+  }
+  if (inEntry.size === 0 && inCode.size === 0) return lint
   return {
     ...lint,
     unresolvedReferences: lint.unresolvedReferences.filter((reference) => {
       const key = keyOf(reference.blockId)
-      return !(
-        reference.kind === 'block-output' &&
-        reference.field === 'code' &&
-        key !== undefined &&
-        reported.has(key)
-      )
+      if (reference.kind !== 'block-output' || key === undefined) return true
+      return !inEntry.has(key) && !(reference.field === 'code' && inCode.has(key))
     }),
   }
 }
@@ -287,47 +289,25 @@ const RENAME_SETTLED_CODES: ReadonlySet<string> = new Set([
  * `diagnostics` without the {@link RENAME_SETTLED_CODES} findings a block rename settles. The
  * compile already knew the renames the lock names by ident; a rename materialize inferred (name
  * and const both changed) is known only now, so the source is compiled again with every rename and
- * a finding stays only where that compile still reports it.
+ * its findings of those codes, listed and withheld, replace the first compile's. Taken whole, not
+ * matched by position: the first compile withholds one finding per code, block and file, so a
+ * settled one may stand for a later finding in that file that the rename leaves unresolved.
  */
 function withoutRenameSettledFindings(
-  diagnostics: CompileResult['diagnostics'],
+  compiled: Pick<CompileResult, 'diagnostics' | 'withheld'>,
   renames: ReadonlyMap<string, string>,
   recompile: () => CompileResult
-): CompileResult['diagnostics'] {
-  if (renames.size === 0 || !diagnostics.some((d) => RENAME_SETTLED_CODES.has(d.code))) {
-    return diagnostics
+): Pick<CompileResult, 'diagnostics' | 'withheld'> {
+  const settles = (d: CompileResult['diagnostics'][number]) => RENAME_SETTLED_CODES.has(d.code)
+  if (renames.size === 0 || ![...compiled.diagnostics, ...compiled.withheld].some(settles)) {
+    return compiled
   }
-  const at = (d: CompileResult['diagnostics'][number]) =>
-    `${d.code}@${d.span.file}:${d.span.line}:${d.span.column}`
-  const still = new Set(
-    recompile()
-      .diagnostics.filter((d) => RENAME_SETTLED_CODES.has(d.code))
-      .map(at)
-  )
-  return diagnostics.filter((d) => !RENAME_SETTLED_CODES.has(d.code) || still.has(at(d)))
-}
-
-/**
- * `diagnostics` with each function code file `W_UNRESOLVED_REF` on a block whose code the source
- * changed (`codeChanged`, by block key) refused as `E_APPLY_UNRESOLVED_REF`: a `$ref` the edit
- * wrote that names no block fails at run time. On code the stored workflow already holds it stays
- * a warning, so a workflow saved with a dangling reference still applies unchanged.
- */
-function withEditedCodeFileRefsRefused(
-  diagnostics: CompileResult['diagnostics'],
-  codeChanged: (blockKey: string) => boolean
-): LocatedDiagnostic[] {
-  return diagnostics.map((diagnostic): LocatedDiagnostic => {
-    if (
-      diagnostic.code !== 'W_UNRESOLVED_REF' ||
-      diagnostic.span.file === SOURCE_ENTRY_FILE ||
-      diagnostic.blockKey === undefined ||
-      !codeChanged(diagnostic.blockKey)
-    ) {
-      return diagnostic
-    }
-    return { ...diagnostic, code: 'E_APPLY_UNRESOLVED_REF', severity: 'error' }
-  })
+  const again = recompile()
+  const unsettled = (d: CompileResult['diagnostics'][number]) => !settles(d)
+  return {
+    diagnostics: [...compiled.diagnostics.filter(unsettled), ...again.diagnostics.filter(settles)],
+    withheld: [...compiled.withheld.filter(unsettled), ...again.withheld.filter(settles)],
+  }
 }
 
 /** `{ span }` when there is one, to spread into a diagnostic. */
@@ -339,6 +319,40 @@ function withSpan(span: SourceSpan | undefined): { span?: SourceSpan } {
 function listNames(names: readonly string[]): string {
   const shown = names.slice(0, 10).join(', ')
   return names.length > 10 ? `${shown}, and ${names.length - 10} more` : shown
+}
+
+/** A variable as a delete refusal names it. */
+interface NamedVariable {
+  name: string
+  type: string
+}
+
+/**
+ * `E_APPLY_VARIABLE_DELETE` for the stored variables an apply removes, by name. When it removes
+ * one and adds one of the same type, the edit may be a rename the apply could not tie to the
+ * stored variable (its value changed too, or says nothing), so the hint says how to keep the id.
+ */
+function variableDeleteRefusal(
+  removed: readonly NamedVariable[],
+  added: readonly NamedVariable[],
+  span: SourceSpan | undefined
+): Diagnostic {
+  const names = removed.map((variable) => variable.name)
+  const [former] = removed
+  const [next] = added
+  const rename =
+    removed.length === 1 && added.length === 1 && former.type === next.type
+      ? `If ${next.name} renames ${former.name}, apply the new key with the value ${former.name} holds first and change the value in a second apply, so the variable keeps its id; or pass --allow-delete (allowDelete=true) to replace it.`
+      : undefined
+  return {
+    code: 'E_APPLY_VARIABLE_DELETE',
+    severity: 'error',
+    message: `This apply deletes ${names.length} variable${names.length === 1 ? '' : 's'} the source no longer declares: ${listNames(names)}.`,
+    hint:
+      rename ??
+      'Pass --allow-delete (allowDelete=true) to delete them, or declare them again in workflow(name, { variables }) to keep them.',
+    ...withSpan(span),
+  }
 }
 
 /**
@@ -784,10 +798,12 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
    * member) that materialize keeps from the stored block is no change.
    */
   const blockRenames = renamesBetween(storedCanonical.identity, materialized.identity)
+  const replacedKeys = replacedBetween(storedCanonical.identity, materialized.identity)
   const canonicalDiff = diffCanonical(
     storedCanonical.workflow,
     { ...materialized.workflow, meta: storedCanonical.workflow.meta },
-    blockRenames
+    blockRenames,
+    replacedKeys
   )
   const renamedKeys = new Map([...blockRenames].map(([key, storedKey]) => [storedKey, key]))
   const storedKeyOf = new Map([...renamedKeys].map(([storedKey, key]) => [key, storedKey]))
@@ -797,15 +813,13 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       getOwn(compiled.stored.blocks, storedKeyOf.get(key) ?? key)
     return storedBlock && getOwn(storedBlock.params, 'code')
   }
-  const compileDiagnostics = withEditedCodeFileRefsRefused(
-    withoutRenameSettledFindings(compiled.diagnostics, renamedKeys, () =>
-      compileWorkflow({ ...compileInput, stored: compiled.stored, renamedKeys })
-    ),
-    (key) => {
-      const compiledBlock = getOwn(compiledWorkflow.blocks, key)
-      return !isEqual(compiledBlock && getOwn(compiledBlock.params, 'code'), storedCode(key))
-    }
+  const compileFindings = withoutRenameSettledFindings(compiled, renamedKeys, () =>
+    compileWorkflow({ ...compileInput, stored: compiled.stored, renamedKeys })
   )
+  const codeEdited = (key: string) => {
+    const compiledBlock = getOwn(compiledWorkflow.blocks, key)
+    return !isEqual(compiledBlock && getOwn(compiledBlock.params, 'code'), storedCode(key))
+  }
   const sourceRefusals: Diagnostic[] = []
   const headerSpan = compiled.spans[encodeAnchor({ kind: 'header' })]
   /** Where a finding about the workflow itself points: the field it names, else the name. */
@@ -834,11 +848,35 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       ...withSpan(metaSpan(field)),
     }))
   )
-  const removedKeys = isNew ? [] : canonicalDiff.blocks.removed
+  // A block replaced under its key (a retype) is reported removed and added, but it is the
+  // same declaration, which W_MAT_RETYPE_RECREATED covers, so it needs no allowDelete.
+  const removedKeys = isNew
+    ? []
+    : canonicalDiff.blocks.removed.filter((key) => !replacedKeys.has(key))
   const removedBlocks = removedKeys.map((key) => storedCanonical.workflow.blocks[key])
-  const addedBlocks = canonicalDiff.blocks.added.map((key) => materialized.workflow.blocks[key])
+  const addedBlocks = canonicalDiff.blocks.added
+    .filter((key) => !replacedKeys.has(key))
+    .map((key) => materialized.workflow.blocks[key])
   if (removedKeys.length > 0 && !input.allowDelete) {
     sourceRefusals.push(blockDeleteRefusal(removedBlocks, addedBlocks, metaSpan()))
+  }
+  const keptVariableIds = new Set(Object.values(materialized.identity.variables))
+  const storedVariableIds = new Set(Object.values(storedCanonical.identity.variables))
+  const removedVariables = isNew
+    ? []
+    : Object.entries(storedCanonical.identity.variables).flatMap(([key, id]) => {
+        if (keptVariableIds.has(id)) return []
+        const variable = getOwn(storedCanonical.workflow.variables, key)
+        return [{ name: variable?.name ?? key, type: variable?.type ?? '' }]
+      })
+  if (removedVariables.length > 0 && !input.allowDelete) {
+    const addedVariables = Object.entries(materialized.identity.variables).flatMap(([key, id]) => {
+      const variable = getOwn(materialized.workflow.variables, key)
+      return storedVariableIds.has(id) || !variable
+        ? []
+        : [{ name: variable.name, type: variable.type }]
+    })
+    sourceRefusals.push(variableDeleteRefusal(removedVariables, addedVariables, metaSpan()))
   }
   const renameWarnings = input.allowDelete
     ? probableRenames(removedBlocks, addedBlocks).map(
@@ -915,24 +953,35 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       workspaceId: scope.workspaceId,
       subjectUserId: scope.subjectUserId,
     },
-    { declaredTables: declaredTableSchemas(input.pendingResources ?? []) }
+    { declaredTables: declaredTableSchemas(input.pendingResources ?? []), iterationScope: false }
   )
   const changedIds = new Set([...graphDiff.added, ...graphDiff.modified.map((m) => m.id)])
+  const changedKeys = new Set([...changedIds].flatMap((id) => keyById.get(id) ?? []))
+  const keyOfId = (id: string) => keyById.get(id)
+  const compileDiagnostics = refuseEditedFindings(compileFindings, {
+    changed: (key) => changedKeys.has(key),
+    codeEdited,
+  })
+  const compiledLint = withoutCompiledReferences(
+    withoutPendingReferences(lint, input.pendingResources ?? []),
+    compileDiagnostics,
+    keyOfId
+  )
+  const foreignIds = await foreignResourceRefusals({
+    blocks,
+    diff: graphDiff,
+    workspaceId: scope.workspaceId,
+    pending: input.pendingResources ?? [],
+    keyOf: keyOfId,
+  })
   const diagnostics = [
     ...compileDiagnostics,
     ...keptDiagnostics,
     ...materializeDiagnostics,
     ...refusals,
     ...normalized.diagnostics,
-    ...lintDiagnostics(
-      withoutCodeFileReferences(
-        withoutPendingReferences(lint, input.pendingResources ?? []),
-        compileDiagnostics,
-        (id) => keyById.get(id)
-      ),
-      changedIds,
-      (id) => keyById.get(id)
-    ),
+    ...foreignIds,
+    ...lintDiagnostics(compiledLint, changedIds, keyOfId),
   ].map(locate)
   if (hasErrors(diagnostics)) {
     return {

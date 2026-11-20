@@ -29,6 +29,8 @@ import { buildChatDeploymentUrl } from '@/lib/chat-deployments/urls'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { resolveCopilotSecretReference } from '@/lib/core/application/environment-reference'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { expectedDraft } from '@/lib/workflows/application/deployments'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { performChatDeploy, performChatUndeploy } from '@/lib/workflows/orchestration'
 import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-check'
 
@@ -71,6 +73,12 @@ export interface ReplaceWorkflowChatDeploymentInput extends WorkflowChatDeployme
   includeThinking?: boolean
   includeToolCalls?: boolean
   requestId: string
+  /**
+   * The `sf1:` fingerprint of the draft the caller vouches for: when the write must redeploy the
+   * workflow (its draft differs from the live version), a draft that no longer has it is refused
+   * with `conflict`, nothing deployed or written.
+   */
+  expectedDraftFingerprint?: string
 }
 
 export interface WorkflowChatDeploymentResult {
@@ -264,6 +272,17 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
+    const draftCheck =
+      input.expectedDraftFingerprint !== undefined
+        ? expectedDraft(
+            principal,
+            await resolvePrincipalWorkflowContext({
+              principal,
+              input: { workflowId: context.workflowId },
+            }),
+            input.expectedDraftFingerprint
+          )
+        : undefined
     const result = await performChatDeploy({
       workflowId: context.workflowId,
       userId: attribution.attributedUserId,
@@ -282,7 +301,9 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
       workspaceId: context.workspaceId,
       requestId: input.requestId,
       projectLegacyAudit: false,
+      ...(draftCheck ? { admitDraft: draftCheck.admitDraft } : {}),
     }).catch(chatIdentifierUniquenessConflict(input.identifier))
+    draftCheck?.assertAdmitted()
 
     if (!result.success) {
       /**

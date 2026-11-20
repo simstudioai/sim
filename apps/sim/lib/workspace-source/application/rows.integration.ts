@@ -17,10 +17,12 @@ import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { updateTableColumnUseCase } from '@/lib/table/application/columns'
 import { createTableRows } from '@/lib/table/application/rows'
+import { createTableUseCase } from '@/lib/table/application/tables'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import { getTableById } from '@/lib/table/service'
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
@@ -547,6 +549,27 @@ export default defineTable({
     expect(codes(refused.diagnostics)).toContain('E_APPLY_REFUSED')
   })
 
+  check(
+    'reports managed rows the server wrote since the base as drift, and keeps them',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await managedPlans(workspaceId)
+      const clean = await apply(workspaceId, read.files, { base: read.base, dryRun: true })
+      expect(codes(clean.diagnostics, 'warning')).toEqual([])
+
+      await editStoredSeats(workspaceId, 'team', 25)
+      const drifted = await apply(workspaceId, read.files, { base: read.base })
+
+      expect(drifted.applied).toEqual([])
+      expect(
+        drifted.diagnostics
+          .filter((finding) => finding.severity === 'warning')
+          .map((finding) => `${finding.code} ${finding.kind}:${finding.key}`)
+      ).toEqual(['W_SERVER_CHANGED table:plans'])
+      expect((await storedRows(workspaceId))[1]).toMatchObject({ code: 'team', seats: 25 })
+    }
+  )
+
   check('refuses rows edited here that the server changed since the base', async () => {
     const workspaceId = await newWorkspace()
     const read = await managedPlans(workspaceId)
@@ -729,6 +752,65 @@ export default defineTable({
       { code: 'team', seats: 10, tier: 'pro' },
     ])
   })
+
+  check(
+    'refuses adopting a table the directory never read when it would drop its columns or rows, even with --allow-delete',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await createTableUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'plans',
+          schema: {
+            columns: [
+              { name: 'code', type: 'string', required: true, unique: true },
+              { name: 'seats', type: 'number' },
+              { name: 'notes', type: 'string' },
+            ],
+          },
+        },
+      })
+      for (const code of ['solo', 'team', 'ent']) await addUiRow(workspaceId, { code, notes: code })
+      const columnsBefore = (await storedTable(workspaceId)).schema.columns
+      const rowsBefore = await storedRows(workspaceId)
+
+      const refused = await refusal(
+        apply(
+          workspaceId,
+          { 'tables/plans.ts': MANAGED, 'tables/plans.rows.jsonl': ROWS },
+          { allowDelete: true }
+        )
+      )
+
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_NO_BASE'])
+      expect(
+        refused.diagnostics.find((finding) => finding.code === 'E_APPLY_NO_BASE')?.message
+      ).toContain('columns.notes (drop)')
+      expect((await storedTable(workspaceId)).schema.columns).toEqual(columnsBefore)
+      expect(await storedRows(workspaceId)).toEqual(rowsBefore)
+    }
+  )
+
+  check(
+    'creates a managed table holding the most rows a directory may declare, in one apply',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const count = WORKSPACE_SOURCE_LIMITS.maxTableRows
+      const rows = Array.from(
+        { length: count },
+        (_, index) => `{"code":"c${index}","seats":${index},"tier":"basic"}\n`
+      ).join('')
+
+      const created = await apply(workspaceId, {
+        'tables/plans.ts': MANAGED,
+        'tables/plans.rows.jsonl': rows,
+      })
+
+      expect(created.failed).toBeUndefined()
+      expect((await storedTable(workspaceId)).rowCount).toBe(count)
+    }
+  )
 
   check('seeds a new table once, and only a new or empty one', async () => {
     const workspaceId = await newWorkspace()

@@ -321,7 +321,7 @@ describe('workspace source files', () => {
 
     const unchanged = await apply(workspaceId, STARTER, { base: read.base })
     expect(summary(unchanged.plan)).toEqual(['noop notes.txt', 'noop docs/plan.md'])
-    expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_CHANGED'])
+    expect(codes(unchanged.diagnostics, 'warning')).toEqual(['W_SERVER_CHANGED'])
 
     const refused = await refusal(
       apply(
@@ -728,7 +728,7 @@ describe('workspace source files', () => {
         'noop docs/plan.md',
         'noop renamed.txt',
       ])
-      const moved = unchanged.diagnostics.find((finding) => finding.code === 'I_SERVER_MOVED')
+      const moved = unchanged.diagnostics.find((finding) => finding.code === 'W_SERVER_MOVED')
       expect(moved?.message).toContain('files/renamed.txt')
       expect(unchanged.needBlobs).toEqual([])
 
@@ -1030,10 +1030,10 @@ export default workflow('Reader', {}, () => {
 
       expect(
         unchanged.diagnostics
-          .filter((finding) => finding.code === 'I_SERVER_CHANGED')
+          .filter((finding) => finding.code === 'W_SERVER_CHANGED')
           .map((finding) => `${finding.code} ${finding.key}`)
           .sort()
-      ).toEqual(['I_SERVER_CHANGED docs/plan.md', 'I_SERVER_CHANGED notes.txt'])
+      ).toEqual(['W_SERVER_CHANGED docs/plan.md', 'W_SERVER_CHANGED notes.txt'])
       expect(unchanged.applied).toEqual([])
       expect(await storedFiles(workspaceId)).toEqual(before)
 

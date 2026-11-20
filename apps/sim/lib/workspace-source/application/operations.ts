@@ -1,7 +1,9 @@
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
+import { WORKFLOW_CODE_FEATURE } from '@/lib/workflows/code/feature-flag'
 
-const SOURCE_PRINCIPAL_POLICY = {
+const SOURCE_OPERATION_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+  feature: WORKFLOW_CODE_FEATURE,
 } as const
 
 /**
@@ -21,7 +23,21 @@ export const workspaceSourceOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    ...SOURCE_PRINCIPAL_POLICY,
+    ...SOURCE_OPERATION_POLICY,
+  }),
+  /**
+   * What an apply of a submitted directory would do, without writing: the read behind
+   * `sim workspaces source status`. Each change is still checked by the use case that owns it, so a
+   * member who may not write a kind sees that change refused in the plan.
+   */
+  // permission-group-exempt: a plan stores nothing; each change is checked by the use case that owns it, which applies that kind's capability
+  plan: defineWorkspaceOperation({
+    id: 'workspaces.source.plan',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    ...SOURCE_OPERATION_POLICY,
   }),
   // permission-group-exempt: each change runs through the use case that owns it, which applies that kind's capability
   apply: defineWorkspaceOperation({
@@ -30,7 +46,7 @@ export const workspaceSourceOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
-    ...SOURCE_PRINCIPAL_POLICY,
+    ...SOURCE_OPERATION_POLICY,
   }),
   // permission-group-exempt: staged bytes are inert until an apply writes them through the use case that owns each kind
   stageBlobs: defineWorkspaceOperation({
@@ -39,7 +55,7 @@ export const workspaceSourceOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
-    ...SOURCE_PRINCIPAL_POLICY,
+    ...SOURCE_OPERATION_POLICY,
   }),
   // permission-group-exempt: it reports which of the caller's own staged hashes are absent
   findMissingBlobs: defineWorkspaceOperation({
@@ -48,6 +64,6 @@ export const workspaceSourceOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
-    ...SOURCE_PRINCIPAL_POLICY,
+    ...SOURCE_OPERATION_POLICY,
   }),
 } as const

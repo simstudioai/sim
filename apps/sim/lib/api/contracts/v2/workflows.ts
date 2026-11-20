@@ -60,6 +60,7 @@ import {
   referenceOccurrenceSchema,
   workflowReferenceManifestSchema,
 } from '@/lib/api/contracts/workflow-references'
+import { sourceFingerprintSchema } from '@/lib/api/contracts/workflow-source'
 import {
   cancelWorkflowExecutionReasonSchema,
   workflowExecutionPausedDetailSchema,
@@ -1078,6 +1079,11 @@ export const v2DeployWorkflowContract = defineRouteContract({
       description: v1DeployWorkflowBodySchema.shape.description.describe(
         'Optional release note for the deployment version.'
       ),
+      expectedDraftFingerprint: sourceFingerprintSchema('expectedDraftFingerprint')
+        .optional()
+        .describe(
+          'Deploy only this draft: the `sf1:` fingerprint a source apply answered with (`base.fingerprint`). When the draft changed since, the deploy answers `409` and publishes nothing.'
+        ),
     })
     .strict()
     .optional()

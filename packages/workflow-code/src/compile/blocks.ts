@@ -32,12 +32,17 @@ import {
 } from '../catalog/surface'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { catalogBuildersOfType } from '../catalog/view'
-import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
-import { isIdentifierName } from '../code-files/ref-path'
+import {
+  type CodeFileLanguage,
+  type CodeFileRef,
+  codeFileLanguage,
+  fromCodeFile,
+} from '../code-files'
+import { isIdentifierName, parseStoredPath } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { type ConfigField, type ContainerForm, loopForm, parallelForm } from '../forms/subflow'
-import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
+import { CODE_FILE_EXTENSIONS, isCodeFilePath, SOURCE_CODE_DIR, utf8Bytes } from '../limits'
 import { isJson } from '../lock'
 import {
   type AnchorKey,
@@ -345,12 +350,26 @@ function readCodeFile(
     return null
   }
   const path = resolveRelative(ctx.file, compiled.path)
-  if (path === null || codeFileLanguage(compiled.path) !== language) {
+  const entryName = ctx.file.slice(ctx.file.lastIndexOf('/') + 1)
+  const fromEntry = resolveRelative(entryName, compiled.path)
+  if (path === null || fromEntry === null || !isCodeFilePath(fromEntry)) {
     ctx.reporter.report(
       'E_CODE_FILE_PATH',
       path === null
         ? `${compiled.path} is not a relative path inside the repository.`
-        : `${compiled.path} does not match the block language ${language}.`,
+        : `${compiled.path} is not a code file path a workflow directory holds.`,
+      at,
+      {
+        hint: `Name it ./${SOURCE_CODE_DIR}/<name>.js (or .py, .sh): one file directly in ${SOURCE_CODE_DIR}/ beside ${entryName}, its name letters, digits, _, $, - and dots, not starting with a dot.`,
+        blockKey: decl.key,
+      }
+    )
+    return null
+  }
+  if (codeFileLanguage(compiled.path) !== language) {
+    ctx.reporter.report(
+      'E_CODE_FILE_PATH',
+      `${compiled.path} does not match the block language ${language}.`,
       at,
       {
         hint: "Write codeFile('./functions/name.js') with .js, .py or .sh matching language.",
@@ -368,7 +387,11 @@ function readCodeFile(
     return null
   }
   const cached = budget.reads.get(path)
-  if (cached !== undefined) return cached === null ? null : { code: cached, path }
+  if (cached !== undefined) {
+    if (cached === null) return null
+    budget.sharedReads.push({ path, blockKey: decl.key })
+    return { code: cached, path }
+  }
   ctx.reporter.addFile(path, text)
   if (!checkStorableText(path, text, ctx.reporter, decl.key)) {
     budget.reads.set(path, null)
@@ -426,10 +449,92 @@ function parseCodeFile(
     }
     return null
   }
-  if (back.refs.length > 0) {
-    ctx.codeFiles.chains.push({ path, blockKey: decl.key, refs: back.refs })
-  }
+  if (language !== 'javascript') reportScriptRefSyntax(ctx, path, text, language, decl.key)
+  const refs = [...back.refs, ...referenceTags(text)].sort((a, b) => a.start - b.start)
+  if (refs.length > 0) ctx.codeFiles.chains.push({ path, blockKey: decl.key, refs })
   return back.code
+}
+
+/** A `$ref` chain or `$env` name, as a JavaScript code file writes one. */
+const SCRIPT_REF = /\$(ref|env)((?:\.[A-Za-z0-9_$-]+)+)/g
+
+const SCRIPT_LANGUAGE_LABEL: Record<Exclude<CodeFileLanguage, 'javascript'>, string> = {
+  python: 'Python',
+  shell: 'Shell',
+}
+
+/**
+ * Whether a `$ref`/`$env` match in a Python or shell file is a reference rather than the
+ * language's own text (a shell variable `$ref` before `.txt`): `$ref` needs a path under a block,
+ * `loop`, `parallel` or `variable`, and `$env` a name the workspace declares, when its names are
+ * known.
+ */
+function isScriptRef(ctx: CompileContext, root: string, names: readonly string[]): boolean {
+  const [head] = names
+  if (head === undefined) return false
+  if (root === 'env') return !ctx.envNames || ctx.envNames.has(head)
+  if (names.length < 2) return false
+  return (
+    ctx.declsByKey.has(head) ||
+    ctx.declsByIdent.has(head) ||
+    head === 'loop' ||
+    head === 'parallel' ||
+    head === 'variable'
+  )
+}
+
+/**
+ * `W_CODE_FILE_REF_SYNTAX` on each `$ref.key.path` and `$env.NAME` in a Python or shell file:
+ * only JavaScript files are rewritten, so these reach the run as text and break the code. The
+ * hint names the form those files take, the stored `<key.path>` tag or `{{NAME}}`, which the run
+ * resolves with the language's own quoting.
+ */
+function reportScriptRefSyntax(
+  ctx: CompileContext,
+  path: string,
+  text: string,
+  language: Exclude<CodeFileLanguage, 'javascript'>,
+  blockKey: BlockKey
+): void {
+  const label = SCRIPT_LANGUAGE_LABEL[language]
+  for (const match of text.matchAll(SCRIPT_REF)) {
+    const [written, root, members] = match
+    const names = members.slice(1).split('.')
+    if (!isScriptRef(ctx, root, names)) continue
+    const form = root === 'env' ? `{{${names[0]}}}` : `<${names.join('.')}>`
+    ctx.reporter.report(
+      'W_CODE_FILE_REF_SYNTAX',
+      `${written} is the JavaScript code file form; a ${label} file is saved as written, so the run reads it as text and the code breaks.`,
+      { file: path, start: match.index, end: match.index + written.length },
+      { hint: `${label} files are saved as written: write ${form}.`, blockKey }
+    )
+  }
+}
+
+/** The name inside a `{{NAME}}` env token a run substitutes; other `{{…}}` text is left alone. */
+const ENV_TOKEN_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+/**
+ * The `<key.path>` references a code file writes as text, found by the runtime's own scanner (a
+ * JavaScript string, a Python or shell line): the run resolves each one, so compile checks them as
+ * it checks a `$ref` chain. A token with no path (`<b>` in HTML text) is no reference.
+ */
+function referenceTags(text: string): CodeFileRef[] {
+  const tags: CodeFileRef[] = []
+  for (const token of findWorkflowReferenceTokens(text)) {
+    if (token.kind === 'environment') {
+      const name = token.value.slice(2, -2).trim()
+      if (ENV_TOKEN_NAME.test(name)) {
+        tags.push({ kind: 'env', name, start: token.start, end: token.end })
+      }
+      continue
+    }
+    if (token.kind !== 'workflow') continue
+    const segments = parseStoredPath(token.value.slice(1, -1))
+    if (!segments || segments.length < 2) continue
+    tags.push({ kind: 'ref', segments, start: token.start, end: token.end, tag: true })
+  }
+  return tags
 }
 
 interface WrittenParam {
@@ -1659,10 +1764,11 @@ function compileConfig<S>(
   container: 'loop' | 'parallel',
   form: ContainerForm<S>,
   configNode: ObjectExpression | undefined
-): Map<ConfigField<S>, Value> {
+): CompiledConfig<S> {
   const { decl } = site
   const fields = new Map<ConfigField<S>, Value>()
-  if (!configNode) return fields
+  const written = new Map<ConfigField<S>, ObjectProperty>()
+  if (!configNode) return { fields, written }
   for (const [key, property] of objectEntries(ctx, configNode)) {
     const entry = getOwn(form, key)
     if (!entry) {
@@ -1674,6 +1780,7 @@ function compileConfig<S>(
       )
       continue
     }
+    written.set(entry.field, property)
     const node = property.value
     const field = String(entry.field)
     if (entry.kind === 'number') {
@@ -1706,7 +1813,37 @@ function compileConfig<S>(
     }
     fields.set(entry.field, compiled.value)
   }
-  return fields
+  return { fields, written }
+}
+
+/** A container's compiled config values, and the property each written key came from. */
+interface CompiledConfig<S> {
+  fields: Map<ConfigField<S>, Value>
+  written: Map<ConfigField<S>, ObjectProperty>
+}
+
+/**
+ * `W_FIELD_NOT_APPLICABLE` on a written config key the container does not read beside the rest of
+ * its config (`count` on a do-while that has a condition): the executor ignores it, so writing it
+ * changes nothing.
+ */
+function reportUnreadConfig<S>(
+  ctx: CompileContext,
+  decl: BlockDecl,
+  form: ContainerForm<S>,
+  written: ReadonlyMap<ConfigField<S>, ObjectProperty>,
+  spec: S
+): void {
+  for (const [key, entry] of Object.entries(form)) {
+    const property = written.get(entry.field)
+    if (!property || !entry.unread || !entry.printedWhen || entry.printedWhen(spec)) continue
+    ctx.reporter.report(
+      'W_FIELD_NOT_APPLICABLE',
+      `${key} is not read: ${entry.unread.reason}.`,
+      rangeOf(ctx, property),
+      { hint: entry.unread.hint, blockKey: decl.key }
+    )
+  }
 }
 
 function numberField(value: Value | undefined): number | undefined {
@@ -1749,12 +1886,13 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
 
   let subflow: LoopSpec | ParallelSpec
   if (builder.container === 'loop') {
-    const fields = compileConfig(ctx, site, 'loop', loopForm(builder.method), config)
+    const form = loopForm(builder.method)
+    const { fields, written } = compileConfig(ctx, site, 'loop', form, config)
     const iterations = numberField(fields.get('iterations'))
     const forEachItems = jsonField(fields.get('forEachItems'))
     const whileCondition = textField(fields.get('whileCondition'))
     const doWhileCondition = textField(fields.get('doWhileCondition'))
-    subflow = {
+    const loop: LoopSpec = {
       kind: 'loop',
       loopType: builder.method,
       iterations: iterations ?? DEFAULT_LOOP_ITERATIONS,
@@ -1762,8 +1900,10 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
       ...(whileCondition !== undefined && { whileCondition }),
       ...(doWhileCondition !== undefined && { doWhileCondition }),
     }
+    reportUnreadConfig(ctx, decl, form, written, loop)
+    subflow = loop
   } else {
-    const fields = compileConfig(ctx, site, 'parallel', parallelForm(builder.method), config)
+    const { fields } = compileConfig(ctx, site, 'parallel', parallelForm(builder.method), config)
     const count = numberField(fields.get('count'))
     const distribution = jsonField(fields.get('distribution'))
     const batchSize = numberField(fields.get('batchSize'))

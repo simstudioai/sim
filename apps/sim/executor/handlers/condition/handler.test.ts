@@ -700,6 +700,24 @@ describe('ConditionBlockHandler', () => {
     })
   })
 
+  it('reads the incoming block that ran, not the first edge drawn into the condition', async () => {
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+    mockWorkflow.connections = [
+      { source: 'skipped-branch', target: mockBlock.id },
+      ...(mockWorkflow.connections ?? []),
+    ]
+    const conditions = [
+      { id: 'cond1', title: 'if', value: 'context.value > 5' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    const result = await handler.execute(mockContext, mockBlock, {
+      conditions: JSON.stringify(conditions),
+    })
+
+    expect(result).toMatchObject({ value: 10, text: 'hello', selectedOption: 'cond1' })
+  })
+
   describe('Source output filtering', () => {
     it('should not propagate error field from source block output', async () => {
       mockExecuteTool.mockResolvedValueOnce(matchedAt(0))

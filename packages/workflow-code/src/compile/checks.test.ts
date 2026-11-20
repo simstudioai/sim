@@ -116,7 +116,7 @@ describe("references into a start trigger's declared inputs", () => {
           'start.to(next)',
         ].join('\n')
       ),
-      'W_UNKNOWN_OUTPUT_PATH'
+      'W_OUTPUT_PATH_UNDECLARED'
     )
 
   it('warns on an input the start does not declare, at the reference', () => {
@@ -482,6 +482,71 @@ describe('unknown builders', () => {
   })
 })
 
+describe('an SDK export the file did not import', () => {
+  function compileWith(imports: string, body: string): CompileResult {
+    return compileWorkflow({
+      entry: {
+        path: 'workflow.ts',
+        text: `// @sim-sdk 1\nimport { ${imports} } from '@sim/workflow-sdk'\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`,
+      },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+    })
+  }
+
+  it('names the missing import of a container, a template tag and env, and nothing else', () => {
+    const result = compileWith(
+      'fn, js, trigger, workflow',
+      [
+        START,
+        "const lp = loop.for('Lp', { count: 2 }, (p) => {",
+        "  const inner = fn('Inner', { code: js`return ${p.index}` })",
+        '  p.to(inner)',
+        '})',
+        "const after = fn('After', { code: t`${lp.results}` })",
+        "const last = fn('Last', { code: js`return ${env.KEY}` })",
+        'start.to(lp)',
+        'lp.to(after)',
+        'after.to(last)',
+      ].join('\n')
+    )
+    expect(
+      result.diagnostics
+        .filter((d) => d.severity === 'error')
+        .map((d) => ({ message: d.message, hint: d.hint }))
+    ).toEqual(
+      ['loop', 't', 'env'].map((name) => ({
+        message: `${name} is not imported from '@sim/workflow-sdk'.`,
+        hint: `Add ${name} to the import from '@sim/workflow-sdk'.`,
+      }))
+    )
+  })
+
+  it('suggests the block handle a read of an unimported SDK name is close to, before the import', () => {
+    const result = compileWith(
+      'fn, js, trigger, workflow',
+      [
+        START,
+        "const api1 = fn('Api', { code: 'return 1' })",
+        "const next = fn('Next', { code: js`return ${api.result}` })",
+        'start.to(api1)',
+        'api1.to(next)',
+      ].join('\n')
+    )
+    expect(
+      result.diagnostics
+        .filter((d) => d.severity === 'error')
+        .map((d) => ({ message: d.message, hint: d.hint }))
+    ).toEqual([
+      {
+        message: 'api is not defined.',
+        hint: "Did you mean api1? (api is also an SDK export, which needs adding to the import from '@sim/workflow-sdk'.)",
+      },
+    ])
+  })
+})
+
 describe('a misspelled required param', () => {
   it('reports the unknown param once, without a second W_REQUIRED_MISSING for its suggestion', () => {
     const result = run("const a = api('A', { urll: 'https://x' })")
@@ -502,6 +567,46 @@ describe('typed references in JSON fields', () => {
         'l.to(a)',
       ].join('\n')
     )
+    expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
+  })
+
+  it('reports a reference to an output the block lacks once, not also as untyped', () => {
+    const result = run(
+      [
+        START,
+        "const a = api('A', { url: 'https://x' })",
+        "const b = api('B', { url: 'https://x', body: { items: a.dataa } })",
+        'start.to(a)',
+        'a.to(b)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(1)
+    expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
+  })
+
+  it('still warns that an input the start does not declare is stored bare, as a caller may pass text', () => {
+    const result = run(
+      [
+        "const start = trigger.start('Start', { inputFormat: { query: 'string' } })",
+        "const a = api('A', { url: 'https://x', body: { items: start.list } })",
+        'start.to(a)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_OUTPUT_PATH_UNDECLARED')).toHaveLength(1)
+    expect(findings(result, 'W_JSON_REF_UNTYPED')).toHaveLength(1)
+  })
+
+  it('reports x.error on a block with no error edge once, not also as untyped', () => {
+    const result = run(
+      [
+        START,
+        "const a = api('A', { url: 'https://x' })",
+        "const b = api('B', { url: 'https://x', body: { failure: a.error } })",
+        'start.to(a)',
+        'a.to(b)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_OUTPUT_PATH_UNDECLARED')).toHaveLength(1)
     expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
   })
 
@@ -609,7 +714,7 @@ describe('hints that name the fix', () => {
     expect(unknown?.hint).toBe('Did you mean data?')
   })
 
-  it('reads x.error in the handler of an error edge, and refuses it on a block without one', () => {
+  it('reads x.error in the handler of an error edge, and warns that it reads nothing on a block without one', () => {
     const body = (wiring: string) =>
       [
         START,
@@ -618,8 +723,8 @@ describe('hints that name the fix', () => {
         'start.to(call)',
         wiring,
       ].join('\n')
-    expect(findings(run(body('call.onError(failed)')), 'W_UNKNOWN_OUTPUT_PATH')).toEqual([])
-    const [unknown] = findings(run(body('call.to(failed)')), 'W_UNKNOWN_OUTPUT_PATH')
+    expect(findings(run(body('call.onError(failed)')), 'W_OUTPUT_PATH_UNDECLARED')).toEqual([])
+    const [unknown] = findings(run(body('call.to(failed)')), 'W_OUTPUT_PATH_UNDECLARED')
     expect(unknown?.message).toBe(
       'Call has no output error: only a block with an error edge outputs its failure message.'
     )
@@ -653,8 +758,8 @@ describe('hints that name the fix', () => {
         'start.to(classify)',
         wiring,
       ].join('\n')
-    expect(findings(run(body('classify.onError(failed)')), 'W_UNKNOWN_OUTPUT_PATH')).toEqual([])
-    expect(findings(run(body('classify.to(failed)')), 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(1)
+    expect(findings(run(body('classify.onError(failed)')), 'W_OUTPUT_PATH_UNDECLARED')).toEqual([])
+    expect(findings(run(body('classify.to(failed)')), 'W_OUTPUT_PATH_UNDECLARED')).toHaveLength(1)
   })
 
   it('lists the outputs when no output is close to an unknown path', () => {
@@ -703,6 +808,13 @@ describe('hints that name the fix', () => {
     expect(refused?.message).toBe('URL holds a value, not a block.')
     expect(findings(result, 'E_UNKNOWN_IDENTIFIER')[0]?.hint).toBe(
       'URL is a const that holds a value, which a workflow file cannot name: write the value here.'
+    )
+  })
+
+  it('tells a reference to a non-block const named like an SDK export to inline its value', () => {
+    const result = run(["const table = 'users'", "const a = api('A', { url: table })"].join('\n'))
+    expect(findings(result, 'E_UNKNOWN_IDENTIFIER')[0]?.hint).toBe(
+      'table is a const that holds a value, which a workflow file cannot name: write the value here.'
     )
   })
 

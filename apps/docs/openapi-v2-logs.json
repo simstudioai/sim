@@ -1066,7 +1066,8 @@
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
           "READ_ONLY_API_KEY",
-          "SCIM_MANAGED_MEMBERSHIP"
+          "SCIM_MANAGED_MEMBERSHIP",
+          "FEATURE_NOT_ENABLED"
         ],
         "title": "Forbidden detail code",
         "description": "Stable cause code for an actionable `403` response."

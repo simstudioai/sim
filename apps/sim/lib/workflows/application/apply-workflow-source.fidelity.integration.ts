@@ -152,7 +152,9 @@ async function snapshot(workflowId: string) {
     updatedAt: row.updatedAt.getTime(),
     graph: {
       blocks: graph.blocks,
-      edges: graph.edges,
+      // The loader reads edges in no particular order, and a save that updates rows in place
+      // moves them in the heap, so they compare by id.
+      edges: [...graph.edges].sort((a, b) => compareStrings(a.id, b.id)),
       loops: sortedNodes(graph.loops),
       parallels: sortedNodes(graph.parallels),
       variables: graph.variables,

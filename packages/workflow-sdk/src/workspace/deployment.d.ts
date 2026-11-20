@@ -67,7 +67,9 @@ export interface ChatDeployment {
 export interface DeploymentDeclaration {
   /**
    * `'draft'`: an apply deploys the draft whenever it differs from the live version (after this
-   * apply's workflow edits). `'pinned'`: an apply never redeploys, and says when the draft differs.
+   * apply's workflow edits), as long as it holds only what the workflow folder declares: a draft
+   * edited outside source is not deployed, and the apply warns. `'pinned'`: an apply never
+   * redeploys, and says when the draft differs.
    */
   live: 'draft' | 'pinned'
   /** Public: anyone may run the workflow's API without a key. Private when omitted. */

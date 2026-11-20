@@ -4,7 +4,8 @@
  * allowlist and SSRF checks included), audit and cache invalidation apply unchanged.
  *
  * A server's id derives from its URL (`generateMcpServerId`), so the URL is its identity: an
- * unbound server at the declared URL is adopted, two declarations of one URL refuse, and a URL
+ * unbound server at the declared URL is adopted when the declaration matches it (any other adopt is
+ * refused, see `refuseUnreadAdopt`), two declarations of one URL refuse, and a URL
  * that keeps the id (only its query string differs) is set in place through the reconfigure use
  * case, which validates the URL before it writes anything. A URL with a new id replaces the server
  * (created at the new URL, then the old one deleted). A replace breaks stored workflows that still
@@ -43,6 +44,7 @@ import { authorizeWorkspaceOperation, ForbiddenOperationError } from '@/lib/core
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
+  assertMcpServerUrlAccepted,
   createMcpServerUseCase,
   deleteMcpServerUseCase,
   discoverMcpServerToolsUseCase,
@@ -67,12 +69,18 @@ import {
   concealHeaderValues,
   declOf,
   headersToWrite,
+  hiddenHeadersWritten,
   holdsDeclaration,
   keepsStoredHeaders,
   resolveStoredHeaders,
   storedFingerprint,
 } from '@/lib/workspace-source/application/kinds/mcp/stored'
-import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
+import {
+  holdsIn,
+  refuseUnreadAdopt,
+  resolveDeclared,
+  settle,
+} from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   KindAdapter,
@@ -159,7 +167,25 @@ async function planServer(
 
   const bound = stored.bound.get(key)
   const adoptable = stored.unbound.find((record) => record.id === id)
-  const { decl, missing } = resolveStoredHeaders(declared, (bound ?? adoptable)?.state)
+  const target = bound ?? adoptable
+  // A caller who cannot see a header's stored value may only keep it: comparing text they wrote
+  // with the hidden value would tell them whether they guessed it. The plan compares the
+  // declaration with the bound server and with the one at its URL, so both are checked.
+  const compared = [bound, adoptable].flatMap((record) => (record ? [record] : []))
+  if (compared.length > 0 && (await revealsHeaderValues(ctx)) !== true) {
+    const hidden = new Set(
+      compared.flatMap((record) => hiddenHeadersWritten(declared, record.state))
+    )
+    for (const header of hidden) {
+      finding(
+        'E_APPLY_FORBIDDEN',
+        `Header "${header}" holds a value you cannot see, so it can only be kept as \`stored()\`.`,
+        'Writing a header value the MCP server hides needs permission to update the server.'
+      )
+    }
+    if (change.diagnostics.length > 0) return change
+  }
+  const { decl, missing } = resolveStoredHeaders(declared, target?.state)
   change.decl = decl
   // A server the base records that the server deleted since: its `stored()` headers have nothing
   // to keep, and the declaration cannot be compared with the base, so it stays deleted.
@@ -218,6 +244,10 @@ async function planServer(
   }
   const record = planned.stored
   const changed = changedFields(declOf(record.state), decl)
+  if (planned.action === 'adopt' && !resumed) {
+    const refused = refuseUnreadAdopt(change, record, changed)
+    if (refused) return refused
+  }
   const update: McpChange = {
     ...change,
     action: planned.action,
@@ -515,27 +545,31 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
     const { principal } = ctx
     const workspaceId = ctx.workspace.workspaceId
     const decl = change.decl
-    if (
-      (change.action === 'create' || (change.detail?.replace && !change.detail.replacement)) &&
-      decl
-    ) {
+    const createsServer =
+      change.action === 'create' || (change.detail?.replace && !change.detail.replacement)
+    if (createsServer && decl) {
       await createMcpServerUseCase.authorize({
         principal,
         input: { workspaceId, name: decl.name, url: decl.url },
       })
     }
     await authorizeCarriedHeaders(change, ctx)
-    if (!change.storedId) return
-    if (change.action === 'delete' || change.detail?.replace) {
+    if (change.storedId && (change.action === 'delete' || change.detail?.replace)) {
       await deleteMcpServerUseCase.authorize({
         principal,
         input: { workspaceId, serverId: change.storedId },
       })
-    } else if (change.action !== 'create') {
+    } else if (change.storedId && change.action !== 'create') {
       await updateUseCaseOf(change.detail?.changed ?? []).authorize({
         principal,
         input: { workspaceId, serverId: change.storedId },
       })
+    }
+    // The URL is checked as the write checks it (allowlist, egress policy, DNS), so a URL the
+    // write would refuse refuses the plan, not the apply after other resources were written. It
+    // runs last, so only a caller who may write the server learns how its URL fares.
+    if (decl && (createsServer || change.detail?.changed.includes('url'))) {
+      await assertMcpServerUrlAccepted(decl.url)
     }
   },
 

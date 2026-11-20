@@ -204,6 +204,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
         target.branches,
         id,
         [resolved.lockOwned ? inputs.lockBlock?.branches : undefined, prev?.branchIds],
+        before?.branches?.rows,
         context
       )
       const existing = getOwn(subBlocks, subBlockId)

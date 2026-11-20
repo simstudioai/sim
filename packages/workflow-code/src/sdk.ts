@@ -155,6 +155,11 @@ const SDK_CORE_ENTRIES = Object.entries(SDK_CORE) as Array<[SdkCoreExport, SdkCo
 /** Every value the SDK's core module exports. */
 export const SDK_CORE_EXPORTS: readonly SdkCoreExport[] = SDK_CORE_ENTRIES.map(([name]) => name)
 
+/** Whether `name` is a value the SDK's core module exports. */
+export function isSdkCoreExport(name: string): name is SdkCoreExport {
+  return Object.hasOwn(SDK_CORE, name)
+}
+
 /** Core exports that are core blocks' builders; every other core export is an SDK-owned root. */
 export const SDK_CORE_BLOCK_BUILDERS: ReadonlySet<string> = new Set(
   SDK_CORE_ENTRIES.filter(([, traits]) => traits.blockBuilder).map(([name]) => name)

@@ -32,7 +32,7 @@ const applyWorkflowSourceQuerySchema = z
     allowDelete: booleanQueryFlagSchema
       .optional()
       .describe(
-        'Allow the apply to delete blocks the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE` naming them. Ignored when creating a workflow.'
+        'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.'
       ),
   })
   .strict()
@@ -66,6 +66,50 @@ const sourceFilesSchema = z
     `Relative path → file text: \`workflow.ts\` plus every function-code file it references (for example \`functions/score.js\`). At most ${SOURCE_LIMITS.maxFiles} files and ${SOURCE_LIMITS.maxTotalBytes} bytes together, for a workflow of at most ${SOURCE_LIMITS.maxBlocks} blocks.`
   )
 
+/**
+ * Whether a repository address carries credentials, judged by parsing it rather than matching
+ * one shape: a URL (`scheme://…`) that does not parse, holds a query, a fragment, a password, or
+ * any user on an HTTP(S) transport (`git+https://token@…` included); or any other address holding
+ * a query or fragment, a `scheme:` or `scheme:/` form with a user (`https:/token@host`, which a
+ * URL parser reads as `https://token@host`), or an scp-style address (`user@host:path`) whose
+ * user holds a password. Whitespace and control characters are refused outright, so no padding
+ * hides the address from the parser.
+ */
+function carriesCredentials(repo: string): boolean {
+  if (/[\s\p{Cc}]/u.test(repo)) return true
+  if (!repo.includes('://')) {
+    return (
+      /[?#]/.test(repo) ||
+      /^[a-z][a-z0-9+.-]*:\/*[^/@]*@/i.test(repo) ||
+      /^[^@/]*:[^@/]*@/.test(repo)
+    )
+  }
+  let url: URL
+  try {
+    url = new URL(repo)
+  } catch {
+    return true
+  }
+  if (url.password !== '' || url.search !== '' || url.hash !== '') return true
+  return url.username !== '' && /(^|\+)https?:$/i.test(url.protocol)
+}
+
+/** `provenance.gitSha`: the commit a source or directory was taken from. */
+export const provenanceGitShaSchema = z
+  .string()
+  .regex(/^[0-9a-f]{7,64}$/, 'provenance.gitSha must be a hexadecimal commit hash')
+
+/** `provenance.repo`: the repository a source or directory was taken from, never with credentials. */
+export const provenanceRepoSchema = z
+  .string()
+  .min(1, 'provenance.repo cannot be empty')
+  .max(512, 'provenance.repo is too long')
+  .refine((repo) => !carriesCredentials(repo), {
+    message:
+      'provenance.repo must not carry credentials: send the URL without its user, password and query',
+  })
+  .describe('The repository the source was taken from (its remote URL); recorded in the audit log.')
+
 const provenanceSchema = z
   .object({
     client: z
@@ -73,17 +117,10 @@ const provenanceSchema = z
         error: 'provenance.client: expected one of "cli" | "copilot" | "canvas" | "api"',
       })
       .describe('What submitted the source.'),
-    gitSha: z
-      .string()
-      .regex(/^[0-9a-f]{7,64}$/, 'provenance.gitSha must be a hexadecimal commit hash')
+    gitSha: provenanceGitShaSchema
       .optional()
       .describe('The commit the source was taken from; recorded in the audit log.'),
-    repo: z
-      .string()
-      .min(1, 'provenance.repo cannot be empty')
-      .max(512, 'provenance.repo is too long')
-      .optional()
-      .describe('The repository the source was taken from.'),
+    repo: provenanceRepoSchema.optional(),
   })
   .strict()
   .optional()
@@ -173,6 +210,16 @@ const sourceDiffSchema = z
       .object({
         added: z.array(z.string()).describe('Variable keys added.'),
         removed: z.array(z.string()).describe('Variable keys removed.'),
+        renamed: z
+          .array(
+            z
+              .object({
+                from: z.string().describe('Former key.'),
+                to: z.string().describe('New key.'),
+              })
+              .describe('A renamed variable.')
+          )
+          .describe('Variables renamed; each keeps its id, so none is deleted.'),
         modified: z.array(z.string()).describe('Variable keys changed.'),
       })
       .describe('Variable changes.'),
@@ -219,6 +266,39 @@ export const v2ApplyWorkflowSourceContract = defineRouteContract({
   params: v2WorkflowIdParamsSchema,
   query: applyWorkflowSourceQuerySchema,
   body: applyWorkflowSourceBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(applyWorkflowSourceDataSchema) },
+})
+
+const planWorkflowSourceQuerySchema = z
+  .object({
+    allowDelete: booleanQueryFlagSchema
+      .optional()
+      .describe(
+        'Plan the deletes of blocks and variables the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE` or `E_APPLY_VARIABLE_DELETE`.'
+      ),
+  })
+  .strict()
+
+const planWorkflowSourceBodySchema = z
+  .object({
+    files: sourceFilesSchema,
+    lock: workflowLockSchema,
+    base: sourceBaseSchema.describe(
+      'Where and when the source was read (`.sim/base.json`). A draft that no longer matches `base.fingerprint` is reported as `E_APPLY_STALE` in `diagnostics`.'
+    ),
+  })
+  .strict()
+
+/**
+ * `POST /api/v2/workflows/{workflowId}/source/plan`: what applying the source would do, as a read.
+ * The response is an apply dry run's.
+ */
+export const v2PlanWorkflowSourceContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/[workflowId]/source/plan',
+  params: v2WorkflowIdParamsSchema,
+  query: planWorkflowSourceQuerySchema,
+  body: planWorkflowSourceBodySchema,
   response: { mode: 'json', schema: v2DataResponse(applyWorkflowSourceDataSchema) },
 })
 

@@ -11,7 +11,7 @@ import { buildGeneratedCommands } from '../../runtime/build'
 import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { digest } from './source-dir'
-import { TSCONFIG_MARKER } from './source-tree'
+import { TSCONFIG_MARKER, WORKSPACE_TYPES_FILE } from './source-tree'
 import { attachWorkflowSourceApply, attachWorkflowSourceCreate } from './workflow-source-apply'
 
 const prompt = vi.hoisted(() => ({
@@ -180,6 +180,40 @@ describe('sim workflows source apply', () => {
     expect(stderrLines().join('\n')).toContain('Blocks: 1 added')
   })
 
+  it('prints the whole next command in a table, never clipping the flag it names', async () => {
+    setTerminal(false)
+    contextMockState.output = 'table'
+    const deep = join(dir, 'a-directory-name-long-enough-that-the-next-command-runs-past-any-clamp')
+    mkdirSync(join(deep, '.sim'), { recursive: true })
+    writeFileSync(join(deep, 'workflow.ts'), ENTRY)
+    writeFileSync(join(deep, '.sim/lock.json'), JSON.stringify(LOCK))
+    writeFileSync(join(deep, '.sim/base.json'), JSON.stringify(BASE))
+    request.mockResolvedValue(outcome({ dryRun: true }))
+
+    await apply(WORKFLOW_ID, '--dir', deep, '--allow-delete')
+
+    const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
+    expect(lines.find((line) => line.includes('next:'))).toContain(
+      `sim workflows source apply --dir ${deep} --allow-delete --yes`
+    )
+    expect(process.exitCode).toBe(14)
+  })
+
+  it('applies the current directory when --dir is left out, as check and status do', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true }))
+    const cwd = process.cwd()
+    process.chdir(dir)
+    try {
+      await apply('--dry-run')
+    } finally {
+      process.chdir(cwd)
+    }
+
+    expect(request.mock.calls[0][0]).toBe(APPLY_PATH)
+    expect(request.mock.calls[0][1].body.files['workflow.ts']).toBe(ENTRY)
+  })
+
   it('without --yes, exits with the refusal and names no next step when the plan has errors', async () => {
     setTerminal(false)
     request.mockResolvedValue(
@@ -254,6 +288,20 @@ describe('sim workflows source apply', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('refuses a workspace source directory by its kind before reading a lock', async () => {
+    setTerminal(false)
+    rmSync(join(dir, '.sim/lock.json'))
+    writeFileSync(
+      join(dir, '.sim/base.json'),
+      JSON.stringify({ version: 1, workspaceId: WORKSPACE_ID, resources: {} })
+    )
+
+    await expect(apply('--dir', dir, '--yes')).rejects.toMatchObject({
+      code: 'SOURCE_DIR_KIND_MISMATCH',
+    })
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('points tsconfig.json at a block the applied source added, from the cached catalog', async () => {
     setTerminal(false)
     vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
@@ -278,6 +326,22 @@ describe('sim workflows source apply', () => {
     expect(dryRunFlags()).toEqual([true])
     expect(prompt.question).not.toHaveBeenCalled()
     expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(ENTRY)
+  })
+
+  it('neither reads nor rewrites the workspace types on a dry run', async () => {
+    mkdirSync(join(dir, '.sim/sdk'), { recursive: true })
+    writeFileSync(join(dir, WORKSPACE_TYPES_FILE), '// types the last get wrote\n')
+    writeFileSync(join(dir, '.sim/sdk/workspace.manifest.json'), '{}\n')
+    request.mockResolvedValue(outcome({ dryRun: true }))
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(request.mock.calls.map((call) => call[0])).not.toContainEqual(
+      expect.stringContaining('/source/resources')
+    )
+    expect(readFileSync(join(dir, WORKSPACE_TYPES_FILE), 'utf8')).toBe(
+      '// types the last get wrote\n'
+    )
   })
 
   it('at a terminal, shows the dry run and applies once the person confirms', async () => {
@@ -820,6 +884,10 @@ describe('sim workflows source apply', () => {
       await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
 
       expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH, DEPLOY_PATH])
+      // The deploy names the draft the apply stored, so an edit made since is never published.
+      expect(request.mock.calls[1][1].body).toEqual({
+        expectedDraftFingerprint: outcome().data.base.fingerprint,
+      })
       expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
       expect(stdoutJson()).toMatchObject({
         applied: true,
@@ -1065,6 +1133,52 @@ describe('the code files an apply sends', () => {
     )
 
     expect(sentCodeFiles()).toEqual(['functions/used.py'])
+  })
+
+  /** Applies `entry` with --yes, the server answering with `files` as what it stored. */
+  async function applyStored(entry: string, files: Record<string, string>): Promise<void> {
+    writeFileSync(join(dir, 'workflow.ts'), entry)
+    setTerminal(false)
+    const stored = outcome()
+    request.mockResolvedValue({ data: { ...stored.data, files } })
+    await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+  }
+
+  it('applies a function file named with capitals and underscores, and writes the base and lock', async () => {
+    writeFunctions('functions/My_Sink.js')
+    const entry = entryWith(
+      "const sink = fn('Sink', { code: codeFile('./functions/My_Sink.js') })\n"
+    )
+
+    await applyStored(entry, { 'workflow.ts': entry, 'functions/My_Sink.js': 'return 2\n' })
+
+    expect(sentCodeFiles()).toEqual(['functions/My_Sink.js'])
+    expect(readFileSync(join(dir, 'functions/My_Sink.js'), 'utf8')).toBe('return 2\n')
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).fingerprint).toBe('sf1:b')
+  })
+
+  it('refuses before sending a code file outside functions/, which no workflow directory holds', async () => {
+    mkdirSync(join(dir, 'lib'))
+    writeFileSync(join(dir, 'lib/helper.js'), 'return 1\n')
+    const entry = entryWith("const a = fn('A', { code: codeFile('./lib/helper.js') })\n")
+
+    await expect(applyStored(entry, { 'workflow.ts': entry })).rejects.toMatchObject({
+      code: 'E_CODE_FILE_PATH',
+      message: expect.stringContaining('lib/helper.js is not a code file path'),
+    })
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('after a stored write, skips an answer path it never writes and still writes the base and lock', async () => {
+    const entry = entryWith('')
+
+    await applyStored(entry, { 'workflow.ts': entry, '.git/hooks/pre-commit.sh': 'exit 1\n' })
+
+    expect(existsSync(join(dir, '.git/hooks/pre-commit.sh'))).toBe(false)
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).fingerprint).toBe('sf1:b')
+    expect(stderrLines().join('\n')).toContain(
+      'the answer named .git/hooks/pre-commit.sh, which the CLI never writes'
+    )
   })
 
   it('sends only .js, .py and .sh files, whatever the source or the lock names', async () => {

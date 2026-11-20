@@ -576,8 +576,9 @@ export interface SubflowScope<Item> extends Node {
 }
 
 /**
- * A container's outputs, plus its iteration fields by name (`outer.index`), which is how a block
- * in a nested container reads an outer loop's index or item.
+ * A container's outputs, plus its iteration fields by name (`outer.index`), which a block inside
+ * the container reads (in a nested container too: an outer loop's index or item). Outside the
+ * container only `results` resolves: check reports `W_REF_OUT_OF_SCOPE` on `outer.index` there.
  */
 export interface SubflowOutput {
   results: Json[]

@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, withAuditCorrelation } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   APPLY_ORDER,
@@ -11,7 +11,6 @@ import {
 } from '@sim/workspace-code'
 import { isResourceKeyed } from '@sim/workspace-code/kinds/registry'
 import { defineAuthorizedWorkspaceUseCase, principalAuditSource } from '@/lib/core/application'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { recordWorkspaceSourceApplied } from '@/lib/workspace-source/application/analytics'
 import { sourceContext } from '@/lib/workspace-source/application/context'
 import {
@@ -24,7 +23,7 @@ import { finding, GET_HINT } from '@/lib/workspace-source/application/findings'
 import { claimKey } from '@/lib/workspace-source/application/keys'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
-  planWorkspaceSource,
+  buildWorkspacePlan,
   type WorkspacePlan,
   type WorkspaceSourceSubmission,
 } from '@/lib/workspace-source/application/plan'
@@ -125,14 +124,39 @@ function writeOrder(changes: PlannedChange[]): PlannedChange[] {
 }
 
 /**
- * A mid-apply failure as the result reports it; an unexpected one is logged, not echoed. A resource
+ * What an unexpected write failure says about its cause, by the database's error code (SQLSTATE,
+ * or the driver's own): never the error's text, which can quote what was written.
+ */
+const WRITE_FAILURE_CAUSES: Readonly<Record<string, string>> = {
+  '57014': 'a database statement timed out',
+  '55P03': 'another write held a lock it needed for too long',
+  '40P01': 'it deadlocked with another write',
+  '40001': 'it conflicted with a concurrent write',
+  '53300': 'the database had no free connection',
+  '54000': 'a database statement was larger than the database accepts',
+  MAX_PARAMETERS_EXCEEDED: 'a database statement was larger than the database accepts',
+}
+
+/** The cause an unexpected write failure names, from its database error code. */
+function writeFailureCause(error: unknown): string {
+  const code = getPostgresErrorCode(error)
+  if (code === undefined) return 'an unexpected server error'
+  if (Object.hasOwn(WRITE_FAILURE_CAUSES, code)) return WRITE_FAILURE_CAUSES[code]
+  if (code.startsWith('08')) return 'the database connection dropped'
+  return `database error ${code}`
+}
+
+/**
+ * A mid-apply failure as the result reports it; an unexpected one is logged, and named by its
+ * cause (see {@link writeFailureCause}) and the apply's id, never echoed. A resource
  * the change found when planning that is gone by its write (deleted since) is stale, like one that
  * changed: getting the directory again shows what the server holds now. A lease another apply took
  * over is a failure applying again continues (`E_APPLY_FAILED`), not a refusal of the change.
  */
 function failureOf(
   error: unknown,
-  change: PlannedChange
+  change: PlannedChange,
+  applyId: string | undefined
 ): {
   failed: NonNullable<ApplyWorkspaceSourceResult['failed']>
   diagnostics: WorkspaceSourceDiagnostic[]
@@ -165,11 +189,21 @@ function failureOf(
       diagnostics: [refusal],
     }
   }
-  logger.error('Workspace source write failed', { ...resource, error: getErrorMessage(error) })
-  const message = `Writing ${change.kind} ${change.key} failed; the changes before it were applied.`
+  logger.error('Workspace source write failed', {
+    ...resource,
+    applyId,
+    code: getPostgresErrorCode(error),
+    error: getErrorMessage(error),
+  })
+  const message = `Writing ${change.kind} ${change.key} failed (${writeFailureCause(error)}); the changes before it were applied.`
   return {
     failed: { ...resource, code: 'E_APPLY_FAILED', message },
-    diagnostics: [finding('E_APPLY_FAILED', message, resource)],
+    diagnostics: [
+      finding('E_APPLY_FAILED', message, {
+        hint: `Apply again: it continues from here. If it fails the same way, report apply ${applyId ?? 'id'} to support.`,
+        ...resource,
+      }),
+    ],
   }
 }
 
@@ -230,6 +264,25 @@ function planned(
   }
 }
 
+/** What {@link planWorkspaceSource} reads: a directory as an apply sends it, without its knobs. */
+export type PlanWorkspaceSourceInput = Omit<ApplyWorkspaceSourceInput, 'dryRun' | 'provenance'>
+
+/**
+ * What an apply of this directory would do, without writing: every planned change and finding,
+ * exactly as a dry run reports them. A read, so `sim workspaces source status` costs no write
+ * budget; like a dry run it takes no lease and records, audits and notifies nothing.
+ */
+export const planWorkspaceSource = defineAuthorizedWorkspaceUseCase({
+  operation: workspaceSourceOperations.plan,
+  resolveContext: ({ input }: { input: PlanWorkspaceSourceInput }) =>
+    resolveActiveWorkspaceApplicationContext(input.workspaceId),
+  authorizationOptions: {},
+  async execute({ principal, input, context }): Promise<ApplyWorkspaceSourceResult> {
+    const plan = await buildWorkspacePlan(input, sourceContext(principal, context))
+    return planned(plan, context.workspaceId, true)
+  },
+})
+
 /**
  * Applies a workspace source directory: plans every managed kind, refuses the whole apply when
  * any change has an error (nothing written) apart from the changes held back for a reference the
@@ -246,13 +299,13 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ApplyWorkspaceSourceResult> {
-    await requireWorkflowCodeEnabled(principal, context)
     const ctx: ApplyContext = {
       ...sourceContext(principal, context),
+      writtenDrafts: new Map(),
       ...(input.provenance ? { provenance: input.provenance } : {}),
     }
     if (input.dryRun === true) {
-      return planned(await planWorkspaceSource(input, ctx), context.workspaceId, true)
+      return planned(await buildWorkspacePlan(input, ctx), context.workspaceId, true)
     }
     const facts = {
       principal,
@@ -270,7 +323,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       throw error
     })
     try {
-      const plan = await planWorkspaceSource(input, ctx, { requireBlobs: true })
+      const plan = await buildWorkspacePlan(input, ctx, { requireBlobs: true })
       if (plan.refusing.length > 0) {
         recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'rejected' })
         throw new WorkspaceSourceRejectedError(plan.diagnostics, plan.refusing)
@@ -325,6 +378,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
             ...(result.failed ? { failed: `${result.failed.kind}:${result.failed.key}` } : {}),
             ...(input.provenance ? { client: input.provenance.client } : {}),
             ...(input.provenance?.gitSha ? { gitSha: input.provenance.gitSha } : {}),
+            ...(input.provenance?.repo ? { repo: input.provenance.repo } : {}),
             source: principalAuditSource(principal),
           },
         }
@@ -361,7 +415,7 @@ async function writeAll(
       if (written.base) base.resources[address] = written.base
       else delete base.resources[address]
     } catch (error) {
-      const failure = failureOf(error, change)
+      const failure = failureOf(error, change, result.applyId)
       result.failed = failure.failed
       result.diagnostics.push(...failure.diagnostics)
       break

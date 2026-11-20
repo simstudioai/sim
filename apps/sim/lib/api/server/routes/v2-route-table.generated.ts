@@ -893,6 +893,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workflows/[workflowId]/source/route'),
   },
   {
+    pattern: '/api/v2/workflows/{workflowId}/source/plan',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/source/plan/route'),
+  },
+  {
     pattern: '/api/v2/workflows/{workflowId}/state',
     load: () => import('@/app/api/v2/workflows/[workflowId]/state/route'),
   },
@@ -1060,6 +1064,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/workspaces/{workspaceId}/source/blobs/missing',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/blobs/missing/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/source/plan',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/plan/route'),
   },
   {
     pattern: '/api/v2/workspaces/{workspaceId}/workflows/source',

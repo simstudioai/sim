@@ -1,8 +1,8 @@
 /**
  * The two source reads are `headSafe: false`, so a `HEAD` runs only the use case's authorize
  * phase. These run the real use cases behind both routes with the `workflow-code` flag off, so a
- * `HEAD` answers the same 403 its `GET` does instead of a 200 that says the feature is reachable.
- * The flag is rolled out by organization, so both resolve the (existing) workspace first.
+ * `HEAD` answers the same 403 its `GET` does instead of a 200 that says the feature is reachable,
+ * and the `GET` names the cause (`FEATURE_NOT_ENABLED`) so a client tells it from a role refusal.
  */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
@@ -81,5 +81,9 @@ describe.each(routes)('$name while workflows as code is off', ({ handler, url, c
     )
 
     expect(response.status).toBe(403)
+    if (method === 'GET') {
+      const body = await response.json()
+      expect(body.error.details).toEqual({ code: 'FEATURE_NOT_ENABLED' })
+    }
   })
 })

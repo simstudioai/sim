@@ -27,7 +27,7 @@ import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import type { ResponseForm } from '../forms/response'
 import { JsonRef, type JsonTree, jsonFieldText, parseJsonField, refValueKind } from '../json-fields'
-import { CODE_FILE_EXTENSIONS, SOURCE_CODE_DIR } from '../limits'
+import { CODE_FILE_EXTENSIONS, isCodeFilePath, SOURCE_CODE_DIR } from '../limits'
 import type { AnchorKey, CanonicalBlock, ParamMode, Value } from '../model'
 import { getOwn, setOwn } from '../records'
 import type { TemplateTag } from '../sdk'
@@ -236,7 +236,7 @@ function printCodeFile(
     return owner === undefined || owner === block.key
   }
   let path =
-    hinted?.endsWith(`.${extension}`) && free(hinted)
+    hinted?.endsWith(`.${extension}`) && isCodeFilePath(hinted) && free(hinted)
       ? hinted
       : `${SOURCE_CODE_DIR}/${kebab(ctx.idents.get(block.key) ?? block.key)}.${extension}`
   let suffix = 2

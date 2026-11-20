@@ -26,12 +26,15 @@ import type { MaterializeContext, MaterializeHooks } from './context'
 import { type BranchHandles, writeEdges } from './edges'
 import { type IdentityEntry, type LockFreshness, resolveIdentity } from './identity'
 import { restorePreserved } from './preserve'
+import { sharesEvidence, soleRename } from './rename'
 import { loopEntry, parallelEntry } from './subflows'
 import { rewriteRenamedReferences, rewriteStoredBlockReferences } from './values'
 
 /**
- * Variables keep their ids by key: the lock's id, then prev's, else a new one. A variable
- * canonical-equal to the prev variable with that id is prev's stored object unchanged.
+ * Variables keep their ids by key: the lock's id, then prev's, else a new one. When exactly one
+ * variable's key is new and exactly one prev variable's key is gone, with the same type, the
+ * variable is a rename and keeps that id. A variable canonical-equal to the prev variable with
+ * that id is prev's stored object unchanged.
  */
 function writeVariables(
   workflow: CanonicalWorkflow,
@@ -47,21 +50,30 @@ function writeVariables(
   for (const id of Object.values(lockIds)) lockIdCounts.set(id, (lockIdCounts.get(id) ?? 0) + 1)
 
   const used = new Set<string>()
-  const variables: Record<string, Variable> = {}
-  const idByKey = new Map<VarKey, string>()
-  for (const [key, variable] of Object.entries(workflow.variables)) {
+  const knownIds = new Map<VarKey, string>()
+  for (const key of Object.keys(workflow.variables)) {
     const fromLock = getOwn(lockIds, key)
     const candidates = [
       fromLock !== undefined && lockIdCounts.get(fromLock) === 1 ? fromLock : undefined,
       prevCanonical ? getOwn(prevCanonical.identity.variables, key) : undefined,
     ]
-    const id =
-      candidates.find(
-        (candidate): candidate is string =>
-          candidate !== undefined &&
-          !used.has(candidate) &&
-          (!Object.hasOwn(prevVariables, candidate) || prevKeyById.get(candidate) === key)
-      ) ?? hooks.newId()
+    const known = candidates.find(
+      (candidate): candidate is string =>
+        candidate !== undefined &&
+        !used.has(candidate) &&
+        (!Object.hasOwn(prevVariables, candidate) || prevKeyById.get(candidate) === key)
+    )
+    if (known === undefined) continue
+    used.add(known)
+    knownIds.set(key, known)
+  }
+  const renamed = renamedVariable(workflow, knownIds, prevCanonical, used)
+  if (renamed) knownIds.set(renamed.key, renamed.id)
+
+  const variables: Record<string, Variable> = {}
+  const idByKey = new Map<VarKey, string>()
+  for (const [key, variable] of Object.entries(workflow.variables)) {
+    const id = knownIds.get(key) ?? hooks.newId()
     used.add(id)
     idByKey.set(key, id)
     const stored = getOwn(prevVariables, id)
@@ -85,6 +97,33 @@ function writeVariables(
     )
   }
   return { variables, idByKey }
+}
+
+/** The one variable a lone key rename left without a known id, with its id (see {@link soleRename}). */
+function renamedVariable(
+  workflow: CanonicalWorkflow,
+  knownIds: ReadonlyMap<VarKey, string>,
+  prevCanonical: CanonicalizeResult | null,
+  used: ReadonlySet<string>
+): { key: VarKey; id: string } | null {
+  if (!prevCanonical) return null
+  const renamed = soleRename(
+    Object.keys(workflow.variables).filter((key) => !knownIds.has(key)),
+    Object.entries(prevCanonical.identity.variables).flatMap(([key, id]) =>
+      !Object.hasOwn(workflow.variables, key) && !used.has(id) ? [[id, key] as const] : []
+    ),
+    (key, formerKey) => {
+      const former = getOwn(prevCanonical.workflow.variables, formerKey)
+      const variable = getOwn(workflow.variables, key)
+      return (
+        former !== undefined &&
+        variable !== undefined &&
+        former.type === variable.type &&
+        sharesEvidence(former, variable, ['value'])
+      )
+    }
+  )
+  return renamed && { key: renamed.item, id: renamed.id }
 }
 
 /**

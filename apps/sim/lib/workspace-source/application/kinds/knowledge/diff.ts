@@ -71,6 +71,8 @@ export interface KnowledgeChanges {
   /** Replacements a stopped replace left that this apply does not finish: deleted. */
   discards: StoredDoc[]
   fields: string[]
+  /** The `fields` that only add to what the knowledge base holds, which an adopt may write. */
+  additions: string[]
   diagnostics: WorkspaceSourceDiagnostic[]
 }
 
@@ -244,6 +246,7 @@ export async function diffKnowledgeBase(input: {
     renames: [],
     discards: [],
     fields: [],
+    additions: [],
     diagnostics: [],
   }
   if (decl.name !== knowledgeBase.name) {
@@ -291,8 +294,10 @@ export async function diffKnowledgeBase(input: {
     }
     const current = byName.get(name)
     if (!current) {
+      const label = `docs/${name} (add)`
       changes.uploads.push({ name, doc })
-      changes.fields.push(`docs/${name} (add)`)
+      changes.fields.push(label)
+      changes.additions.push(label)
       continue
     }
     if (unchecked.has(current.id)) {

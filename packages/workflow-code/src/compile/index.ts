@@ -36,7 +36,7 @@ import { EdgeCollector } from './edges'
 import { referencedResultKind } from './function-returns'
 import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
-import { ErrorLimitReached, Reporter } from './report'
+import { ErrorLimitReached, type Range, Reporter } from './report'
 import { checkSuspiciousName, collectBody, collisionSuffix } from './scope'
 import {
   checkCodeFileRefs,
@@ -110,6 +110,11 @@ export interface CompileResult {
   workflow: CanonicalWorkflow | null
   /** Spans into the entry count from after a leading byte order mark (see `compileWorkflow`). */
   diagnostics: LocatedDiagnostic<CompileDiagnosticCode>[]
+  /**
+   * Refusable warnings the warning caps left out of `diagnostics`, one per code, block and file:
+   * what `refuseEditedFindings` reads beside `diagnostics`, so a cap never hides a refusal.
+   */
+  withheld: LocatedDiagnostic<CompileDiagnosticCode>[]
   /** Where each anchor sits, to map later server findings back to lines. */
   spans: Partial<Record<AnchorKey, SourceSpan>>
   /**
@@ -422,6 +427,7 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
   return {
     workflow: null,
     diagnostics: reporter.diagnostics,
+    withheld: reporter.withheld,
     spans: {},
     metaSpans: {},
     hints: { blocks: {} },
@@ -543,7 +549,7 @@ function compileEntry(
     catalog: input.catalog,
     files: input.files,
     limits,
-    codeFiles: { reads: new Map(), refs: 0, bytes: utf8Bytes(text), chains: [] },
+    codeFiles: { reads: new Map(), refs: 0, bytes: utf8Bytes(text), chains: [], sharedReads: [] },
     comments: new CommentCollector(file, reporter),
     decls: [],
     declsByKey: new Map(),
@@ -688,6 +694,8 @@ function compileEntry(
     variable: (key) => ctx.variables.get(key),
   }
   const isString = (token: string) => refValueKind(token, refTypes) === 'string'
+  /** Bare references nothing types, reported once the unknown paths are known (see below). */
+  const untyped: Array<{ token: string; range: Range; blockKey: BlockKey }> = []
   for (const { params, id, tree, refs } of ctx.jsonFields) {
     const value = jsonFieldText(tree, isString)
     setOwn(params, id, { kind: 'value', value })
@@ -703,15 +711,7 @@ function compileEntry(
       ) {
         continue
       }
-      reporter.report(
-        'W_JSON_REF_UNTYPED',
-        `Nothing declares the type of ${ref.token}; it is stored bare, so a string value would break the JSON.`,
-        ref.range,
-        {
-          hint: `Leave it bare when it holds an array, object, number or boolean (it is spliced in as JSON); only when it holds text write t\`\${${text.slice(ref.range.start, ref.range.end)}}\`.`,
-          blockKey: ref.blockKey,
-        }
-      )
+      untyped.push({ token: ref.token, range: ref.range, blockKey: ref.blockKey })
     }
   }
 
@@ -745,6 +745,29 @@ function compileEntry(
     if (edge.port.kind === 'error') erroring.add(edge.from)
   }
   checkErrorOutputRefs(ctx, erroring)
+  // A reference to an output that does not exist, or to `x.error` where nothing errors, is that
+  // one finding: whether text there would break the JSON is moot until the path is fixed. An input
+  // the start does not declare is not: a caller may still pass text there.
+  const unknownAt = new Set([
+    ...reporter.diagnostics
+      .filter((d) => d.code === 'W_UNKNOWN_OUTPUT_PATH' || d.code === 'W_UNRESOLVED_REF')
+      .map((d) => `${d.span.file}:${d.span.start}`),
+    ...ctx.errorOutputRefs
+      .filter(({ target }) => !erroring.has(target.key))
+      .map(({ at }) => `${at.file}:${at.start}`),
+  ])
+  for (const ref of untyped) {
+    if (unknownAt.has(`${ref.range.file}:${ref.range.start}`)) continue
+    reporter.report(
+      'W_JSON_REF_UNTYPED',
+      `Nothing declares the type of ${ref.token}; it is stored bare, so a string value would break the JSON.`,
+      ref.range,
+      {
+        hint: `Leave it bare when it holds an array, object, number or boolean (it is spliced in as JSON); only when it holds text write t\`\${${text.slice(ref.range.start, ref.range.end)}}\`.`,
+        blockKey: ref.blockKey,
+      }
+    )
+  }
 
   ctx.comments.assign(
     (ast.comments ?? []).filter((comment) => (comment.start ?? 0) >= parsed.headerEnd)
@@ -769,6 +792,7 @@ function compileEntry(
   return {
     workflow,
     diagnostics: reporter.diagnostics,
+    withheld: reporter.withheld,
     spans,
     metaSpans: ctx.metaSpans,
     hints,

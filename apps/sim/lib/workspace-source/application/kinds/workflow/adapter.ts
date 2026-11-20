@@ -9,7 +9,7 @@
  *   409, re-checked under the workflow row lock), which keeps the folder appliable on its own with
  *   `sim workflows source apply`. The root base's fingerprint only guards a delete.
  * - A folder sent unchanged (only its base, `isUnchanged`) is a no-op with no drift check, so it
- *   never reports `I_SERVER_CHANGED`. The workflow's fingerprint hashes its canonicalized stored
+ *   never reports `W_SERVER_CHANGED`. The workflow's fingerprint hashes its canonicalized stored
  *   graph, so telling whether it drifted means reading and canonicalizing every declared workflow
  *   on every apply, the cost the unchanged folder exists to avoid; no cheaper stored token tracks
  *   it (the row's `updatedAt` also moves on a drag or a resize, which source never shows). The
@@ -56,6 +56,7 @@ import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
 import {
   type ReadWorkflowSourceResult,
+  readDraftFingerprint,
   readWorkflowSource,
   readWorkflowSources,
 } from '@/lib/workflows/application/read-workflow-source'
@@ -121,16 +122,20 @@ function workflowFingerprint(source: SourceBase): ResourceFingerprint {
   return fingerprintOf({ source: source.fingerprint })
 }
 
-/** The fingerprint of workflow `workflowId` as it is stored now. */
+/**
+ * The fingerprint of workflow `workflowId` as it is stored now: the `sf1:` fingerprint a read
+ * would report as `base.fingerprint`, computed without printing, so it writes nothing, records no
+ * read and holds for a workflow grown past the print limits.
+ */
 async function readStoredFingerprint(
   ctx: SourceContext,
   workflowId: string
 ): Promise<ResourceFingerprint> {
-  const source = await readWorkflowSource.execute({
+  const fingerprint = await readDraftFingerprint.execute({
     principal: ctx.principal,
     input: { workflowId },
   })
-  return workflowFingerprint(source.base)
+  return fingerprintOf({ source: fingerprint })
 }
 
 /** Why `workflow` cannot be deleted for a lock (its own or its folder's), if so. */
@@ -264,7 +269,10 @@ function diffFields(diff: SourceDiffSummary): string[] {
   for (const block of blocks.modified) fields.push(`${block.key}: ${block.fields.join(', ')}`)
   if (edges.added + edges.removed > 0) fields.push(`connections +${edges.added} -${edges.removed}`)
   const changedVariables =
-    variables.added.length + variables.removed.length + variables.modified.length
+    variables.added.length +
+    variables.removed.length +
+    variables.renamed.length +
+    variables.modified.length
   if (changedVariables > 0) fields.push(`variables ${changedVariables}`)
   return fields
 }
@@ -569,6 +577,7 @@ async function foldersAsStored(
         input: {
           workspaceId: ctx.workspace.workspaceId,
           workflowIds: batch.map((step) => step.update.workflowId),
+          plan: true,
         },
       })
     } catch (error) {
@@ -881,6 +890,7 @@ export const workflowAdapter: KindAdapter<'workflow', StoredWorkflowState> = {
       if (!(error instanceof WorkflowSourceRejectedError)) throw error
       throw new WorkspaceSourceRejectedError(inFolder(change.key, error.diagnostics))
     })
+    ctx.writtenDrafts.set(result.workflowId, result.base.fingerprint)
     const base: BaseResource = {
       id: result.workflowId,
       fingerprint: workflowFingerprint(result.base),

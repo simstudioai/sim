@@ -27,6 +27,7 @@ vi.mock('@sim/logger', () => ({
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
+  asc: vi.fn(),
   eq: vi.fn(),
   getTableColumns: vi.fn(() => ({})),
   inArray: vi.fn(),
@@ -45,6 +46,7 @@ function createTx(rowsByTable: Record<string, Row[]>) {
   const resultFor = (rows: Row[]) => {
     const result = {
       where: () => result,
+      orderBy: () => result,
       limit: () => Promise.resolve(rows),
       then: (onFulfilled: (rows: Row[]) => unknown) => Promise.resolve(rows).then(onFulfilled),
     }

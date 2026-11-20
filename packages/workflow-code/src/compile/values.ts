@@ -27,6 +27,7 @@ import {
   type RefSegment,
 } from '../code-files/ref-path'
 import { REF_ROOT } from '../code-files/to-file'
+import { type ContainerKind, readsIterationOutOfScope, type ScopeNode } from '../iteration-scope'
 import {
   JsonRef,
   type JsonTree,
@@ -58,6 +59,7 @@ import {
   type JsonFieldEntry,
   lookup,
   rangeOf,
+  reportNotImported,
   reportUnresolvedIdentifier,
   type Scope,
   unsupported,
@@ -178,12 +180,80 @@ export function objectEntries(
   return entries
 }
 
+/** A declared block as the iteration-scope rule reads it. */
+function scopeNodeOf(ctx: CompileContext, key: BlockKey): ScopeNode | undefined {
+  const decl = ctx.declsByKey.get(key)
+  return decl && { kind: containerKindOf(decl), parent: decl.parent?.key ?? null }
+}
+
+/**
+ * Reports `W_REF_OUT_OF_SCOPE` when block `siteKey` reads iteration field `property` of a
+ * container it is not inside (see {@link readsIterationOutOfScope}): `container` is a declared
+ * loop or parallel (`lp.index`, `$ref.lp.index`), or the kind whose innermost enclosing container
+ * `<loop.index>` names.
+ */
+function checkIterationScope(
+  ctx: CompileContext,
+  at: Range,
+  siteKey: BlockKey,
+  container: BlockDecl | ContainerKind,
+  property: string
+): void {
+  const site = ctx.declsByKey.get(siteKey)
+  if (!site) return
+  const nodeOf = (key: BlockKey) => scopeNodeOf(ctx, key)
+  if (!readsIterationOutOfScope(siteKey, container, property, nodeOf)) return
+  if (typeof container === 'string') {
+    ctx.reporter.report(
+      'W_REF_OUT_OF_SCOPE',
+      `${site.name} reads the enclosing ${container}'s ${property}, but it sits in no ${container}, so the reference resolves to nothing at run time.`,
+      at,
+      {
+        hint: `Move ${site.name} into a ${container}'s body, or read a ${container}'s results after it finishes.`,
+        blockKey: siteKey,
+      }
+    )
+    return
+  }
+  ctx.reporter.report(
+    'W_REF_OUT_OF_SCOPE',
+    `${site.name} reads ${container.name}'s ${property}, but it is not inside ${container.name}; outside it a ${containerKindOf(container)} outputs only results, so the run fails.`,
+    at,
+    {
+      hint: `Move ${site.name} into ${container.name}'s body, or read ${container.ident ?? container.key}.results after it finishes.`,
+      blockKey: siteKey,
+    }
+  )
+}
+
+/**
+ * {@link checkIterationScope} for a reference path (`<head.property>` text, a code file's
+ * `$ref.head.property`) whose head is `loop`, `parallel` or a declared container's key.
+ */
+function checkIterationTag(
+  ctx: CompileContext,
+  at: Range,
+  siteKey: BlockKey,
+  segments: readonly RefSegment[]
+): void {
+  const [head, property] = segments
+  if (head?.kind !== 'name' || property?.kind !== 'name') return
+  if (head.name === 'loop' || head.name === 'parallel') {
+    checkIterationScope(ctx, at, siteKey, head.name, property.name)
+    return
+  }
+  const target = ctx.declsByKey.get(head.name)
+  if (target) checkIterationScope(ctx, at, siteKey, target, property.name)
+}
+
 /**
  * `W_REF_NOT_NORMALIZED` for each hand-written `<Name.path>` in literal text whose head is not a
  * normalized block key, or names no declared block. Such text is kept verbatim, so a rename in the
  * same apply never rewrites it; the block's ident is the reference that follows the block.
  */
 function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: ValueSite): void {
+  // A note never runs, so nothing in it resolves: `<b>` in its markdown is text, not a reference.
+  if (catalogBlockOf(site.decl)?.graph.annotationOnly) return
   for (const token of findWorkflowReferenceTokens(text)) {
     if (token.kind !== 'workflow') continue
     const segments = parseStoredPath(token.value.slice(1, -1))
@@ -193,8 +263,10 @@ function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: V
     if (
       normalized === head.name &&
       (isReservedWorkflowBlockName(head.name) || ctx.declsByKey.has(head.name))
-    )
+    ) {
+      checkIterationTag(ctx, rangeOf(ctx, node), site.decl.key, segments)
       continue
+    }
     const target = ctx.declsByKey.get(normalized)
     ctx.reporter.report(
       'W_REF_NOT_NORMALIZED',
@@ -699,6 +771,7 @@ function checkOutputPath(
         { hint: () => didYouMean(first.name, known), blockKey }
       )
     }
+    if (first.kind === 'name') checkIterationScope(ctx, at, blockKey, target, first.name)
     return
   }
   const block = catalogBlockOf(target)
@@ -738,13 +811,13 @@ function isErrorOutput(segments: RefSegment[]): boolean {
 
 /**
  * Checks each `x.error` reference once the edges are known: `x` must have an error edge
- * (`x.onError(...)`), else the path is unknown (`W_UNKNOWN_OUTPUT_PATH`).
+ * (`x.onError(...)`), else the path reads nothing (`W_OUTPUT_PATH_UNDECLARED`).
  */
 export function checkErrorOutputRefs(ctx: CompileContext, erroring: ReadonlySet<BlockKey>): void {
   for (const { at, target, blockKey } of ctx.errorOutputRefs) {
     if (erroring.has(target.key)) continue
     ctx.reporter.report(
-      'W_UNKNOWN_OUTPUT_PATH',
+      'W_OUTPUT_PATH_UNDECLARED',
       `${target.name} has no output error: only a block with an error edge outputs its failure message.`,
       at,
       {
@@ -793,8 +866,8 @@ function declaredOutputFields(
  * Checks each reference into a block whose outputs a param declares (an agent's
  * `responseFormat`, an input trigger's `inputFormat`), once every block is compiled: the first
  * path segment must be a declared field or one of the block's static outputs
- * (`W_UNKNOWN_OUTPUT_PATH` otherwise). A warning, as for any unknown output path: a caller may
- * still pass an undeclared input, which the unified Start passes through. A param the compiler
+ * (`W_UNKNOWN_OUTPUT_PATH` otherwise, `W_OUTPUT_PATH_UNDECLARED` for an input trigger: a caller
+ * may still pass an undeclared input, which the unified Start passes through). A param the compiler
  * cannot read (not JSON, or holding references) leaves every path allowed; an absent one leaves
  * the static outputs.
  */
@@ -822,7 +895,7 @@ export function checkDynamicOutputRefs(
     const path = formatStoredPath(segments)
     if (dynamic.source === 'inputFormat') {
       ctx.reporter.report(
-        'W_UNKNOWN_OUTPUT_PATH',
+        'W_OUTPUT_PATH_UNDECLARED',
         fields.length > 0
           ? `${target.name} declares no input ${first.name}: its inputFormat declares ${fields.join(', ')}.`
           : `${target.name} declares no input ${first.name}: its inputFormat declares none.`,
@@ -868,6 +941,7 @@ export function checkCodeFileRefs(
   ctx: CompileContext,
   renamed: ReadonlyMap<BlockKey, BlockKey>
 ): void {
+  checkSharedCodeFileScopes(ctx, renamed)
   for (const { path, blockKey, refs } of ctx.codeFiles.chains) {
     for (const ref of refs) {
       const at: Range = { file: path, start: ref.start, end: ref.end }
@@ -877,7 +951,10 @@ export function checkCodeFileRefs(
       }
       const [head, ...rest] = ref.segments
       if (head?.kind !== 'name') continue
-      const written = formatMemberPath(REF_ROOT, ref.segments)
+      /** The reference as the file writes it: a `$ref` chain, or a `<key.path>` tag. */
+      const spell = (segments: RefSegment[]) =>
+        ref.tag ? `<${formatStoredPath(segments)}>` : formatMemberPath(REF_ROOT, segments)
+      const written = spell(ref.segments)
       if (head.name === 'variable') {
         const name = rest[0]?.kind === 'name' ? rest[0].name : null
         if (name !== null && !ctx.variables.has(name)) {
@@ -887,14 +964,19 @@ export function checkCodeFileRefs(
             at,
             {
               hint: () =>
-                didYouMean(name, ctx.variables.keys(), (key) => `${REF_ROOT}.variable.${key}`),
+                didYouMean(name, ctx.variables.keys(), (key) =>
+                  spell([head, { kind: 'name', name: key }])
+                ),
               blockKey,
             }
           )
         }
         continue
       }
-      if (isReservedWorkflowBlockName(head.name)) continue
+      if (isReservedWorkflowBlockName(head.name)) {
+        checkIterationTag(ctx, at, blockKey, ref.segments)
+        continue
+      }
       const renamedTo = renamed.get(head.name)
       const target =
         ctx.declsByKey.get(head.name) ??
@@ -906,18 +988,20 @@ export function checkCodeFileRefs(
       const byIdent = ctx.declsByIdent.get(head.name)?.[0]
       const byName = ctx.declsByKey.get(normalizeWorkflowBlockName(head.name))
       const suggested = byIdent ?? byName
-      const rewritten = (key: BlockKey) =>
-        formatMemberPath(REF_ROOT, [{ kind: 'name', name: key }, ...rest])
+      const rewritten = (key: BlockKey) => spell([{ kind: 'name', name: key }, ...rest])
       ctx.reporter.report(
         'W_UNRESOLVED_REF',
         `${written} names no block, so it does not resolve at run time.`,
         at,
         {
           hint: suggested
-            ? `${REF_ROOT} names a block by its key: write ${rewritten(suggested.key)}.`
+            ? `${ref.tag ? 'A tag' : REF_ROOT} names a block by its key: write ${rewritten(suggested.key)}.`
             : ctx.knownKeys.has(head.name)
-              ? formerBlockHint(ctx, head.name, renamed, rewritten)
-              : () => didYouMean(head.name, ctx.declsByKey.keys(), (key) => `${REF_ROOT}.${key}`),
+              ? formerBlockHint(ctx, head.name, renamed, rewritten, spell)
+              : () =>
+                  didYouMean(head.name, ctx.declsByKey.keys(), (key) =>
+                    spell([{ kind: 'name', name: key }])
+                  ),
           blockKey,
         }
       )
@@ -926,27 +1010,60 @@ export function checkCodeFileRefs(
 }
 
 /**
- * The hint for a code file `$ref` head that is the key of a block the workflow had (the lock or
- * the stored workflow binds it) and source no longer declares: most often a block renamed in both
- * name and const, whose references an apply rewrites only when it ties the block to the stored
- * one. Names the one declared block nothing binds, when there is exactly one, as the probable new
- * key (`rewritten` writes the reference with it).
+ * `W_REF_OUT_OF_SCOPE` for an iteration field a shared code file reads, for each block after the
+ * first that runs it (`sharedReads`): whether the read is in scope depends on where the block
+ * sits, which {@link checkCodeFileRefs} checked only for the first.
+ */
+function checkSharedCodeFileScopes(
+  ctx: CompileContext,
+  renamed: ReadonlyMap<BlockKey, BlockKey>
+): void {
+  const refsByPath = new Map(ctx.codeFiles.chains.map(({ path, refs }) => [path, refs]))
+  for (const { path, blockKey } of ctx.codeFiles.sharedReads) {
+    for (const ref of refsByPath.get(path) ?? []) {
+      if (ref.kind === 'env') continue
+      const at: Range = { file: path, start: ref.start, end: ref.end }
+      const [head, property] = ref.segments
+      if (head?.kind !== 'name' || property?.kind !== 'name') continue
+      if (isReservedWorkflowBlockName(head.name)) {
+        checkIterationTag(ctx, at, blockKey, ref.segments)
+        continue
+      }
+      const renamedTo = renamed.get(head.name)
+      const target =
+        ctx.declsByKey.get(head.name) ??
+        (renamedTo === undefined ? undefined : ctx.declsByKey.get(renamedTo))
+      if (target && containerKindOf(target)) {
+        checkIterationScope(ctx, at, blockKey, target, property.name)
+      }
+    }
+  }
+}
+
+/**
+ * The hint for a code file reference whose head is the key of a block the workflow had (the lock
+ * or the stored workflow binds it) and source no longer declares: most often a block renamed in
+ * both name and const, whose references an apply rewrites only when it ties the block to the
+ * stored one. Names the one declared block nothing binds, when there is exactly one, as the
+ * probable new key (`rewritten` writes the reference with it; `spell` writes a reference path as
+ * the file does).
  */
 function formerBlockHint(
   ctx: CompileContext,
   formerKey: BlockKey,
   renamed: ReadonlyMap<BlockKey, BlockKey>,
-  rewritten: (key: BlockKey) => string
+  rewritten: (key: BlockKey) => string,
+  spell: (segments: RefSegment[]) => string
 ): string {
   const renamedTo = new Set(renamed.values())
   const unbound = [...ctx.declsByKey.values()].filter(
     (decl) => !ctx.knownKeys.has(decl.key) && !renamedTo.has(decl.key)
   )
-  const lead = `${REF_ROOT}.${formerKey} is a block this workflow had that ${SOURCE_ENTRY_FILE} no longer declares under that key`
+  const lead = `${spell([{ kind: 'name', name: formerKey }])} is a block this workflow had that ${SOURCE_ENTRY_FILE} no longer declares under that key`
   const [only] = unbound
   return unbound.length === 1 && only
     ? `${lead}: if ${only.name} is it renamed, write ${rewritten(only.key)}.`
-    : `${lead}: if you renamed it, write ${REF_ROOT}.<its new key>, the display name lowercased with whitespace and dots removed.`
+    : `${lead}: if you renamed it, write ${spell([{ kind: 'name', name: 'newkey' }])}, where newkey is its display name lowercased with whitespace and dots removed.`
 }
 
 function subflowScopeRef(
@@ -1234,6 +1351,15 @@ export function compileValue(
     }
     case 'TaggedTemplateExpression': {
       const tag = node.tag.type === 'Identifier' ? lookup(site.scope, node.tag.name) : null
+      if (!tag && node.tag.type === 'Identifier' && isTemplateTag(node.tag.name)) {
+        return reportNotImported(
+          ctx,
+          'E_UNKNOWN_IDENTIFIER',
+          node.tag.name,
+          node.tag,
+          site.decl.key
+        )
+      }
       if (!tag || tag.kind !== 'sdk' || !isTemplateTag(tag.name)) return rejectNode(ctx, node, site)
       const text = templateText(ctx, node, site)
       return text === null ? null : { kind: 'value', value: text, form: 'template' }

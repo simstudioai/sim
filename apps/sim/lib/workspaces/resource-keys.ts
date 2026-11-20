@@ -194,6 +194,8 @@ interface ResourceKeyOptions {
 interface ResolveKeysOptions extends ResourceKeyOptions {
   /** The human the allocation is attributed to; `null` for an actorless caller. */
   createdBy?: string | null
+  /** `false` leaves a resource with no key out instead of allocating it one (a read that writes nothing). */
+  allocate?: boolean
 }
 
 function trimKey(value: string, maxLength: number): string {
@@ -397,7 +399,7 @@ export async function resolveKeys(
         live.map((row) => row.id)
       )
       const unbound = live.filter((row) => !keys.has(row.id))
-      if (unbound.length > 0) {
+      if (unbound.length > 0 && options.allocate !== false) {
         const allocated = await allocateKeys(
           executor,
           workspaceId,

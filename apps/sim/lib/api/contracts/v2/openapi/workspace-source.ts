@@ -12,6 +12,7 @@ import {
   v2ApplyWorkspaceSourceContract,
   v2FindMissingWorkspaceSourceBlobsContract,
   v2GetWorkspaceSourceContract,
+  v2PlanWorkspaceSourceContract,
   v2StageWorkspaceSourceBlobsContract,
   v2StageWorkspaceSourceBlobsFormSchema,
 } from '@/lib/api/contracts/v2/workspace-source'
@@ -137,6 +138,60 @@ export const workspaceSourceOpenApiRoutes = [
             data: {
               workspaceId: WORKSPACE_ID,
               dryRun: false,
+              plan: [{ kind: 'table', key: 'leads', action: 'noop', id: TABLE_ID }],
+              applied: [],
+              needBlobs: [],
+              files: {},
+              base: BASE_EXAMPLE,
+              diagnostics: [],
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2PlanWorkspaceSourceContract,
+    {
+      applicationOperation: workspaceSourceOperations.plan,
+      operationId: 'planWorkspaceSource',
+      summary: 'Plan workspace source',
+      description:
+        'Report what Apply Workspace Source would do with this directory, without writing: every planned change and finding, exactly as `dryRun=true` reports them (a resource changed on the server since the directory was read included). A read: it needs only workspace read access, draws on the source-plan budget, one unit per workflow folder it evaluates as an apply does, takes no apply lease or apply slot and records no audit event, so `sim workspaces source status` never spends the source-write budget or holds up an apply. A server already running as many plans as it allows answers `429`. Each change is still checked by the operation that owns it, so a change the caller may not write is reported as refused. The body is an apply body without `provenance`. Returns `403` while workflows as code is not enabled.',
+      tags: ['Workflows'],
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The planned changes.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2PlanWorkspaceSourceContract.params,
+        'PlanWorkspaceSourceParams',
+        'Plan workspace source path parameters',
+        'Workspace the plan is for.'
+      ),
+      query: documentedSchema(
+        v2PlanWorkspaceSourceContract.query,
+        'PlanWorkspaceSourceQuery',
+        'Plan workspace source query',
+        'No query parameters.'
+      ),
+      body: documentedSchema(
+        v2PlanWorkspaceSourceContract.body,
+        'PlanWorkspaceSourceBody',
+        'Plan workspace source body',
+        'The directory files, its managed kinds and the base they were read with.',
+        [{ files: { 'tables/leads.ts': LEADS_TS }, kinds: ['table'], base: BASE_EXAMPLE }]
+      ),
+      response: documentedSchema(
+        v2PlanWorkspaceSourceContract.response.schema,
+        'PlanWorkspaceSourceResponse',
+        'Plan workspace source response',
+        'The plan an apply would carry out.',
+        [
+          {
+            data: {
+              workspaceId: WORKSPACE_ID,
+              dryRun: true,
               plan: [{ kind: 'table', key: 'leads', action: 'noop', id: TABLE_ID }],
               applied: [],
               needBlobs: [],

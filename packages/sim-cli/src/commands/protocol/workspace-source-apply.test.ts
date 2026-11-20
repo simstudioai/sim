@@ -163,6 +163,42 @@ describe('workspaces source apply', () => {
     expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('+ leads')
   })
 
+  it('counts and lists a resource the server changed or deleted, never as unchanged, and keeps its warning in the JSON', async () => {
+    const drift = (code: string, kind: string, key: string) => ({
+      code,
+      severity: 'warning',
+      message: `${kind} ${key} drifted.`,
+      kind,
+      key,
+    })
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        plan: [
+          { kind: 'skill', key: 'tone', action: 'noop' },
+          { kind: 'file', key: 'notes.txt', action: 'noop' },
+          { kind: 'file', key: 'partial.txt', action: 'noop' },
+        ],
+        diagnostics: [
+          drift('W_SERVER_CHANGED', 'skill', 'tone'),
+          drift('W_SERVER_DELETED', 'file', 'partial.txt'),
+        ],
+      })
+    )
+
+    await apply('--dry-run')
+
+    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+    expect(stderr).toContain('skills: 1 changed on the server')
+    expect(stderr).toContain('files: 1 unchanged, 1 deleted on the server')
+    expect(stderr).toContain('  ! partial.txt (deleted on the server; kept as the server has it)')
+    const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(printed.diagnostics.map((finding: { code: string }) => finding.code)).toEqual([
+      'W_SERVER_CHANGED',
+      'W_SERVER_DELETED',
+    ])
+  })
+
   it('puts each finding of a dry run in the JSON on stdout', async () => {
     const finding = {
       code: 'E_DECL_SHAPE',
@@ -436,6 +472,129 @@ describe('workspaces source apply', () => {
     })
   })
 
+  it('a --to dry run warns of what the target deleted since the last promotion, gives stale findings a promotion hint, and names each target-only delete', async () => {
+    const leads = { id: 'tbl_prod', fingerprint: `rf1:${'a'.repeat(64)}` }
+    write(
+      '.sim/targets/ws_prod.json',
+      JSON.stringify({
+        version: 1,
+        workspaceId: 'ws_prod',
+        resources: {
+          'table:leads': leads,
+          'table:gone': { id: 'tbl_gone', fingerprint: `rf1:${'c'.repeat(64)}` },
+        },
+        workflows: {},
+      })
+    )
+    write('tables/gone.ts', LEADS.replace("'leads'", "'gone'"))
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table'],
+            files: { 'tables/leads.ts': LEADS, 'tables/prod-only.ts': LEADS },
+            blobs: [],
+            base: {
+              version: 1,
+              workspaceId: 'ws_prod',
+              resources: { 'table:leads': leads, 'table:prod-only': { id: 'tbl_only' } },
+            },
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      return answer({
+        workspaceId: 'ws_prod',
+        dryRun: true,
+        plan: [
+          { kind: 'table', key: 'gone', action: 'noop' },
+          { kind: 'table', key: 'leads', action: 'noop' },
+          { kind: 'table', key: 'prod-only', action: 'delete' },
+        ],
+        diagnostics: [
+          {
+            code: 'W_SERVER_DELETED',
+            severity: 'warning',
+            message: 'tables/gone was deleted on the server; the apply keeps it deleted.',
+            kind: 'table',
+            key: 'gone',
+          },
+          {
+            code: 'E_APPLY_STALE',
+            severity: 'error',
+            message: 'tables/leads changed on the server since this directory was read.',
+            hint: 'Run `sim workspaces source get` into a fresh directory, reapply your edit there, and apply again.',
+            kind: 'table',
+            key: 'leads',
+          },
+        ],
+      })
+    })
+
+    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--dry-run')
+
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    const byCode = (code: string) =>
+      summary.diagnostics.filter((finding: { code: string }) => finding.code === code)
+    expect(byCode('W_PROMOTE_TARGET_DELETED')).toEqual([
+      expect.objectContaining({ kind: 'table', key: 'gone' }),
+    ])
+    expect(byCode('W_SERVER_DELETED')).toEqual([])
+    expect(byCode('W_PROMOTE_DELETES_TARGET_ONLY')).toEqual([
+      expect.objectContaining({ kind: 'table', key: 'prod-only' }),
+    ])
+    const [stale] = byCode('E_APPLY_STALE')
+    expect(stale.hint).toContain('.sim/targets/ws_prod.json')
+    expect(stale.hint).not.toContain('fresh directory')
+    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+    expect(stderr).toContain('  ! gone (deleted on the server; kept as the server has it)')
+    expect(stderr).not.toContain('resource(s) that only workspace ws_prod holds')
+  })
+
+  it('names only the target-only deletes a promotion that stopped part-way wrote', async () => {
+    const target = {
+      version: 1,
+      workspaceId: 'ws_prod',
+      resources: { 'table:one': { id: 'tbl_one' }, 'table:two': { id: 'tbl_two' } },
+    }
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table'],
+            files: { 'tables/one.ts': LEADS, 'tables/two.ts': LEADS },
+            blobs: [],
+            base: target,
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      return answer({
+        workspaceId: 'ws_prod',
+        base: target,
+        plan: [
+          { kind: 'table', key: 'one', action: 'delete' },
+          { kind: 'table', key: 'two', action: 'delete' },
+        ],
+        applied: [{ kind: 'table', key: 'one', action: 'delete' }],
+        failed: { kind: 'table', key: 'two', code: 'E_APPLY_FAILED', message: 'failed' },
+      })
+    })
+
+    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--yes')
+
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(
+      summary.diagnostics
+        .filter((finding: { code: string }) => finding.code === 'W_PROMOTE_DELETES_TARGET_ONLY')
+        .map((finding: { key: string }) => finding.key)
+    ).toEqual(['one'])
+  })
+
   it('refuses --to naming the workspace the directory was read from', async () => {
     await expect(apply('--to', 'ws_local', '--yes')).rejects.toThrow(/apply it without --to/)
     expect(request).not.toHaveBeenCalled()
@@ -606,6 +765,33 @@ describe('workspaces source apply', () => {
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// stored\n`)
     expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).resources).toEqual({
       'table:leads': { id: 'tbl_1' },
+    })
+  })
+
+  it('after a part-way stop, reprints the plan marking each change written or not', async () => {
+    request.mockResolvedValue(
+      answer({
+        plan: [
+          { kind: 'skill', key: 'second', action: 'create' },
+          { kind: 'mcp-server', key: 'bad', action: 'create' },
+          { kind: 'file', key: 'partial.txt', action: 'create' },
+          { kind: 'table', key: 'leads', action: 'noop' },
+        ],
+        applied: [{ kind: 'skill', key: 'second', action: 'create', id: 'sk_1' }],
+        failed: { kind: 'mcp-server', key: 'bad', code: 'E_APPLY_FAILED', message: 'failed' },
+      })
+    )
+
+    await apply('--yes')
+
+    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+    expect(stderr).toContain('+ second — written')
+    expect(stderr).toContain('+ bad — failed, not written')
+    expect(stderr).toContain('+ partial.txt — not written')
+    const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(printed).toMatchObject({
+      failed: 'mcp-server:bad',
+      notWritten: ['mcp-server:bad', 'file:partial.txt'],
     })
   })
 
@@ -851,8 +1037,22 @@ describe('workspaces source apply', () => {
       await apply('--yes')
       const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8'))
       expect(written.files['files/a.bin']).toBe(held)
-      expect(written.stats['files/a.bin']).toBeDefined()
+      expect(written.stats).toBeUndefined()
+      const cached = JSON.parse(readFileSync(join(dir, '.sim/cache/stats.json'), 'utf8'))
+      expect(cached.stats['files/a.bin']).toMatchObject({ sha256: held })
+      expect(readFileSync(join(dir, '.sim/cache/.gitignore'), 'utf8')).toBe('*\n')
     }
+
+    it('keeps the committed record free of this machine: a no-op apply of a fresh clone leaves it byte for byte', async () => {
+      await applyOnce()
+      rmSync(join(dir, '.sim/cache'), { recursive: true, force: true })
+      const committed = readFileSync(join(dir, '.sim/written.json'), 'utf8')
+
+      await apply('--yes')
+
+      expect(readFileSync(join(dir, '.sim/written.json'), 'utf8')).toBe(committed)
+      expect(existsSync(join(dir, '.sim/cache/stats.json'))).toBe(true)
+    })
 
     it('stands while the file is untouched, so the file is not read', async () => {
       await applyOnce()
@@ -860,6 +1060,10 @@ describe('workspaces source apply', () => {
       const written = JSON.parse(readFileSync(path, 'utf8'))
       const recorded = 'f'.repeat(64)
       writeFileSync(path, JSON.stringify({ ...written, files: { 'files/a.bin': recorded } }))
+      const statsPath = join(dir, '.sim/cache/stats.json')
+      const cached = JSON.parse(readFileSync(statsPath, 'utf8'))
+      cached.stats['files/a.bin'].sha256 = recorded
+      writeFileSync(statsPath, JSON.stringify(cached))
 
       await apply('--dry-run')
 

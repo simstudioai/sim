@@ -107,4 +107,18 @@ describe('a container param holding a detected credential', () => {
     expect(again.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
     expect(again.workflow?.blocks.l?.params).toEqual(workflow.blocks.l?.params)
   })
+  it('names a block like a builder namespace only when the file builds with that namespace', () => {
+    const alone = printed(compiled("  const mail = api('Mail', { url: 'x' })")).files[0]?.text ?? ''
+    expect(alone).toContain("const mail = api('Mail'")
+    expect(compile(alone).diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+
+    const text =
+      "// @sim-sdk 1\nimport { api, mail, workflow } from '@sim/workflow-sdk'\n\n" +
+      "export default workflow('Test', {}, () => {\n  const mail2 = api('Mail', { url: 'x' })\n  const m = mail.send('M', { to: 'a@b.co' })\n})\n"
+    const both = compile(text).workflow
+    if (!both) throw new Error('expected a workflow')
+    const entry = printed(both).files[0]?.text ?? ''
+    expect(entry).toContain("const mail2 = api('Mail'")
+    expect(compile(entry).diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+  })
 })

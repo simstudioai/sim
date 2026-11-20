@@ -12,6 +12,7 @@ import { unsupported } from '../compile/context'
 import { isJson, type LockItem } from '../lock'
 import type { MaterializeContext } from '../materialize/context'
 import type { ParamSite } from '../materialize/params'
+import { sharesEvidence, soleRename } from '../materialize/rename'
 import { type BlockKey, isPlainRecord, type Value } from '../model'
 import { printKey } from '../print/strings'
 import { objectExpr, type Property } from '../print/syntax'
@@ -171,8 +172,10 @@ function liftInputFormat(
 /**
  * Puts inputFormat field ids back: canonicalize moved the id of every field whose name and id are
  * both unique to the lock, so each such field takes the lock's id for its name, then prev's, else a
- * new one. Fields that kept their id inline keep it. Every field with an id takes the editor's
- * `collapsed` flag from the prev field with that id.
+ * new one. When exactly one field's name is new and exactly one known id's name is gone, and prev
+ * stored that id with the same type, the field is a rename and keeps the id. Fields that kept their
+ * id inline keep it. Every field with an id takes the editor's `collapsed` flag from the prev field
+ * with that id.
  */
 function restoreInputFormatIds(list: unknown[], site: ParamSite, context: MaterializeContext) {
   const unique = uniqueFieldNames(list)
@@ -186,18 +189,72 @@ function restoreInputFormatIds(list: unknown[], site: ParamSite, context: Materi
     return { ...item, collapsed: prevItem.collapsed }
   }
   const used = new Set<string>()
-  return list.map((item) => {
+  const known = list.map((item) => {
+    if (!isRecordLike(item) || item.id !== undefined) return undefined
+    if (typeof item.name !== 'string' || !unique.has(item.name)) return undefined
+    const name = item.name
+    const entry = site.itemIds.find(
+      (candidate) => candidate.name === name && !used.has(candidate.id)
+    )
+    if (entry) used.add(entry.id)
+    return entry?.id
+  })
+  const renamed = renamedFieldId(list, known, unique, site.itemIds, prevById, used)
+  return list.map((item, index) => {
     if (!isRecordLike(item)) return item
     if (item.id !== undefined) {
       return typeof item.id === 'string' ? withPrevCollapsed(item.id, item) : item
     }
     if (typeof item.name !== 'string' || !unique.has(item.name)) return item
-    const name = item.name
-    const known = site.itemIds.find((entry) => entry.name === name && !used.has(entry.id))
-    const id = known?.id ?? context.hooks.newId()
+    const id = known[index] ?? (renamed?.index === index ? renamed.id : context.hooks.newId())
     used.add(id)
     return withPrevCollapsed(id, { id, ...item })
   })
+}
+
+/**
+ * The one field a lone rename left without a known id, with the id prev stored under the former
+ * name, when prev's field shares its type and its default value or description (see
+ * {@link soleRename}).
+ */
+function renamedFieldId(
+  list: readonly unknown[],
+  known: ReadonlyArray<string | undefined>,
+  unique: ReadonlySet<string>,
+  itemIds: readonly LockItem[],
+  prevById: ReadonlyMap<string, Record<string, unknown>>,
+  used: ReadonlySet<string>
+): { index: number; id: string } | null {
+  const names = new Set(list.flatMap((item) => (isRecordLike(item) ? [item.name] : [])))
+  const renamed = soleRename(
+    list.flatMap((item, index) =>
+      isRecordLike(item) &&
+      item.id === undefined &&
+      typeof item.name === 'string' &&
+      unique.has(item.name) &&
+      known[index] === undefined
+        ? [index]
+        : []
+    ),
+    [
+      ...new Set(
+        itemIds
+          .filter((entry) => !names.has(entry.name) && !used.has(entry.id))
+          .map((entry) => entry.id)
+      ),
+    ].map((id) => [id, id] as const),
+    (index, id) => {
+      const field = list[index]
+      const former = prevById.get(id)
+      return (
+        isRecordLike(field) &&
+        former !== undefined &&
+        former.type === field.type &&
+        sharesEvidence<Record<string, unknown>>(former, field, ['value', 'description'])
+      )
+    }
+  )
+  return renamed && { index: renamed.item, id: renamed.id }
 }
 
 /** The record sugar as source: `name: 'type'`, or `name: { type, value?, description?, required? }`. */

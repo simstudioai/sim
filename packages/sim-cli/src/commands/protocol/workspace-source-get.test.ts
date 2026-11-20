@@ -129,6 +129,29 @@ describe('workspaces source get', () => {
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// server\n`)
   })
 
+  it('refuses a workflow source directory, --force included, keeping its base and unapplied edits', async () => {
+    const base = JSON.stringify({
+      workflowId: 'wf-1',
+      workspaceId: 'ws_local',
+      fingerprint: 'sf1:x',
+      catalogHash: 'h',
+    })
+    mkdirSync(join(dir, '.sim'), { recursive: true })
+    writeFileSync(join(dir, '.sim/base.json'), base)
+    writeFileSync(join(dir, 'workflow.ts'), '// @sim-sdk 1\n// my unapplied edit\n')
+    serve({ 'tables/leads.ts': LEADS })
+
+    for (const flags of [[], ['--force']]) {
+      await expect(get(...flags)).rejects.toMatchObject({
+        code: 'SOURCE_DIR_KIND_MISMATCH',
+        message: expect.stringContaining('is a workflow source directory (workflow wf-1)'),
+      })
+    }
+    expect(readFileSync(join(dir, '.sim/base.json'), 'utf8')).toBe(base)
+    expect(existsSync(join(dir, 'tables'))).toBe(false)
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('keeps the seed rows file of a table the answer declares seed rows for, which no read prints', async () => {
     const seeded = (name: string) =>
       `// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\n\nexport default defineTable({ name: '${name}', columns: { code: column.string() }, rows: { mode: 'seed' } })\n`
@@ -553,8 +576,8 @@ describe('workspaces source get', () => {
         const file = join(dir, 'files/report.bin')
         utimesSync(file, MTIME, MTIME)
         await get()
-        const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8'))
-        expect(written.stats['files/report.bin']).toBeDefined()
+        const cached = JSON.parse(readFileSync(join(dir, '.sim/cache/stats.json'), 'utf8'))
+        expect(cached.stats['files/report.bin']).toBeDefined()
         return file
       }
 

@@ -3,6 +3,7 @@
  * Like every CWM comparison it ignores `annotations`, key order and edge order.
  */
 
+import { compareStrings } from '@sim/utils/string'
 import { edgeTupleKey, portKey } from '../anchors'
 import type { LockIdentity } from '../lock'
 import type {
@@ -110,16 +111,23 @@ function edgeKey(edge: CanonicalEdge, keyOf: (key: BlockKey) => BlockKey): strin
   return edgeTupleKey(keyOf(edge.from), portKey(edge.port), keyOf(edge.to))
 }
 
+/** Stands in for a target block no base block pairs with, so none of its edges match a base one. */
+const UNPAIRED = '\u0000added:'
+
 /**
- * Diffs base against target. `renames` (target key → base key) pairs blocks whose key changed;
- * without it a rename is a remove plus an add. A rename pair whose base key is missing, or that
- * names a base key a target block of the same key also claims, is ignored. Edges are compared
- * after mapping target keys to base keys, so a rename alone moves no edge.
+ * Diffs base against target. `renames` (target key → base key) pairs blocks whose key changed,
+ * and it wins over a same-key pairing, so two blocks that swap names pair with the blocks they
+ * continue; without it a rename is a remove plus an add. A rename pair whose either key is missing,
+ * or whose base key another pair already claims, is ignored. Any other target block pairs with the
+ * base block of its key, unless `replaced` holds the key: that block took a new id (a retype), so
+ * it is a remove plus an add. Edges are compared after mapping target keys to the base keys they
+ * pair with, so a rename alone moves no edge and every edge of a replaced block is re-added.
  */
 export function diffCanonical(
   base: CanonicalWorkflow,
   target: CanonicalWorkflow,
-  renames?: ReadonlyMap<BlockKey, BlockKey>
+  renames?: ReadonlyMap<BlockKey, BlockKey>,
+  replaced?: ReadonlySet<BlockKey>
 ): CanonicalDiff {
   const pairs = new Map<BlockKey, BlockKey>()
   const claimedBase = new Set<BlockKey>()
@@ -127,7 +135,6 @@ export function diffCanonical(
     if (
       Object.hasOwn(target.blocks, targetKey) &&
       Object.hasOwn(base.blocks, baseKey) &&
-      !Object.hasOwn(target.blocks, baseKey) &&
       !claimedBase.has(baseKey)
     ) {
       pairs.set(targetKey, baseKey)
@@ -135,16 +142,19 @@ export function diffCanonical(
     }
   }
   for (const targetKey of Object.keys(target.blocks)) {
-    if (pairs.has(targetKey) || claimedBase.has(targetKey)) continue
+    if (pairs.has(targetKey) || claimedBase.has(targetKey) || replaced?.has(targetKey)) continue
     if (Object.hasOwn(base.blocks, targetKey)) {
       pairs.set(targetKey, targetKey)
       claimedBase.add(targetKey)
     }
   }
-  const baseKeyOf = (targetKey: BlockKey) => pairs.get(targetKey) ?? targetKey
+  const baseKeyOf = (targetKey: BlockKey) => pairs.get(targetKey) ?? `${UNPAIRED}${targetKey}`
 
   const added = Object.keys(target.blocks).filter((key) => !pairs.has(key))
-  const removed = Object.keys(base.blocks).filter((key) => !claimedBase.has(key))
+  // By key: the base's block order is the order its rows loaded in, which says nothing.
+  const removed = Object.keys(base.blocks)
+    .filter((key) => !claimedBase.has(key))
+    .sort(compareStrings)
   const renamed: CanonicalDiff['blocks']['renamed'] = []
   const modified: CanonicalBlockDiff[] = []
   for (const [targetKey, baseKey] of pairs) {
@@ -190,6 +200,19 @@ export function diffCanonical(
     edges,
     variables,
   }
+}
+
+/**
+ * Keys both identities of one workflow hold for different blocks (target key): a block that took
+ * a new id under its key, as a retype does. The `replaced` input `diffCanonical` takes.
+ */
+export function replacedBetween(base: LockIdentity, target: LockIdentity): Set<BlockKey> {
+  const replaced = new Set<BlockKey>()
+  for (const [key, block] of Object.entries(target.blocks)) {
+    const held = getOwn(base.blocks, key)
+    if (held && held.id !== block.id) replaced.add(key)
+  }
+  return replaced
 }
 
 /**

@@ -29,9 +29,13 @@ import {
   updateMcpServerUseCase,
 } from '@/lib/mcp/application/use-cases'
 import { generateMcpServerId } from '@/lib/mcp/utils'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { readSourceResources } from '@/lib/workflows/application/read-source-resources'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
+import {
+  type ApplyWorkspaceSourceInput,
+  planWorkspaceSource,
+} from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   failKeyClaims,
   refusal,
@@ -135,6 +139,21 @@ function apply(workspaceId: string, files: Record<string, string>, options: Appl
   return runner.apply(workspaceId, { files, ...options })
 }
 
+/** What an apply of `files` would do, as `principal` reads it with the read-role plan. */
+function planAs(
+  principal: Principal,
+  workspaceId: string,
+  files: Record<string, string>,
+  base: ApplyOptions['base']
+) {
+  return withPermissionGroupScope(() =>
+    planWorkspaceSource.execute({
+      principal,
+      input: { workspaceId, kinds: ['mcp-server', 'workflow'], files, ...(base ? { base } : {}) },
+    })
+  )
+}
+
 function findings(
   diagnostics: ReadonlyArray<{ code: string; severity: string; kind?: string; key?: string }>,
   severity: string
@@ -220,6 +239,26 @@ afterAll(async () => {
 })
 
 describe('MCP servers as workspace source', () => {
+  check(
+    'refuses in the dry run a server URL whose host does not resolve, so the apply writes nothing',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        'mcp/github.ts': github(),
+        'mcp/bad.ts': serverFile(
+          `{ name: 'Bad', url: 'https://nonexistent-host-wac-e2e.invalid/mcp' }`
+        ),
+      }
+
+      const dryRun = await apply(workspaceId, files, { dryRun: true })
+      expect(findings(dryRun.diagnostics, 'error')).toEqual(['E_APPLY_REFUSED mcp-server:bad'])
+
+      const refused = await refusal(apply(workspaceId, files))
+      expect(findings(refused.diagnostics, 'error')).toEqual(['E_APPLY_REFUSED mcp-server:bad'])
+      expect(await liveServers(workspaceId)).toEqual([])
+    }
+  )
+
   check(
     'creates a server and the workflow calling its tool in one apply, storing the env reference',
     async () => {
@@ -521,6 +560,27 @@ describe('MCP servers as workspace source', () => {
     }
   )
 
+  check('checks a changed server URL only for a caller who may write the server', async () => {
+    const workspaceId = await newWorkspace()
+    const unresolvable = 'http://mcp-gone.invalid/mcp'
+    await db.insert(mcpServers).values({
+      id: generateMcpServerId(workspaceId, unresolvable),
+      workspaceId,
+      name: 'Gone',
+      transport: 'streamable-http',
+      url: unresolvable,
+    })
+    const read = await runner.get(workspaceId, reader)
+    const [path] = Object.keys(read.files)
+    const requery = { [path]: read.files[path].replace(unresolvable, `${unresolvable}?v=2`) }
+
+    const plan = await planAs(reader, workspaceId, requery, read.base)
+    expect(findings(plan.diagnostics, 'error')).toEqual([
+      `E_APPLY_FORBIDDEN mcp-server:${path.slice(4, -3)}`,
+    ])
+    expect(JSON.stringify(plan.diagnostics)).not.toContain('resolve')
+  })
+
   check(
     'a re-run that adopts a stopped replace carrying stored() headers still needs an admin',
     async () => {
@@ -671,8 +731,8 @@ describe('MCP servers as workspace source', () => {
       })
       const gone = await apply(workspaceId, edited.files, { base: edited.base })
       expect(findings(gone.diagnostics, 'error')).toEqual([])
-      expect(findings(gone.diagnostics, 'info')).toEqual([
-        `I_SERVER_DELETED mcp-server:${path.slice(4, -3)}`,
+      expect(findings(gone.diagnostics, 'warning')).toEqual([
+        `W_SERVER_DELETED mcp-server:${path.slice(4, -3)}`,
       ])
       expect(gone.applied).toEqual([])
     }
@@ -689,7 +749,7 @@ describe('MCP servers as workspace source', () => {
           workspaceId,
           name: 'Tenant',
           url,
-          headers: { 'X-Tenant': tenant, Authorization: 'Bearer {{GH_TOKEN}}' },
+          headers: { 'X-Tenant': tenant, Authorization: 'Digest {{GH_TOKEN}}' },
           authType: 'headers',
         },
       })
@@ -701,7 +761,7 @@ describe('MCP servers as workspace source', () => {
       const read = await runner.get(workspaceId, reader)
       expect(JSON.stringify(read)).not.toContain(tenant)
       expect(read.files[path]).toContain("'X-Tenant': stored()")
-      expect(read.files[path]).toContain('Bearer {{GH_TOKEN}}')
+      expect(read.files[path]).toContain('Digest {{GH_TOKEN}}')
       const address: `mcp-server:${string}` = `mcp-server:${path.slice(4, -3)}`
       expect(read.base.resources[address]).toEqual(written.base.resources[address])
 
@@ -718,7 +778,87 @@ describe('MCP servers as workspace source', () => {
       )
       expect(renamed.applied).toMatchObject([{ action: 'update', fields: ['name'] }])
       expect((await liveServers(workspaceId)).map((server) => server.headers)).toEqual([
-        { 'X-Tenant': tenant, Authorization: 'Bearer {{GH_TOKEN}}' },
+        { 'X-Tenant': tenant, Authorization: 'Digest {{GH_TOKEN}}' },
+      ])
+    }
+  )
+
+  check(
+    'never tells a read-only member whether a header value they wrote matches the one hidden from them',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'Tenant',
+          url,
+          headers: { 'X-Tenant': 'acme' },
+          authType: 'headers',
+        },
+      })
+      const read = await runner.get(workspaceId, reader)
+      const [path] = Object.keys(read.files)
+      expect(read.files[path]).toContain("'X-Tenant': stored()")
+
+      const planWith = async (guess: string) => {
+        const files = { [path]: read.files[path].replace('stored()', `'${guess}'`) }
+        const plan = await planAs(reader, workspaceId, files, read.base)
+        return { plan: plan.plan, diagnostics: plan.diagnostics }
+      }
+      const right = await planWith('acme')
+      const wrong = await planWith('other')
+
+      expect(right).toEqual(wrong)
+      expect(findings(right.diagnostics, 'error')).toEqual([
+        `E_APPLY_FORBIDDEN mcp-server:${path.slice(4, -3)}`,
+      ])
+      // Keeping the value it cannot see stays a no-op.
+      const kept = await planAs(reader, workspaceId, read.files, read.base)
+      expect(kept.plan.map((change) => change.action)).toEqual(['noop'])
+    }
+  )
+
+  check(
+    'never tells a read-only member whether a header they write to a new URL matches the server there',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: { workspaceId, name: 'Tenant', url, authType: 'headers' },
+      })
+      const read = await runner.get(workspaceId, reader)
+      const [path] = Object.keys(read.files)
+      // Created after the get, so no key binds it: the plan can only meet it at its URL.
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'Tenant',
+          url: `${url}/v2`,
+          headers: { 'X-Tenant': 'acme' },
+          authType: 'headers',
+        },
+      })
+
+      const planWith = async (guess: string) => {
+        const moved = read.files[path].replace(url, `${url}/v2`)
+        const files = {
+          [path]: moved.replace(
+            /url: ('[^']*'),/,
+            `url: $1,\n  headers: { 'X-Tenant': '${guess}' },`
+          ),
+        }
+        expect(files[path]).toContain(`'X-Tenant': '${guess}'`)
+        const plan = await planAs(reader, workspaceId, files, read.base)
+        return { plan: plan.plan, diagnostics: plan.diagnostics }
+      }
+      const right = await planWith('acme')
+      const wrong = await planWith('other')
+
+      expect(right).toEqual(wrong)
+      expect(findings(right.diagnostics, 'error')).toEqual([
+        `E_APPLY_FORBIDDEN mcp-server:${path.slice(4, -3)}`,
       ])
     }
   )

@@ -350,6 +350,29 @@ describe('workspace resource keys against PostgreSQL', () => {
     expect(await keyRows(workspaceId, 'table', foreign)).toEqual([])
   })
 
+  it('resolves only bound keys and allocates none when a read asks it not to', async () => {
+    const bound = generateId()
+    const unbound = generateId()
+    await insertTable(bound, workspaceId, 'Bound', at(35))
+    await insertTable(unbound, workspaceId, 'Unbound', at(36))
+    expect(await keyOf('table', bound)).toBe('bound')
+
+    const resolver = await loadResourceKeyResolver(
+      workspaceId,
+      {
+        ids: [
+          { kind: 'table', id: bound },
+          { kind: 'table', id: unbound },
+        ],
+      },
+      { actorUserId: userId, allocate: false }
+    )
+
+    expect(resolver.toKey('table', bound)).toBe('bound')
+    expect(resolver.toKey('table', unbound)).toBeNull()
+    expect(await keyRows(workspaceId, 'table', unbound)).toEqual([])
+  })
+
   it('allocates inside the caller’s transaction and rolls back with it', async () => {
     const id = generateId()
     await insertTable(id, workspaceId, 'Rollback', at(40))

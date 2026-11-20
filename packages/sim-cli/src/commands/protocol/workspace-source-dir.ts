@@ -6,7 +6,6 @@
  */
 import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
-import { toRecord } from '@sim/utils/object'
 import type { WorkflowInput } from '@sim/workflow-code'
 import {
   SOURCE_COMPILER_OPTIONS,
@@ -47,11 +46,11 @@ import { SOURCE_TOO_LARGE_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkspaceSourceBody } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import {
+  assertSourceDirKind,
   checkedPath,
   digest,
   FILE_CONCURRENCY,
   listSourceFiles,
-  readSourceJson,
   readSourceText,
   SOURCE_DIR_LOCK,
   SOURCE_DOWNLOADS_DIR,
@@ -169,7 +168,7 @@ const ADVANCED_GUIDE = `# Sim workspace source: advanced
 
 ## Git and CI
 
-- Commit the whole directory, \`.sim/\` included: \`${WORKSPACE_BASE_FILE}\`, each workflow's \`.sim/\` and \`.sim/written.json\` are what a later apply compares with, from any clone. The generated \`.gitignore\` leaves out only what a command keeps while it runs (\`.sim/downloads/\`, \`.sim/command.lock/\`, \`.sim-staging-*\`) and \`${TSCONFIG_FULL_FILE}\`, which names the CLI's cache on this machine (\`check\` writes it again), and \`.gitattributes\` keeps workspace files and documents byte for byte.
+- Commit the whole directory, \`.sim/\` included: \`${WORKSPACE_BASE_FILE}\`, each workflow's \`.sim/\` and \`.sim/written.json\` are what a later apply compares with, from any clone. \`.sim/cache/\` holds this machine's file stats and ignores itself. The generated \`.gitignore\` leaves out only what a command keeps while it runs (\`.sim/downloads/\`, \`.sim/command.lock/\`, \`.sim-staging-*\`) and \`${TSCONFIG_FULL_FILE}\`, which names the CLI's cache on this machine (\`check\` writes it again), and \`.gitattributes\` keeps workspace files and documents byte for byte.
 - A fresh clone runs \`check\` (it downloads the block catalog once when none is cached), \`apply --dry-run\` and \`apply --yes\` with only the committed files. A workspace API key may apply tables, rows, knowledge bases, files, custom tools, MCP servers and credential bindings; workflows, skills, secrets and deployments need a member's personal API key (deployments an admin's).
 - Plan on every pull request (\`apply --dry-run\`), apply on merge, and commit the files the apply rewrote. Two branches that each applied: merge them, then run the dry run. No changes means the merged files match the workspace. Exit 5 means a resource changed since the base this branch holds: \`sim workspaces source get --dir <fresh dir>\`, carry the edit over, and apply from there.
 - \`sim workspaces source get --dir .\` refreshes the workspace \`${WORKSPACE_BASE_FILE}\` names, whatever the profile's default; a \`--workspace\` naming another is refused.
@@ -519,13 +518,7 @@ export async function kindFolders(
  * workflow folder fails instead of passing with nothing checked or applied.
  */
 export async function assertWorkspaceDir(dir: string): Promise<void> {
-  const base = toRecord(await readSourceJson(dir, WORKSPACE_BASE_FILE))
-  if (typeof base.workflowId === 'string') {
-    throw new SimApiError(
-      `${dir} is a workflow source directory: use \`sim workflows source\` (check, apply) with --dir ${dir}.`,
-      0
-    )
-  }
+  await assertSourceDirKind(dir, 'workspace')
   const { present } = await kindFolders(dir, APPLY_ORDER)
   if (present.length > 0) return
   throw new SimApiError(

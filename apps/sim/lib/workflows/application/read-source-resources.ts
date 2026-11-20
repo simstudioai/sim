@@ -31,7 +31,6 @@ import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/ca
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { isColumnType } from '@/lib/table/column-types'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { loadEnvNames, loadVisibleCredentials } from '@/lib/workflows/code/resources'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { INPUT_DEFINITION_TRIGGER_TYPES } from '@/lib/workflows/triggers/input-definition-triggers'
@@ -237,17 +236,8 @@ function capped<T>(rows: T[]): { rows: T[]; truncated: boolean } {
  */
 export const readSourceResources = defineAuthorizedWorkspaceUseCase({
   operation: workflowOperations.readSourceResources,
-  resolveContext: async ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: ReadSourceResourcesInput
-  }) => {
-    const context = await resolveActiveWorkspaceApplicationContext(input.workspaceId)
-    await requireWorkflowCodeEnabled(principal, context)
-    return context
-  },
+  resolveContext: ({ input }: { input: ReadSourceResourcesInput }) =>
+    resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: { delegation: sourceResourcesDelegationPolicy },
   execute: async ({ principal, context }): Promise<SourceResources> => {
     const workspaceId = context.workspaceId

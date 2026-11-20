@@ -191,10 +191,13 @@ reordered tool never takes another tool's secret.
 
 - `blk.a.b` → `<key.a.b>`, `blk['x-y']` → `<key.x-y>`, `blk.items[0]` → `<key.items[0]>`,
   `blk.items['0']` → `<key.items.0>`. Paths are typed from the block's outputs; a path no output
-  has is `W_UNKNOWN_OUTPUT_PATH`. For an agent with a `responseFormat`, its declared fields count
-  beside the static outputs (skipped when the format holds references); for a Start, API or Input
-  trigger its declared `inputFormat` inputs do, so `start.nope`, or a reference to an input since
-  removed, warns at the reference; other dynamic outputs skip the check.
+  has is `W_UNKNOWN_OUTPUT_PATH` (the apply refuses it on a block the edit changed). For an agent
+  with a `responseFormat`, its declared fields count beside the static outputs (skipped when the
+  format holds references); for a Start, API or Input trigger its declared `inputFormat` inputs
+  do, so `start.nope`, or a reference to an input since removed, is `W_OUTPUT_PATH_UNDECLARED`
+  at the reference (a caller may still pass it, so it is never refused); other dynamic outputs
+  skip the check. `x.error` on a block with no error edge reads nothing:
+  `W_OUTPUT_PATH_UNDECLARED`.
 - A ref to a block declared later is `W_FORWARD_REF`; it still resolves. A ref into a sibling
   subflow's child is `E_OUT_OF_SCOPE`. An unknown identifier is `E_UNKNOWN_IDENTIFIER` with a
   did-you-mean. Wiring resolves its identifiers the same way.
@@ -270,7 +273,10 @@ template.
 `code: codeFile('./functions/x.js')`, relative to `workflow.ts`, with the extension matching
 `language` (default `javascript`). Otherwise `E_CODE_FILE_PATH`; a file the request did not send is
 `E_CODE_FILE_MISSING`. JavaScript files use `$ref.block.path` for `<block.path>` and `$env.NAME` for
-`{{NAME}}`, rewritten back on compile; Python and shell files are verbatim. `$ref` names a block by
+`{{NAME}}`, rewritten back on compile; Python and shell files are verbatim, so they write
+`<block.path>` and `{{NAME}}` themselves, and a `$ref` or `$env` in one is
+`W_CODE_FILE_REF_SYNTAX` (the apply refuses it in a file the edit changed). A `<block.path>` tag in
+any code file (a JavaScript string included) is checked like a `$ref` chain. `$ref` names a block by
 its key (`$ref.triageagent.content`), not its ident; a chain that names no block or variable is
 `W_UNRESOLVED_REF` at the file location (the hint names the key when the head is an ident or a
 block name), and a path no output has is `W_UNKNOWN_OUTPUT_PATH`. When the stored code
@@ -379,7 +385,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_WORKFLOW_EXPORT` | Not exactly one `export default workflow(…)`. |
 | `E_LIMIT_EXCEEDED` | Over the block, edge, total-byte, depth or `codeFile()` reference cap (`SOURCE_LIMITS`). Apply answers 413. |
 | `E_TOO_MANY_ERRORS` | The compile stopped after 100 errors; fix those and compile again to see the rest. |
-| `W_TOO_MANY_WARNINGS` | 100 warnings were listed and the rest omitted. Infos are capped apart (100, the rest dropped), so they never displace a warning. |
+| `W_TOO_MANY_WARNINGS` | 100 warnings, or 20 of one code, were listed and the rest omitted, so a flood of one finding never hides another. A finding repeated at the same place is listed once. Infos are capped apart (100, the rest dropped), so they never displace a warning, and errors are never displaced by either. |
 | `E_DUPLICATE_NAME` | Two blocks normalize to one key. |
 | `E_RESERVED_NAME` | A block name normalizes to `loop`, `parallel` or `variable`. |
 | `E_KEY_OVERRIDE` | A `meta.key` that is not a legacy key the stored workflow already has. |
@@ -434,6 +440,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_LITERAL_SECRET` | A password field (an API key, a token) holding literal text instead of an env reference, or any field holding a detected credential (a token format, an `Authorization` header, a credential-named property or query parameter); get prints it as `stored()`. For a literal token in a credential field, the hint says `credential('<key>')`. |
 | `W_SUBFLOW_COUNT` | A loop or parallel count, or a parallel batch size, the runtime replaces or clamps. |
 | `W_UNKNOWN_OUTPUT_PATH` | A ref path the block's outputs do not have; the hint has a did-you-mean or lists the outputs. |
+| `W_OUTPUT_PATH_UNDECLARED` | A path the block does not declare that the run still accepts: an undeclared `inputFormat` input, or `x.error` with no error edge. Never refused. |
 | `W_JSON_REF_UNTYPED` | A bare ref in a JSON literal whose type nothing declares. |
 | `E_CODE_FILE_MISSING` | `codeFile()` names a file the request did not send. |
 | `E_CODE_FILE_PATH` | A code file path outside the directory, or with the wrong extension. |

@@ -245,7 +245,7 @@ describe('sim workspaces source check', () => {
 
     expect(error).toMatchObject({
       message: expect.stringContaining(
-        'is a workflow source directory: use `sim workflows source`'
+        'is a workflow source directory (workflow wf_first), so a `sim workspaces source` command'
       ),
     })
   })

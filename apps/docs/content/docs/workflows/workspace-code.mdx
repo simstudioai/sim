@@ -64,6 +64,8 @@ sim workspaces source apply --dir ./my-workspace --yes
 
 The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resource with the same name, `-` delete) and every error with its file and line. `--only tables,workflows` limits a get or an apply to some kinds.
 
+An apply adopts a resource it never read (one made in Sim under the name a new declaration gives) only when the declaration matches it, or only adds to it: a column, rows into an empty table, a document. An adopt that would change or remove anything the resource holds is refused with `E_APPLY_NO_BASE`, even with `--allow-delete`. Run `get` into a new directory to read the resource, then make your edit there, or give the declaration another name.
+
 `status` shows what would happen if you applied, without writing anything: the files you created, edited, or deleted, grouped by resource; what changed in Sim since the `get` (a resource edited, added, or deleted there, a workflow edited in the editor included); the conflicts, where a resource changed on both sides; and the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unapplied, and `12` when something changed in Sim since the `get`, so a script or an agent can branch on it. Without a connection it shows your edits only and says so; `--offline` skips the server. `diff [paths or kind:key…]` prints the edits as unified diffs (a binary file by its sizes), and `diff --server` compares the directory with what Sim holds now. Both take `--json` (or `--output json`).
 
 ## Workspace API keys [#workspace-api-keys]
@@ -75,7 +77,7 @@ To apply the rest with a workspace key, such as in CI, narrow the apply to the k
 ## Deletes
 
 - A kind is managed only when its folder exists. A directory without `skills/` never touches a skill.
-- Removing the file of a resource the directory manages deletes it only with `--allow-delete`; without the flag the apply is refused. The flag also covers a removed table column, managed table row, knowledge base document, workspace file or workflow block.
+- Removing the file of a resource the directory manages deletes it only with `--allow-delete`; without the flag the apply is refused. The flag also covers a removed table column, managed table row, knowledge base document, workspace file, workflow block or workflow variable.
 - A resource the directory never managed is kept, and the apply names it in a warning.
 - Something deleted in Sim is not re-created by an unchanged directory, and an edit to it is refused as stale.
 - Table rows are part of the directory only when the table's `rows` opts in (`tables/<key>.rows.jsonl`). Connector-synced documents and run history never are.
@@ -91,12 +93,13 @@ sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --dry
 sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --yes
 ```
 
-Each resource binds by key to the target's own. One the target holds under the same key is updated in place, so a workflow keeps its id and its webhook URLs. A key the target lacks is created. Secrets and credentials bind by name to the target's own, and no value is copied. Resources only the target holds are kept unless you pass `--allow-delete`. The directory stays bound to the workspace it was read from. Without `--to`, `check`, `status`, `diff` and `apply` act on the workspace the directory was read from, whatever your default workspace; a `--workspace` naming another one is refused.
+Each resource binds by key to the target's own. One the target holds under the same key is updated in place, so a workflow keeps its id and its webhook URLs. A key the target lacks is created. Secrets and credentials bind by name to the target's own, and no value is copied. Resources only the target holds are kept unless you pass `--allow-delete`, which deletes every one of them: the plan names each with a `W_PROMOTE_DELETES_TARGET_ONLY` warning. The directory stays bound to the workspace it was read from. Without `--to`, `check`, `status`, `diff` and `apply` act on the workspace the directory was read from, whatever your default workspace; a `--workspace` naming another one is refused.
 
 Each promotion records what it left in the target in `.sim/targets/<workspaceId>.json`, and the next promotion compares with that record:
 
 - A resource changed in the target since the last promotion, such as a hotfix made in Sim, is kept when the directory left it alone.
 - When the directory changed it too, the promotion is refused as stale and exits `5`. Carry the target's change into the source workspace, or undo it in the target, then promote again.
+- A resource deleted in the target since the last promotion stays deleted, with a `W_PROMOTE_TARGET_DELETED` warning. Remove its entry from the record to create it again.
 - The first promotion, and any resource the record does not hold (one created in the target since), updates the target to match the directory. Review the dry run first.
 
 Commit the record with the rest of the directory, so a promotion from CI or another clone compares with it. Deleting it makes the next promotion take the target as it stands.
@@ -113,7 +116,7 @@ Commit the whole directory, including `.sim/`: its base files are what an apply 
 - A document or file over 10 MB, or whose name a directory cannot hold, is left out of `get` and listed in `.sim/skipped.json`. An apply never writes or deletes it.
 - Hidden files (a name starting with a dot, such as `files/.env`) and names with a character no workspace path holds (such as `:` or `?`) are never sent. An apply names each one in a `W_PATH_NOT_SENT` warning.
 - A knowledge base's `embeddingModel` is fixed when it is created. An apply that changes it is refused.
-- An apply that stops part-way exits `8` and saves what it wrote into the directory. Run the same apply again until it exits `0`.
+- An apply that stops part-way exits `8`, prints the plan again with each change marked written or not written (`notWritten` in JSON), and saves what it wrote into the directory. Run the same apply again until it exits `0`. The dry run checks an MCP server's URL as the write does, so an unresolvable host is refused before anything is written.
 - An apply exits `5` when a resource changed in Sim after you read it. Run `get` into a new directory and reapply your edit.
 
 See [CLI workspace commands](/cli/workspaces) for every flag.

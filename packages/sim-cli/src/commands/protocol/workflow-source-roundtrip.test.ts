@@ -116,7 +116,7 @@ function appliedResponse(
         noop: false,
         blocks: { added: [], removed: [], renamed: [], modified: [] },
         edges: { added: 0, removed: 0 },
-        variables: { added: [], removed: [], modified: [] },
+        variables: { added: [], removed: [], renamed: [], modified: [] },
       },
       diagnostics: [],
       files,
@@ -348,16 +348,17 @@ describe('the source directory never reaches outside --dir', () => {
     expect(applyBodies).toEqual([])
   })
 
-  it('refuses a write-back the server names outside the directory, writing nothing', async () => {
+  it('never writes a stored write-back path outside the directory, and still records the write', async () => {
     await get()
     server.apply = () =>
       json(appliedResponse({ 'workflow.ts': '// changed\n', '../escape.js': 'x' }))
 
-    await expect(apply()).rejects.toThrow('unsafe file path')
+    await apply()
 
     expect(existsSync(join(root, 'escape.js'))).toBe(false)
-    expect(read('workflow.ts')).toBe(WORKFLOW_TS)
-    expect(JSON.parse(read('.sim/base.json')).fingerprint).toBe(FIRST)
+    expect(read('workflow.ts')).toBe('// changed\n')
+    expect(JSON.parse(read('.sim/base.json')).fingerprint).not.toBe(FIRST)
+    expect(stderr.join('\n')).toContain('the answer named ../escape.js, which the CLI never writes')
   })
 
   it.each([
@@ -428,14 +429,17 @@ describe('the files a server answer may write', () => {
     expect(existsSync(dir)).toBe(false)
   })
 
-  it('refuses an apply answer naming a file the printer never writes, keeping the directory', async () => {
+  it('never writes an apply answer file the printer never writes, and still records the write', async () => {
     await get()
     server.apply = () => json(appliedResponse({ ...FILES, '.git/hooks/pre-commit': 'planted' }))
 
-    await expect(apply()).rejects.toThrow('unsafe file path')
+    await apply()
 
     expect(existsSync(join(dir, '.git'))).toBe(false)
-    expect(JSON.parse(read('.sim/base.json')).fingerprint).toBe(FIRST)
+    expect(JSON.parse(read('.sim/base.json')).fingerprint).not.toBe(FIRST)
+    expect(stderr.join('\n')).toContain(
+      'the answer named .git/hooks/pre-commit, which the CLI never writes'
+    )
   })
 })
 
@@ -487,6 +491,20 @@ describe('the workspace-scoped source reads', () => {
 })
 
 describe('catalog and declarations', () => {
+  it('types a workflow created since the get once an apply talks to the server', async () => {
+    await get()
+    expect(read('.sim/sdk/workspace.d.ts')).not.toContain("'handbook-answer'")
+    const child = { key: 'handbook-answer', id: 'wf-child', name: 'Handbook Answer', inputs: [] }
+    server.manifest = () => json({ data: { ...MANIFEST, workflows: [child] } })
+
+    await sim('workflows', 'source', 'apply', WORKFLOW_ID, '--dir', dir, '--yes')
+
+    expect(read('.sim/sdk/workspace.d.ts')).toContain("'handbook-answer'")
+    expect(JSON.parse(read('.sim/sdk/workspace.manifest.json')).workflows).toHaveProperty(
+      'handbook-answer'
+    )
+  })
+
   it('refuses a catalog for another SDK major, telling the person to upgrade, writing nothing', async () => {
     server.catalog = () => json({ data: { ...CATALOG, sdkMajor: 2 } })
 
@@ -572,6 +590,31 @@ describe('pruning function files', () => {
     expect(existsSync(join(dir, 'functions/extra.js'))).toBe(false)
     expect(read('functions/score.js')).toBe('return 2\n')
     expect(read('functions/mine.js')).toBe('mine')
+  })
+
+  it('keeps, and names, a code file the edit added that the printed source no longer names', async () => {
+    await get()
+    writeFileSync(join(dir, 'functions/leak.js'), 'const token = "ghp_secret"\nreturn token\n')
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      WORKFLOW_TS.replace(
+        '})\n})',
+        "})\n  const leak = fn('Leak', { code: codeFile('./functions/leak.js') })\n})"
+      )
+    )
+    const stored = WORKFLOW_TS.replace(
+      '})\n})',
+      "})\n  const leak = fn('Leak', { code: stored() })\n})"
+    )
+    server.apply = () => json(appliedResponse({ ...FILES, 'workflow.ts': stored }))
+
+    await apply()
+
+    expect(read('functions/leak.js')).toContain('ghp_secret')
+    expect(stderr.join('\n')).toContain(
+      'warning: functions/leak.js is no longer named by workflow.ts'
+    )
+    expect(stderr.join('\n')).not.toContain('functions/score.js is no longer named')
   })
 
   it('prunes, on a fresh get, a function file the previous get wrote', async () => {

@@ -1,6 +1,14 @@
-import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import type { OperationFeature } from '@/lib/core/application/feature-availability'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+
+/**
+ * Workflows and workspaces as code (the source catalog and resources, workflow and workspace
+ * source read and apply) ship behind the `workflow-code` flag; every source operation declares it.
+ */
+export const WORKFLOW_CODE_FEATURE = {
+  flag: 'workflow-code',
+  unavailableMessage: 'Workflows as code is in preview and not enabled for this workspace',
+} as const satisfies OperationFeature
 
 /**
  * Where a workflows-as-code surface runs: the workspace, its organization (null for a personal
@@ -16,42 +24,10 @@ export interface WorkflowCodeScope {
 /**
  * Workflows and workspaces as code (the SDK block catalog and resources, workflow source and
  * workspace source read and apply, the Code tab) ship behind one `workflow-code` flag, rolled out
- * globally or by organization, workspace or user; every surface of the feature gates through here.
+ * globally or by organization, workspace or user. Source operations declare it as
+ * {@link WORKFLOW_CODE_FEATURE}; surfaces outside an operation (the Code tab, Copilot entitlements)
+ * ask here.
  */
 export function isWorkflowCodeEnabled(scope: WorkflowCodeScope): Promise<boolean> {
-  return isFeatureEnabled('workflow-code', scope)
-}
-
-/** Where a source use case runs: a workspace and that workspace's organization. */
-interface WorkflowCodeContext {
-  workspaceId: string
-  workspaceOrganizationId: string | null
-}
-
-/**
- * Whether workflows as code is enabled where a use case runs: its workspace, that workspace's
- * organization, or the principal's user.
- */
-export function isWorkflowCodeEnabledFor(
-  principal: Principal,
-  context: WorkflowCodeContext
-): Promise<boolean> {
-  return isWorkflowCodeEnabled({
-    orgId: context.workspaceOrganizationId,
-    workspaceId: context.workspaceId,
-    userId: resolvePrincipalSubjectUserId(principal),
-  })
-}
-
-/** Throws `forbidden` unless {@link isWorkflowCodeEnabledFor} holds. */
-export async function requireWorkflowCodeEnabled(
-  principal: Principal,
-  context: WorkflowCodeContext
-): Promise<void> {
-  if (!(await isWorkflowCodeEnabledFor(principal, context))) {
-    throw new OrchestrationError(
-      'forbidden',
-      'Workflows as code is in preview and not enabled for this workspace'
-    )
-  }
+  return isFeatureEnabled(WORKFLOW_CODE_FEATURE.flag, scope)
 }

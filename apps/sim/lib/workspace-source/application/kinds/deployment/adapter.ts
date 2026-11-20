@@ -9,7 +9,12 @@
  * The three-way rule covers what the server stores: the public API flag and the chat. `live` is
  * read on every apply against the server's "draft differs" flag instead: `'draft'` deploys when
  * this apply edits the workflow or the draft already differs, `'pinned'` never redeploys and says
- * when the draft differs. A deploy is keyed by the deployment's fingerprint and the version it
+ * when the draft differs. `'draft'` publishes only a draft the directory vouches for: the one this
+ * apply's workflow write leaves, or one that still prints as the workflow folder's base (an edit
+ * of the folder applied before without its deploy). A draft holding edits the directory does not
+ * declare (made in the editor) is not published (`W_DEPLOY_DRAFT_NOT_SOURCE`), and the deploy
+ * names the vouched draft's fingerprint, so one edited between the plan and the deploy is refused
+ * rather than published. A deploy is keyed by the deployment's fingerprint and the version it
  * replaces, so a re-run after a failure replays the same deploy instead of publishing twice.
  *
  * The server keeps a chat password only encrypted, so the base records which variable the last
@@ -33,6 +38,7 @@ import {
   deploymentCodec,
   deploymentDeclarationPath,
 } from '@sim/workspace-code/kinds/deployment'
+import { workflowFolder, workflowSourceBase } from '@sim/workspace-code/kinds/workflow'
 import { chatDeploymentOperations } from '@/lib/chat-deployments/application/operations'
 import {
   assertChatReplaceAllowed,
@@ -48,11 +54,16 @@ import {
   deployWorkflow,
   readWorkflowDeploymentStatus,
   undeployWorkflow,
+  WorkflowDraftChangedError,
 } from '@/lib/workflows/application/deployments'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { workflowOperations } from '@/lib/workflows/application/operations'
+import { readDraftFingerprint } from '@/lib/workflows/application/read-workflow-source'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
-import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
+import {
+  ResourceChangedError,
+  WorkspaceSourceRejectedError,
+} from '@/lib/workspace-source/application/errors'
 import { kindFinding, planUndeclared, where } from '@/lib/workspace-source/application/findings'
 import { bindStored, listUpTo } from '@/lib/workspace-source/application/keys'
 import {
@@ -104,6 +115,12 @@ export interface DeploymentPlan {
   workflowId?: string
   /** Publish the draft: a first deploy, or `live: 'draft'` with a draft that differs. */
   deploy: boolean
+  /**
+   * The draft a deploy, or a chat write that redeploys, may publish: the one this apply's workflow
+   * write stores (`written`, its fingerprint known once written), or the draft with the `sf1:`
+   * fingerprint the plan vouched for (for a chat write without a deploy, the draft it saw).
+   */
+  draft?: { written: true } | { fingerprint: string }
   /** The public API flag to set: on a first deploy (an undeploy keeps the old one), or a change. */
   publicApi?: boolean
   /** Whether the chat is written or removed. */
@@ -360,6 +377,116 @@ function checkKeptOutputs(
   return recreated
 }
 
+/**
+ * The draft of workflow `key` the directory vouches for, which a deploy may publish: the one this
+ * apply's workflow write leaves (`draftEdited`); else the stored draft when it still prints as the
+ * workflow folder's base, so it holds no edit the directory does not declare; else, with no folder
+ * declared, the stored draft of a first deploy, which publishes no earlier version over anything.
+ * `undefined` when the stored draft holds edits the directory does not declare. Reads the stored
+ * draft only when no write vouches for it.
+ */
+async function vouchedDraft(
+  ctx: PlanContext,
+  options: {
+    workflowId: string | undefined
+    draftEdited: boolean
+    folder: PlannedChange<'workflow'> | undefined
+    firstDeploy: boolean
+  }
+): Promise<DeploymentPlan['draft']> {
+  if (options.draftEdited) return { written: true }
+  const { workflowId, folder } = options
+  if (!workflowId) return undefined
+  const base = folder?.decl ? workflowSourceBase(folder.decl) : null
+  if (!base && (folder || !options.firstDeploy)) return undefined
+  const fingerprint = await readDraftFingerprint.execute({
+    principal: ctx.principal,
+    input: { workflowId },
+  })
+  if (base && (base.workflowId !== workflowId || base.fingerprint !== fingerprint)) return undefined
+  return { fingerprint }
+}
+
+/** `W_DEPLOY_DRAFT_NOT_SOURCE`: the draft of workflow `key` holds edits the directory does not. */
+function draftNotSourceFinding(key: string, declared: boolean) {
+  return deploymentFinding(
+    key,
+    'W_DEPLOY_DRAFT_NOT_SOURCE',
+    declared
+      ? `${where('workflow', key)}'s draft holds edits ${workflowFolder(key)}/ does not (made outside source), so this apply does not deploy it; the live version keeps running.`
+      : `${where('workflow', key)}'s draft differs from its live version, and this directory does not declare the workflow, so this apply does not deploy it; the live version keeps running.`,
+    declared
+      ? `To deploy those edits, get them into the directory (\`sim workspaces source get\` into a fresh directory) and apply, or deploy from the editor. To drop them, edit ${workflowFolder(key)}/ and apply.`
+      : `Add ${workflowFolder(key)}/ to deploy what it declares, or deploy from the editor.`
+  )
+}
+
+/**
+ * The deployment `next` of a workflow whose draft differs from its live version: `live: 'draft'`
+ * deploys the draft the directory vouches for (`W_DEPLOY_DRAFT_NOT_SOURCE` when it vouches for
+ * none, refusing a chat write that would deploy it), and `live: 'pinned'` keeps the live version
+ * (refusing a chat write, which would deploy the draft).
+ */
+async function planLiveDraft(
+  next: DeploymentChange,
+  detail: DeploymentPlan,
+  decl: DeploymentDecl,
+  ctx: PlanContext,
+  facts: {
+    key: string
+    workflowId: string | undefined
+    draftEdited: boolean
+    workflowChange: PlannedChange<'workflow'> | undefined
+  }
+): Promise<void> {
+  const { key, workflowChange } = facts
+  if (decl.live !== 'draft') {
+    next.diagnostics.push(
+      deploymentFinding(
+        key,
+        'I_DEPLOY_DRAFT_NOT_LIVE',
+        `${where('workflow', key)}'s draft differs from its live version, which keeps running: the deployment is pinned.`,
+        "Set `live: 'draft'` to deploy the draft with this apply."
+      )
+    )
+    if (detail.chat === 'replace') {
+      next.diagnostics.push(
+        deploymentFinding(
+          key,
+          'E_DEPLOY_PINNED_CHAT',
+          'Writing the chat deploys the draft, which this pinned deployment keeps out of the live version.',
+          "Set `live: 'draft'`, or leave the chat as it is until the draft should go live."
+        )
+      )
+    }
+    return
+  }
+  const draft = await vouchedDraft(ctx, {
+    workflowId: facts.workflowId,
+    draftEdited: facts.draftEdited,
+    folder: workflowChange,
+    firstDeploy: false,
+  })
+  if (draft) {
+    detail.deploy = true
+    detail.draft = draft
+    next.action = 'update'
+    next.fields = ['live version', ...(next.fields ?? [])]
+    return
+  }
+  next.diagnostics.push(draftNotSourceFinding(key, workflowChange !== undefined))
+  if (detail.chat === 'replace') {
+    next.diagnostics.push(
+      deploymentFinding(
+        key,
+        'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT',
+        'Writing the chat deploys the draft, which holds edits this directory does not declare.',
+        `Get those edits into ${workflowFolder(key)}/ first, or leave the chat as it is.`
+      )
+    )
+  }
+}
+
 /** Plans one declared deployment against the workflow under the same key. */
 async function planDeployment(
   key: string,
@@ -376,7 +503,8 @@ async function planDeployment(
     diagnostics: [],
   }
   const workflowChange = ctx.planned.find(
-    (planned) => planned.kind === 'workflow' && planned.key === key
+    (planned): planned is PlannedChange<'workflow'> =>
+      planned.kind === 'workflow' && planned.key === key
   )
   const creating = workflowChange?.action === 'create'
   const deployed = stored.bound.get(key)
@@ -430,7 +558,18 @@ async function planDeployment(
   if ('settled' in planned) {
     next = planned.settled
   } else if (planned.action === 'create') {
+    const draft = await vouchedDraft(ctx, {
+      workflowId,
+      draftEdited,
+      folder: workflowChange,
+      firstDeploy: true,
+    })
+    if (!draft) {
+      change.diagnostics.push(draftNotSourceFinding(key, true))
+      return change
+    }
     detail.deploy = true
+    detail.draft = draft
     // An undeploy keeps the workflow's public API flag, so a first deploy always writes it.
     detail.publicApi = decl.api?.public === true
     if (decl.chat) detail.chat = 'replace'
@@ -454,30 +593,8 @@ async function planDeployment(
       )
     )
     if (Object.keys(plannedOutputNames).length > 0) detail.plannedOutputNames = plannedOutputNames
-    const draftDiffers = state.needsRedeployment || draftEdited
-    if (draftDiffers && decl.live === 'draft') {
-      detail.deploy = true
-      next.action = 'update'
-      next.fields = ['live version', ...(next.fields ?? [])]
-    } else if (draftDiffers) {
-      next.diagnostics.push(
-        deploymentFinding(
-          key,
-          'I_DEPLOY_DRAFT_NOT_LIVE',
-          `${where('workflow', key)}'s draft differs from its live version, which keeps running: the deployment is pinned.`,
-          "Set `live: 'draft'` to deploy the draft with this apply."
-        )
-      )
-      if (detail.chat === 'replace') {
-        next.diagnostics.push(
-          deploymentFinding(
-            key,
-            'E_DEPLOY_PINNED_CHAT',
-            'Writing the chat deploys the draft, which this pinned deployment keeps out of the live version.',
-            "Set `live: 'draft'`, or leave the chat as it is until the draft should go live."
-          )
-        )
-      }
+    if (state.needsRedeployment || draftEdited) {
+      await planLiveDraft(next, detail, decl, ctx, { key, workflowId, draftEdited, workflowChange })
     }
   }
   if (next.action === 'noop') return next
@@ -495,6 +612,16 @@ async function planDeployment(
     }
   }
   const writesChat = detail.chat === 'replace'
+  // A chat write redeploys a draft that differs from the live version: it may publish only the
+  // draft the plan vouched for, or else the one it saw, never one edited since.
+  if (writesChat && !detail.draft && workflowId) {
+    detail.draft = {
+      fingerprint: await readDraftFingerprint.execute({
+        principal: ctx.principal,
+        input: { workflowId },
+      }),
+    }
+  }
   // A chat the apply keeps goes live with the edited draft all the same.
   const publishesEditedDraft = detail.deploy && draftEdited
   if (decl.chat && (writesChat || publishesEditedDraft)) {
@@ -516,25 +643,58 @@ function idempotencyKey(decl: DeploymentDecl, workflowId: string, live: string |
 }
 
 /**
+ * The `sf1:` fingerprint of the draft change `change` may publish on workflow `workflowId`, or
+ * `undefined` when its plan vouched for none (a chat write on a workflow this apply creates).
+ */
+function expectedDraftOf(
+  change: DeploymentChange,
+  workflowId: string,
+  ctx: ApplyContext
+): string | undefined {
+  const draft = change.detail?.draft
+  return draft && 'written' in draft ? ctx.writtenDrafts.get(workflowId) : draft?.fingerprint
+}
+
+/** Runs a publish, refusing as stale a draft that moved since the plan vouched for it. */
+async function publishing(change: DeploymentChange, publish: () => Promise<unknown>) {
+  try {
+    await publish()
+  } catch (error) {
+    if (!(error instanceof WorkflowDraftChangedError)) throw error
+    throw new ResourceChangedError({ kind: 'workflow', key: change.key })
+  }
+}
+
+/**
  * Deploys the draft unless it already is the live version: a re-run after a deploy that
  * succeeded finds nothing to publish, and one after a deploy that failed replays the same key.
  */
-async function deployDraft(decl: DeploymentDecl, workflowId: string, ctx: ApplyContext) {
+async function deployDraft(
+  change: DeploymentChange,
+  decl: DeploymentDecl,
+  workflowId: string,
+  ctx: ApplyContext
+) {
   const { principal } = ctx
+  const expectedDraftFingerprint = expectedDraftOf(change, workflowId, ctx)
+  if (!expectedDraftFingerprint) throw new Error('A deploy needs the draft it publishes')
   const status = await readWorkflowDeploymentStatus.execute({ principal, input: { workflowId } })
   if (status.isDeployed && !status.needsRedeployment) return
-  await deployWorkflow.execute({
-    principal,
-    input: {
-      workflowId,
-      requestId: generateRequestId(),
-      idempotencyKey: idempotencyKey(
-        decl,
+  await publishing(change, () =>
+    deployWorkflow.execute({
+      principal,
+      input: {
         workflowId,
-        status.activeDeployment?.deploymentVersionId ?? null
-      ),
-    },
-  })
+        requestId: generateRequestId(),
+        expectedDraftFingerprint,
+        idempotencyKey: idempotencyKey(
+          decl,
+          workflowId,
+          status.activeDeployment?.deploymentVersionId ?? null
+        ),
+      },
+    })
+  )
 }
 
 /** The block ids a chat's outputs name, refusing a block the workflow does not have. */
@@ -812,8 +972,19 @@ export const deploymentAdapter: KindAdapter<'deployment', StoredDeployment> = {
         input: { workflowId, isPublicApi: detail.publicApi },
       })
     }
-    if (detail.deploy) await deployDraft(decl, workflowId, ctx)
-    if (chatInput) await replaceWorkflowChatDeployment.execute({ principal, input: chatInput })
+    if (detail.deploy) await deployDraft(change, decl, workflowId, ctx)
+    if (chatInput) {
+      const expectedDraftFingerprint = expectedDraftOf(change, workflowId, ctx)
+      await publishing(change, () =>
+        replaceWorkflowChatDeployment.execute({
+          principal,
+          input: {
+            ...chatInput,
+            ...(expectedDraftFingerprint ? { expectedDraftFingerprint } : {}),
+          },
+        })
+      )
+    }
     if (detail.chat === 'delete') {
       await deleteWorkflowChatDeployment.execute({ principal, input: { workflowId } })
     }

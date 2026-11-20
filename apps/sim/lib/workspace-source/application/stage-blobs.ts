@@ -10,7 +10,6 @@ import { sha256Hex } from '@sim/security/hash'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
   assertStagingFits,
@@ -52,7 +51,6 @@ export const admitSourceBlobStage = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, context }) {
-    await requireWorkflowCodeEnabled(principal, context)
     const target = stagingScopeOf(principal, context.workspaceId)
     assertStagingFits(await stagedUsage(target), { count: 1, bytes: 1 })
     return { workspaceId: context.workspaceId }
@@ -82,7 +80,6 @@ export const stageSourceBlobs = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<StageSourceBlobsResult> {
-    await requireWorkflowCodeEnabled(principal, context)
     const { maxBlobBytes, maxBlobBytesPerRequest, maxBlobsPerRequest } = WORKSPACE_SOURCE_LIMITS
     if (input.blobs.length === 0) {
       throw new OrchestrationError('validation', 'Send at least one binary file to stage.')
@@ -141,7 +138,6 @@ export const findMissingSourceBlobs = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }) {
-    await requireWorkflowCodeEnabled(principal, context)
     if (input.blobs.length > WORKSPACE_SOURCE_LIMITS.maxStagedBlobs) {
       throw new OrchestrationError(
         'payload_too_large',

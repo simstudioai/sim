@@ -21,10 +21,12 @@ import {
   type BlockDecl,
   type CompileContext,
   EDGE_METHODS,
+  isSdkImportable,
   lookup,
   type ResolvedBuilder,
   rangeOf,
   recordSpan,
+  reportNotImported,
   type Scope,
   unsupported,
 } from './context'
@@ -59,22 +61,19 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
   if (!path) return { kind: 'other' }
   const binding = lookup(scope, path.root)
   if (!binding && path.rest.length > 0) {
-    // `discord.sendMessage(...)` with no such import: a builder namespace the SDK does not have.
+    // `loop.for(...)` or `slack.sendMessage(...)` with no import, or `discord.sendMessage(...)`:
+    // a builder namespace the SDK does not have.
     const dotted = [path.root, ...path.rest].join('.')
-    const paths = catalogBuilderPaths(ctx.catalog)
-    const imported = paths.some((candidate) => candidate.startsWith(`${path.root}.`))
-    ctx.reporter.report(
-      'E_UNKNOWN_BUILDER',
-      imported
-        ? `${dotted}: ${path.root} is not imported from '@sim/workflow-sdk'.`
-        : `${dotted} is not a block builder: ${path.root} is not an SDK namespace.`,
-      rangeOf(ctx, call.callee),
-      {
-        hint: imported
-          ? `Add ${path.root} to the import from '@sim/workflow-sdk'.`
-          : suggestBuilder(dotted, paths),
-      }
-    )
+    if (isSdkImportable(ctx, path.root)) {
+      reportNotImported(ctx, 'E_UNKNOWN_BUILDER', path.root, call.callee)
+    } else {
+      ctx.reporter.report(
+        'E_UNKNOWN_BUILDER',
+        `${dotted} is not a block builder: ${path.root} is not an SDK namespace.`,
+        rangeOf(ctx, call.callee),
+        { hint: suggestBuilder(dotted, catalogBuilderPaths(ctx.catalog)) }
+      )
+    }
     return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
   }
   const [firstArgument] = call.arguments
@@ -87,18 +86,16 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
     // `apii('Call', { ... })`: a bare, builder-shaped call nothing binds, naming a builder or close
     // to one (`fetch('x')` stays an unsupported call). It classifies as an unknown builder so the
     // const still binds and its wiring raises no E_UNKNOWN_IDENTIFIER.
-    ctx.reporter.report(
-      'E_UNKNOWN_BUILDER',
-      imported
-        ? `${path.root} is not imported from '@sim/workflow-sdk'.`
-        : `${path.root} is not a block builder.`,
-      rangeOf(ctx, call.callee),
-      {
-        hint: imported
-          ? `Add ${path.root} to the import from '@sim/workflow-sdk'.`
-          : suggestBuilder(path.root, bareBuilderPaths),
-      }
-    )
+    if (imported) {
+      reportNotImported(ctx, 'E_UNKNOWN_BUILDER', path.root, call.callee)
+    } else {
+      ctx.reporter.report(
+        'E_UNKNOWN_BUILDER',
+        `${path.root} is not a block builder.`,
+        rangeOf(ctx, call.callee),
+        { hint: suggestBuilder(path.root, bareBuilderPaths) }
+      )
+    }
     return { kind: 'builder', path: path.root, builder: { kind: 'unknown' } }
   }
   if (!binding || binding.kind !== 'sdk') return { kind: 'other' }

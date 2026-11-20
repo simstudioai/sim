@@ -1,6 +1,6 @@
 import { toRecordOrNull } from '@sim/utils/object'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
-import { didYouMean } from '@sim/workflow-code'
+import { didYouMean, readsIterationOutOfScope, type ScopeNode } from '@sim/workflow-code'
 import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import { MCP_STRUCTURED_CONTENT_OUTPUT } from '@/lib/mcp/output-schema'
 import {
@@ -39,7 +39,7 @@ type BlockState = {
   name?: string
   triggerMode?: boolean
   subBlocks?: Record<string, { value?: unknown } | undefined>
-  data?: { canonicalModes?: CanonicalModeOverrides }
+  data?: { canonicalModes?: CanonicalModeOverrides; parentId?: unknown }
 }
 
 type EdgeState = {
@@ -857,8 +857,45 @@ function referenceTarget(
   return targetByKey.get(head) ?? targetByKey.get(normalizeName(head)) ?? null
 }
 
+/** A block of the graph as the shared iteration-scope rule reads it. */
+function scopeNodeOf(blocks: Record<string, BlockState>, id: string): ScopeNode | undefined {
+  const block = blocks[id]
+  if (!block) return undefined
+  const parentId: unknown = block.data?.parentId
+  return {
+    kind: block.type === 'loop' || block.type === 'parallel' ? block.type : null,
+    parent: typeof parentId === 'string' && parentId.length > 0 ? parentId : null,
+  }
+}
+
+/**
+ * Whether a `head.path` token read from `blockId` is an iteration field of a container the block
+ * is not inside: a named loop or parallel (`targetId`), or the bare `loop`/`parallel` prefix.
+ */
+function readsTokenOutOfScope(
+  blocks: Record<string, BlockState>,
+  blockId: string,
+  token: string,
+  targetId: string | undefined
+): boolean {
+  const [head = '', field = ''] = token.split('.')
+  if (targetId === undefined && head !== 'loop' && head !== 'parallel') return false
+  return readsIterationOutOfScope(
+    blockId,
+    targetId === undefined ? (head as 'loop' | 'parallel') : { key: targetId },
+    splitLeadingBracketPath(field).property,
+    (id) => scopeNodeOf(blocks, id)
+  )
+}
+
+/**
+ * Dangling, unknown and out-of-scope block-output references. `iterationScope: false` leaves the
+ * iteration-scope rule to a caller that reports it itself (a source apply, whose compile reports
+ * it at the source line).
+ */
 export function collectDanglingBlockOutputReferences(
-  workflowState: Pick<WorkflowState, 'blocks'>
+  workflowState: Pick<WorkflowState, 'blocks'>,
+  { iterationScope = true }: { iterationScope?: boolean } = {}
 ): WorkflowLintUnresolvedReference[] {
   const blocks = (workflowState.blocks || {}) as Record<string, BlockState>
   const targetByKey = referenceTargetIndex(blocks)
@@ -878,12 +915,21 @@ export function collectDanglingBlockOutputReferences(
       const leaves: string[] = []
       collectStringLeaves((subBlock as { value?: unknown })?.value, leaves)
       const dangling = new Set<string>()
+      const outOfScope = new Set<string>()
       const unknownByTarget = new Map<string, UnknownFieldGroup>()
       const undeclaredNested = new Map<string, { targetId: string } & UndeclaredNestedPath>()
       for (const leaf of leaves) {
         for (const token of referenceCandidates(leaf, subBlockId === 'code')) {
           if (!token || !REF_TOKEN_SHAPE.test(token)) continue
           const targetId = referenceTarget(token, targetByKey)
+          if (
+            iterationScope &&
+            targetId !== null &&
+            readsTokenOutOfScope(blocks, blockId, token, targetId)
+          ) {
+            outOfScope.add(`<${token}>`)
+            continue
+          }
           if (targetId === undefined) continue
           if (targetId === null) {
             dangling.add(`<${token}>`)
@@ -916,6 +962,15 @@ export function collectDanglingBlockOutputReferences(
           kind: 'block-output',
           reason:
             'References a block that does not exist in this workflow — at run time the literal text is passed through (or the block fails), never the intended value.',
+        })
+      }
+      if (outOfScope.size > 0) {
+        findings.push({
+          ...blockRef(blockId, block),
+          field: subBlockId,
+          value: [...outOfScope],
+          kind: 'block-output',
+          reason: `Reads a loop or parallel's iteration fields (index, currentItem, items) from outside that container — the run fails or reads nothing. Move the block into the container, or read the container's results after it finishes.`,
         })
       }
       for (const [targetId, group] of unknownByTarget) {

@@ -20,9 +20,13 @@ import type {
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
+import { searchTasks } from '../search'
+import { gitProvenance } from './git-provenance'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
+  assertSendableCodeFiles,
+  assertSourceDirKind,
   FILE_CONCURRENCY,
   lockCodeFiles,
   readSourceText,
@@ -36,7 +40,7 @@ import {
   writeBack,
 } from './source-dir'
 import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
-import { cachedCatalogByHash, printTreeResult } from './source-tree'
+import { cachedCatalogByHash, printTreeResult, refreshWorkflowWorkspaceTypes } from './source-tree'
 import {
   type CreatedResource,
   confirm,
@@ -161,9 +165,12 @@ function diffSummary(data: SourceApplyData): string {
     `${blocks.renamed.length} renamed`,
     `${blocks.modified.length} modified`,
   ]
-  const variableChanges = (['added', 'removed', 'modified'] as const).flatMap((change) =>
-    variables[change].length > 0 ? [`${change} ${variables[change].join(', ')}`] : []
-  )
+  const variableChanges = [
+    ...(['added', 'removed', 'modified'] as const).flatMap((change) =>
+      variables[change].length > 0 ? [`${change} ${variables[change].join(', ')}`] : []
+    ),
+    ...renamedVariables(variables).map(({ from, to }) => `renamed ${from} → ${to}`),
+  ]
   const modified = blocks.modified.map(({ key, fields }) => `${key} (${fields.join(', ')})`)
   const typed = (list: ReadonlyArray<{ key: string; type: string }>) =>
     list.map(({ key, type }) => `${key} (${type})`).join('; ')
@@ -185,6 +192,7 @@ export async function readBase(
   directory: string,
   workflowId: string | undefined
 ): Promise<SourceBase> {
+  await assertSourceDirKind(directory, 'workflow')
   const parsed = parseSourceBase(await readJson(directory, BASE_FILE, GET_HINT))
   if ('problem' in parsed) {
     throw new SimApiError(
@@ -268,6 +276,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   command: string
 }): Promise<void> {
   const { options, creating } = args
+  assertSendableCodeFiles(args.body.files)
   /** Sends the write (or its dry run); a refusal prints its diagnostics and rethrows. */
   const send = async (dryRun: boolean): Promise<SourceApplyData> => {
     try {
@@ -392,7 +401,8 @@ async function deployStep(
   const deployed = await client
     .request<DeployWorkflowResponse>('deployWorkflow', {
       params: { workflowId: data.workflowId },
-      body: {},
+      // The draft this write stored: an edit made since is refused, never deployed in its name.
+      body: { expectedDraftFingerprint: data.base.fingerprint },
     })
     .then(
       (response) => response.data,
@@ -457,6 +467,7 @@ export function attachWorkflowSourceApply(source: Command): void {
   const [command, connectApply] = apiCommand(source, 'apply', [
     'applyWorkflowSource',
     'deployWorkflow',
+    'getSourceResources',
   ])
   absoluteDirOption(command)
   verboseFlag(command)
@@ -465,7 +476,7 @@ export function attachWorkflowSourceApply(source: Command): void {
       '[workflowId]',
       'Workflow whose draft the source replaces (default: the workflowId in .sim/base.json)'
     )
-    .requiredOption('--dir <dir>', DIR_DESCRIPTION)
+    .option('--dir <dir>', DIR_DESCRIPTION, '.')
     .option('--dry-run', 'Check the source and show the outcome without saving or writing files')
     .option('-y, --yes', 'Apply without asking for confirmation')
     .option(
@@ -474,7 +485,7 @@ export function attachWorkflowSourceApply(source: Command): void {
     )
     .option(
       '--allow-delete',
-      'Delete blocks the source no longer declares; without it, an apply that deletes a block is refused'
+      'Delete blocks and variables the source no longer declares; without it, an apply that deletes one is refused'
     )
     .allowExcessArguments(false)
     .description('Apply a workflow source directory to a workflow draft')
@@ -485,12 +496,16 @@ export function attachWorkflowSourceApply(source: Command): void {
     .action(async (named: string | undefined, options: SourceWriteOptions) =>
       withWorkspaceFolderLock(options.dir, async () => {
         assertDeployable(options)
+        await assertSourceDirKind(options.dir, 'workflow')
         const { client, profile } = connectApply()
         const lock = await readLock(options.dir)
         const base = await readBase(options.dir, named)
         const workflowId = base.workflowId
         const files = await readSourceFiles(options.dir, lock)
-        await runSourceWrite({
+        if (!options.dryRun) {
+          await refreshWorkflowWorkspaceTypes(client, options.dir, base.workspaceId)
+        }
+        await runSourceWrite<'applyWorkflowSource'>({
           options,
           creating: false,
           question: `Apply these changes to workflow ${workflowId}?`,
@@ -499,7 +514,12 @@ export function attachWorkflowSourceApply(source: Command): void {
           client,
           operation: 'applyWorkflowSource',
           params: { workflowId },
-          body: { files, lock, base, provenance: { client: 'cli' } },
+          body: {
+            files,
+            lock,
+            base,
+            provenance: { client: 'cli', ...(await gitProvenance(options.dir)) },
+          },
           save: async (data) => {
             const edges = storedEdgesWrite(
               data,
@@ -529,6 +549,12 @@ export function attachWorkflowSourceCreate(source: Command): void {
   ])
   absoluteDirOption(command)
   verboseFlag(command)
+  searchTasks(command, [
+    'build a new workflow',
+    'create a new workflow as code',
+    'author or write a workflow in TypeScript',
+    'build a workflow that answers questions with an agent over a knowledge base, table or integration',
+  ])
   command
     .requiredOption(
       '--dir <dir>',
@@ -550,6 +576,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
     )
     .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) =>
       withWorkspaceFolderLock(options.dir, async () => {
+        await assertSourceDirKind(options.dir, 'workflow')
         if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
           if (options.dryRun || options.yes) {
             throw new SimApiError(
@@ -574,6 +601,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
           profile.sources.workspaceId === 'flag' ? null : await readStarterWorkspace(options.dir)
         const workspaceId = client.requireWorkspace(starterWorkspace ?? undefined)
         const files = await readSourceFiles(options.dir, null)
+        if (!options.dryRun) await refreshWorkflowWorkspaceTypes(client, options.dir, workspaceId)
         await runSourceWrite<'createWorkflowFromSource'>({
           options,
           creating: true,
@@ -592,16 +620,28 @@ export function attachWorkflowSourceCreate(source: Command): void {
             files,
             ...(options.name !== undefined ? { name: options.name } : {}),
             ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
-            provenance: { client: 'cli' },
+            provenance: { client: 'cli', ...(await gitProvenance(options.dir)) },
           },
         })
       })
     )
 }
 
+/** The variables a diff renames, none when the answer lists none. */
+function renamedVariables(
+  variables: SourceApplyData['diff']['variables']
+): ReadonlyArray<{ from: string; to: string }> {
+  return variables.renamed ?? []
+}
+
 /** Whether a diff adds, removes or changes any workflow variable. */
 function variablesChanged(variables: SourceApplyData['diff']['variables']): boolean {
-  return variables.added.length > 0 || variables.removed.length > 0 || variables.modified.length > 0
+  return (
+    variables.added.length > 0 ||
+    variables.removed.length > 0 ||
+    renamedVariables(variables).length > 0 ||
+    variables.modified.length > 0
+  )
 }
 
 /** The create command for `dir` in `workspaceId`, as the next step a starter prints. */

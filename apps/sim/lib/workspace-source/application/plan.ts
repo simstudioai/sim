@@ -306,7 +306,7 @@ function checkLimits(
  * Plans `submission`. With `requireBlobs` (an apply that writes), a blob a write needs that is not
  * staged refuses the apply; a dry run lists such blobs in `needBlobs` instead.
  */
-export async function planWorkspaceSource(
+export async function buildWorkspacePlan(
   submission: WorkspaceSourceSubmission,
   ctx: SourceContext,
   options: { requireBlobs?: boolean } = {}

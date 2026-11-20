@@ -20,9 +20,11 @@ import { printError } from '#sim-cli/output/io'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
+import { searchTasks } from '../search'
 import { removeStagingOnSignal } from './files-get'
 import {
   absoluteDirOption,
+  assertSourceDirKind,
   checkedPath,
   directoryWorkspace,
   editedFiles,
@@ -33,10 +35,9 @@ import {
   recordedStats,
   SOURCE_DIR_BUSY_HELP,
   SOURCE_DOWNLOADS_DIR,
-  SOURCE_WRITTEN_FILE,
   updateSourceDir,
   withSourceDirLock,
-  writtenFile,
+  writtenFiles,
   writtenRecord,
 } from './source-dir'
 import {
@@ -48,6 +49,7 @@ import {
   sourceTreeChange,
   withSourceExitCode,
 } from './source-tree'
+import { findingsOutput } from './source-ui'
 import {
   removedWorkflowRecords,
   unrecordedFoldersWarning,
@@ -79,7 +81,8 @@ whatever the profile's default workspace.
 
 Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved
 (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace names
-another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), or a downloaded
+another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), the directory
+is a workflow source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or a downloaded
 binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace
 has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's
 retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and
@@ -291,7 +294,7 @@ async function writeWorkspaceSource(
         return marker === null ? [] : [[marker, ''] as const]
       }),
       [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
-      [SOURCE_WRITTEN_FILE, writtenFile(record)],
+      ...writtenFiles(record),
       ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
       ...workflowRecords,
       ...tree.change.write,
@@ -373,6 +376,11 @@ export function attachWorkspaceSourceGet(source: Command): void {
     'downloadKnowledgeDocument',
   ])
   absoluteDirOption(command)
+  searchTasks(command, [
+    'change the model in every agent block',
+    'bulk edit every workflow in the workspace',
+    'edit all workflows, tables and skills as code',
+  ])
   command
     .requiredOption('--dir <dir>', 'Directory to write the workspace source into')
     .option('--only <kinds>', `Read only these kinds (${ONLY_KINDS_HELP})`)
@@ -384,6 +392,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
       await withSourceDirLock(options.dir, async () => {
+        await assertSourceDirKind(options.dir, 'workspace')
         // Read as leniently as an apply reads it: a base the parser refuses still names its workspace.
         const recorded = toRecord(
           await readSourceJson(options.dir, WORKSPACE_BASE_FILE)
@@ -406,6 +415,8 @@ export function attachWorkspaceSourceGet(source: Command): void {
             throw withSourceExitCode(error)
           })
         const result = await writeWorkspaceSource(client, options.dir, data, options.force === true)
+        const findings = findingsOutput(profile.output)
+        findings.print(data.diagnostics)
         printTreeResult(profile.output, {
           workspaceId: data.workspaceId,
           dir: options.dir,
@@ -416,6 +427,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
           skipped: data.skipped.length,
           guide: result.guide,
           primer: result.primer,
+          ...findings.result(data.diagnostics),
         })
       })
     })

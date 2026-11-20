@@ -11,7 +11,7 @@ import {
 } from '../materialize/fixtures.test-helpers'
 import type { CanonicalWorkflow, CodeComment } from '../model'
 import { setOwn } from '../records'
-import { diffCanonical, renamesBetween } from '.'
+import { diffCanonical, renamesBetween, replacedBetween } from '.'
 
 const base = canonical(
   workflowState(
@@ -92,6 +92,17 @@ describe('diffCanonical', () => {
     ])
   })
 
+  it('lists removed blocks by key, whatever order the stored blocks loaded in', () => {
+    const reordered = draftOf(base.workflow)
+    reordered.blocks = Object.fromEntries(Object.entries(reordered.blocks).reverse())
+    const target = edit((draft) => {
+      draft.blocks = omit(draft.blocks, ['fetch', 'report'])
+      draft.edges = []
+    })
+
+    expect(diffCanonical(reordered, target).blocks.removed).toEqual(['fetch', 'report'])
+  })
+
   it('reports added and removed blocks, edges and variables', () => {
     const target = edit((draft) => {
       draft.blocks = omit(draft.blocks, ['report'])
@@ -168,5 +179,73 @@ describe('diffCanonical', () => {
     const renames = renamesBetween(base.identity, targetIdentity)
     expect([...renames]).toEqual([['load', 'fetch']])
     expect(diffCanonical(base.workflow, target, renames).blocks.added).toEqual([])
+  })
+  it('pairs two blocks that swap display names by id, so only their names change', () => {
+    const target = edit((draft) => {
+      const { fetch, report } = draft.blocks
+      draft.blocks.report = { ...fetch, key: 'report', name: 'Report' }
+      draft.blocks.fetch = { ...report, key: 'fetch', name: 'Fetch' }
+      const swap = (key: string) => (key === 'fetch' ? 'report' : key === 'report' ? 'fetch' : key)
+      draft.edges = draft.edges.map((e) => ({ ...e, from: swap(e.from), to: swap(e.to) }))
+    })
+    const diff = diffCanonical(
+      base.workflow,
+      target,
+      new Map([
+        ['report', 'fetch'],
+        ['fetch', 'report'],
+      ])
+    )
+    expect(diff.blocks.renamed).toEqual([
+      { from: 'fetch', to: 'report' },
+      { from: 'report', to: 'fetch' },
+    ])
+    expect(diff.blocks.modified.map((m) => [m.key, m.changes])).toEqual([
+      ['report', [{ kind: 'attribute', attribute: 'name' }]],
+      ['fetch', [{ kind: 'attribute', attribute: 'name' }]],
+    ])
+    expect(diff.blocks.added).toEqual([])
+    expect(diff.edges).toEqual({ added: [], removed: [] })
+  })
+
+  it('reports a block replaced under its key (a retype gets a new id) as removed plus added', () => {
+    const target = edit((draft) => {
+      draft.blocks.report = { ...draft.blocks.report, type: 'agent', params: {} }
+    })
+    const identity = {
+      ...base.identity,
+      blocks: { ...base.identity.blocks, report: { ...base.identity.blocks.report, id: 'new-id' } },
+    }
+    const replaced = replacedBetween(base.identity, identity)
+    expect([...replaced]).toEqual(['report'])
+
+    const diff = diffCanonical(base.workflow, target, new Map(), replaced)
+
+    expect(diff.blocks.added).toEqual(['report'])
+    expect(diff.blocks.removed).toEqual(['report'])
+    expect(diff.blocks.modified).toEqual([])
+    expect(diff.edges.added).toHaveLength(2)
+    expect(diff.edges.removed).toHaveLength(2)
+  })
+  it('pairs a chain rename, where one block takes the key another leaves, without a delete', () => {
+    const target = edit((draft) => {
+      const { fetch, report } = draft.blocks
+      draft.blocks.load = { ...fetch, key: 'load', name: 'Load' }
+      draft.blocks.fetch = { ...report, key: 'fetch', name: 'Fetch' }
+      draft.blocks = omit(draft.blocks, ['report'])
+      const moved = (key: string) => (key === 'fetch' ? 'load' : key === 'report' ? 'fetch' : key)
+      draft.edges = draft.edges.map((e) => ({ ...e, from: moved(e.from), to: moved(e.to) }))
+    })
+    const diff = diffCanonical(
+      base.workflow,
+      target,
+      new Map([
+        ['load', 'fetch'],
+        ['fetch', 'report'],
+      ])
+    )
+    expect(diff.blocks.removed).toEqual([])
+    expect(diff.blocks.added).toEqual([])
+    expect(diff.edges).toEqual({ added: [], removed: [] })
   })
 })

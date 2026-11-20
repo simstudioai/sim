@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { codeFileReferences } from '../code-files/references'
+import { MAX_ERRORS } from '../diagnostics/codes'
+import { growth, MAX_GROWTH } from '../scaling.test-helpers'
 import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
-import { MAX_ERRORS, MAX_INFOS, MAX_WARNINGS, Reporter } from './report'
+import { MAX_INFOS, MAX_WARNINGS, MAX_WARNINGS_PER_CODE, Reporter } from './report'
 
 /**
  * Hostile sources: compile never executes anything and never throws. Each input must come
@@ -18,28 +20,6 @@ const SENTINEL = '__simWorkflowCodePwned'
 function wrap(body: string, options = '{}'): string {
   return `${HEADER}export default workflow('Hostile', ${options}, () => {\n${body}\n})\n`
 }
-
-/**
- * How many times longer `work` takes at four times the size `size`, the fastest of three timings
- * each: about 4 for linear work and about 16 for quadratic, on a slow machine as on a fast one.
- * A wall-clock budget instead fails on a loaded runner and passes a quadratic scan on a fast one.
- * The work repeats until one timing at `size` spans 25 ms, so the clock's millisecond steps are
- * small beside it.
- */
-function growth(work: (size: number) => void, size: number): number {
-  let repeats = 1
-  const time = (at: number) => {
-    const started = Date.now()
-    for (let repeat = 0; repeat < repeats; repeat += 1) work(at)
-    return Date.now() - started
-  }
-  while (time(size) < 25 && repeats < 1_024) repeats *= 2
-  const fastest = (at: number) => Math.min(time(at), time(at), time(at))
-  return fastest(size * 4) / Math.max(1, fastest(size))
-}
-
-/** The {@link growth} under which work counts as linear: well short of quadratic's 16. */
-const LINEAR_GROWTH = 9
 
 function run(
   text: string,
@@ -174,7 +154,11 @@ describe('hostile sources produce diagnostics only', () => {
   it('scans a 400 KB value of overlapping token prefixes for secrets in linear time', () => {
     const source = (repeats: number) =>
       wrap(`const a = api('A', { url: 'https://x', body: '${'-eyJ'.repeat(repeats)}' })`)
-    expect(growth((repeats) => run(source(repeats)), 25_000)).toBeLessThan(LINEAR_GROWTH)
+    const scan = (repeats: number) => {
+      const text = source(repeats)
+      return () => run(text)
+    }
+    expect(growth(scan, 12_500)).toBeLessThan(MAX_GROWTH)
     const result = run(source(100_000))
     expect(result.workflow).not.toBeNull()
     expect(codes(result)).not.toContain('W_LITERAL_SECRET')
@@ -195,7 +179,26 @@ describe('hostile sources produce diagnostics only', () => {
     const reporter = new Reporter()
     reporter.addFile('w.ts', `body: '${jwt}'`)
     const at = { file: 'w.ts', start: 7, end: 7 + jwt.length }
-    for (let i = 0; i < MAX_WARNINGS; i++) reporter.report('W_SUBFLOW_COUNT', 'x', at)
+    // Enough codes, each filled to its own cap in turn, that the warnings reach the total cap
+    // whatever the two caps are.
+    const fillers = [
+      'W_SUBFLOW_COUNT',
+      'W_FORWARD_REF',
+      'W_VALUE_KIND',
+      'W_OUT_OF_RANGE',
+      'W_UNKNOWN_OPTION',
+      'W_REQUIRED_MISSING',
+      'W_ENV_UNKNOWN',
+      'W_REF_NOT_NORMALIZED',
+      'W_JSON_REF_UNTYPED',
+      'W_COMMENT_MOVED',
+      'W_COMMENT_DROPPED',
+      'W_FIELD_NOT_APPLICABLE',
+    ] as const
+    expect(fillers.length * MAX_WARNINGS_PER_CODE).toBeGreaterThanOrEqual(MAX_WARNINGS)
+    for (let i = 0; i < MAX_WARNINGS; i++) {
+      reporter.report(fillers[Math.floor(i / MAX_WARNINGS_PER_CODE)], `x${i}`, at)
+    }
     reporter.report('W_LITERAL_SECRET', 'body holds a literal secret', at)
     const capped = reporter.diagnostics.at(-1)
     expect(capped?.code).toBe('W_TOO_MANY_WARNINGS')
@@ -205,7 +208,11 @@ describe('hostile sources produce diagnostics only', () => {
   it('checks the precision of a 100 KB numeric literal in linear time', () => {
     const source = (zeros: number) =>
       wrap(`const a = api('A', { url: 'x', timeout: 0.1${'0'.repeat(zeros)}1 })`)
-    expect(growth((zeros) => run(source(zeros)), 25_000)).toBeLessThan(LINEAR_GROWTH)
+    const check = (zeros: number) => {
+      const text = source(zeros)
+      return () => run(text)
+    }
+    expect(growth(check, 12_500)).toBeLessThan(MAX_GROWTH)
     expect(codes(run(source(100_000)))).toContain('W_NUMBER_PRECISION')
   })
 
@@ -218,13 +225,13 @@ describe('hostile sources produce diagnostics only', () => {
     expect(frameChars).toBeLessThan(result.diagnostics.length * 1_000)
   })
 
-  it('lists 100 warnings and omits the rest without failing the compile', () => {
+  it('lists 20 warnings of one code and omits the rest without failing the compile', () => {
     let body = ''
     for (let i = 0; i < 150; i++) body += `const a${i} = api('A${i}', { url: a${i + 1}.data })\n`
     body += `const a150 = api('A150', { url: 'x' })`
     const result = run(wrap(body))
     expect(result.workflow).not.toBeNull()
-    expect(result.diagnostics).toHaveLength(MAX_WARNINGS + 1)
+    expect(result.diagnostics).toHaveLength(MAX_WARNINGS_PER_CODE + 1)
     expect(result.diagnostics.at(-1)?.code).toBe('W_TOO_MANY_WARNINGS')
   })
 
@@ -235,7 +242,7 @@ describe('hostile sources produce diagnostics only', () => {
     for (let i = 0; i < 1_000; i++) {
       reporter.report(
         'W_UNRESOLVED_REF',
-        'x',
+        `x${i}`,
         { file: 'w.ts', start: 0, end: 1 },
         {
           hint: () => {
@@ -245,15 +252,39 @@ describe('hostile sources produce diagnostics only', () => {
         }
       )
     }
-    expect(computed).toBe(MAX_WARNINGS)
+    expect(computed).toBe(MAX_WARNINGS_PER_CODE)
     expect(reporter.diagnostics[0]?.hint).toBe('Did you mean y?')
+  })
+
+  it('never computes the did-you-mean of a refusable warning it withholds until it is read', () => {
+    const reporter = new Reporter()
+    reporter.addFile('w.ts', 'x')
+    let computed = 0
+    for (let i = 0; i < 1_000; i++) {
+      reporter.report(
+        'W_UNRESOLVED_REF',
+        `x${i}`,
+        { file: 'w.ts', start: 0, end: 1 },
+        {
+          blockKey: `b${i}`,
+          hint: () => {
+            computed++
+            return 'Did you mean y?'
+          },
+        }
+      )
+    }
+    expect(reporter.withheld).toHaveLength(1_000 - MAX_WARNINGS_PER_CODE)
+    expect(computed).toBe(MAX_WARNINGS_PER_CODE)
+    expect({ ...reporter.withheld[0] }.hint).toBe('Did you mean y?')
+    expect(computed).toBe(MAX_WARNINGS_PER_CODE + 1)
   })
 
   it('keeps infos from crowding out a warning', () => {
     const reporter = new Reporter()
     reporter.addFile('w.ts', 'x')
     const at = { file: 'w.ts', start: 0, end: 1 }
-    for (let i = 0; i < MAX_WARNINGS + 50; i++) reporter.report('I_SCHEDULE_UTC', 'x', at)
+    for (let i = 0; i < MAX_WARNINGS + 50; i++) reporter.report('I_SCHEDULE_UTC', `x${i}`, at)
     reporter.report('W_LITERAL_SECRET', 'apiKey holds a literal secret', at)
     const listed = reporter.diagnostics.map((d) => d.code)
     expect(listed).toContain('W_LITERAL_SECRET')
@@ -289,8 +320,12 @@ describe('hostile sources produce diagnostics only', () => {
   })
 
   it('never reads a code file outside the repository or past the size cap', () => {
-    const text = `// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('X', {}, () => {\n  const a = fn('A', { code: codeFile('../../etc/passwd.js') })\n  const b = fn('B', { code: codeFile('./big.js') })\n})\n`
-    const result = run(text, { maxTotalBytes: 1_000 }, { 'workflows/big.js': 'x'.repeat(5_000) })
+    const text = `// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('X', {}, () => {\n  const a = fn('A', { code: codeFile('../../etc/passwd.js') })\n  const b = fn('B', { code: codeFile('./functions/big.js') })\n})\n`
+    const result = run(
+      text,
+      { maxTotalBytes: 1_000 },
+      { 'workflows/functions/big.js': 'x'.repeat(5_000) }
+    )
     expect(codes(result)).toEqual(expect.arrayContaining(['E_CODE_FILE_PATH', 'E_LIMIT_EXCEEDED']))
   })
 
@@ -305,10 +340,10 @@ describe('hostile sources produce diagnostics only', () => {
 
     it('reports an unstorable code file shared by many blocks once', () => {
       const result = run(
-        fnFile(5, () => './a.js'),
+        fnFile(5, () => './functions/a.js'),
         undefined,
         {
-          'workflows/a.js': 'return "x\u0000"\n',
+          'workflows/functions/a.js': 'return "x\u0000"\n',
         }
       )
       expect(errorCodes(result)).toEqual(['E_INVALID_CHARACTER'])
@@ -316,10 +351,13 @@ describe('hostile sources produce diagnostics only', () => {
 
     it('caps the total bytes of distinct code files', () => {
       const files = Object.fromEntries(
-        Array.from({ length: 4 }, (_, i) => [`workflows/f${i}.js`, `return ${'1'.repeat(700)}\n`])
+        Array.from({ length: 4 }, (_, i) => [
+          `workflows/functions/f${i}.js`,
+          `return ${'1'.repeat(700)}\n`,
+        ])
       )
       const result = run(
-        fnFile(4, (i) => `./f${i}.js`),
+        fnFile(4, (i) => `./functions/f${i}.js`),
         { maxTotalBytes: 2_000 },
         files
       )
@@ -329,9 +367,9 @@ describe('hostile sources produce diagnostics only', () => {
 
     it('accepts exactly the block cap', () => {
       const result = run(
-        fnFile(3, () => './a.js'),
+        fnFile(3, () => './functions/a.js'),
         { maxBlocks: 3 },
-        { 'workflows/a.js': 'return 1\n' }
+        { 'workflows/functions/a.js': 'return 1\n' }
       )
       expect(errorCodes(result)).toEqual([])
       expect(Object.keys(result.workflow?.blocks ?? {})).toHaveLength(3)
@@ -339,39 +377,39 @@ describe('hostile sources produce diagnostics only', () => {
 
     it('caps the number of blocks with one diagnostic', () => {
       const result = run(
-        fnFile(4, () => './a.js'),
+        fnFile(4, () => './functions/a.js'),
         { maxBlocks: 3 },
-        { 'workflows/a.js': 'return 1\n' }
+        { 'workflows/functions/a.js': 'return 1\n' }
       )
       expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
       expect(result.workflow).toBeNull()
     })
 
     it('counts the entry file toward the total bytes', () => {
-      const entry = fnFile(1, () => './a.js')
+      const entry = fnFile(1, () => './functions/a.js')
       const result = run(
         entry,
         { maxTotalBytes: entry.length + 4 },
-        { 'workflows/a.js': 'return 1\n' }
+        { 'workflows/functions/a.js': 'return 1\n' }
       )
       expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
     })
 
     it('caps the number of codeFile() references with one diagnostic', () => {
       const result = run(
-        fnFile(10, () => './a.js'),
+        fnFile(10, () => './functions/a.js'),
         { maxCodeFileRefs: 3 },
-        { 'workflows/a.js': 'return 1\n' }
+        { 'workflows/functions/a.js': 'return 1\n' }
       )
       expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
     })
 
     it('rejects a depth bomb in a code file before parsing it', () => {
       const result = run(
-        fnFile(1, () => './a.js'),
+        fnFile(1, () => './functions/a.js'),
         undefined,
         {
-          'workflows/a.js': `return ${'['.repeat(100_000)}${']'.repeat(100_000)}\n`,
+          'workflows/functions/a.js': `return ${'['.repeat(100_000)}${']'.repeat(100_000)}\n`,
         }
       )
       expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
@@ -405,8 +443,8 @@ describe('one set of limits for get and compile', () => {
     [
       'a JavaScript code file nested in brackets',
       {
-        'workflows/hostile.ts': `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./deep.js') })\n})\n`,
-        'workflows/deep.js': `return ${'['.repeat(250)}${']'.repeat(250)}\n`,
+        'workflows/hostile.ts': `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./functions/deep.js') })\n})\n`,
+        'workflows/functions/deep.js': `return ${'['.repeat(250)}${']'.repeat(250)}\n`,
       },
     ],
   ])('flags %s that compile refuses, so a get never prints it', (_, files) => {
@@ -424,8 +462,8 @@ describe('one set of limits for get and compile', () => {
       ].join('\n')
     )
     const files = {
-      'workflows/hostile.ts': `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./regex.js') })\n})\n`,
-      'workflows/regex.js': `${lines.join('\n')}\nreturn 1\n`,
+      'workflows/hostile.ts': `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./functions/regex.js') })\n})\n`,
+      'workflows/functions/regex.js': `${lines.join('\n')}\nreturn 1\n`,
     }
     const { 'workflows/hostile.ts': entry, ...codeFiles } = files
     expect(errorCodes(run(entry, undefined, codeFiles))).toEqual([])
@@ -435,9 +473,9 @@ describe('one set of limits for get and compile', () => {
   // Two linear walks of 300k nodes: ~0.5s locally, 1.8-2.4s on CI, 5.1s on one loaded runner.
   it('walks a node with more children than one call can take as arguments', () => {
     const wide = `[${'0,'.repeat(300_000)}0]`
-    const entry = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./f.js') })\n  const a = api('A', { url: 'x', body: raw(${wide}) })\n})\n`
-    expect(() => run(entry, undefined, { 'workflows/f.js': 'return 1\n' })).not.toThrow()
-    expect(codeFileReferences(entry)).toEqual(['./f.js'])
+    const entry = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./functions/f.js') })\n  const a = api('A', { url: 'x', body: raw(${wide}) })\n})\n`
+    expect(() => run(entry, undefined, { 'workflows/functions/f.js': 'return 1\n' })).not.toThrow()
+    expect(codeFileReferences(entry)).toEqual(['./functions/f.js'])
   }, 15_000)
 
   it('passes a source nested within the cap', () => {
@@ -463,11 +501,11 @@ describe('characters a workflow cannot store', () => {
   })
 
   it('refuses a NUL in a code file at its line, for the block reading it', () => {
-    const text = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./f.js') })\n})\n`
+    const text = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./functions/f.js') })\n})\n`
     const code = 'const a = 1\nreturn "x\u0000"\n'
-    const result = run(text, undefined, { 'workflows/f.js': code })
+    const result = run(text, undefined, { 'workflows/functions/f.js': code })
     const refused = result.diagnostics.find((d) => d.code === 'E_INVALID_CHARACTER')
-    expect(refused?.span).toMatchObject({ file: 'workflows/f.js', line: 2, column: 10 })
+    expect(refused?.span).toMatchObject({ file: 'workflows/functions/f.js', line: 2, column: 10 })
     expect(refused?.blockKey).toBe('f')
   })
 

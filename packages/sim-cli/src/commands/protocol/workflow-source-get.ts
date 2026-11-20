@@ -14,6 +14,7 @@ import { buildRequest } from '../../runtime/request'
 import {
   absoluteDirOption,
   assertPrintedSourcePaths,
+  assertSourceDirKind,
   locallyEditedFiles,
   readPreviousLock,
   readSourceJson,
@@ -42,6 +43,7 @@ import {
   type WorkspaceTypes,
   withSourceExitCode,
 } from './source-tree'
+import { findingsOutput } from './source-ui'
 import { storedEdgesWrite } from './stored-edges'
 
 const DIR_FLAG = 'dir'
@@ -128,7 +130,7 @@ The \`// @sim-sdk 1\` header must be the first line, and the file has exactly on
 
 ## Diagnostics and exit codes
 
-Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. \`check\` prints the \`W_*\` codes it fails on as \`error\` on a block you added; the apply still saves them as warnings. Exit codes of every \`workflows source\` command:
+Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. \`check\` prints the \`W_*\` codes it fails on as \`error\` on a block you added; the apply still saves them as warnings. A path no output has (\`W_UNKNOWN_OUTPUT_PATH\`), in a block you added or changed, is the error \`E_APPLY_UNRESOLVED_REF\` in both, whatever \`--strict\` says; a path the run may still resolve (\`W_OUTPUT_PATH_UNDECLARED\`: an input the start does not declare, \`x.error\` with no error edge) stays a warning. Exit codes of every \`workflows source\` command:
 
 ${sourceExitCodesTable('sim workflows source')}
 
@@ -289,9 +291,10 @@ async function assertNoLocalEdits(dir: string, source: PrintedSource): Promise<v
 }
 
 const GET_EXIT_CODES_HELP = `
-Exit codes with --dir: 0 written; 1 the command failed, or the directory holds another workflow's
-source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them,
-get into another directory, or pass --force); 7 the workflow is too large to print as source;
+Exit codes with --dir: 0 written; 1 the command failed, the directory is a workspace source
+directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source
+(SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into
+another directory, or pass --force); 7 the workflow is too large to print as source;
 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again.`
 
 /**
@@ -340,6 +343,7 @@ export function attachWorkflowSourceGet(source: Command): void {
     }
     await withWorkspaceFolderLock(dir, async () => {
       const force = flags[FORCE_FLAG] === true
+      await assertSourceDirKind(dir, 'workflow')
       if (!force) await assertSameWorkflow(dir, workflowId)
       const { client, profile } = connectGet()
       const request = await buildRequest(
@@ -367,11 +371,14 @@ export function attachWorkflowSourceGet(source: Command): void {
         workflowSource,
         workflowSource.blockTypes
       )
+      const findings = findingsOutput(profile.output)
+      findings.print(workflowSource.diagnostics)
       printTreeResult(profile.output, {
         workflowId: workflowSource.workflowId,
         dir,
         ...tree,
         fingerprint: workflowSource.base.fingerprint,
+        ...findings.result(workflowSource.diagnostics),
       })
     })
   })

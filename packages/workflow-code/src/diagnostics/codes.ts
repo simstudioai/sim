@@ -41,7 +41,10 @@ const COMPILE_SYNTAX_CODES = [
    * Fixing the errors listed and compiling again shows the rest.
    */
   'E_TOO_MANY_ERRORS',
-  /** `MAX_WARNINGS` warnings were listed; this one sits where the next was found, and the rest are omitted. */
+  /**
+   * `MAX_WARNINGS` warnings, or `MAX_WARNINGS_PER_CODE` of one code, were listed; this one sits
+   * where the next was found, and the rest (of that code) are omitted.
+   */
   'W_TOO_MANY_WARNINGS',
 ] as const
 
@@ -108,6 +111,14 @@ const COMPILE_SCOPE_CODES = [
    * `[`...): the runtime would read the token as text or as another block.
    */
   'E_REF_UNREPRESENTABLE',
+  /**
+   * A loop or parallel iteration field (`index`, `currentItem`, `items`) read from a block outside
+   * that container: `lp.index` after the loop, `$ref.loop.index` or `<loop.index>` in a block in
+   * no loop. The run fails (or reads nothing) there. A warning so a stored workflow that holds one
+   * still round-trips; the apply refuses it on a block the edit changed as
+   * `E_APPLY_REF_OUT_OF_SCOPE`.
+   */
+  'W_REF_OUT_OF_SCOPE',
 ] as const
 
 /** Wiring. */
@@ -220,8 +231,18 @@ const COMPILE_CATALOG_CODES = [
    * round-trip.
    */
   'W_SUBFLOW_COUNT',
-  /** Skipped when the block's outputs are dynamic. */
+  /**
+   * A path the referenced block's outputs do not have, which fails the run when it resolves.
+   * Skipped when the block's outputs are dynamic and cannot be read. Refused as
+   * `E_APPLY_UNRESOLVED_REF` in `workflow.ts` on a block the edit added or changed.
+   */
   'W_UNKNOWN_OUTPUT_PATH',
+  /**
+   * A path the referenced block does not declare that the run still accepts: an input its
+   * `inputFormat` does not declare (a caller may pass it), or `x.error` on a block with no error
+   * edge (it reads nothing). Never refused, unlike `W_UNKNOWN_OUTPUT_PATH`.
+   */
+  'W_OUTPUT_PATH_UNDECLARED',
   /**
    * A bare reference in a JSON field literal whose output type nothing declares: it is stored bare
    * (typed), so a string value would break the JSON (`json-fields.ts`).
@@ -233,10 +254,20 @@ const COMPILE_CATALOG_CODES = [
 const CODE_FILE_CODES = [
   /** `fn('./x.js')` names a file absent from `CompileInput.files`. */
   'E_CODE_FILE_MISSING',
-  /** Not a relative path inside the repo, or the extension does not match the block language. */
+  /**
+   * Not `./functions/<name>.<js|py|sh>` beside the entry file (`isCodeFilePath`), or the extension
+   * does not match the block language.
+   */
   'E_CODE_FILE_PATH',
   /** The printer's bijection self-check failed; the code was printed inline as `js```. */
   'W_CODE_FILE_INLINED',
+  /**
+   * `$ref.key.path` or `$env.NAME` in a Python or shell code file, which is saved as written (only
+   * JavaScript files are rewritten), so the run reads it as text; `hint` names the `<key.path>` or
+   * `{{NAME}}` form those files take. A warning so stored code that holds the text still
+   * round-trips; refused as `E_APPLY_CODE_FILE_REF_SYNTAX` in a file the edit changed.
+   */
+  'W_CODE_FILE_REF_SYNTAX',
 ] as const
 
 /** References and comments, shared by compile and print. */
@@ -262,6 +293,9 @@ const COMPILE_DIAGNOSTIC_CODES = [
   ...CODE_FILE_CODES,
   ...REFERENCE_CODES,
 ] as const
+/** Errors one compile lists before it stops with `E_TOO_MANY_ERRORS`. */
+export const MAX_ERRORS = 100
+
 export type CompileDiagnosticCode = (typeof COMPILE_DIAGNOSTIC_CODES)[number]
 
 /**
@@ -460,6 +494,13 @@ const APPLY_DIAGNOSTIC_CODES = [
    * at run time; on code the stored workflow already holds it stays `W_UNRESOLVED_REF`.
    */
   'E_APPLY_UNRESOLVED_REF',
+  /**
+   * A `W_REF_OUT_OF_SCOPE` iteration reference on a block the edit added, changed or moved, which
+   * fails at run time.
+   */
+  'E_APPLY_REF_OUT_OF_SCOPE',
+  /** A `W_CODE_FILE_REF_SYNTAX` in a code file the edit changed, which breaks the code at run time. */
+  'E_APPLY_CODE_FILE_REF_SYNTAX',
   /** A non-blocking workflow lint finding, mapped to a source line. */
   'W_APPLY_LINT',
   /** A table row write (insert, upsert, update) with a key that is not a column of its table. */
@@ -474,6 +515,11 @@ const APPLY_DIAGNOSTIC_CODES = [
    * `allowDelete` (`--allow-delete`).
    */
   'E_APPLY_BLOCK_DELETE',
+  /**
+   * The apply removes workflow variables the source no longer declares and the caller did not pass
+   * `allowDelete` (`--allow-delete`), as for blocks.
+   */
+  'E_APPLY_VARIABLE_DELETE',
   /** The source renames the workflow to a name another workflow in its folder holds. */
   'E_NAME_TAKEN',
   /**

@@ -41,7 +41,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
 
    This writes `workflow.ts`, any function code under `functions/`, and type declarations for the blocks the workflow uses and for your workspace's tables, credentials, knowledge bases, and environment variable names, with `.sim/sdk/INDEX.md` listing those blocks' builders. The declarations of every block are generated once per block catalog into the CLI's cache (`~/.sim/cache/source-catalog/`) and shared by every directory. It also writes a `tsconfig.json` that resolves them and type-checks the blocks the workflow uses, and a `tsconfig.full.json` that type-checks every block through that cache, unless the directory already has files of those names, which are left as they are. For coding agents it writes `.sim/AGENTS.md`, the primer `get` prints followed by a reference, and example workflows under `.sim/examples/` with one correct example of each common block to copy from. The examples name placeholder resources, so the tsconfig files leave them out of the type-check.
 
-   `get` into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them.
+   `get` into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them. A workspace source directory is always refused, `--force` included (and `sim workspaces source get` refuses a workflow directory the same way).
 
 2. Edit `workflow.ts`, then compile it on your machine with Sim's compiler, without a request:
 
@@ -66,7 +66,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
    sim workflows source apply --dir ./support-triage --dry-run
    ```
 
-   `apply` reads the workflow ID from `.sim/base.json`. Pass it as `apply <workflowId> --dir …` to have the CLI confirm the directory holds that workflow.
+   `apply` reads the workflow ID from `.sim/base.json`. Pass it as `apply <workflowId> --dir …` to have the CLI confirm the directory holds that workflow. Every command that reads a source directory (`check`, `status`, `diff`, `params`, `apply`, and their `sim workspaces source` counterparts) defaults `--dir` to the current directory; `get` and `create`, which write one, always need `--dir`.
 
    Sim compiles the file and runs every check a save would run: unknown settings, missing required fields, broken references, permissions, and locked blocks. Each problem prints with its line, the code around it, and a hint:
 
@@ -90,7 +90,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
 
    Editing the name or description in `workflow('…')` renames or redescribes the workflow; a name another workflow in its folder already has is refused with `E_NAME_TAKEN`. Lines starting with `note:` report something the save did beyond what the file says; read them.
 
-   A save that removes a block (its declaration is gone from `workflow.ts`) is refused with `E_APPLY_BLOCK_DELETE`, naming the blocks. Pass `--allow-delete` when the deletion is intended.
+   A save that removes a block (its declaration is gone from `workflow.ts`) is refused with `E_APPLY_BLOCK_DELETE`, naming the blocks, and one that removes a workflow variable with `E_APPLY_VARIABLE_DELETE`. Pass `--allow-delete` when the deletion is intended.
 
 To create a new workflow, run `sim workflows source create --dir <dir> --workspace <workspaceId>` on an empty directory: without `--dry-run` or `--yes` it creates nothing and writes a starter `workflow.ts` with that workspace's type declarations, `tsconfig.json` and `.sim/AGENTS.md`, and records the workspace in `.sim/starter.json`. Edit the starter, check it, then run `sim workflows source create --dir <dir> --workspace <workspaceId> --dry-run` and `--yes` (the starter prints both). A create goes to the starter's workspace whatever your default workspace, unless `--workspace` names another. Until the workflow is created the directory has no `.sim/base.json`, so `status`, `diff` and `apply` refuse it. The file starts with the `// @sim-sdk 1` line and default-exports one `workflow('Name', {}, () => { ... })`. The command prints the new workflow ID and writes the same type declarations, `tsconfig.json`, and `.sim/` files that `get` writes, so you can continue editing with `apply`. If another workflow already has that name, the command exits `1`; pass `--name` to choose another.
 
@@ -197,7 +197,7 @@ Code that does not fit a block goes in a Function block, kept in its own file:
 const score = fn('Score lead', { code: codeFile('./functions/score-lead.js') })
 ```
 
-In the file, `$ref.block.path` reads another block's output and `$env.NAME` reads an environment variable. `block` is the block's key: its name lowercased with all whitespace and every `.` removed (`$ref.triageagent.content` for "Triage Agent", `$ref.v2result.text` for "V2. Result"). Inside a loop body, `$ref.loop.currentItem` and `$ref.loop.index` read the iteration's item and position; inside a parallel body, `$ref.parallel.currentItem` and `$ref.parallel.index`. A `$ref` that names no block is a warning, because it would not resolve when the workflow runs. Python and shell files are saved as written.
+In the file, `$ref.block.path` reads another block's output and `$env.NAME` reads an environment variable. `block` is the block's key: its name lowercased with all whitespace and every `.` removed (`$ref.triageagent.content` for "Triage Agent", `$ref.v2result.text` for "V2. Result"). Inside a loop body, `$ref.loop.currentItem` and `$ref.loop.index` read the iteration's item and position; inside a parallel body, `$ref.parallel.currentItem` and `$ref.parallel.index`. A `$ref` that names no block is refused in a file you edited, because it would not resolve when the workflow runs. Python and shell files are saved as written, so `$ref` and `$env` mean nothing there: read an output as `<block.path>` (`<triageagent.content>`) and an environment variable as `{{NAME}}`.
 
 ## Use it in CI
 

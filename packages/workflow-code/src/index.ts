@@ -60,7 +60,12 @@ export {
   type SourceSpan,
   splitLines,
 } from './diagnostics/frame'
-export { type CanonicalDiff, diffCanonical, renamesBetween } from './diff'
+export {
+  EDIT_REFUSALS,
+  raisedMessage,
+  refuseEditedFindings,
+} from './diagnostics/refusals'
+export { type CanonicalDiff, diffCanonical, renamesBetween, replacedBetween } from './diff'
 export {
   canonicalDigests,
   canonicalEquals,
@@ -69,6 +74,7 @@ export {
 } from './equivalence'
 export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
+export { readsIterationOutOfScope, type ScopeNode } from './iteration-scope'
 export { parseJsonField } from './json-fields'
 export {
   type DefinedField,
@@ -113,7 +119,7 @@ export { assignIdentifiers, printWorkflow } from './print'
 export { hasSuspiciousCharacter, printKey, quoteString } from './print/strings'
 export { getOwn, invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
 export { JS_RESERVED_WORDS, SDK_CORE_EXPORTS } from './sdk'
-export { holdsSecret } from './secrets'
+export { holdsSecret, withoutAuthScheme } from './secrets'
 export {
   mapAnchorIds,
   parseSourceMeta,

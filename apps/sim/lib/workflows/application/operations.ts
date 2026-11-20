@@ -1,4 +1,5 @@
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
+import { WORKFLOW_CODE_FEATURE } from '@/lib/workflows/code/feature-flag'
 
 const ALL_WORKFLOW_PRINCIPAL_POLICY = {
   principalKinds: [
@@ -77,6 +78,7 @@ export const workflowOperations = {
   // permission-group-exempt: workflow source is the workflow definition in another form, governed by workspace role like `read`
   readSource: defineWorkspaceOperation({
     id: 'workflows.source.read',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -92,6 +94,7 @@ export const workflowOperations = {
   // permission-group-exempt: the source catalog is the block catalog in another shape; withholding it hides the product rather than restricting it
   readSourceCatalog: defineWorkspaceOperation({
     id: 'workflows.source.catalog.read',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -112,6 +115,7 @@ export const workflowOperations = {
   // permission-group-exempt: the manifest as a whole stays readable to every member; each section is omitted in the use case when its capability is withheld (see visibleSections)
   readSourceResources: defineWorkspaceOperation({
     id: 'workflows.source.resources.read',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -231,8 +235,26 @@ export const workflowOperations = {
    */
   applySource: defineWorkspaceOperation({
     id: 'workflows.source.apply',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:write',
     minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  /**
+   * What an apply of submitted workflow source would do, without writing: the read behind
+   * `sim workflows source status`. The apply pipeline as a dry run, so a member who may read the
+   * source may ask it (`read`, `api:read`). Denied to workspace API keys like `applySource`: the
+   * source gates it reports take a human subject and would fail open without one.
+   */
+  // permission-group-exempt: a plan stores nothing; the block and value gates it reports are judged per block against the principal's human subject, as for applySource
+  planSource: defineWorkspaceOperation({
+    id: 'workflows.source.plan',
+    feature: WORKFLOW_CODE_FEATURE,
+    oauthScope: 'api:read',
+    minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
     contentDelivery: 'none',
@@ -242,6 +264,7 @@ export const workflowOperations = {
   // permission-group-exempt: creating a workflow from source is governed by workspace role and the same block gates as apply
   createFromSource: defineWorkspaceOperation({
     id: 'workflows.source.create',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',

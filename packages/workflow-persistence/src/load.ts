@@ -9,7 +9,7 @@ import {
   SUBFLOW_TYPES,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
-import { and, eq, getTableColumns, inArray, isNull, type SQLWrapper, sql } from 'drizzle-orm'
+import { and, asc, eq, getTableColumns, inArray, isNull, type SQLWrapper, sql } from 'drizzle-orm'
 import { clampParallelBatchSize } from './subflow-helpers'
 import type { DbOrTx, NormalizedWorkflowData } from './types'
 
@@ -180,8 +180,20 @@ export async function loadWorkflowsFromNormalizedTablesRaw(
 }
 
 /**
+ * The order a workflow's edge rows load in, which the executor reads for a condition or router
+ * edge with no handle: creation order. A save writes its edges together, each a microsecond after
+ * the one before, so this is the order the state listed them in; rows written in one statement
+ * with one timestamp (older saves, a duplicate) keep the order they were inserted in.
+ */
+export function edgeLoadOrder() {
+  return [asc(workflowEdges.createdAt), sql`ctid`] as const
+}
+
+/**
  * The block, edge and subflow rows of `workflowIds`: a list, or a query of ids that each graph
- * query embeds as a subquery.
+ * query embeds as a subquery. Blocks and subflows come in creation order, ties by id, and edges
+ * in {@link edgeLoadOrder}, so the assembled graph's order is a fact of the stored rows, not of
+ * where an update left them in the heap.
  */
 async function selectGraphRows(tx: DbOrTx, workflowIds: string[] | (() => SQLWrapper)) {
   const ids = () => (typeof workflowIds === 'function' ? workflowIds() : workflowIds)
@@ -192,9 +204,18 @@ async function selectGraphRows(tx: DbOrTx, workflowIds: string[] | (() => SQLWra
         updatedAtText: sql<string | null>`${workflowBlocks.updatedAt}::text`,
       })
       .from(workflowBlocks)
-      .where(inArray(workflowBlocks.workflowId, ids())),
-    tx.select().from(workflowEdges).where(inArray(workflowEdges.workflowId, ids())),
-    tx.select().from(workflowSubflows).where(inArray(workflowSubflows.workflowId, ids())),
+      .where(inArray(workflowBlocks.workflowId, ids()))
+      .orderBy(asc(workflowBlocks.createdAt), asc(workflowBlocks.id)),
+    tx
+      .select()
+      .from(workflowEdges)
+      .where(inArray(workflowEdges.workflowId, ids()))
+      .orderBy(...edgeLoadOrder()),
+    tx
+      .select()
+      .from(workflowSubflows)
+      .where(inArray(workflowSubflows.workflowId, ids()))
+      .orderBy(asc(workflowSubflows.createdAt), asc(workflowSubflows.id)),
   ])
   return { blocks, edges, subflows }
 }

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   authorizeRead: vi.fn(),
   apply: vi.fn(),
   create: vi.fn(),
+  plan: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
@@ -34,6 +35,10 @@ vi.mock('@/lib/workflows/application/apply-workflow-source', () => ({
     operation: { id: 'workflows.source.create' },
     execute: mocks.create,
   },
+  planWorkflowSource: {
+    operation: { id: 'workflows.source.plan' },
+    execute: mocks.plan,
+  },
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -42,6 +47,7 @@ import {
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
+import { POST as PLAN } from '@/app/api/v2/workflows/[workflowId]/source/plan/route'
 import { GET, POST } from '@/app/api/v2/workflows/[workflowId]/source/route'
 import { POST as CREATE } from '@/app/api/v2/workspaces/[workspaceId]/workflows/source/route'
 
@@ -174,7 +180,7 @@ const applied = {
       modified: [{ id: 'b-1', key: 'start', fields: ['name'] }],
     },
     edges: { added: 0, removed: 0 },
-    variables: { added: [], removed: [], modified: [] },
+    variables: { added: [], removed: [], renamed: [], modified: [] },
   },
   diagnostics: [],
   files: source.files,
@@ -247,6 +253,44 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.apply).not.toHaveBeenCalled()
+  })
+
+  it('refuses a provenance repo carrying credentials in any form before applying, so none reaches the audit log', async () => {
+    const credentialed = [
+      'https://x-access-token:ghp_x@github.com/a/b.git',
+      'https://ghp_x@github.com/a/b.git',
+      ' https://ghp_x@github.com/a/b.git',
+      '\thttps://ghp_x@github.com/a/b.git',
+      'git+https://ghp_x@github.com/a/b.git',
+      'https://github.com/a/b.git?access_token=ghp_x',
+      'https://u:pa/ss@github.com/a/b.git',
+      'ssh://git:secret@github.com/a/b.git',
+      'user:secret@github.com:a/b.git',
+      'https:/ghp_x@github.com/a/b.git',
+      'https:ghp_x@github.com/a/b.git',
+      'https://github.com/a/b.git#ghp_x',
+      'git@github.com:a/b.git#ghp_x',
+    ]
+    for (const repo of credentialed) {
+      const response = await POST(
+        applyRequest({ ...applyBody, provenance: { client: 'cli', repo } }),
+        context
+      )
+      expect({ repo, status: response.status }).toEqual({ repo, status: 400 })
+    }
+    expect(mocks.apply).not.toHaveBeenCalled()
+
+    for (const repo of [
+      'https://github.com/a/b.git',
+      'ssh://git@github.com/a/b.git',
+      'git@github.com:a/b.git',
+    ]) {
+      const response = await POST(
+        applyRequest({ ...applyBody, provenance: { client: 'cli', repo } }),
+        context
+      )
+      expect({ repo, status: response.status }).toEqual({ repo, status: 200 })
+    }
   })
 
   it('passes x- extension fields on the lock, its blocks and their layout through to apply', async () => {
@@ -362,6 +406,43 @@ describe('source write rate limit', () => {
     expect((await GET(request(), context)).status).toBe(200)
   })
 
+  it('answers 429 with Retry-After to a dry run past the applies this server runs at once', async () => {
+    const finish: Array<() => void> = []
+    mocks.apply.mockImplementation(
+      () => new Promise((resolve) => finish.push(() => resolve({ ...applied, dryRun: true })))
+    )
+    const dryRun = () => POST(applyRequest(applyBody, '?dryRun=true'), context)
+    const running = Array.from({ length: 4 }, () => dryRun())
+    await vi.waitFor(() => expect(finish).toHaveLength(4))
+
+    const refused = await dryRun()
+    expect(refused.status).toBe(429)
+    expect(refused.headers.get('Retry-After')).toBe('5')
+
+    for (const done of finish) done()
+    expect((await Promise.all(running)).map((response) => response.status)).toEqual([
+      200, 200, 200, 200,
+    ])
+  })
+
+  it('answers 429 with Retry-After to a get past the gets this server runs at once', async () => {
+    const finish: Array<() => void> = []
+    mocks.read.mockImplementation(
+      () => new Promise((resolve) => finish.push(() => resolve(source)))
+    )
+    const running = Array.from({ length: 4 }, () => GET(request(), context))
+    await vi.waitFor(() => expect(finish).toHaveLength(4))
+
+    const refused = await GET(request(), context)
+    expect(refused.status).toBe(429)
+    expect(refused.headers.get('Retry-After')).toBe('5')
+
+    for (const done of finish) done()
+    expect((await Promise.all(running)).map((response) => response.status)).toEqual([
+      200, 200, 200, 200,
+    ])
+  })
+
   it('charges an apply and a create from source to one budget', async () => {
     await writesUntilLimited(() => POST(applyRequest(applyBody), context))
 
@@ -376,5 +457,62 @@ describe('source write rate limit', () => {
 
     expect(response.status).toBe(429)
     expect(mocks.create).not.toHaveBeenCalled()
+  })
+})
+
+describe('source plan budget', () => {
+  const person = {
+    ...auth,
+    principal: {
+      kind: 'personal_api_key' as const,
+      userId: 'user-1',
+      keyId: 'key-2',
+      access: 'write' as const,
+    },
+    rateLimitSubjectIds: ['api-key:key-2', 'user:user-1'] as const,
+    keyType: 'personal' as const,
+  }
+  const plan = () =>
+    PLAN(
+      new NextRequest(`http://localhost:3000/api/v2/workflows/${WORKFLOW_ID}/source/plan`, {
+        method: 'POST',
+        headers: { 'x-api-key': 'key', 'content-type': 'application/json' },
+        body: JSON.stringify(applyBody),
+      }),
+      context
+    )
+
+  beforeEach(() => {
+    v2RouteMocks.authenticate.mockResolvedValue(person)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    meterOperationBuckets()
+    mocks.plan.mockResolvedValue({ ...applied, dryRun: true, applied: false })
+    mocks.apply.mockResolvedValue({ ...applied, dryRun: true, applied: false })
+  })
+
+  it('answers 429 to plans well inside the generic budget, and never spends the write budget', async () => {
+    const limitedAt = await writesUntilLimited(plan)
+
+    expect(limitedAt).not.toBeNull()
+    expect(limitedAt).toBeLessThan(GENERIC_BUDGET)
+    expect((await POST(applyRequest(applyBody, '?dryRun=true'), context)).status).toBe(200)
+  })
+
+  it('answers 429 with Retry-After to a plan past the plans this server runs at once', async () => {
+    const finish: Array<() => void> = []
+    mocks.plan.mockImplementation(
+      () => new Promise((resolve) => finish.push(() => resolve({ ...applied, dryRun: true })))
+    )
+    const running = Array.from({ length: 4 }, () => plan())
+    await vi.waitFor(() => expect(finish).toHaveLength(4))
+
+    const refused = await plan()
+    expect(refused.status).toBe(429)
+    expect(refused.headers.get('Retry-After')).toBe('5')
+
+    for (const done of finish) done()
+    expect((await Promise.all(running)).map((response) => response.status)).toEqual([
+      200, 200, 200, 200,
+    ])
   })
 })

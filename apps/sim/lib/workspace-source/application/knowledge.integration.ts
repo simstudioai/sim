@@ -711,7 +711,7 @@ describe('knowledge bases as workspace source', () => {
 
       const untouched = await apply(workspaceId, dir, { base: read.base, carry: 'none' })
       expect(untouched.applied).toEqual([])
-      expect(codes(untouched.diagnostics, 'info')).toContain('I_SERVER_CHANGED')
+      expect(codes(untouched.diagnostics, 'warning')).toContain('W_SERVER_CHANGED')
       expect(await snapshot(workspaceId)).toEqual(before)
     }
   )
@@ -1299,7 +1299,7 @@ describe('knowledge bases as workspace source', () => {
       const unchanged = await apply(workspaceId, dir, { base: read.base, carry: 'none' })
 
       expect(unchanged.applied).toEqual([])
-      expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_CHANGED'])
+      expect(codes(unchanged.diagnostics, 'warning')).toEqual(['W_SERVER_CHANGED'])
       expect(await snapshot(workspaceId)).toEqual(before)
 
       const stale = await refusal(
@@ -1376,6 +1376,40 @@ describe('knowledge bases as workspace source', () => {
 
       expect(emptied.plan).toEqual([])
       expect((await knowledgeBases(workspaceId)).map((row) => row.id)).toEqual([index.id])
+    }
+  )
+
+  check(
+    'refuses adopting a knowledge base the directory never read when it would replace a document or change a setting',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const { knowledgeBase: unbound } = await createKnowledgeBase.execute({
+        principal: owner,
+        input: { workspaceId, name: 'Policies', description: 'A teammate keeps this one' },
+      })
+      const teammate = Buffer.from('# Refunds\nA teammate wrote this.\n')
+      await uploadKnowledgeDocument.execute({
+        principal: owner,
+        input: {
+          knowledgeBaseId: unbound.id,
+          file: {
+            buffer: teammate,
+            filename: 'refunds.md',
+            fileSize: teammate.byteLength,
+            mimeType: 'text/markdown',
+          },
+        },
+      })
+      await indexed(workspaceId)
+      const before = await snapshot(workspaceId)
+
+      const refused = await refusal(apply(workspaceId, POLICIES))
+
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_NO_BASE'])
+      expect(refused.diagnostics.find((d) => d.code === 'E_APPLY_NO_BASE')?.message).toContain(
+        'description, docs/refunds.md (replace)'
+      )
+      expect(await snapshot(workspaceId)).toEqual(before)
     }
   )
 

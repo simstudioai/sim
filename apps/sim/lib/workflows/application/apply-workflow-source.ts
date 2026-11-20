@@ -61,7 +61,6 @@ import {
   type SourceReference,
 } from '@/lib/workflows/application/source-evaluate'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
   type PrintedSource,
   printStoredSource,
@@ -253,7 +252,6 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.applySource,
   resolveContext: resolvePrincipalWorkflowContext<ApplyWorkflowSourceInput>,
   async execute({ principal, input, context }): Promise<ApplyWorkflowSourceResult> {
-    await requireWorkflowCodeEnabled(principal, context)
     const facts = analyticsFacts(principal, input, 'apply', context.workspaceId)
     try {
       await requireMutableWorkflow(context.workflowId)
@@ -298,6 +296,40 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
   },
 })
 
+/** What {@link planWorkflowSource} reads: a submission as an apply sends it, without its knobs. */
+export interface PlanWorkflowSourceInput {
+  workflowId: string
+  assertedWorkspaceId?: string
+  files: Record<string, string>
+  lock: WorkflowLockV1
+  base: SourceBase
+  /** Plan block and variable deletes as allowed, so the plan names them instead of refusing. */
+  allowDelete?: boolean
+}
+
+/**
+ * What an apply of this source would do, without writing: whether the draft moved since `base`
+ * (`E_APPLY_STALE`), the diff and every finding, exactly as a dry run reports them. A read, so
+ * `sim workflows source status` costs no write budget, needs only the `read` role, and records
+ * no dry-run analytics; it audits and notifies nothing, like a dry run.
+ */
+export const planWorkflowSource = defineAuthorizedWorkflowUseCase({
+  operation: workflowOperations.planSource,
+  resolveContext: resolvePrincipalWorkflowContext<PlanWorkflowSourceInput>,
+  async execute({ principal, input, context }): Promise<ApplyWorkflowSourceResult> {
+    return runSourceApply(
+      principal,
+      { files: input.files, lock: input.lock, dryRun: true },
+      {
+        kind: 'existing',
+        context,
+        base: input.base,
+        allowDelete: input.allowDelete === true,
+      }
+    )
+  },
+})
+
 /**
  * Creates a workflow from source: the same pipeline as {@link applyWorkflowSource} with an empty
  * graph as the stored draft, so every block is new, every id is minted and no fingerprint is
@@ -309,7 +341,6 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
   resolveContext: ({ input }: { input: CreateWorkflowFromSourceInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ principal, input, context }): Promise<ApplyWorkflowSourceResult> {
-    await requireWorkflowCodeEnabled(principal, context)
     const { folderId } = await resolveWorkflowFolderPath(
       context.workspaceId,
       input.folderPath ?? '/'
@@ -390,11 +421,16 @@ function sourceAuditMetadata(
     blocksModified: blocks.modified.length,
     edgesAdded: edges.added,
     edgesRemoved: edges.removed,
-    variablesChanged: variables.added.length + variables.removed.length + variables.modified.length,
+    variablesChanged:
+      variables.added.length +
+      variables.removed.length +
+      variables.renamed.length +
+      variables.modified.length,
     sdkMajor: result.sdkMajor,
     catalogHash: result.base.catalogHash,
     ...(input.provenance ? { client: input.provenance.client } : {}),
     ...(input.provenance?.gitSha ? { gitSha: input.provenance.gitSha } : {}),
+    ...(input.provenance?.repo ? { repo: input.provenance.repo } : {}),
     source: principalAuditSource(principal),
   }
 }
@@ -447,6 +483,7 @@ async function runSourceApply(
           workflowId: context.workflowId,
           workspaceId: context.workspaceId,
           createdBy,
+          allocate: !dryRun,
         }),
         (shared.envNames ??= loadEnvNames(context.workspaceId, subjectUserId)),
       ])

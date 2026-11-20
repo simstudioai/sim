@@ -56,7 +56,7 @@ const created = {
       modified: [],
     },
     edges: { added: 0, removed: 0 },
-    variables: { added: [], removed: [], modified: [] },
+    variables: { added: [], removed: [], renamed: [], modified: [] },
   },
   diagnostics: [],
   files,

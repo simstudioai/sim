@@ -72,7 +72,12 @@ import {
   type StoredKnowledgeState,
   sourceDocs,
 } from '@/lib/workspace-source/application/kinds/knowledge/stored'
-import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
+import {
+  holdsIn,
+  refuseUnreadAdopt,
+  resolveDeclared,
+  settle,
+} from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   ApplyContext,
@@ -302,6 +307,14 @@ async function planKnowledgeBase(
         ...(planned.action === 'update' ? { base: planned.base } : {}),
         ctx,
       })
+      if (planned.action === 'adopt') {
+        const refused = refuseUnreadAdopt(
+          change,
+          resource,
+          changes.fields.filter((field) => !changes.additions.includes(field))
+        )
+        if (refused) return refused
+      }
       if (changes.settings.name !== undefined) {
         change.diagnostics.push(...nameTaken(key, changes.settings.name, stored, resource.id))
       }

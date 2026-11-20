@@ -8368,6 +8368,7 @@ sim workflows deploy <workflowId> [options]
 | --- | --- | --- |
 | `--name <value>` | No | Optional label for the deployment version. |
 | `--description <value>` | No | Optional release note for the deployment version. |
+| `--expected-draft-fingerprint <value>` | No | Deploy only this draft: the `sf1:` fingerprint a source apply answered with (`base.fingerprint`). When the draft changed since, the deploy answers `409` and publishes nothing. |
 | `-y, --yes` | No | Accepted and ignored: this command needs no confirmation. |
 
 </CommandTable>
@@ -8546,7 +8547,7 @@ sim workflows source get <workflowId> [options]
 
 </CommandTable>
 
-Exit codes with --dir: 0 written; 1 the command failed, or the directory holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workflow is too large to print as source; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again. Exit 10 (busy, retry): --dir is a workflow folder of a workspace directory another sim command is using (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
+Exit codes with --dir: 0 written; 1 the command failed, the directory is a workspace source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workflow is too large to print as source; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again. Exit 10 (busy, retry): --dir is a workflow folder of a workspace directory another sim command is using (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
 API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
 
@@ -8575,17 +8576,17 @@ sim workflows source apply [workflowId] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
-| `--dir <dir>` | Yes | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. |
+| `--dir <dir>` | No | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. Defaults to `.`. |
 | `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
 | `--deploy` | No | After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does). |
-| `--allow-delete` | No | Delete blocks the source no longer declares; without it, an apply that deletes a block is refused. |
+| `--allow-delete` | No | Delete blocks and variables the source no longer declares; without it, an apply that deletes one is refused. |
 
 </CommandTable>
 
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was written: wait a minute and run it again; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it). Exit 10 (busy, retry): --dir is a workflow folder of a workspace directory another sim command is using (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished. Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
 
-API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [deployWorkflow](/api-reference/workflows/deployWorkflow).
+API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [deployWorkflow](/api-reference/workflows/deployWorkflow), [getSourceResources](/api-reference/workflows/getSourceResources).
 
 ### sim workflows source create
 
@@ -8631,7 +8632,7 @@ sim workflows source check [options]
 | --- | --- | --- |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
 | `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
-| `--no-strict` | No | Never fail on a warning. |
+| `--no-strict` | No | Never fail on a warning an apply saves. |
 | `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
 
 </CommandTable>
@@ -8640,7 +8641,7 @@ Compiles workflow.ts (and the function files it names) with the compiler the ser
 
 Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once). With --output json, stdout is one document that also lists every finding under diagnostics.
 
-These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_BRANCH_UNWIRED, W_UNRESOLVED_REF. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In a function file changed since the get, W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in every mode, as the server refuses it. W_JSON_REF_UNTYPED is reported only on blocks the lock does not bind, and with --strict on every block.
+These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_BRANCH_UNWIRED, W_UNRESOLVED_REF, W_REF_OUT_OF_SCOPE. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In every mode, as the server refuses them: W_REF_OUT_OF_SCOPE is the error E_APPLY_REF_OUT_OF_SCOPE in any file of a block the edit added or changed; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_CODE_FILE_REF_SYNTAX is the error E_APPLY_CODE_FILE_REF_SYNTAX in a function file changed since the get. A block counts as changed when the lock does not bind it, when the source moved it into another container, or when it compiles differently than in the source the last get or apply printed (.sim/stored-edges.json records a digest of each block). That last comparison needs the catalog the source was printed with in the cache: without it, a bound block that did not move counts as unchanged, so the server may refuse what the check passes. A $ref in a function file to a block the lock binds that the source no longer declares stays a warning, unless a warning cap left findings out: the server may infer that block was renamed and rewrite the reference, and refuses it otherwise. W_JSON_REF_UNTYPED is reported only on blocks the lock does not bind, and with --strict on every block.
 
 ### sim workflows source status
 
@@ -8664,7 +8665,7 @@ sim workflows source status [options]
 
 Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 7 the source is too large for the server to read in one dry run; 1 the command failed; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
 
-API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource).
+API request and response schemas: [planWorkflowSource](/api-reference/workflows/planWorkflowSource), [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [getSourceResources](/api-reference/workflows/getSourceResources).
 
 ### sim workflows source diff
 
@@ -9959,7 +9960,7 @@ sim workspaces source get [options]
 
 A directory that already holds a .sim/base.json is refreshed from the workspace it was read from, whatever the profile's default workspace.
 
-Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace names another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and running the get again downloads only the rest.
+Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace names another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), the directory is a workflow source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and running the get again downloads only the rest.
 
 Exit 10 (busy, retry): another sim workspaces source command is using this directory (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
@@ -9980,7 +9981,7 @@ sim workspaces source apply [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
-| `--dir <dir>` | Yes | Workspace source directory written by `workspaces source get`. |
+| `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
 | `--dry-run` | No | Plan and check without writing anything. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
 | `--allow-delete` | No | Delete resources, columns and data the directory no longer declares. |
@@ -10009,7 +10010,7 @@ sim workspaces source check [options]
 | --- | --- | --- |
 | `--dir <dir>` | No | Workspace source directory: the kind folders and .sim/base.json. Defaults to `.`. |
 | `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
-| `--no-strict` | No | Never fail on a warning. |
+| `--no-strict` | No | Never fail on a warning an apply saves. |
 | `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
 
 </CommandTable>
@@ -10018,7 +10019,7 @@ Compiles every workflows/&lt;key&gt;/workflow.ts (and the function files each na
 
 Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once). With --output json, stdout is one document that also lists every finding under diagnostics.
 
-These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_BRANCH_UNWIRED, W_UNRESOLVED_REF. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In a function file changed since the get, W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in every mode, as the server refuses it. W_JSON_REF_UNTYPED is reported only on blocks the lock does not bind, and with --strict on every block.
+These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_BRANCH_UNWIRED, W_UNRESOLVED_REF, W_REF_OUT_OF_SCOPE. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In every mode, as the server refuses them: W_REF_OUT_OF_SCOPE is the error E_APPLY_REF_OUT_OF_SCOPE in any file of a block the edit added or changed; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_CODE_FILE_REF_SYNTAX is the error E_APPLY_CODE_FILE_REF_SYNTAX in a function file changed since the get. A block counts as changed when the lock does not bind it, when the source moved it into another container, or when it compiles differently than in the source the last get or apply printed (.sim/stored-edges.json records a digest of each block). That last comparison needs the catalog the source was printed with in the cache: without it, a bound block that did not move counts as unchanged, so the server may refuse what the check passes. A $ref in a function file to a block the lock binds that the source no longer declares stays a warning, unless a warning cap left findings out: the server may infer that block was renamed and rewrite the reference, and refuses it otherwise. W_JSON_REF_UNTYPED is reported only on blocks the lock does not bind, and with --strict on every block.
 
 Exit 10 (busy, retry): another sim workspaces source command is using this directory (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
@@ -10049,7 +10050,7 @@ Exit codes: 0 clean (nothing to apply, and the server changed nothing since the 
 
 Exit 10 (busy, retry): another sim workspaces source command is using this directory (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
-API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource).
+API request and response schemas: [planWorkspaceSource](/api-reference/workflows/planWorkspaceSource), [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource).
 
 ### sim workspaces source diff
 

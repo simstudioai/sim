@@ -66,6 +66,8 @@ export interface TableChanges {
   columns: ColumnChange[]
   /** Fields that change, for the plan display. */
   fields: string[]
+  /** The `fields` that only add to what the table holds (a new column), which an adopt may write. */
+  additions: string[]
   /** Stored columns this update renames, old name → new name. */
   renamedColumns: Array<{ from: string; to: string }>
   /** Every column name the table holds after the update, in declaration order. */
@@ -253,6 +255,7 @@ export async function diffTable(
     table: {},
     columns: [],
     fields: [],
+    additions: [],
     renamedColumns: [],
     columnNames: Object.entries(decl.columns).map(([columnKey, column]) =>
       columnName(columnKey, column)
@@ -309,8 +312,10 @@ export async function diffTable(
       decl.rows.data.every((row) => !isEmptyCell(row[columnKey])) &&
       unkeyedRows.every((row) => current !== undefined && !isEmptyCell(row[getColumnId(current)]))
     if (!current) {
+      const label = `columns.${columnKey} (add)`
       changes.columns.push({ op: 'add', key: columnKey, column: target })
-      changes.fields.push(`columns.${columnKey} (add)`)
+      changes.fields.push(label)
+      changes.additions.push(label)
       // A new column is empty in every row, so a required one would hold rows that break it,
       // unless managed rows fill it.
       if (target.required && table.rowCount > 0 && !filled) {

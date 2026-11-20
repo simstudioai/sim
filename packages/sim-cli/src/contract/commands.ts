@@ -645,6 +645,8 @@ export const CLI_CONTRACT: CliContract = {
   },
   /** `workflows source apply --dir <dir>` reads and writes a source directory by hand. */
   applyWorkflowSource: { hidden: true },
+  /** `workflows source status --dir <dir>` reads a plan of a source directory by hand. */
+  planWorkflowSource: { hidden: true },
   // The ETag revalidation header is for a client that caches the catalog, as `workflows source
   // get --dir` does by hand; a one-off read has no cached hash to send.
   getSourceCatalog: {
@@ -658,6 +660,8 @@ export const CLI_CONTRACT: CliContract = {
   /** `workspaces source get|apply --dir <dir>` read and write a workspace directory by hand. */
   getWorkspaceSource: { hidden: true },
   applyWorkspaceSource: { hidden: true },
+  /** `workspaces source status --dir <dir>` reads a plan of a workspace directory by hand. */
+  planWorkspaceSource: { hidden: true },
   /** The staging `workspaces source apply` runs before its one apply. */
   findMissingWorkspaceSourceBlobs: { hidden: true },
   stageWorkspaceSourceBlobs: { hidden: true },

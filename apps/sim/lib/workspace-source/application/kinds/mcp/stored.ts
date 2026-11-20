@@ -5,6 +5,7 @@
  * be guessed from.
  */
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { withoutAuthScheme } from '@sim/workflow-code'
 import { fingerprintOf, type ResourceFingerprint } from '@sim/workspace-code'
 import {
   holdsLiteralSecret,
@@ -75,13 +76,26 @@ export function declOf(row: McpServerRow): McpServerDecl {
   }
 }
 
-/** `{{NAME}}` env references, and the auth scheme word a header value may open with. */
+/** `{{NAME}}` env references. */
 const ENV_REFERENCES = /\{\{[A-Za-z_][A-Za-z0-9_]*\}\}/g
-const LEADING_AUTH_SCHEME = /^\s*(?:bearer|basic|token|bot|apikey)\s+/i
 
 /** Whether a header value is only env references (after an optional auth scheme word). */
 function isEnvReferenceOnly(value: string): boolean {
-  return value.replace(LEADING_AUTH_SCHEME, '').replace(ENV_REFERENCES, '').trim() === ''
+  return withoutAuthScheme(value).replace(ENV_REFERENCES, '').trim() === ''
+}
+
+/**
+ * The headers `decl` writes as literal text where `row` stores a value {@link concealHeaderValues}
+ * hides: a reader who cannot see that value may keep it (`stored()`) or replace it with env
+ * references, never compare text of their own with it.
+ */
+export function hiddenHeadersWritten(decl: McpServerDecl, row: McpServerRow): string[] {
+  const stored = storedHeaders(row)
+  return Object.entries(decl.headers ?? {}).flatMap(([name, header]) => {
+    const value = stored[name]
+    const hidden = value !== undefined && !isEnvReferenceOnly(value)
+    return hidden && !isStoredHeader(header) && !isEnvReferenceOnly(header) ? [name] : []
+  })
 }
 
 /**

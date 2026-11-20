@@ -14,7 +14,7 @@ import {
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
-import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
@@ -289,6 +289,43 @@ describe('workspace source apply', () => {
     }
   )
 
+  check(
+    'the commit and repository an apply names are in its audit entries, the workflow writes included',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const provenance = {
+        client: 'cli' as const,
+        gitSha: '0123abcd',
+        repo: 'git@github.com:acme/flows.git',
+      }
+
+      const applied = await apply(workspaceId, STARTER, { provenance })
+
+      await vi.waitFor(async () => {
+        const rows = await db
+          .select({ action: auditLog.action, metadata: auditLog.metadata })
+          .from(auditLog)
+          .where(eq(auditLog.workspaceId, workspaceId))
+        const recorded = rows
+          .filter(
+            (row) =>
+              isRecordLike(row.metadata) &&
+              row.metadata.correlationId === applied.applyId &&
+              (row.action === 'workspace.updated' || row.action === 'workflow.created')
+          )
+          .map((row) => row.metadata)
+        expect(recorded).toHaveLength(2)
+        for (const metadata of recorded) {
+          expect(metadata).toMatchObject({
+            client: 'cli',
+            gitSha: '0123abcd',
+            repo: provenance.repo,
+          })
+        }
+      })
+    }
+  )
+
   check('the workflow-code flag off refuses a get, and no key is allocated', async () => {
     const workspaceId = await newWorkspace()
     await setUp(workspaceId)
@@ -444,7 +481,7 @@ describe('workspace source apply', () => {
 
       const untouched = await apply(workspaceId, read.files, { base: read.base })
       expect(untouched.applied).toEqual([])
-      expect(codes(untouched.diagnostics, 'info')).toContain('I_SERVER_CHANGED')
+      expect(codes(untouched.diagnostics, 'warning')).toContain('W_SERVER_CHANGED')
       expect(await tableSnapshot(workspaceId)).toEqual(before)
     }
   )
@@ -563,7 +600,7 @@ describe('workspace source apply', () => {
 
       const untouched = await apply(workspaceId, read.files, { base: read.base, only: ['table'] })
       expect(untouched.applied).toEqual([])
-      expect(codes(untouched.diagnostics, 'info')).toContain('I_SERVER_DELETED')
+      expect(codes(untouched.diagnostics, 'warning')).toContain('W_SERVER_DELETED')
       expect(await tables(workspaceId)).toEqual([])
 
       const { 'table:leads': _deleted, ...resources } = read.base.resources
@@ -595,7 +632,7 @@ describe('workspace source apply', () => {
         input: {
           workspaceId,
           name: 'contacts',
-          schema: { columns: [{ name: 'email', type: 'string' }] },
+          schema: { columns: [{ name: 'email', type: 'string', required: true }] },
         },
       })
       const adopted = await apply(
@@ -764,6 +801,60 @@ export default workflow('Notes', {}, () => {
 
       expect(applied.failed).toBeUndefined()
       expect((await get(workspaceId)).files[path]).toContain('// leads land here')
+    }
+  )
+
+  check(
+    'a plan comparing many folders and fingerprinting delete candidates binds no key and records no read',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const names = ['Ingest A', 'Ingest B', 'Ingest C', 'Ingest D', 'Doomed']
+      const created = await apply(workspaceId, {
+        ...STARTER,
+        ...Object.fromEntries(
+          names.map((name) => [
+            `workflows/${name.toLowerCase().replace(' ', '-')}/workflow.ts`,
+            INGEST.replace("workflow('Ingest'", `workflow('${name}'`),
+          ])
+        ),
+      })
+      expect(created.failed).toBeUndefined()
+      const read = await get(workspaceId)
+      const tableKeys = () =>
+        db
+          .select({ key: workspaceResourceKey.key })
+          .from(workspaceResourceKey)
+          .where(
+            and(
+              eq(workspaceResourceKey.workspaceId, workspaceId),
+              eq(workspaceResourceKey.kind, 'table')
+            )
+          )
+      expect(await tableKeys()).toEqual([{ key: 'leads' }])
+      await db
+        .delete(workspaceResourceKey)
+        .where(
+          and(
+            eq(workspaceResourceKey.workspaceId, workspaceId),
+            eq(workspaceResourceKey.kind, 'table')
+          )
+        )
+      const files = Object.fromEntries(
+        Object.entries(read.files).filter(([path]) => !path.startsWith('workflows/doomed/'))
+      )
+      posthogServerMockFns.mockCaptureServerEvent.mockClear()
+
+      await apply(workspaceId, files, {
+        base: read.base,
+        kinds: ['workflow'],
+        allowDelete: true,
+        dryRun: true,
+      }).catch(() => undefined)
+
+      expect(await tableKeys()).toEqual([])
+      expect(
+        posthogServerMockFns.mockCaptureServerEvent.mock.calls.map(([, event]) => event)
+      ).not.toContain('workflow_source_read')
     }
   )
 
@@ -1230,7 +1321,6 @@ export default workflow('Notes', {}, () => {
       expect(failed.failed).toMatchObject({ kind: 'table', key: 'leads', code: 'E_APPLY_FAILED' })
       expect(adds).toBe(1)
       expect(await tableSnapshot(workspaceId)).toEqual(before)
-      expect((await storedTable(workspaceId)).description ?? null).toBeNull()
       expect(
         await db.select().from(userTableRows).where(eq(userTableRows.workspaceId, workspaceId))
       ).toEqual(rows)
@@ -1427,12 +1517,7 @@ export default workflow('Notes', {}, () => {
           schema: { columns: [{ name: 'email', type: 'string', required: true }] },
         },
       })
-      const files = {
-        'tables/leads.ts': LEADS.replace(
-          "name: 'leads',",
-          "name: 'leads',\n  description: 'Inbound leads',"
-        ),
-      }
+      const files = { 'tables/leads.ts': LEADS }
       const before = await tableSnapshot(workspaceId)
       const failing = vi
         .spyOn(columnService, 'addTableColumn')
@@ -1446,7 +1531,6 @@ export default workflow('Notes', {}, () => {
       expect(failed.failed).toMatchObject({ kind: 'table', key: 'leads' })
       expect(failed.base.resources['table:leads']).toBeUndefined()
       expect(await tableSnapshot(workspaceId)).toEqual(before)
-      expect((await storedTable(workspaceId)).description ?? null).toBeNull()
 
       const rerun = await apply(workspaceId, files, {
         base: failed.base,
@@ -1608,6 +1692,64 @@ export default workflow('Notes', {}, () => {
       )
       expect(codes(followed.diagnostics)).toEqual([])
       expect(unknownColumns(followed.diagnostics)).toEqual([])
+    }
+  )
+
+  check(
+    'refuses a workflow naming by id a table or child workflow of another workspace, and accepts its own',
+    async () => {
+      const other = await newWorkspace()
+      const theirs = await apply(other, STARTER)
+      expect(theirs.failed).toBeUndefined()
+      const workspaceId = await newWorkspace()
+      const ours = await apply(workspaceId, STARTER)
+      expect(ours.failed).toBeUndefined()
+      const probe = (tableId: string, workflowId: string) => ({
+        'workflows/probe/workflow.ts': `// @sim-sdk 1
+import { runWorkflow, table, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Probe', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { email: 'string' } })
+  const save = table.insertRow('Save Lead', {
+    tableId: '${tableId}',
+    data: { email: start.email },
+  })
+  const child = runWorkflow('Child', { workflowId: '${workflowId}' })
+
+  start.to(save)
+  save.to(child)
+})
+`,
+      })
+      const idOf = (result: typeof ours, address: keyof typeof ours.base.resources) =>
+        result.base.resources[address]?.id ?? ''
+
+      const refused = await refusal(
+        apply(workspaceId, probe(idOf(theirs, 'table:leads'), idOf(theirs, 'workflow:ingest')), {
+          base: ours.base,
+        })
+      )
+
+      const foreign = refused.diagnostics.filter(
+        (finding) => finding.code === 'E_MAT_UNKNOWN_RESOURCE'
+      )
+      expect(foreign.map((finding) => finding.message).sort()).toEqual([
+        expect.stringContaining(`No table "${idOf(theirs, 'table:leads')}" in this workspace`),
+        expect.stringContaining(
+          `No workflow "${idOf(theirs, 'workflow:ingest')}" in this workspace`
+        ),
+      ])
+      expect(foreign.map((finding) => finding.file)).toEqual([
+        'workflows/probe/workflow.ts',
+        'workflows/probe/workflow.ts',
+      ])
+
+      const own = await apply(
+        workspaceId,
+        probe(idOf(ours, 'table:leads'), idOf(ours, 'workflow:ingest')),
+        { kinds: ['workflow'], only: ['workflow'], dryRun: true }
+      )
+      expect(codes(own.diagnostics)).toEqual([])
     }
   )
 

@@ -477,14 +477,14 @@ describe('workspace source across kinds', () => {
 
       expect(writes(unchanged)).toEqual([])
       expect(unchanged.needBlobs).toEqual([])
-      expect(findings(unchanged.diagnostics, 'info')).toEqual(
+      expect(findings(unchanged.diagnostics, 'warning')).toEqual(
         [
-          'I_SERVER_DELETED custom-tool:lookup',
-          'I_SERVER_DELETED file:notes.txt',
-          'I_SERVER_DELETED knowledge-base:policies',
-          'I_SERVER_DELETED skill:tone',
-          'I_SERVER_DELETED table:leads',
-          'I_SERVER_DELETED workflow:ingest',
+          'W_SERVER_DELETED custom-tool:lookup',
+          'W_SERVER_DELETED file:notes.txt',
+          'W_SERVER_DELETED knowledge-base:policies',
+          'W_SERVER_DELETED skill:tone',
+          'W_SERVER_DELETED table:leads',
+          'W_SERVER_DELETED workflow:ingest',
         ].sort(compareStrings)
       )
       expect(await snapshot(workspaceId)).toEqual(empty)

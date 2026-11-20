@@ -474,6 +474,52 @@ describe('rate limiting', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
+  it('says on stderr how long it waits before resending a request answered 429', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const written: string[] = []
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      written.push(String(chunk))
+      return true
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(limited('7'))
+        .mockResolvedValueOnce(Response.json({ data: {} }))
+    )
+
+    await settle(client().request('/api/v2/tables/tbl_1'))
+    write.mockRestore()
+
+    expect(written.join('')).toMatch(/Rate limited \(HTTP 429\); retrying in 7s \(retry 1 of 6\)/)
+  })
+
+  it('clears a terminal progress line before saying it waits on a 429', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const written: string[] = []
+    const tty = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY')
+    Object.defineProperty(process.stderr, 'isTTY', { value: true, configurable: true })
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      written.push(String(chunk))
+      return true
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(limited('7'))
+        .mockResolvedValueOnce(Response.json({ data: {} }))
+    )
+
+    await settle(client().request('/api/v2/tables/tbl_1'))
+    write.mockRestore()
+    if (tty) Object.defineProperty(process.stderr, 'isTTY', tty)
+    else Reflect.deleteProperty(process.stderr, 'isTTY')
+
+    expect(written.join('')).toMatch(/^\r\u001b\[K.*Rate limited \(HTTP 429\)/)
+  })
+
   it('resends a GET answered 429 even when that response body is lost', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const lostBody = new Response(
@@ -528,6 +574,21 @@ describe('rate limiting', () => {
     await expect(
       client().request('/api/v2/tables', { method: 'POST', body: { name: 'leads' } })
     ).rejects.toMatchObject({ status: 429, retryAfterMs: 30_000 })
+  })
+
+  it('never resends a GET whose caller opted out, so an optional read never waits on a limit', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const fetch = vi.fn().mockResolvedValue(limited())
+    vi.stubGlobal('fetch', fetch)
+
+    const outcome = await settle(
+      client().request('/api/v2/workspaces/ws_1/workflows/source/resources', {
+        retryRateLimited: false,
+      })
+    )
+
+    expect(outcome.status).toBe('rejected')
+    expect(fetch).toHaveBeenCalledTimes(1)
   })
 
   it('resends a write that declared itself safe to resend after a 429', async () => {
@@ -686,6 +747,9 @@ describe('destructive operations are gated', () => {
     /** Staging blob bytes for a workspace source apply writes nothing a user sees. */
     'findMissingWorkspaceSourceBlobs',
     'stageWorkspaceSourceBlobs',
+    /** A source plan is a read sent as a POST: it writes nothing. */
+    'planWorkflowSource',
+    'planWorkspaceSource',
     'completeProjectFileUpload',
     'copyFileItems',
     'createProjectFile',

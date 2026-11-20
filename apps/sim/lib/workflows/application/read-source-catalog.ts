@@ -16,7 +16,6 @@ import {
   storedCatalogTypes,
   toolInputIds,
 } from '@/lib/workflows/code/catalog/workspace'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 
 interface ReadBlockCatalogInput {
   workspaceId: string
@@ -67,7 +66,6 @@ export const readSourceCatalog = defineAuthorizedWorkspaceUseCase({
     loadCatalogWorkspaceContext(input.workspaceId),
   authorizationOptions: { delegation: catalogDelegationPolicy },
   execute: async ({ principal, input, context }): Promise<BlockCatalog> => {
-    await requireWorkflowCodeEnabled(principal, context)
     const [gate, storedTypes] = await Promise.all([
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
       input.workflowId ? loadStoredTypes(context.workspaceId, input.workflowId) : undefined,

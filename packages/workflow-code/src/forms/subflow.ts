@@ -27,6 +27,11 @@ type ConfigEntry<S> = {
     kind: ConfigKind<NonNullable<S[F]>>
     /** Whether the type prints and runs the field for this spec; always when absent. */
     printedWhen?: (spec: S) => boolean
+    /**
+     * Why the executor does not read the field when `printedWhen` is false, and how to write what
+     * runs instead: the `W_FIELD_NOT_APPLICABLE` a source that writes it anyway gets.
+     */
+    unread?: { reason: string; hint: string }
     /** The value the executor reads for the field (its fallback for an absent or falsy one). */
     runs: (spec: S) => Json
   }
@@ -60,7 +65,14 @@ const LOOP_FORMS: Record<LoopType, ContainerForm<LoopSpec>> = {
   },
   doWhile: {
     // Without a condition the do-while runs as a count loop.
-    count: { ...LOOP_COUNT, printedWhen: (spec) => !spec.doWhileCondition },
+    count: {
+      ...LOOP_COUNT,
+      printedWhen: (spec) => !spec.doWhileCondition,
+      unread: {
+        reason: 'a do-while with a condition runs until the condition is false',
+        hint: 'Remove count, or remove condition to run count times.',
+      },
+    },
     condition: {
       field: 'doWhileCondition',
       kind: 'text',

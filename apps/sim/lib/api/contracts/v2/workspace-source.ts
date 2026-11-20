@@ -11,7 +11,11 @@ import {
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
-import { SOURCE_PATH_MAX_LENGTH } from '@/lib/api/contracts/v2/workflow-source'
+import {
+  provenanceGitShaSchema,
+  provenanceRepoSchema,
+  SOURCE_PATH_MAX_LENGTH,
+} from '@/lib/api/contracts/v2/workflow-source'
 
 const kindSchema = z
   .enum(APPLY_ORDER, {
@@ -281,11 +285,10 @@ const applyBodySchema = z
     provenance: z
       .object({
         client: z.enum(['cli', 'api']).describe('What submitted the directory.'),
-        gitSha: z
-          .string()
-          .regex(/^[0-9a-f]{7,64}$/, 'provenance.gitSha must be a hexadecimal commit hash')
+        gitSha: provenanceGitShaSchema
           .optional()
           .describe('The commit the directory was taken from; recorded in the audit log.'),
+        repo: provenanceRepoSchema.optional(),
       })
       .strict()
       .optional()
@@ -336,6 +339,19 @@ export const v2ApplyWorkspaceSourceContract = defineRouteContract({
   params: paramsSchema,
   query: applyQuerySchema,
   body: applyBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(applyDataSchema) },
+})
+
+/**
+ * `POST /api/v2/workspaces/{workspaceId}/source/plan`: what applying the directory would do, as a
+ * read. The body is an apply's without `provenance`; the response is an apply dry run's.
+ */
+export const v2PlanWorkspaceSourceContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workspaces/[workspaceId]/source/plan',
+  params: paramsSchema,
+  query: noInputSchema,
+  body: applyBodySchema.omit({ provenance: true }),
   response: { mode: 'json', schema: v2DataResponse(applyDataSchema) },
 })
 

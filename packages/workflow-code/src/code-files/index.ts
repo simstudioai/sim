@@ -1,5 +1,5 @@
 export { checkCodeFileBijection } from './bijection'
 export { type CodeFileRef, fromCodeFile } from './from-file'
 export { createJsContextScanner } from './lexer'
-export { isIdentifierName } from './ref-path'
+export { isIdentifierName, LOOP_PROPERTIES, PARALLEL_PROPERTIES } from './ref-path'
 export { type CodeFileLanguage, codeFileLanguage, toCodeFile } from './to-file'

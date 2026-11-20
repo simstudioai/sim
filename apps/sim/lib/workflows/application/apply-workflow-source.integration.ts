@@ -52,6 +52,7 @@ import {
   type ApplyWorkflowSourceInput,
   applyWorkflowSource,
   createWorkflowFromSource,
+  planWorkflowSource,
 } from '@/lib/workflows/application/apply-workflow-source'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
@@ -1796,7 +1797,7 @@ export default workflow('', {}, () => {
 
       const error = await expectRejected(apply(source, emptied), 'E_APPLY_BLOCK_DELETE')
       expect(error.diagnostics.find((d) => d.code === 'E_APPLY_BLOCK_DELETE')).toMatchObject({
-        message: 'This apply deletes 2 blocks the source no longer declares: Start, Score.',
+        message: 'This apply deletes 2 blocks the source no longer declares: Score, Start.',
         file: 'workflow.ts',
         ...positionOf(emptied['workflow.ts'], "'Source apply edge"),
       })
@@ -2030,6 +2031,34 @@ export default workflow('', {}, () => {
   })
 
   check(
+    'a plan is the dry run as a read: a reader gets it, it reports staleness, and it writes nothing',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const before = await snapshot(seeded.workflowId)
+      const files = edit(source.files, SCORE_CODE, 'return 71')
+      const plan = (base = source.base) =>
+        withPermissionGroupScope(() =>
+          planWorkflowSource.execute({
+            principal: reader,
+            input: { workflowId: seeded.workflowId, files, lock: source.lock, base },
+          })
+        )
+
+      const planned = await plan()
+      const dryRun = await apply(source, files, { dryRun: true })
+
+      expect(planned).toMatchObject({ dryRun: true, applied: false })
+      expect(planned.diff).toEqual(dryRun.diff)
+      expect(planned.diagnostics).toEqual(dryRun.diagnostics)
+      expect(planned.diff.blocks.modified.map((block) => block.id)).toEqual([seeded.scoreId])
+      const stale = await plan({ ...source.base, fingerprint: `sf1:${'0'.repeat(64)}` })
+      expect(stale.diagnostics.map((d) => d.code)).toContain('E_APPLY_STALE')
+      expect(await snapshot(seeded.workflowId)).toEqual(before)
+    }
+  )
+
+  check(
     'a schedule edited in source changes only the draft and reports needsRedeployment',
     async () => {
       const schedule = seedBlock('schedule', 'Every day', {
@@ -2129,13 +2158,17 @@ export default workflow('', {}, () => {
   )
 
   check(
-    'a committed apply records one audit row carrying the client, git sha and counts',
+    'a committed apply records one audit row carrying the client, git sha, repository and counts',
     async () => {
       const seeded = await seedWorkflow()
       const source = await getSource(seeded.workflowId)
 
       const result = await apply(source, edit(source.files, SCORE_CODE, 'return 81'), {
-        provenance: { client: 'cli', gitSha: '0123abcd' },
+        provenance: {
+          client: 'cli',
+          gitSha: '0123abcd',
+          repo: 'https://github.com/acme/flows.git',
+        },
       })
 
       const rows = await settledAuditRows(seeded.workflowId, 1)
@@ -2144,6 +2177,7 @@ export default workflow('', {}, () => {
         op: 'apply_source',
         client: 'cli',
         gitSha: '0123abcd',
+        repo: 'https://github.com/acme/flows.git',
         blocksAdded: 0,
         blocksRemoved: 0,
         blocksModified: 1,
@@ -2214,7 +2248,10 @@ export default workflow('', {}, () => {
 
 describe('renames in source', () => {
   /** Start → Boom → Tally → Report, each a function; Report's code reads Boom and Tally by $ref. */
-  async function seedChain(reportCode = 'return <boom.result> + <tally.result>') {
+  async function seedChain(
+    reportCode = 'return <boom.result> + <tally.result>',
+    tallyCode = 'return 2'
+  ) {
     const workflowId = generateId()
     const now = new Date()
     await db.insert(workflow).values({
@@ -2237,7 +2274,7 @@ describe('renames in source', () => {
     })
     const start: BlockState = { ...fn('Start', ''), type: 'start_trigger', subBlocks: {} }
     const boom = fn('Boom', 'return 1')
-    const tally = fn('Tally', 'return 2')
+    const tally = fn('Tally', tallyCode)
     const report = fn('Report', reportCode)
     const chain = [start, boom, tally, report]
     const saved = await saveWorkflowToNormalizedTables(workflowId, {
@@ -2294,6 +2331,51 @@ describe('renames in source', () => {
   }
 
   check(
+    'an output typo in an existing block is one refusal at the reference, as an offline check reports it',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      const written = await apply(
+        source,
+        {
+          'workflow.ts': [
+            '// @sim-sdk 1',
+            "import { api, response, trigger, workflow } from '@sim/workflow-sdk'",
+            '',
+            `export default workflow('Output typo ${seeded.workflowId}', {}, () => {`,
+            "  const start = trigger.start('Start', {})",
+            "  const fetch = api('Fetch', { url: 'https://example.com' })",
+            "  const reply = response('Reply', { dataMode: 'json', data: { items: fetch.data } })",
+            '  start.to(fetch)',
+            '  fetch.to(reply)',
+            '})',
+            '',
+          ].join('\n'),
+        },
+        { allowDelete: true }
+      )
+      expect(written.applied).toBe(true)
+      const stored = await getSource(seeded.workflowId)
+      const typo = edit(stored.files, 'fetch.data', 'fetch.dataa')
+
+      const replyLine =
+        typo['workflow.ts'].split('\n').findIndex((line) => line.includes('fetch.dataa')) + 1
+      const replyId = written.lock.blocks.reply?.id
+
+      const dryRun = await apply(stored, typo, { dryRun: true })
+
+      expect(
+        dryRun.diagnostics
+          .filter((d) => d.blockId === replyId || d.line === replyLine)
+          .map((d) => ({ code: d.code, severity: d.severity, file: d.file, line: d.line }))
+      ).toEqual([
+        { code: 'E_APPLY_UNRESOLVED_REF', severity: 'error', file: 'workflow.ts', line: replyLine },
+      ])
+      await expectRejected(apply(stored, typo), 'E_APPLY_UNRESOLVED_REF')
+    }
+  )
+
+  check(
     'a rename does not report W_JSON_REF_UNTYPED on a JSON field only its reference rewrite changed',
     async () => {
       const displayOnly = await seedUntypedReply()
@@ -2338,6 +2420,109 @@ describe('renames in source', () => {
     )
     expect(result.files['functions/report.js']).toBe('return $ref.bang.result + $ref.total.result')
   })
+
+  check('two blocks that swap display names are two renames that move no edge', async () => {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    const files = edit(
+      edit(edit(source.files, "fn('Boom'", "fn('Swap'"), "fn('Tally'", "fn('Boom'"),
+      "fn('Swap'",
+      "fn('Tally'"
+    )
+
+    const result = await apply(source, files)
+
+    expect(result.applied).toBe(true)
+    expect(result.diff.blocks.added).toEqual([])
+    expect(result.diff.blocks.removed).toEqual([])
+    expect(result.diff.blocks.renamed).toEqual([
+      { id: seeded.ids.boom, from: 'boom', to: 'tally' },
+      { id: seeded.ids.tally, from: 'tally', to: 'boom' },
+    ])
+    expect(result.diff.edges).toEqual({ added: 0, removed: 0 })
+  })
+
+  check('a retype is reported as a removed and an added block with all their edges', async () => {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    const entry = source.files['workflow.ts']
+      .replace(/import \{ /, 'import { api, ')
+      .replace(
+        / {2}const tally = fn\('Tally'.*\n/,
+        "  const tally = api('Tally', { url: 'https://x.test' })\n"
+      )
+    expect(entry).toContain("api('Tally'")
+    const files = { ...omit(source.files, ['functions/tally.js']), 'workflow.ts': entry }
+
+    const result = await apply(source, files)
+
+    expect(result.applied).toBe(true)
+    expect(codes(result.diagnostics)).toContain('W_MAT_RETYPE_RECREATED')
+    expect(result.diff.blocks.removed).toEqual([
+      { id: seeded.ids.tally, key: 'tally', type: 'function' },
+    ])
+    expect(result.diff.blocks.added).toEqual([
+      expect.objectContaining({ key: 'tally', type: 'api' }),
+    ])
+    expect(result.diff.edges).toEqual({ added: 2, removed: 2 })
+  })
+
+  check(
+    'after a name collision, renaming one block and dropping the other key override keeps both ids',
+    async () => {
+      const workflowId = generateId()
+      const now = new Date()
+      await db.insert(workflow).values({
+        id: workflowId,
+        userId: ownerId,
+        workspaceId,
+        name: `Source collision ${workflowId}`,
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const block = (name: string, type: string, code?: string): BlockState => ({
+        id: generateId(),
+        type,
+        name,
+        position: { x: 0, y: 0 },
+        subBlocks: code === undefined ? {} : { code: { id: 'code', type: 'code', value: code } },
+        outputs: {},
+        enabled: true,
+      })
+      const start = block('Start', 'start_trigger')
+      const first = block('Fetch Data', 'function', 'return 1')
+      const second = block('Fetch.Data', 'function', 'return 2')
+      const saved = await saveWorkflowToNormalizedTables(workflowId, {
+        blocks: { [start.id]: start, [first.id]: first, [second.id]: second },
+        edges: [
+          { id: generateId(), source: start.id, target: first.id },
+          { id: generateId(), source: first.id, target: second.id },
+        ],
+        loops: {},
+        parallels: {},
+      })
+      if (!saved.success) throw new Error(`Seeding the workflow failed: ${saved.error}`)
+      const source = await getSource(workflowId)
+      const entry = source.files['workflow.ts']
+      expect(entry).toContain("key: 'fetchdata~2'")
+      const edited = entry
+        .replace("fn('Fetch Data'", "fn('Get Data'")
+        .replace(/,?\s*key: 'fetchdata~2',?/, '')
+        .replace(/, \{\s*\}\)/, ')')
+
+      const result = await apply(source, { ...source.files, 'workflow.ts': edited })
+
+      expect(codes(result.diagnostics)).not.toContain('E_APPLY_BLOCK_DELETE')
+      expect(result.applied).toBe(true)
+      expect(result.diff.blocks.removed).toEqual([])
+      expect(result.diff.blocks.added).toEqual([])
+      expect(result.diff.blocks.renamed).toEqual([
+        { id: first.id, from: 'fetchdata', to: 'getdata' },
+        { id: second.id, from: 'fetchdata~2', to: 'fetchdata' },
+      ])
+    }
+  )
 
   check(
     'a block whose name and const both change while its wiring changes keeps its id',
@@ -2530,6 +2715,90 @@ describe('renames in source', () => {
     }
   )
 
+  check('a $ref the edit wrote into a Python function file is refused', async () => {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    const entry = source.files['workflow.ts'].replace(
+      /fn\('Boom', \{.*\}\)/,
+      "fn('Boom', { language: 'python', code: codeFile('./functions/boom.py') })"
+    )
+    expect(entry).toContain('boom.py')
+    const files = {
+      ...omit(source.files, ['functions/boom.js']),
+      'workflow.ts': entry,
+      'functions/boom.py': 'return $ref.start.value\n',
+    }
+
+    const dryRun = await apply(source, files, { dryRun: true })
+
+    expect(
+      dryRun.diagnostics
+        .filter((d) => d.severity === 'error')
+        .map((d) => ({ code: d.code, file: d.file }))
+    ).toEqual([{ code: 'E_APPLY_CODE_FILE_REF_SYNTAX', file: 'functions/boom.py' }])
+  })
+
+  check(
+    'refuses every edited Python file holding a $ref, however many the compile lists of that code',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      // More of one code than a compile lists, so the second file's are all left out of the listing.
+      const refs = Array.from({ length: 120 }, (_, i) => `v${i} = $ref.start.v${i}`)
+      const entry = source.files['workflow.ts']
+        .replace(
+          /fn\('Boom', \{.*\}\)/,
+          "fn('Boom', { language: 'python', code: codeFile('./functions/boom.py') })"
+        )
+        .replace(
+          /fn\('Tally', \{.*\}\)/,
+          "fn('Tally', { language: 'python', code: codeFile('./functions/tally.py') })"
+        )
+      const files = {
+        ...omit(source.files, ['functions/boom.js', 'functions/tally.js']),
+        'workflow.ts': entry,
+        'functions/boom.py': refs.join('\n'),
+        'functions/tally.py': refs.join('\n'),
+      }
+
+      const dryRun = await apply(source, files, { dryRun: true })
+
+      expect(
+        [
+          ...new Set(
+            dryRun.diagnostics
+              .filter((d) => d.code === 'E_APPLY_CODE_FILE_REF_SYNTAX')
+              .map((d) => d.file)
+          ),
+        ].sort()
+      ).toEqual(['functions/boom.py', 'functions/tally.py'])
+    }
+  )
+
+  check(
+    'refuses a missing block an edited file reads after a reference an inferred rename settles',
+    async () => {
+      // The stored Tally already reads more missing blocks than a compile lists of that code, so
+      // each of Report's findings is left out of the listing.
+      const ghosts = Array.from({ length: 20 }, (_, i) => `<ghost${i}.result>`)
+      const seeded = await seedChain(undefined, `return [${ghosts.join(', ')}]`)
+      const source = await getSource(seeded.workflowId)
+      const files = {
+        ...edit(renameIdent(source.files, 'boom', 'bang'), "fn('Boom'", "fn('Bang'"),
+        'functions/report.js': 'return $ref.boom.result + $ref.nosuchblock.result\n',
+      }
+
+      const dryRun = await apply(source, files, { dryRun: true })
+
+      expect(codes(dryRun.diagnostics)).toContain('W_MAT_INFERRED_RENAME')
+      expect(
+        dryRun.diagnostics
+          .filter((d) => d.severity === 'error')
+          .map((d) => ({ code: d.code, file: d.file }))
+      ).toEqual([{ code: 'E_APPLY_UNRESOLVED_REF', file: 'functions/report.js' }])
+    }
+  )
+
   check(
     'a dangling reference the stored code already holds stays a warning, whatever else the apply changes',
     async () => {
@@ -2547,4 +2816,183 @@ describe('renames in source', () => {
       ).toEqual([{ severity: 'warning', file: 'functions/report.js' }])
     }
   )
+})
+
+describe('iteration references outside their container', () => {
+  const LOOP_SOURCE = `// @sim-sdk 1
+import { fn, js, loop, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Each item', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { items: 'array' } })
+  const each = loop.forEach('Each Item', { collection: start.items }, (item) => {
+    const echo = fn('Echo', { code: js\`return \${item.index}\` })
+    item.to(echo)
+  })
+  const after = fn('After', { code: 'return 1' })
+  start.to(each)
+  each.to(after)
+})
+`
+
+  function create(source: string) {
+    return withPermissionGroupScope(() =>
+      createWorkflowFromSource.execute({
+        principal,
+        input: {
+          workspaceId,
+          name: `Source scope ${generateId()}`,
+          files: { 'workflow.ts': source },
+        },
+      })
+    )
+  }
+
+  check('a new block reading a loop index from after the loop is refused', async () => {
+    const source = LOOP_SOURCE.replace(
+      "fn('After', { code: 'return 1' })",
+      `fn('After', { code: js\`return \${each.index}\` })`
+    )
+    await expectRejected(create(source), 'E_APPLY_REF_OUT_OF_SCOPE')
+  })
+
+  check('moving a block that reads <loop.index> out of its loop is refused', async () => {
+    const created = await create(LOOP_SOURCE)
+    expect(created.applied).toBe(true)
+    const moved = LOOP_SOURCE.replace(
+      `    const echo = fn('Echo', { code: js\`return \${item.index}\` })\n    item.to(echo)\n`,
+      ''
+    ).replace(
+      '  start.to(each)\n',
+      "  const echo = fn('Echo', { code: 'return <loop.index>' })\n  after.to(echo)\n  start.to(each)\n"
+    )
+    expect(moved).not.toContain('item.to(echo)')
+
+    const dryRun = await apply(created, { 'workflow.ts': moved }, { dryRun: true })
+
+    expect(
+      dryRun.diagnostics
+        .filter((d) => d.severity === 'error')
+        .map((d) => ({ code: d.code, blockKey: d.blockKey }))
+    ).toEqual([{ code: 'E_APPLY_REF_OUT_OF_SCOPE', blockKey: 'echo' }])
+  })
+
+  check(
+    'a stored block that already reads <loop.index> outside a loop stays a warning',
+    async () => {
+      const workflowId = generateId()
+      const now = new Date()
+      await db.insert(workflow).values({
+        id: workflowId,
+        userId: ownerId,
+        workspaceId,
+        name: `Source scope ${workflowId}`,
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const block = (name: string, type: string, code?: string): BlockState => ({
+        id: generateId(),
+        type,
+        name,
+        position: { x: 0, y: 0 },
+        subBlocks: code === undefined ? {} : { code: { id: 'code', type: 'code', value: code } },
+        outputs: {},
+        enabled: true,
+      })
+      const start = block('Start', 'start_trigger')
+      const stray = block('Stray', 'function', 'return <loop.index>')
+      const tail = block('Tail', 'function', 'return 1')
+      const saved = await saveWorkflowToNormalizedTables(workflowId, {
+        blocks: { [start.id]: start, [stray.id]: stray, [tail.id]: tail },
+        edges: [
+          { id: generateId(), source: start.id, target: stray.id },
+          { id: generateId(), source: stray.id, target: tail.id },
+        ],
+        loops: {},
+        parallels: {},
+      })
+      if (!saved.success) throw new Error(`Seeding the workflow failed: ${saved.error}`)
+      const source = await getSource(workflowId)
+
+      const result = await apply(source, edit(source.files, "fn('Tail'", "fn('Last'"))
+
+      expect(result.applied).toBe(true)
+      expect(
+        result.diagnostics
+          .filter((d) => d.code.includes('OUT_OF_SCOPE') || d.code.endsWith('_LINT'))
+          .map((d) => ({ code: d.code, severity: d.severity, blockKey: d.blockKey }))
+      ).toEqual([{ code: 'W_REF_OUT_OF_SCOPE', severity: 'warning', blockKey: 'stray' }])
+    }
+  )
+})
+
+describe('workflow variables in source', () => {
+  /** `workflow.ts` with its `variables` option replaced by `variables` (source text). */
+  function withVariables(files: Record<string, string>, variables: string): Record<string, string> {
+    const entry = files['workflow.ts']
+    const edited = entry.replace(/variables: \{[^}]*\{[^}]*\}[^}]*\}/, `variables: ${variables}`)
+    expect(edited, 'the source declares its variables').not.toBe(entry)
+    return { ...files, 'workflow.ts': edited }
+  }
+
+  check('a variable renamed to a key of the same type keeps its id', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+
+    const result = await apply(
+      source,
+      withVariables(source.files, "{ limit: { type: 'number', value: 3 } }")
+    )
+
+    expect(result.applied).toBe(true)
+    expect(result.diff.variables).toMatchObject({
+      added: [],
+      removed: [],
+      renamed: [{ from: 'threshold', to: 'limit' }],
+    })
+    const [row] = await db
+      .select({ variables: workflow.variables })
+      .from(workflow)
+      .where(eq(workflow.id, seeded.workflowId))
+    expect(Object.keys(row.variables as Record<string, unknown>)).toEqual([seeded.variableId])
+    const [audit] = await settledAuditRows(seeded.workflowId, 1)
+    expect(audit?.metadata).toMatchObject({ variablesChanged: 1 })
+  })
+
+  check(
+    'an unrelated variable of the same type replacing one is a delete, refused without allowDelete',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const files = withVariables(source.files, "{ retries: { type: 'number', value: 5 } }")
+
+      const error = await expectRejected(apply(source, files), 'E_APPLY_VARIABLE_DELETE')
+      expect(error.diagnostics.find((d) => d.code === 'E_APPLY_VARIABLE_DELETE')?.hint).toMatch(
+        /If retries renames threshold, .* second apply, .* --allow-delete/
+      )
+      const allowed = await apply(source, files, { allowDelete: true, dryRun: true })
+      expect(allowed.diff.variables).toMatchObject({
+        added: ['retries'],
+        removed: ['threshold'],
+        renamed: [],
+      })
+    }
+  )
+
+  check('deleting a variable is refused without allowDelete, like deleting a block', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    const files = withVariables(source.files, '{}')
+    const before = await snapshot(seeded.workflowId)
+
+    const error = await expectRejected(apply(source, files), 'E_APPLY_VARIABLE_DELETE')
+
+    expect(error.diagnostics.find((d) => d.code === 'E_APPLY_VARIABLE_DELETE')?.message).toContain(
+      'threshold'
+    )
+    expect(await snapshot(seeded.workflowId)).toEqual(before)
+    const allowed = await apply(source, files, { allowDelete: true })
+    expect(allowed.applied).toBe(true)
+    expect(allowed.diff.variables.removed).toEqual(['threshold'])
+  })
 })

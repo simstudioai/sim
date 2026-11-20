@@ -29,8 +29,10 @@ import { hostname, tmpdir } from 'node:os'
 import { basename, dirname, join, posix, resolve } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
+import { codeFileReferences } from '@sim/workflow-code/code-files/references'
 import {
-  CODE_FILE_EXTENSIONS,
+  isCodeFilePath,
   SOURCE_BASE_FILE,
   SOURCE_ENTRY_FILE,
   SOURCE_CODE_DIR as SOURCE_FUNCTIONS_DIR,
@@ -38,6 +40,7 @@ import {
 } from '@sim/workflow-code/limits'
 import { fingerprintOf, KIND_DIRS } from '@sim/workspace-code'
 import type { Command } from 'commander'
+import { printError } from '#sim-cli/output/io'
 import type { ResolvedProfile } from '../../config/index'
 import { embedStore } from '../../embed-context'
 import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
@@ -65,6 +68,14 @@ export const SOURCE_GITIGNORE_FILE = '.gitignore'
  */
 export const SOURCE_WRITTEN_FILE = '.sim/written.json'
 /**
+ * Machine-local cache the CLI keeps beside its records: the stat each blob digest was taken at,
+ * which names this machine's files (device, inode, times) and so is never committed. The folder
+ * ignores itself (`.sim/cache/.gitignore`), whatever the repository's own `.gitignore` says.
+ */
+const SOURCE_CACHE_DIR = '.sim/cache'
+const SOURCE_STATS_FILE = `${SOURCE_CACHE_DIR}/stats.json`
+const SOURCE_CACHE_IGNORE_FILE = `${SOURCE_CACHE_DIR}/.gitignore`
+/**
  * The workspace a starter written by `workflows source create` was typed for, so the create that
  * follows targets that workspace. The CLI's own record: never sent, and removed once the workflow
  * exists.
@@ -86,17 +97,12 @@ export const SOURCE_DOWNLOADS_DIR = '.sim/downloads'
 export const SOURCE_STAGING_PREFIX = '.sim-staging-'
 
 /**
- * The only files a server answer may name: the entry file and function code under `functions/`,
- * named as the printer names them (`functions/<kebab ident>[-n].<js|py|sh>`). Anything else
- * (`.git/hooks/*`, `conftest.py`, a dotfile) is refused, whatever base URL answered.
+ * Whether a server answer may write `path` into the source directory: the entry file, or a code
+ * file as {@link isCodeFilePath} (the rule the compiler applies to `codeFile()`) names one.
+ * Anything else (`.git/hooks/*`, `conftest.py`, a dotfile) is refused, whatever base URL answered.
  */
-const FUNCTION_FILE = new RegExp(
-  `^${SOURCE_FUNCTIONS_DIR}/[a-z0-9$-]+\\.(?:${Object.values(CODE_FILE_EXTENSIONS).join('|')})$`
-)
-
-/** Whether a server answer may write `path` into the source directory. */
 function isPrintedSourcePath(path: string): boolean {
-  return path === SOURCE_ENTRY_FILE || FUNCTION_FILE.test(path)
+  return path === SOURCE_ENTRY_FILE || isCodeFilePath(path)
 }
 
 /** Refuses a server answer naming a file the printer never writes, before anything is written. */
@@ -106,6 +112,21 @@ export function assertPrintedSourcePaths(files: Record<string, string>): void {
       throw new SimApiError(`The workflow source named an unsafe file path: ${path}`, 0)
     }
   }
+}
+
+/**
+ * Refuses, before a write is sent, a code file the server would store but the CLI could never
+ * write back: one rule ({@link isCodeFilePath}) for both, so an apply is never stored and then
+ * reported as failed.
+ */
+export function assertSendableCodeFiles(files: Record<string, string>): void {
+  const refused = Object.keys(files).filter((path) => !isPrintedSourcePath(path))
+  if (refused.length === 0) return
+  throw new SimApiError(
+    `${refused.join(', ')} ${refused.length === 1 ? 'is not a code file path' : 'are not code file paths'} a workflow directory holds, so nothing was sent. Move the code to ${SOURCE_FUNCTIONS_DIR}/<name>.js (or .py, .sh: letters, digits, _, $, - and dots, not starting with a dot) and update its codeFile().`,
+    0,
+    'E_CODE_FILE_PATH'
+  )
 }
 
 const GITATTRIBUTES_LINES = [
@@ -220,6 +241,46 @@ export function directoryWorkspace(
     0,
     'SOURCE_OTHER_WORKSPACE'
   )
+}
+
+/** Which source command family a directory belongs to: one workflow's, or a whole workspace's. */
+export type SourceDirKind = 'workflow' | 'workspace'
+
+/**
+ * What `dir` holds, by its `.sim/base.json` (read leniently, as an apply reads it: a base the
+ * parser refuses still names what it is): a workflow base names its `workflowId`, a workspace base
+ * only its `workspaceId`. Without a base, a `workflow.ts` or a starter record at the root is a
+ * workflow directory (a workspace directory keeps its workflows under `workflows/<key>/`). `null`
+ * for a directory that holds neither, such as a new one.
+ */
+async function sourceDirKind(
+  dir: string
+): Promise<{ kind: SourceDirKind; readFrom: string | null } | null> {
+  const base = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE))
+  if (typeof base.workflowId === 'string') return { kind: 'workflow', readFrom: base.workflowId }
+  if (typeof base.workspaceId === 'string') {
+    return { kind: 'workspace', readFrom: base.workspaceId }
+  }
+  const starter = await readStarterWorkspace(dir)
+  if (starter !== null || (await readSourceText(dir, SOURCE_ENTRY_FILE)) !== null) {
+    return { kind: 'workflow', readFrom: null }
+  }
+  return null
+}
+
+/**
+ * Refuses a `kind` command on a directory of the other kind, whatever `--force` says: a workflow
+ * get into a workspace directory (or the reverse) would replace its base, so staleness could no
+ * longer be detected and its unapplied edits would sit in a directory neither command reads.
+ */
+export async function assertSourceDirKind(dir: string, kind: SourceDirKind): Promise<void> {
+  const held = await sourceDirKind(dir)
+  if (held === null || held.kind === kind) return
+  const message =
+    held.kind === 'workspace'
+      ? `${dir} is a workspace source directory${held.readFrom ? ` (workspace ${held.readFrom})` : ''}, so a \`sim workflows source\` command would replace its base. Edit a workflow of it in ${dir}/${KIND_DIRS.workflow}/<key> with \`sim workspaces source\` (check, status, apply) --dir ${dir}, or get the workflow into another directory.`
+      : `${dir} is a workflow source directory${held.readFrom ? ` (workflow ${held.readFrom})` : ''}, so a \`sim workspaces source\` command would replace its base. Use \`sim workflows source\` (get, check, status, apply) --dir ${dir}, or get the workspace into another directory.`
+  throw new SimApiError(message, 0, 'SOURCE_DIR_KIND_MISMATCH')
 }
 
 /** The workspace {@link SOURCE_STARTER_FILE} names, or `null` when the directory holds no starter. */
@@ -480,17 +541,29 @@ export interface StatDigest extends FileStat {
 }
 
 /**
- * `.sim/written.json`: each source file's digest as the CLI last wrote it, normalized, and for a
- * blob the stat its digest was taken at, so a later command reuses the digest of an untouched blob
- * instead of reading it again.
+ * `.sim/written.json`: each source file's digest as the CLI last wrote it, normalized, sorted by
+ * path. It holds nothing about this machine, so a clone reads it the same and a write that changes
+ * no file leaves it byte for byte.
  */
 interface WrittenRecord {
   version: 1
   files: Record<string, string>
-  stats?: Record<string, FileStat>
 }
 
-/** `.sim/written.json` as one command reads it, once. */
+/**
+ * `.sim/cache/stats.json`: for a blob, the stat its digest was taken at, beside that digest, so a
+ * later command on this machine reuses the digest of an untouched blob instead of reading it
+ * again. A stat whose digest is not the one `.sim/written.json` records is ignored.
+ */
+interface StatsRecord {
+  version: 1
+  stats: Record<string, StatDigest>
+}
+
+/**
+ * What the CLI last wrote, as one command reads it, once: the digests from `.sim/written.json`
+ * and the stats from `.sim/cache/stats.json` that still match them.
+ */
 export interface Written {
   digests: Record<string, string>
   stats: Record<string, FileStat>
@@ -521,14 +594,32 @@ export function writtenRecord(
   return { digests, stats: Object.fromEntries(recorded) }
 }
 
-/** The text of `.sim/written.json` for `written`. */
-export function writtenFile(written: Written): string {
-  const record: WrittenRecord = {
-    version: 1,
-    files: written.digests,
-    ...(Object.keys(written.stats).length > 0 ? { stats: written.stats } : {}),
-  }
-  return `${JSON.stringify(record, null, 2)}\n`
+/** `record` with its keys in path order, so the same entries always print the same text. */
+function sortedByPath<T>(record: Record<string, T>): Record<string, T> {
+  return Object.fromEntries(Object.entries(record).sort(([a], [b]) => compareStrings(a, b)))
+}
+
+/**
+ * The files that record `written`: `.sim/written.json` (committed) and, when a blob stat is
+ * recorded, the machine-local `.sim/cache/stats.json` with the cache folder's own `.gitignore`.
+ */
+export function writtenFiles(written: Written): Array<readonly [string, string]> {
+  const record: WrittenRecord = { version: 1, files: sortedByPath(written.digests) }
+  const files: Array<readonly [string, string]> = [
+    [SOURCE_WRITTEN_FILE, `${JSON.stringify(record, null, 2)}\n`],
+  ]
+  const stats = Object.entries(written.stats).flatMap(([path, stat]) =>
+    Object.hasOwn(written.digests, path)
+      ? [[path, { sha256: written.digests[path], ...fileStatOf(stat) }] as const]
+      : []
+  )
+  if (stats.length === 0) return files
+  const cache: StatsRecord = { version: 1, stats: sortedByPath(Object.fromEntries(stats)) }
+  return [
+    ...files,
+    [SOURCE_STATS_FILE, `${JSON.stringify(cache, null, 2)}\n`],
+    [SOURCE_CACHE_IGNORE_FILE, '*\n'],
+  ]
 }
 
 /** What the CLI recorded for its last write, empty when it recorded nothing. */
@@ -539,10 +630,14 @@ export async function readWritten(dir: string): Promise<Written> {
       (entry): entry is [string, string] => typeof entry[1] === 'string'
     )
   )
+  const cache = toRecord(await readSourceJson(dir, SOURCE_STATS_FILE))
   const stats: Record<string, FileStat> = {}
-  for (const [path, stat] of Object.entries(toRecord(record.stats))) {
-    const { dev, ino, size, mtimeMs, ctimeMs } = toRecord(stat)
+  for (const [path, stat] of Object.entries(toRecord(cache.stats))) {
+    const { sha256, dev, ino, size, mtimeMs, ctimeMs } = toRecord(stat)
     if (
+      typeof sha256 === 'string' &&
+      Object.hasOwn(digests, path) &&
+      digests[path] === sha256 &&
       typeof dev === 'number' &&
       typeof ino === 'number' &&
       typeof size === 'number' &&
@@ -685,7 +780,7 @@ async function recordFolderWrite(
     ),
   }
   const write: Array<readonly [string, string]> = [
-    [SOURCE_WRITTEN_FILE, writtenFile({ digests, stats: record.stats })],
+    ...writtenFiles({ digests, stats: record.stats }),
   ]
   const workspaceBase = toRecord(await readSourceJson(folder.root, SOURCE_BASE_FILE))
   const resources = toRecord(workspaceBase.resources)
@@ -750,9 +845,25 @@ interface PrintedSourceAnswer {
 }
 
 /**
+ * The files of a stored write's answer the CLI may write: every one {@link isPrintedSourcePath}
+ * accepts. The write is already stored, so a path refused here is left as it is on disk (it is
+ * the author's own file, which the server echoed) with a warning, never thrown: the lock and base
+ * are still written, so the directory matches the stored workflow.
+ */
+function writableFiles(files: Record<string, string>): Record<string, string> {
+  const refused = Object.keys(files).filter((path) => !isPrintedSourcePath(path))
+  if (refused.length === 0) return files
+  printError(
+    `warning: the answer named ${refused.join(', ')}, which the CLI never writes; the write was saved and the lock and base were written, but ${refused.length === 1 ? 'that file was' : 'those files were'} left as ${refused.length === 1 ? 'it is' : 'they are'} on disk.`
+  )
+  return Object.fromEntries(Object.entries(files).filter(([path]) => isPrintedSourcePath(path)))
+}
+
+/**
  * Writes a server answer into the source directory in one staged update: its files, lock and base,
  * plus `extra`, pruning the function files the previous lock named and the new one no longer does.
- * Returns how many files it wrote.
+ * Returns how many files it wrote. A get refuses an unsafe path first
+ * ({@link assertPrintedSourcePaths}); after a stored write one is skipped ({@link writableFiles}).
  */
 export async function writeBack(
   dir: string,
@@ -760,19 +871,16 @@ export async function writeBack(
   previousLock: unknown,
   extra: SourceDirChange = { write: [] }
 ): Promise<number> {
-  assertPrintedSourcePaths(answer.files)
+  const files = writableFiles(answer.files)
   const folder = await workspaceFolderOf(dir)
   const printed: Array<readonly [string, string]> = [
-    ...Object.entries(answer.files),
+    ...Object.entries(files),
     [SOURCE_LOCK_FILE, `${JSON.stringify(answer.lock, null, 2)}\n`],
     [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`],
   ]
-  const write = [
-    ...printed,
-    ...(folder ? [] : [[SOURCE_WRITTEN_FILE, writtenFile(writtenRecord(answer.files))] as const]),
-    ...extra.write,
-  ]
+  const write = [...printed, ...(folder ? [] : writtenFiles(writtenRecord(files))), ...extra.write]
   const orphaned = orphanedCodeFiles(previousLock, answer.lock, Object.keys(answer.files))
+  const unnamed = await unnamedCodeFiles(dir, previousLock, answer, orphaned)
   await updateSourceDir(dir, {
     write,
     remove: [
@@ -783,7 +891,38 @@ export async function writeBack(
     ],
   })
   if (folder) await recordFolderWrite(folder, Object.fromEntries(printed), orphaned, answer.base)
+  if (unnamed.length > 0) {
+    printError(
+      `warning: ${unnamed.join(', ')} ${unnamed.length === 1 ? 'is' : 'are'} no longer named by ${SOURCE_ENTRY_FILE} (the printed source names no code file there, such as code now printed as stored()), so ${unnamed.length === 1 ? 'it was' : 'they were'} left on disk as written: delete ${unnamed.length === 1 ? 'it' : 'them'}, or name ${unnamed.length === 1 ? 'it' : 'them'} again with codeFile(). Never commit one that holds a credential.`
+    )
+  }
   return write.length
+}
+
+/**
+ * The code files a write leaves on disk although the printed source no longer names them: named
+ * by the entry file on disk before the write or by the previous lock, neither written nor pruned
+ * now, and still present. A file the person added is never deleted, so the caller says where it
+ * is instead: one that held a literal secret now printed as `stored()` must not be committed.
+ */
+async function unnamedCodeFiles(
+  dir: string,
+  previousLock: unknown,
+  answer: PrintedSourceAnswer,
+  pruned: readonly string[]
+): Promise<string[]> {
+  const entry = await readSourceText(dir, SOURCE_ENTRY_FILE)
+  const named = lockCodeFiles(previousLock)
+  for (const literal of entry === null ? [] : codeFileReferences(entry)) {
+    const path = sourceRelativePath(literal)
+    if (path !== null) named.add(path)
+  }
+  const kept = new Set([...Object.keys(answer.files), ...lockCodeFiles(answer.lock), ...pruned])
+  const candidates = [...named].filter((path) => isCodeFilePath(path) && !kept.has(path))
+  const present = await Promise.all(
+    candidates.map(async (path) => (await readSourceText(dir, path)) !== null)
+  )
+  return candidates.filter((_, index) => present[index]).sort(compareStrings)
 }
 
 /**

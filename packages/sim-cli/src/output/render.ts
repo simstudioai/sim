@@ -300,9 +300,15 @@ export function printDocument(format: OutputFormat, raw: unknown): void {
 
 /**
  * Prints a single record: machine formats from the raw value, otherwise aligned
- * lines. As in `printList`, only the `table` rendering is clamped.
+ * lines. As in `printList`, only the `table` rendering is clamped, and never a field `whole` names
+ * (a command to run next, which a clipped flag would make wrong).
  */
-export function printRecord(format: OutputFormat, fields: Array<[string, string]>, raw: unknown) {
+export function printRecord(
+  format: OutputFormat,
+  fields: Array<[string, string]>,
+  raw: unknown,
+  whole: ReadonlySet<string> = new Set()
+) {
   const machine = renderMachine(format, raw)
   if (machine !== null) {
     printLine(machine)
@@ -320,8 +326,9 @@ export function printRecord(format: OutputFormat, fields: Array<[string, string]
 
   const width = Math.max(...safeFields.map(([label]) => visibleWidth(label)))
   for (const [label, value] of safeFields) {
+    const line = oneLine(value)
     printLine(
-      `${styles().dim(pad(`${label}:`, width + 1))}  ${clamp(oneLine(value), MAX_RECORD_WIDTH)}`
+      `${styles().dim(pad(`${label}:`, width + 1))}  ${whole.has(label) ? line : clamp(line, MAX_RECORD_WIDTH)}`
     )
   }
 }

@@ -4,15 +4,12 @@
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { describe, expect, it } from 'vitest'
-import {
-  v2WorkspaceSourceErrorPolicy,
-  withSourceSlot,
-} from '@/lib/workspace-source/api/route-policies'
+import { renderSourceSlotBusy, withSourceSlot } from '@/lib/workflows/api/source-slots'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 
 const principal = createSessionPrincipal({ userId: generateId(), sessionId: generateId() })
 
-/** A source use case whose every run waits until `finish` is called. */
+/** A source use case whose every run waits until `finishOne` is called. */
 function blockingUseCase() {
   const waiting: Array<() => void> = []
   const useCase = {
@@ -34,7 +31,7 @@ async function refusalOf(run: Promise<unknown>) {
     () => null,
     (caught: unknown) => caught
   )
-  return v2WorkspaceSourceErrorPolicy.render(error)
+  return renderSourceSlotBusy(error)
 }
 
 describe('withSourceSlot', () => {
@@ -59,5 +56,21 @@ describe('withSourceSlot', () => {
     const admitted = apply.execute({ principal, input: {} })
     for (let finished = 0; finished < 4; finished += 1) applies.finishOne()
     await expect(Promise.all([...running, admitted])).resolves.toHaveLength(5)
+  })
+
+  it('runs plans in slots of their own: never in an apply’s, and never past their own cap', async () => {
+    const plans = blockingUseCase()
+    const plan = withSourceSlot(plans.useCase, 'plan')
+    const applies = blockingUseCase()
+    const apply = withSourceSlot(applies.useCase, 'apply')
+    const planning = Array.from({ length: 4 }, () => plan.execute({ principal, input: {} }))
+
+    expect((await refusalOf(plan.execute({ principal, input: {} })))?.status).toBe(429)
+    const applying = Array.from({ length: 4 }, () => apply.execute({ principal, input: {} }))
+    for (let finished = 0; finished < 4; finished += 1) applies.finishOne()
+    await expect(Promise.all(applying)).resolves.toHaveLength(4)
+
+    for (let finished = 0; finished < 4; finished += 1) plans.finishOne()
+    await expect(Promise.all(planning)).resolves.toHaveLength(4)
   })
 })

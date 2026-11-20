@@ -7,6 +7,7 @@ import type { SimApiError } from '../../http/client'
 import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, mockedProfile } from '../../test/context-mock'
 import { digest } from './source-dir'
+import { storedEdgesWrite } from './stored-edges'
 import { attachWorkflowSourceCheck } from './workflow-source-check'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -36,6 +37,19 @@ async function check(): Promise<void> {
 
 function cacheCatalog(): void {
   cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, readFileSync(FIXTURE_CATALOG, 'utf8'))
+}
+
+/** Records in `.sim/base.json` that the source was printed with the fixture catalog, as a get does. */
+function printedWithFixture(): void {
+  writeFileSync(
+    join(dir, '.sim/base.json'),
+    JSON.stringify({
+      workflowId: 'wf',
+      workspaceId: WORKSPACE_ID,
+      fingerprint: 'sf1:a',
+      catalogHash: 'fixture',
+    })
+  )
 }
 
 function result(): Record<string, unknown> {
@@ -185,13 +199,16 @@ const STORED_SHAPES_RENAMED = STORED_SHAPES.replace(
   "loop.for('Retry Loop',"
 ).replace("api('A',", "api('Alpha',")
 
-function writeLock(keys: readonly string[]): void {
+function writeLock(keys: readonly string[], parents: Record<string, string> = {}): void {
   writeFileSync(
     join(dir, '.sim/lock.json'),
     JSON.stringify({
       version: 1,
       blocks: Object.fromEntries(
-        keys.map((key, order) => [key, { id: `id-${key}`, parent: null, ident: key, order }])
+        keys.map((key, order) => [
+          key,
+          { id: `id-${key}`, parent: parents[key] ?? null, ident: key, order },
+        ])
       ),
       variables: {},
     })
@@ -363,8 +380,9 @@ describe('sim workflows source check', () => {
 
     const error = await check().catch((caught: unknown) => caught)
 
+    expect((error as SimApiError).message).toContain('is a workspace source directory')
     expect((error as SimApiError).message).toContain(
-      `is a workspace source directory: check it with \`sim workspaces source check --dir ${dir}\``
+      `\`sim workspaces source\` (check, status, apply) --dir ${dir}`
     )
   })
 
@@ -459,8 +477,8 @@ describe('sim workflows source check', () => {
       join(dir, 'workflow.ts'),
       CLEAN.replace(
         "const done = response('Done', { body: { received: start.message } })",
-        "const call = api('Call', { url: 'https://x', method: 'POST', body: { n: start.missing.deep } })\n  const done = response('Done', { body: { received: start.message } })"
-      ).replace('import { response,', 'import { api, response,')
+        "const calc = fn('Calc', { code: 'return 1' })\n  const call = api('Call', { url: 'https://x', method: 'POST', body: { n: calc.result.deep } })\n  const done = response('Done', { body: { received: start.message } })"
+      ).replace('import { response,', 'import { api, fn, response,')
     )
     const untyped = () =>
       ((result().diagnostics ?? []) as Array<{ code: string }>).filter(
@@ -470,12 +488,132 @@ describe('sim workflows source check', () => {
     await check()
     expect(untyped()).toHaveLength(1)
 
-    writeLock(['start', 'done', 'call'])
+    writeLock(['start', 'done', 'calc', 'call'])
     await check()
     expect(untyped()).toEqual([])
 
     await checkIn(dir, '--strict')
     expect(untyped()).toHaveLength(1)
+  })
+
+  it('fails on an iteration reference a new block reads outside its loop, and on one a move left behind', async () => {
+    cacheCatalog()
+    const source = (echo: string) => `// @sim-sdk 1
+import { fn, loop, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const each = loop.for('Each', { count: 2 }, (p) => {
+    const inner = fn('Inner', { code: 'return 1' })
+    p.to(inner)
+  })
+  ${echo}
+  start.to(each)
+})
+`
+    const scoped = () =>
+      ((result().diagnostics ?? []) as Array<{ code: string; severity: string }>).filter(
+        (finding) => finding.code.includes('OUT_OF_SCOPE')
+      )
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      source("const echo = fn('Echo', { code: 'return <loop.index>' })")
+    )
+
+    await check()
+    expect(scoped()).toEqual([
+      expect.objectContaining({ code: 'E_APPLY_REF_OUT_OF_SCOPE', severity: 'error' }),
+    ])
+
+    writeLock(['start', 'each', 'inner', 'echo'], { inner: 'each', echo: 'each' })
+    await check()
+    expect(scoped()).toEqual([
+      expect.objectContaining({ code: 'E_APPLY_REF_OUT_OF_SCOPE', severity: 'error' }),
+    ])
+
+    writeLock(['start', 'each', 'inner', 'echo'], { inner: 'each' })
+    process.exitCode = undefined
+    await check()
+    expect(scoped()).toEqual([
+      expect.objectContaining({ code: 'W_REF_OUT_OF_SCOPE', severity: 'warning' }),
+    ])
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('fails on an iteration reference an edit types into a block the lock binds outside its loop', async () => {
+    cacheCatalog()
+    const source = (code: string) => `// @sim-sdk 1
+import { fn, loop, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const each = loop.for('Each', { count: 2 }, (p) => {
+    const inner = fn('Inner', { code: 'return 1' })
+    p.to(inner)
+  })
+  const echo = fn('Echo', { code: '${code}' })
+  start.to(each)
+})
+`
+    const lock = {
+      version: 1,
+      blocks: {
+        start: { id: 'id-start', parent: null, ident: 'start', order: 0 },
+        each: { id: 'id-each', parent: null, ident: 'each', order: 1 },
+        inner: { id: 'id-inner', parent: 'each', ident: 'inner', order: 2 },
+        echo: { id: 'id-echo', parent: null, ident: 'echo', order: 3 },
+      },
+      variables: {},
+    }
+    const printed = source('return 1')
+    printedWithFixture()
+    writeFileSync(join(dir, 'workflow.ts'), printed)
+    writeFileSync(join(dir, '.sim/lock.json'), JSON.stringify(lock))
+    const record = storedEdgesWrite(
+      { files: { 'workflow.ts': printed }, lock, base: { fingerprint: 'sf1:a' } },
+      JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
+    )
+    if (!record) throw new Error('no stored-edges record')
+    writeFileSync(join(dir, record[0]), record[1])
+    writeFileSync(join(dir, 'workflow.ts'), source('return <loop.index>'))
+
+    await check()
+
+    expect(
+      ((result().diagnostics ?? []) as Array<{ code: string; severity: string }>).filter(
+        (finding) => finding.code.includes('OUT_OF_SCOPE')
+      )
+    ).toEqual([expect.objectContaining({ code: 'E_APPLY_REF_OUT_OF_SCOPE', severity: 'error' })])
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('fails on $ref in a Python function file, naming the tag the file writes instead', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(join(dir, 'functions/total.py'), 'q = $ref.start.q\nreturn q\n')
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { q: 'string' } })
+  const total = fn('Total', { language: 'python', code: codeFile('./functions/total.py') })
+  start.to(total)
+})
+`
+    )
+
+    await check()
+    expect(result().diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'E_APPLY_CODE_FILE_REF_SYNTAX',
+        severity: 'error',
+        file: 'functions/total.py',
+        line: 1,
+      })
+    )
+    expect(process.exitCode).toBe(1)
   })
 
   it('fails on a dangling $ref in a new function file by default, and on any with --strict', async () => {
@@ -593,6 +731,217 @@ export default workflow('W', {}, () => {
       expect(result()).toMatchObject({ errors: 0, warnings: 1 })
       expect(process.exitCode).toBeUndefined()
     }
+  })
+
+  it('fails on a dangling $ref in an unedited file that a bound block now runs instead of its own', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const total = fn('Total', { code: codeFile('./functions/sum.js') })
+  const sum = fn('Sum', { code: codeFile('./functions/sum.js') })
+  start.to(total)
+  total.to(sum)
+})
+`
+    )
+    const blocks = (codeFiles: Record<string, string>) =>
+      Object.fromEntries(
+        ['start', 'total', 'sum'].map((key, order) => [
+          key,
+          {
+            id: `id-${key}`,
+            parent: null,
+            ident: key,
+            order,
+            ...(codeFiles[key] ? { codeFile: codeFiles[key] } : {}),
+          },
+        ])
+      )
+    writeFileSync(
+      join(dir, '.sim/lock.json'),
+      JSON.stringify({
+        version: 1,
+        blocks: blocks({ total: 'functions/total.js', sum: 'functions/sum.js' }),
+        variables: {},
+      })
+    )
+    writeWritten({
+      'functions/total.js': 'return 1\n',
+      'functions/sum.js': 'return $ref.ordertotals.sum\n',
+    })
+    writeFileSync(join(dir, 'functions/sum.js'), 'return $ref.ordertotals.sum\n')
+
+    await check()
+
+    expect(result().diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'E_APPLY_UNRESOLVED_REF',
+        severity: 'error',
+        file: 'functions/sum.js',
+      })
+    )
+  })
+
+  it('keeps a $ref to a block the source no longer declares a warning, as the server may infer its rename', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const bang = fn('Bang', { code: 'return 1' })
+  const report = fn('Report', { code: codeFile('./functions/report.js') })
+  start.to(bang)
+  bang.to(report)
+})
+`
+    )
+    writeLock(['start', 'boom', 'report'])
+    writeWritten({ 'functions/report.js': 'return $ref.boom.result\n' })
+    writeFileSync(join(dir, 'functions/report.js'), 'return $ref.boom.result + 1\n')
+
+    await check()
+
+    expect(result()).toMatchObject({ errors: 0 })
+    expect(result().diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'W_UNRESOLVED_REF',
+        severity: 'warning',
+        file: 'functions/report.js',
+      })
+    )
+  })
+
+  it('still fails on a missing block past the warning cap when the listed ones may be renames', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const bang = fn('Bang', { code: 'return 1' })
+  const report = fn('Report', { code: codeFile('./functions/report.js') })
+  start.to(bang)
+  bang.to(report)
+})
+`
+    )
+    writeLock(['start', 'boom', 'report'])
+    writeWritten({ 'functions/report.js': 'return 1\n' })
+    const renamed = Array.from({ length: 20 }, (_, i) => `$ref.boom.r${i}`)
+    writeFileSync(
+      join(dir, 'functions/report.js'),
+      `return [${[...renamed, '$ref.nosuchblock.value'].join(', ')}]\n`
+    )
+
+    await check()
+
+    expect(result().diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'E_APPLY_UNRESOLVED_REF', file: 'functions/report.js' })
+    )
+  })
+
+  describe('a reference to an output the block lacks', () => {
+    /** Start → Call (an HTTP request) → Done, whose JSON body reads `call.<output>`. */
+    const reads = (output: string) =>
+      CLEAN.replace(
+        "const done = response('Done', { body: { received: start.message } })",
+        `const call = api('Call', { url: 'https://example.com', method: 'GET' })\n  const done = response('Done', { body: { items: call.${output} } })`
+      )
+        .replace('  start.to(done)', '  start.to(call)\n  call.to(done)')
+        .replace('import { response,', 'import { api, response,')
+
+    /** Writes `printed` as a get leaves it: the source, its lock and its stored-edges record. */
+    function writePrinted(printed: string): void {
+      const lock = {
+        version: 1,
+        blocks: Object.fromEntries(
+          ['start', 'call', 'done'].map((key, order) => [
+            key,
+            { id: `id-${key}`, parent: null, ident: key, order },
+          ])
+        ),
+        variables: {},
+      }
+      printedWithFixture()
+      writeFileSync(join(dir, 'workflow.ts'), printed)
+      writeFileSync(join(dir, '.sim/lock.json'), JSON.stringify(lock))
+      const record = storedEdgesWrite(
+        { files: { 'workflow.ts': printed }, lock, base: { fingerprint: 'sf1:a' } },
+        JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
+      )
+      if (!record) throw new Error('no stored-edges record')
+      writeFileSync(join(dir, record[0]), record[1])
+    }
+
+    const findings = () =>
+      ((result().diagnostics ?? []) as Array<{ code: string; severity: string }>).map(
+        ({ code, severity }) => `${severity} ${code}`
+      )
+
+    it('fails as the server refuses it once an edit types it into a block the lock binds', async () => {
+      cacheCatalog()
+      writePrinted(reads('data'))
+      await check()
+      expect(result()).toMatchObject({ errors: 0 })
+
+      writeFileSync(join(dir, 'workflow.ts'), reads('dataa'))
+      await check()
+
+      expect(findings()).toEqual(['error E_APPLY_UNRESOLVED_REF'])
+      expect(process.exitCode).toBe(1)
+    })
+
+    it('stays a warning on a block the stored workflow already holds that way', async () => {
+      cacheCatalog()
+      writePrinted(reads('dataa'))
+      await check()
+      expect(findings()).toEqual(['warning W_UNKNOWN_OUTPUT_PATH'])
+      expect(process.exitCode).toBeUndefined()
+    })
+
+    it('fails with --no-strict too, as the server refuses it whatever the client asks', async () => {
+      cacheCatalog()
+      writePrinted(reads('data'))
+      writeFileSync(join(dir, 'workflow.ts'), reads('dataa'))
+      await checkIn(dir, '--no-strict')
+      expect(findings()).toEqual(['error E_APPLY_UNRESOLVED_REF'])
+      expect(process.exitCode).toBe(1)
+    })
+
+    it('claims no refusal when the catalog the source was printed with is not cached', async () => {
+      cacheCatalog()
+      writePrinted(reads('data'))
+      writeFileSync(
+        join(dir, '.sim/base.json'),
+        JSON.stringify({ workflowId: 'wf', workspaceId: WORKSPACE_ID, fingerprint: 'sf1:a' })
+      )
+      writeFileSync(join(dir, 'workflow.ts'), reads('dataa'))
+      await check()
+      expect(findings()).toEqual(['warning W_UNKNOWN_OUTPUT_PATH'])
+      expect(process.exitCode).toBeUndefined()
+    })
+
+    it('keeps x.error on a block with no error edge a warning, which the server never refuses', async () => {
+      cacheCatalog()
+      writePrinted(reads('data'))
+      writeFileSync(join(dir, 'workflow.ts'), reads('error'))
+      await check()
+      expect(findings()).toEqual(['warning W_OUTPUT_PATH_UNDECLARED'])
+      expect(process.exitCode).toBeUndefined()
+    })
   })
 
   it('fails on a bound block with --strict and on nothing with --no-strict', async () => {
