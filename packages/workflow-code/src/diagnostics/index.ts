@@ -18,7 +18,6 @@ export {
   EDIT_REFUSALS,
   type RefusalClass,
   raisedMessage,
-  refusalClass,
   refusalClassifier,
   refuseEditedFindings,
 } from './refusals'

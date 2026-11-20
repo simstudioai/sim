@@ -42,7 +42,7 @@ interface BoundedFinding {
 }
 
 /** What a bound left out of a list, by severity, beside how long the list was. */
-export interface DroppedFindings {
+interface DroppedFindings {
   /** Findings in the list, the `I_FINDINGS_TRUNCATED` it already carried aside. */
   total: number
   error: number
