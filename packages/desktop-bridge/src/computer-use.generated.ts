@@ -255,7 +255,7 @@ const EventBoundary = DateOrDateTime.describe(
   "ISO 8601 date-time, or YYYY-MM-DD when allDay is true. Without an offset it is this Mac's local time, as typing it into Calendar would be.",
 );
 
-/** Typed app commands through the OS's own data frameworks, never a script: allowlisted creates, bounded reads and reminder updates by id. Nothing is deleted. */
+/** Typed app commands through the OS's own data frameworks, never a script: allowlisted creates, bounded reads, reminder or event updates by id, and additions to a contact. Nothing is deleted. */
 export const AppCommandSchema = z.discriminatedUnion("name", [
   z.strictObject({ name: z.literal("list_reminder_lists") }),
   z.strictObject({
@@ -331,6 +331,46 @@ export const AppCommandSchema = z.discriminatedUnion("name", [
       .describe("An id from list_calendars; omit for the default calendar."),
     alertMinutesBefore: z.number().int().min(0).max(40_320).optional(),
   }),
+  z
+    .strictObject({
+      name: z.literal("find_events"),
+      id: z.string().min(1).max(256).optional().describe("Read just this event."),
+      calendarId: z
+        .string()
+        .min(1)
+        .max(256)
+        .optional()
+        .describe("An id from list_calendars; omit for every calendar."),
+      from: DateOrDateTime.optional().describe("Range start (this Mac's local time without an offset)."),
+      to: DateOrDateTime.optional().describe(
+        "Range end, at most 31 days after from; a YYYY-MM-DD end includes that whole day.",
+      ),
+      titleContains: z.string().min(1).max(256).optional().describe("Case-insensitive part of the title."),
+    })
+    .refine((find) => find.id !== undefined || (find.from !== undefined && find.to !== undefined), {
+      message: "Pass id, or from and to",
+    }),
+  z
+    .strictObject({
+      name: z.literal("update_event"),
+      id: z
+        .string()
+        .min(1)
+        .max(256)
+        .describe("An id from find_events or create_event; repeating events are refused."),
+      title: CommandTitle.optional(),
+      start: EventBoundary.optional(),
+      end: EventBoundary.optional(),
+      location: z.string().max(1024).optional().describe("Replaces the location; an empty string clears it."),
+      notes: CommandNotes.describe("Replaces the notes; an empty string clears them."),
+    })
+    .refine(
+      (update) =>
+        [update.title, update.start, update.end, update.location, update.notes].some(
+          (value) => value !== undefined,
+        ),
+      { message: "An update needs at least one field to change" },
+    ),
   z.strictObject({ name: z.literal("list_contact_groups") }),
   z.strictObject({
     name: z.literal("create_contact_group"),
@@ -361,6 +401,39 @@ export const AppCommandSchema = z.discriminatedUnion("name", [
         message: "A contact needs a name or an organization",
       },
     ),
+  z
+    .strictObject({
+      name: z.literal("find_contacts"),
+      id: z.string().min(1).max(256).optional().describe("Read just this contact."),
+      nameContains: z.string().min(2).max(256).optional().describe("Part of a person's name."),
+    })
+    .refine((find) => find.id !== undefined || find.nameContains !== undefined, {
+      message: "Pass id or nameContains",
+    }),
+  z
+    .strictObject({
+      name: z.literal("update_contact"),
+      id: z.string().min(1).max(256).describe("An id from find_contacts or create_contact."),
+      emails: z
+        .array(z.string().min(3).max(320))
+        .max(5)
+        .optional()
+        .describe("Emails to add; existing ones stay."),
+      phones: z
+        .array(z.string().min(1).max(64))
+        .max(5)
+        .optional()
+        .describe("Phones to add; existing ones stay."),
+      groupId: z
+        .string()
+        .min(1)
+        .max(256)
+        .optional()
+        .describe("A group from list_contact_groups or create_contact_group to add the contact to."),
+    })
+    .refine((update) => Boolean(update.emails?.length || update.phones?.length || update.groupId), {
+      message: "An update needs an email, phone or group to add",
+    }),
 ]);
 export type AppCommand = z.infer<typeof AppCommandSchema>;
 
@@ -462,6 +535,24 @@ const ReminderItem = z.strictObject({
   notes: z.string().max(8000).optional(),
 });
 
+const EventItem = z.strictObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(1024),
+  list: z.string().max(1024),
+  start: z.string().max(64),
+  end: z.string().max(64),
+  allDay: z.boolean(),
+  recurring: z.boolean(),
+  location: z.string().max(1024).optional(),
+  notes: z.string().max(8000).optional(),
+});
+
+const ContactItem = z.strictObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(1024),
+  organization: z.string().max(1024).optional(),
+});
+
 const SavedItem = z.strictObject({
   id: z.string().min(1).max(256),
   title: z.string().max(1024),
@@ -479,28 +570,37 @@ export const ComputerUseCommandResultSchema = z
       "update_reminder",
       "list_calendars",
       "create_event",
+      "find_events",
+      "update_event",
       "list_contact_groups",
       "create_contact_group",
       "create_contact",
+      "find_contacts",
+      "update_contact",
     ]),
     created: SavedItem.optional(),
     updated: SavedItem.optional(),
     items: z.array(CommandItem).max(200).optional(),
     reminders: z.array(ReminderItem).max(50).optional(),
+    events: z.array(EventItem).max(50).optional(),
+    contacts: z.array(ContactItem).max(50).optional(),
     truncated: z
       .boolean()
       .optional()
-      .describe("True when more items exist than the read returns (200 for lists, 50 for reminders)."),
+      .describe("True when more items exist than the read returns (200 for lists, 50 for finds)."),
   })
   .refine(
     (result) => {
       if (result.command.startsWith("create_")) return result.created !== undefined;
       if (result.command.startsWith("update_")) return result.updated !== undefined;
-      if (result.command.startsWith("find_")) return result.reminders !== undefined;
+      if (result.command === "find_reminders") return result.reminders !== undefined;
+      if (result.command === "find_events") return result.events !== undefined;
+      if (result.command === "find_contacts") return result.contacts !== undefined;
       return result.items !== undefined;
     },
     {
-      message: "A create returns created, an update updated, a find reminders, and a list items",
+      message:
+        "A create returns created, an update updated, a find its reminders, events or contacts, and a list items",
     },
   );
 
