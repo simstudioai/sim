@@ -975,6 +975,39 @@ describe('materialize: identity', () => {
     }
   })
 
+  it.each([
+    ['number', 0],
+    ['boolean', false],
+    ['plain', ''],
+  ] as const)(
+    'keeps the id of a variable holding %s %j renamed with every reference to it',
+    (type, value) => {
+      const pulled = workflowState(
+        [
+          blockState('a1', 'function', 'Read', { code: 'return <variable.retries> + 1' }),
+          blockState('a2', 'function', 'Other', { code: 'return 2' }),
+        ],
+        { variables: { 'var-1': { id: 'var-1', name: 'Retries', type, value } } }
+      )
+      const rename = (code: string, renamedValue: number | boolean | string = value) =>
+        edit(canonical(pulled).workflow, (draft) => {
+          draft.variables = {
+            attempts: { key: 'attempts', name: 'Attempts', type, value: renamedValue },
+          }
+          draft.blocks.read.params.code = { kind: 'value', value: code }
+        })
+      const ids = (workflow: CanonicalWorkflow) =>
+        Object.keys(run(workflow, null, { prev: pulled }).state.variables ?? {})
+
+      expect(ids(rename('return <variable.attempts> + 1'))).toEqual(['var-1'])
+      // A reference left behind, or a changed value, ties nothing.
+      expect(ids(rename('return 1'))).toEqual(['new-1'])
+      expect(ids(rename('return <variable.attempts> + 1', type === 'number' ? 5 : 'x'))).toEqual([
+        'new-1',
+      ])
+    }
+  )
+
   it('leaves an inputFormat id two fields share out of the identity items', () => {
     const prev = workflowState([
       blockState('start', 'start_trigger', 'Start', {

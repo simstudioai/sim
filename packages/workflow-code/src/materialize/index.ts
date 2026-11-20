@@ -25,7 +25,12 @@ import { deepEqual, getOwn, invertRecord, setOwn } from '../records'
 import { type BuiltBlock, buildBlock } from './block'
 import type { MaterializeContext, MaterializeHooks } from './context'
 import { type BranchHandles, writeEdges } from './edges'
-import { type IdentityEntry, type LockFreshness, resolveIdentity } from './identity'
+import {
+  type IdentityEntry,
+  type LockFreshness,
+  referencesVariable,
+  resolveIdentity,
+} from './identity'
 import { restorePreserved } from './preserve'
 import { sharesEvidence, soleRename } from './rename'
 import { loopEntry, parallelEntry } from './subflows'
@@ -120,11 +125,34 @@ function renamedVariable(
         former !== undefined &&
         variable !== undefined &&
         former.type === variable.type &&
-        sharesEvidence(former, variable, ['value'])
+        (sharesEvidence(former, variable, ['value']) ||
+          (deepEqual(former.value, variable.value) &&
+            referencesFollow(prevCanonical.workflow, workflow, formerKey, key)))
       )
     }
   )
   return renamed && { key: renamed.item, id: renamed.id }
+}
+
+/**
+ * Whether every block that read variable `formerKey` now reads `key` instead: the evidence a
+ * rename carries when the value itself says nothing (`0`, `false`, `''`), as it does for counters
+ * and flags.
+ */
+function referencesFollow(
+  prev: CanonicalWorkflow,
+  workflow: CanonicalWorkflow,
+  formerKey: VarKey,
+  key: VarKey
+): boolean {
+  const readers = Object.values(prev.blocks).filter((block) => referencesVariable(block, formerKey))
+  return (
+    readers.length > 0 &&
+    readers.every((block) => {
+      const now = getOwn(workflow.blocks, block.key)
+      return now !== undefined && referencesVariable(now, key)
+    })
+  )
 }
 
 /**

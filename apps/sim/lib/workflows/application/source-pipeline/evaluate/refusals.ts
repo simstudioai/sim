@@ -94,7 +94,7 @@ function variableDeleteRefusal(
   const [next] = added
   const rename =
     removed.length === 1 && added.length === 1 && former.type === next.type
-      ? `If ${next.name} renames ${former.name}, apply the new key with the value ${former.name} holds first and change the value in a second apply, so the variable keeps its id; or pass --allow-delete (allowDelete=true) to replace it.`
+      ? `If ${next.name} renames ${former.name}, keep the value ${former.name} holds and move every vars reference to the new key in this apply (change the value in a second one), so the variable keeps its id. A variable no block reads, holding 0, false or an empty value, cannot be tied: pass --allow-delete (allowDelete=true) to replace it.`
       : undefined
   return diagnostic(
     'E_APPLY_VARIABLE_DELETE',
