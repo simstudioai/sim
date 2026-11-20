@@ -17,7 +17,7 @@
 import { compareStrings } from '@sim/utils/string'
 import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from '@sim/workflow-code'
 import { builderOutputSchemas, printKey, quoteString } from '@sim/workflow-code'
-import { subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
+import { type EditorDefault, subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
 import {
   builderPins,
   hasDefaultValue,
@@ -184,7 +184,34 @@ interface BuilderOutput {
   body: string
 }
 
-interface BuilderTypes {
+/** One param of a builder, as `describeBuilder` reports it. */
+export interface ParamFact {
+  /** What source writes. */
+  key: string
+  /** The TypeScript type, `| null` included where a stored empty value prints as `null`. */
+  type: string
+  required: boolean
+  /** The param's doc lines: title, bounds, selector, dependencies. */
+  doc: string[]
+  /** The value an omitted param means (the editor default), when it has one. */
+  default?: EditorDefault
+}
+
+/**
+ * The params of a builder as facts: the ones every call takes, and when one field (the gate)
+ * decides which others apply, its values and the params of each.
+ */
+export interface ParamFacts {
+  common: ParamFact[]
+  gate: {
+    key: string
+    /** The gate's value when it is omitted, if any. */
+    default?: Scalar
+    variants: Array<{ values: Scalar[]; params: ParamFact[] }>
+  } | null
+}
+
+export interface BuilderTypes {
   /** The params type declaration, exported. */
   params: string
   output: BuilderOutput
@@ -198,6 +225,10 @@ interface BuilderTypes {
   summary: string
   /** The params type's name. */
   paramsName: string
+  /** The params as facts. */
+  facts: ParamFacts
+  /** What a call returns: `Block<…>` of the output type. */
+  returns: string
 }
 
 /**
@@ -225,7 +256,8 @@ function operationOutputs(
   return { outputs: picked, nullable: new Set(returned.nullable ?? []) }
 }
 
-function operationLabel(block: CatalogBlock, operation: string): string | undefined {
+/** The label of `operation` in the block's operation dropdown, if it has one. */
+export function operationLabel(block: CatalogBlock, operation: string): string | undefined {
   const dropdown = block.subBlocks.find((subBlock) => subBlock.id === 'operation')
   if (!dropdown || !Array.isArray(dropdown.options)) return undefined
   return dropdown.options.find((option) => option.id === operation)?.label
@@ -263,6 +295,52 @@ function renderProperty(param: Param, required: boolean, indent: string): string
 /** A gated variant's param is required where it is required for every value the variant covers. */
 function requiredInVariant(param: Param, requiredByVisibility: boolean): boolean {
   return requiredByVisibility && !hasDefaultValue(param.members)
+}
+
+/** The params of a builder as {@link ParamFacts}, required as the params type renders them. */
+function paramFacts(
+  params: readonly Param[],
+  gate: Gate | null,
+  candidates: readonly CatalogSubBlock[],
+  pinned: VisibilityContext['pinned']
+): ParamFacts {
+  const fact = (param: Param, required: boolean): ParamFact => {
+    const editorDefault = param.members
+      .map((member) => subBlockEditorDefault(member))
+      .find((value) => value !== undefined)
+    const nullable = param.members.some((member) => subBlockEditorDefault(member) !== undefined)
+    return {
+      key: param.key,
+      type: nullable ? `${param.type} | null` : param.type,
+      required,
+      doc: param.doc.filter((line) => !line.startsWith('@when')),
+      ...(editorDefault !== undefined ? { default: editorDefault } : {}),
+    }
+  }
+  const gated = new Set<string>()
+  if (gate) {
+    gated.add(gate.field)
+    for (const variant of gate.variants) for (const p of variant.params) gated.add(p.name)
+  }
+  const common = params
+    .filter((param) => !gated.has(param.name))
+    .map((param) => fact(param, requiredForBuilder(param.members, pinned)))
+  if (!gate) return { common, gate: null }
+  const fallback = defaultGateValue(candidates, gate.field)
+  return {
+    common,
+    gate: {
+      key: params.find((param) => param.name === gate.field)?.key ?? gate.field,
+      ...(fallback !== undefined ? { default: fallback } : {}),
+      variants: gate.variants.map((variant) => ({
+        values: [...variant.values],
+        params: variant.params.flatMap(({ name, required }) => {
+          const param = params.find((candidate) => candidate.name === name)
+          return param ? [fact(param, requiredInVariant(param, required))] : []
+        }),
+      })),
+    },
+  }
 }
 
 function renderParamsType(
@@ -366,7 +444,8 @@ function buildParams(
   return { params, gate, candidates, context }
 }
 
-function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes {
+/** A builder's generated types: its params and output declarations, signatures and facts. */
+export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes {
   const block = catalogBlock(catalog, entry.builder.type)
   if (!block) {
     throw new Error(
@@ -433,6 +512,8 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
     special,
     summary: [block.name, label].filter(Boolean).join(': '),
     paramsName,
+    facts: paramFacts(params, gate, candidates, context.pinned),
+    returns: `Block<${outputType}>`,
   }
 }
 

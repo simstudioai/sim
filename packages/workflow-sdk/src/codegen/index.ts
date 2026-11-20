@@ -16,6 +16,14 @@ export {
 } from './layout'
 export { SDK_MAJOR } from './major'
 export { SPECIAL_BUILDER_KEYS } from './names'
+export {
+  type BuilderLookup,
+  type BuilderReference,
+  builderSnippet,
+  describeBuilder,
+  lookupBuilder,
+  renderBuilderReference,
+} from './reference'
 export { SOURCE_COMPILER_OPTIONS, typecheckCommand } from './tsconfig'
 export {
   type GenerateWorkspaceTypesFn,
