@@ -275,6 +275,32 @@ describe('workspace source apply', () => {
   )
 
   check(
+    'a workflow edited on both sides is refused as stale with the hint every other kind gives',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await apply(workspaceId, STARTER)
+      const read = await get(workspaceId)
+      const entry = 'workflows/ingest/workflow.ts'
+      const renamedTo = (name: string) => ({
+        ...read.files,
+        [entry]: read.files[entry].replace("'Save Lead'", `'${name}'`),
+      })
+      await apply(workspaceId, renamedTo('Store Lead'), { base: read.base })
+
+      const stale = await refusal(apply(workspaceId, renamedTo('Keep Lead'), { base: read.base }))
+
+      expect(stale.diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'E_APPLY_STALE',
+          kind: 'workflow',
+          key: 'ingest',
+          hint: expect.stringContaining('sim workspaces source get'),
+        }),
+      ])
+    }
+  )
+
+  check(
     'every audit entry an apply writes carries its apply id, and the next apply has another',
     async () => {
       const workspaceId = await newWorkspace()

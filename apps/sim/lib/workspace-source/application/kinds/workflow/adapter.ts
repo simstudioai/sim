@@ -83,6 +83,7 @@ import {
   planUndeclared,
   refuseDeclaredTwice,
   serverGoneFinding,
+  staleFinding,
 } from '@/lib/workspace-source/application/findings'
 import { bindStored, claimKey, listUpTo } from '@/lib/workspace-source/application/keys'
 import { liveTriggerCounts } from '@/lib/workspace-source/application/kinds/deployment/triggers'
@@ -434,7 +435,13 @@ async function planUpdate(
     },
   })
   const result = summarizePlan(outcome)
-  change.diagnostics.push(...inFolder(key, result.diagnostics))
+  // The pipeline words a stale draft for a single-workflow directory; a workspace names the
+  // folder and its own next step, as every other kind's stale finding does.
+  change.diagnostics.push(
+    ...inFolder(key, result.diagnostics).map((finding) =>
+      finding.code === 'E_APPLY_STALE' ? staleFinding('workflow', key) : finding
+    )
+  )
   if (result.workflowName !== undefined && result.diff.meta?.includes('name')) {
     renamed.set(key, result.workflowName)
   }
