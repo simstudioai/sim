@@ -48,10 +48,18 @@ function stdoutJson(): Record<string, unknown> {
   return JSON.parse(calls[0].join(' '))
 }
 
-function stderr(): string {
-  return vi
-    .mocked(console.error)
-    .mock.calls.map((call) => call.join(' '))
+/**
+ * The findings of the JSON result on stdout as a person reads them on stderr in a display format
+ * (`file:line:column severity CODE: message`, then its hint): with `--output json` they are
+ * printed only there.
+ */
+function findingLines(): string {
+  const diagnostics = (result().diagnostics ?? []) as Array<Record<string, unknown>>
+  return diagnostics
+    .map(
+      ({ file, line, column, severity, code, message, hint }) =>
+        `${file === undefined ? '' : `${file}:${line}:${column} `}${severity} ${code}: ${message}${hint === undefined ? '' : `\n  hint: ${hint}`}`
+    )
     .join('\n')
 }
 
@@ -243,7 +251,7 @@ describe('sim workflows source check', () => {
     await check()
 
     expect(result()).toMatchObject({ errors: 1 })
-    expect(stderr()).toMatch(/workflow\.ts:6:\d+ error E_UNKNOWN_PARAM/)
+    expect(findingLines()).toMatch(/workflow\.ts:6:\d+ error E_UNKNOWN_PARAM/)
     expect(process.exitCode).toBe(1)
   })
 
@@ -270,6 +278,19 @@ describe('sim workflows source check', () => {
     })
   })
 
+  it('with --output json, prints each finding in the JSON only, not again as a frame on stderr', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace('{ body: { received: start.message } }', '{ bdy: { received: start.message } }')
+    )
+
+    await check()
+
+    expect(stdoutJson()).toMatchObject({ diagnostics: [{ code: 'E_UNKNOWN_PARAM' }] })
+    expect(vi.mocked(console.error)).not.toHaveBeenCalled()
+  })
+
   it('leaves stored() to the server, which holds the stored values', async () => {
     cacheCatalog()
     writeFileSync(
@@ -288,7 +309,7 @@ describe('sim workflows source check', () => {
 
     await check()
 
-    expect(stderr()).not.toContain('E_STORED_VALUE_MISSING')
+    expect(findingLines()).not.toContain('E_STORED_VALUE_MISSING')
   })
 
   it('refuses without a cached catalog, naming the get that caches one', async () => {
@@ -359,8 +380,10 @@ describe('sim workflows source check', () => {
     await checkIn(folder)
 
     expect(result()).toMatchObject({ errors: 2 })
-    expect(stderr()).toMatch(/workflow\.ts:6:\d+ error E_MAT_UNKNOWN_RESOURCE: No table "contact"/)
-    expect(stderr()).toMatch(
+    expect(findingLines()).toMatch(
+      /workflow\.ts:6:\d+ error E_MAT_UNKNOWN_RESOURCE: No table "contact"/
+    )
+    expect(findingLines()).toMatch(
       /error E_MAT_UNKNOWN_RESOURCE: No credential "ops-slak"[\s\S]*Keys: ops-slack/
     )
     expect(process.exitCode).toBe(1)
@@ -377,7 +400,7 @@ describe('sim workflows source check', () => {
     await checkIn(folder)
 
     expect(result()).toMatchObject({ errors: 0, warnings: 1 })
-    expect(stderr()).toContain('W_ENV_UNKNOWN')
+    expect(findingLines()).toContain('W_ENV_UNKNOWN')
   })
 
   it('fails a row write naming a column or select option the table does not declare', async () => {
@@ -394,10 +417,10 @@ describe('sim workflows source check', () => {
 
     await checkIn(folder)
 
-    expect(stderr()).toMatch(
+    expect(findingLines()).toMatch(
       /error W_TABLE_UNKNOWN_COLUMN: data writes emial[\s\S]*Columns: email, status/
     )
-    expect(stderr()).toMatch(
+    expect(findingLines()).toMatch(
       /error W_UNKNOWN_OPTION: status of table "contacts" has no option done/
     )
     expect(process.exitCode).toBe(1)
@@ -408,7 +431,7 @@ describe('sim workflows source check', () => {
     writeFileSync(join(dir, 'workflow.ts'), UNKNOWN_METHOD)
 
     await check()
-    expect(stderr()).toMatch(/error W_UNKNOWN_OPTION/)
+    expect(findingLines()).toMatch(/error W_UNKNOWN_OPTION/)
     expect(process.exitCode).toBe(1)
 
     process.exitCode = undefined
@@ -440,10 +463,12 @@ describe('sim workflows source check', () => {
     writeLock(['start', 'l', 'inner', 'fallback', 'a', 'route'])
 
     await check()
-    expect(stderr()).toMatch(/warning W_ERROR_PORT_STORED/)
-    expect(stderr()).toMatch(/warning W_EDGE_CYCLE/)
-    expect(stderr()).toMatch(/warning W_BRANCH_UNWIRED/)
-    expect(stderr()).toMatch(/keeps this error edge only if the stored workflow already holds it/)
+    expect(findingLines()).toMatch(/warning W_ERROR_PORT_STORED/)
+    expect(findingLines()).toMatch(/warning W_EDGE_CYCLE/)
+    expect(findingLines()).toMatch(/warning W_BRANCH_UNWIRED/)
+    expect(findingLines()).toMatch(
+      /keeps this error edge only if the stored workflow already holds it/
+    )
     expect(result()).toMatchObject({ errors: 0 })
     expect(process.exitCode).toBeUndefined()
 
@@ -458,8 +483,8 @@ describe('sim workflows source check', () => {
     writeLock(['start', 'l', 'inner', 'fallback', 'a', 'route'])
 
     await check()
-    expect(stderr()).toMatch(/warning W_ERROR_PORT_STORED/)
-    expect(stderr()).toMatch(/warning W_EDGE_CYCLE/)
+    expect(findingLines()).toMatch(/warning W_ERROR_PORT_STORED/)
+    expect(findingLines()).toMatch(/warning W_EDGE_CYCLE/)
     expect(result()).toMatchObject({ errors: 0 })
     expect(process.exitCode).toBeUndefined()
   })
@@ -473,8 +498,8 @@ describe('sim workflows source check', () => {
     writeLock(['start', 'l', 'inner', 'fallback', 'a', 'route'])
 
     await check()
-    expect(stderr()).toMatch(/error E_ERROR_PORT_UNSUPPORTED/)
-    expect(stderr()).toMatch(/error E_EDGE_CYCLE/)
+    expect(findingLines()).toMatch(/error E_ERROR_PORT_UNSUPPORTED/)
+    expect(findingLines()).toMatch(/error E_EDGE_CYCLE/)
     expect(process.exitCode).toBe(1)
   })
 
@@ -484,8 +509,8 @@ describe('sim workflows source check', () => {
     writeLock(['start', 'inner', 'fallback', 'route'])
 
     await check()
-    expect(stderr()).toMatch(/error E_ERROR_PORT_UNSUPPORTED/)
-    expect(stderr()).toMatch(/error E_EDGE_CYCLE/)
+    expect(findingLines()).toMatch(/error E_ERROR_PORT_UNSUPPORTED/)
+    expect(findingLines()).toMatch(/error E_EDGE_CYCLE/)
     expect(process.exitCode).toBe(1)
   })
 

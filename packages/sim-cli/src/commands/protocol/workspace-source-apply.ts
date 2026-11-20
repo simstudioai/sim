@@ -45,11 +45,12 @@ import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
 import { cachedCatalog } from './source-tree'
 import {
   confirm,
-  printNewDiagnostics,
+  createdText,
+  findingsOutput,
   printRefusal,
   refusedExitCode,
   requireConsent,
-  resultDiagnostics,
+  verboseFlag,
 } from './source-ui'
 import { removedWorkflowRecords, workflowFolderRecords } from './stored-edges'
 import {
@@ -72,6 +73,7 @@ type Change = ApplyData['plan'][number]
 
 interface ApplyOptions {
   dir: string
+  verbose?: boolean
   dryRun?: boolean
   yes?: boolean
   allowDelete?: boolean
@@ -403,6 +405,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     'getSourceCatalog',
   ])
   absoluteDirOption(command)
+  verboseFlag(command)
   command
     .requiredOption('--dir <dir>', 'Workspace source directory written by `workspaces source get`')
     .option('--dry-run', 'Plan and check without writing anything')
@@ -513,20 +516,25 @@ export function attachWorkspaceSourceApply(source: Command): void {
               `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
             )
           }
-          // The apply repeats findings the preview already showed.
-          const printed = new Set<string>()
+          // The apply repeats findings the preview already showed: each is printed once.
+          const findings = findingsOutput(profile.output, options.verbose)
+          const report = (data: ApplyData) => {
+            const result = summarize(data)
+            printProtocolResult(
+              profile.output,
+              { ...result, ...findings.result(data.diagnostics) },
+              { created: createdText(result.created) }
+            )
+          }
           let preview: ApplyData | null = null
           if (options.dryRun || !options.yes) {
             preview = await send(submission, true)
             printPlan(preview.plan)
-            printNewDiagnostics(preview.diagnostics, printed)
+            findings.print(preview.diagnostics)
             const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
             if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
             if (options.dryRun || refusesApply(preview)) {
-              printProtocolResult(profile.output, {
-                ...summarize(preview),
-                ...resultDiagnostics(profile.output, preview.diagnostics),
-              })
+              report(preview)
               return
             }
             if (
@@ -542,7 +550,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
           const data = await deferInterrupts(
             async () => {
               const answer = await send(submission, false)
-              printNewDiagnostics(answer.diagnostics, printed)
+              findings.print(answer.diagnostics)
               // A promotion leaves the directory bound to the workspace it was read from.
               if (!options.to) {
                 const workspaceCatalog = cachedCatalog(workspaceId)
@@ -569,10 +577,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
             printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
             setSoftExitCode(failedExitCode(data.failed))
           }
-          printProtocolResult(profile.output, {
-            ...summarize(data),
-            ...resultDiagnostics(profile.output, data.diagnostics),
-          })
+          report(data)
         },
         { readOnly: options.dryRun === true }
       )
@@ -587,7 +592,10 @@ function answerLostHint(dir: string): string {
   return `It may have been written. Run \`sim workspaces source apply --dir ${dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it may have been, or someone else changed those resources. Run \`sim workspaces source get --dir <fresh dir>\` and compare it with ${dir}: if it holds your edits, \`sim workspaces source get --dir ${dir} --force\` brings this directory up to date; if not, reapply your edits in the fresh directory. Any other outcome means it was not written: apply again.`
 }
 
-/** The result line: what a dry run would write, or what an apply wrote (not what it planned). */
+/**
+ * The result line: what a dry run would write, or what an apply wrote (not what it planned).
+ * `created` lists each resource created, with its id once written.
+ */
 function summarize(data: ApplyData) {
   const changes = data.dryRun ? data.plan : data.applied
   const count = (action: Change['action']) =>
@@ -596,7 +604,9 @@ function summarize(data: ApplyData) {
     workspaceId: data.workspaceId,
     dryRun: data.dryRun,
     applied: data.applied.length,
-    created: count('create'),
+    created: changes
+      .filter((change) => change.action === 'create' && !change.held)
+      .map(({ kind, key, id }) => ({ kind, key, ...(id !== undefined ? { id } : {}) })),
     updated: count('update') + count('adopt'),
     deleted: count('delete'),
     destructive: destructiveChanges(changes),

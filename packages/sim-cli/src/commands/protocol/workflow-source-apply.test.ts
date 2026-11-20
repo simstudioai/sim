@@ -435,12 +435,17 @@ describe('sim workflows source apply', () => {
     ])
 
     const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
-    expect(printed).toMatchObject({ created: false, dryRun: true })
+    expect(printed).toMatchObject({
+      dryRun: true,
+      created: [{ kind: 'workflow' }, { kind: 'block', key: 'start' }],
+    })
     expect(printed).not.toHaveProperty('workflowId')
+    expect(JSON.stringify(printed.created)).not.toContain('"id"')
   })
 
   it('folds info findings into one line per code and keeps frames on warnings', async () => {
     setTerminal(false)
+    contextMockState.output = 'text'
     const layout = (key: string, line: number) => ({
       code: 'I_MAT_NEEDS_LAYOUT',
       severity: 'info',
@@ -480,6 +485,7 @@ describe('sim workflows source apply', () => {
 
   it('prints every note on a dry run, so a kept name or a dropped tool is never silent', async () => {
     setTerminal(false)
+    contextMockState.output = 'text'
     const note = "The workflow name 'New' differs from the stored one and was not changed."
     request.mockResolvedValue(outcome({ dryRun: true, notes: [note] }))
 
@@ -488,18 +494,19 @@ describe('sim workflows source apply', () => {
     expect(stderrLines()).toContain(`note: ${note}`)
   })
 
-  it('counts notes apart from warnings in the result', async () => {
+  it('lists notes apart from warnings in the JSON result, and prints none on stderr', async () => {
     setTerminal(false)
     request.mockResolvedValue(outcome({ dryRun: true, notes: ['a kept name'] }))
 
     await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
 
-    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
-    expect(printed).toMatchObject({ warnings: 0, notes: 1 })
+    expect(stdoutJson()).toMatchObject({ warnings: 0, notes: ['a kept name'] })
+    expect(stderrLines()).toEqual([])
   })
 
   it('at a terminal, prints the notes of the preview and of the applied write', async () => {
     setTerminal(true)
+    contextMockState.output = 'text'
     request.mockImplementation(async (_path: string, options: { query?: { dryRun?: boolean } }) =>
       outcome({
         dryRun: options.query?.dryRun === true,
@@ -517,6 +524,7 @@ describe('sim workflows source apply', () => {
 
   it('at a terminal, prints a warning and a note the preview showed once, not again on the write', async () => {
     setTerminal(true)
+    contextMockState.output = 'text'
     const warning = {
       code: 'W_REQUIRED_MISSING',
       severity: 'warning',
@@ -556,6 +564,123 @@ describe('sim workflows source apply', () => {
     expect(stdoutJson()).toMatchObject({
       errors: 1,
       diagnostics: [{ code: 'E_APPLY_STALE', severity: 'error', message: STALE.message }],
+    })
+  })
+
+  describe('findings and results an agent reads', () => {
+    const untyped = (line: number) => ({
+      code: 'W_JSON_REF_UNTYPED',
+      severity: 'warning',
+      message: `Nothing declares the type of <score.result.n${line}>.`,
+      file: 'workflow.ts',
+      line,
+      column: 7,
+      frame: `> ${line} |   n: score.result.n${line},`,
+      hint: 'Leave it bare when it holds a number.',
+    })
+    const layout = {
+      code: 'I_MAT_NEEDS_LAYOUT',
+      severity: 'info',
+      message: 'Block "start" is placed by autolayout',
+      file: 'workflow.ts',
+      line: 3,
+      column: 3,
+    }
+
+    it('with --output json, prints findings only in the JSON on stdout, never as frames on stderr', async () => {
+      setTerminal(false)
+      request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [untyped(4)] }))
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+      expect(stdoutJson()).toMatchObject({ diagnostics: [{ code: 'W_JSON_REF_UNTYPED' }] })
+      expect(stderrLines().join('\n')).not.toContain('W_JSON_REF_UNTYPED')
+    })
+
+    it('leaves info findings out of the JSON unless --verbose', async () => {
+      setTerminal(false)
+      request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [layout, untyped(4)] }))
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+      expect(stdoutJson().diagnostics).toEqual([expect.objectContaining({ severity: 'warning' })])
+
+      vi.mocked(console.log).mockClear()
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--verbose')
+      expect(stdoutJson().diagnostics).toEqual([
+        expect.objectContaining({ code: 'I_MAT_NEEDS_LAYOUT' }),
+        expect.objectContaining({ code: 'W_JSON_REF_UNTYPED' }),
+      ])
+    })
+
+    it('in a display format, prints the first warning of a code whole and the rest on one line', async () => {
+      setTerminal(false)
+      contextMockState.output = 'text'
+      request.mockResolvedValue(
+        outcome({ dryRun: true, diagnostics: [4, 5, 6, 7].map((line) => untyped(line)) })
+      )
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+      const lines = stderrLines()
+      expect(lines.filter((line) => line.includes('> '))).toHaveLength(1)
+      expect(lines).toContain(
+        '  3 more W_JSON_REF_UNTYPED like it: workflow.ts:5:7, workflow.ts:6:7, workflow.ts:7:7'
+      )
+    })
+
+    it('lists the workflow and blocks a create made, with their ids', async () => {
+      setTerminal(false)
+      vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+      rmSync(join(dir, '.sim/base.json'))
+      const catalog = JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
+      request.mockImplementation(async (path: string) => {
+        if (path.endsWith('/workflows/source/catalog')) return { data: catalog }
+        if (path.endsWith('/workflows/source/resources')) {
+          return {
+            data: {
+              workspaceId: WORKSPACE_ID,
+              tables: [],
+              knowledgeBases: [],
+              credentials: [],
+              workflows: [],
+              env: [],
+              truncated: false,
+            },
+          }
+        }
+        return outcome()
+      })
+
+      await program().parseAsync([
+        'node',
+        'sim',
+        'workflows',
+        'source',
+        'create',
+        '--dir',
+        dir,
+        '--yes',
+      ])
+
+      expect(stdoutJson()).toMatchObject({
+        workflowId: WORKFLOW_ID,
+        created: [
+          { kind: 'workflow', id: WORKFLOW_ID },
+          { kind: 'block', key: 'start', id: 'b-1' },
+        ],
+      })
+    })
+
+    it('names what an apply created on one line in a display format', async () => {
+      setTerminal(false)
+      contextMockState.output = 'text'
+      request.mockResolvedValue(outcome())
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+
+      expect(vi.mocked(console.log).mock.calls.map((call) => call.join(' '))).toContain(
+        'created\tblock start (b-1)'
+      )
     })
   })
 

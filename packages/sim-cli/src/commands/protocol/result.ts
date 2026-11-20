@@ -8,10 +8,19 @@ function fieldText(value: unknown): string {
   return text(nested ? JSON.stringify(value) : value)
 }
 
-export function printProtocolResult(format: OutputFormat, result: Record<string, unknown>): void {
+/**
+ * Prints a protocol command's result: the record itself in a machine format, else one line per
+ * field, with `display` replacing the text of the fields it names (a list a person reads as a
+ * sentence rather than as JSON).
+ */
+export function printProtocolResult(
+  format: OutputFormat,
+  result: Record<string, unknown>,
+  display: Readonly<Record<string, string>> = {}
+): void {
   const fields = Object.entries(result).map<[string, string]>(([key, value]) => [
     key,
-    fieldText(value),
+    display[key] ?? fieldText(value),
   ])
   printRecord(format, fields, result)
 }

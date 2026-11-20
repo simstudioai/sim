@@ -37,13 +37,16 @@ import {
 import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
 import { cachedCatalogByHash } from './source-tree'
 import {
+  type CreatedResource,
   confirm,
+  createdText,
+  type FindingsOutput,
+  findingsOutput,
   fresh,
-  printNewDiagnostics,
   printRefusal,
   refusedExitCode,
   requireConsent,
-  resultDiagnostics,
+  verboseFlag,
 } from './source-ui'
 import { storedEdgesWrite } from './stored-edges'
 import {
@@ -80,6 +83,7 @@ interface SourceWriteOptions {
   dryRun?: boolean
   yes?: boolean
   allowDelete?: boolean
+  verbose?: boolean
 }
 
 /**
@@ -127,14 +131,15 @@ function codeFilePaths(entry: string, lock: WorkflowLockV1 | null): string[] {
 }
 
 /**
- * Prints a write's diagnostics and notes (such as a custom tool the save could not store),
- * skipping any already in `printed` and adding the rest: after a terminal preview, the
+ * Prints a write's diagnostics and, in a display format, its notes (such as a custom tool the
+ * save could not store; a machine result lists them), each once: after a terminal preview, the
  * write it confirmed prints only what the preview did not.
  */
-function printFindings(data: SourceApplyData, printed: Set<string>): void {
-  printNewDiagnostics(data.diagnostics, printed)
+function printFindings(data: SourceApplyData, findings: FindingsOutput, notes: Set<string>): void {
+  findings.print(data.diagnostics)
+  if (findings.machine) return
   for (const note of data.notes) {
-    if (fresh(printed, `note:${note}`)) printError(`note: ${note}`)
+    if (fresh(notes, note)) printError(`note: ${note}`)
   }
 }
 
@@ -266,16 +271,22 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       return printRefusal(error, args.output, dryRun ? undefined : args.ifAnswerLost)
     }
   }
-  const printed = new Set<string>()
+  const findings = findingsOutput(args.output, options.verbose)
+  const notes = new Set<string>()
+  const report = (data: SourceApplyData) => {
+    const result = summarize(data, creating, findings.machine)
+    printProtocolResult(
+      args.output,
+      { ...result, ...findings.result(data.diagnostics) },
+      result.created ? { created: createdText(result.created) } : {}
+    )
+  }
   if (!options.dryRun && !options.yes) {
     const preview = await send(true)
-    printFindings(preview, printed)
+    printFindings(preview, findings, notes)
     if (preview.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
       setSoftExitCode(refusedExitCode(preview.diagnostics))
-      printProtocolResult(args.output, {
-        ...summarize(preview, creating),
-        ...resultDiagnostics(args.output, preview.diagnostics),
-      })
+      report(preview)
       return
     }
     printError(diffSummary(preview))
@@ -287,7 +298,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   const verb = creating ? 'create' : 'apply'
   const sendAndSave = async (): Promise<SourceApplyData> => {
     const data = await send(options.dryRun === true)
-    printFindings(data, printed)
+    printFindings(data, findings, notes)
     const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
     if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
     if (!data.dryRun && !refused && (data.applied || !creating)) await args.save(data)
@@ -300,10 +311,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
         abandoned: `Stopped before the ${verb} answered. ${args.ifAnswerLost}`,
       })
 
-  printProtocolResult(args.output, {
-    ...summarize(data, creating),
-    ...resultDiagnostics(args.output, data.diagnostics),
-  })
+  report(data)
 }
 
 const DIR_DESCRIPTION =
@@ -322,6 +330,7 @@ const DIR_DESCRIPTION =
 export function attachWorkflowSourceApply(source: Command): void {
   const [command, connectApply] = apiCommand(source, 'apply', ['applyWorkflowSource'])
   absoluteDirOption(command)
+  verboseFlag(command)
   command
     .argument(
       '[workflowId]',
@@ -384,6 +393,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
     'getSourceResources',
   ])
   absoluteDirOption(command)
+  verboseFlag(command)
   command
     .requiredOption(
       '--dir <dir>',
@@ -474,14 +484,35 @@ async function assertStarterWorkspace(
   )
 }
 
-/** A create that did not apply stored nothing, so its provisional workflow id names no workflow. */
-function summarize(data: SourceApplyData, created: boolean) {
+/**
+ * What a write created (on a dry run, would create; ids are only known once it is written): the
+ * workflow of a create, then each block added.
+ */
+function createdResources(data: SourceApplyData, creating: boolean): CreatedResource[] {
+  const written = !data.dryRun && data.applied
+  return [
+    ...(creating ? [{ kind: 'workflow', ...(written ? { id: data.workflowId } : {}) }] : []),
+    ...data.diff.blocks.added.map(({ key, id }) => ({
+      kind: 'block',
+      key,
+      ...(written ? { id } : {}),
+    })),
+  ]
+}
+
+/**
+ * The result of a write. A create that did not apply stored nothing, so its provisional workflow
+ * id names no workflow. Notes are listed in a `machine` result, and counted in a display one,
+ * which prints them on stderr.
+ */
+function summarize(data: SourceApplyData, creating: boolean, machine: boolean) {
+  const created = data.dryRun || data.applied ? createdResources(data, creating) : []
   return {
-    ...(created && !data.applied ? {} : { workflowId: data.workflowId }),
-    ...(created ? { created: data.applied } : {}),
+    ...(creating && !data.applied ? {} : { workflowId: data.workflowId }),
     applied: data.applied,
     dryRun: data.dryRun,
     noop: data.diff.noop,
+    ...(created.length > 0 ? { created } : {}),
     blocksAdded: data.diff.blocks.added.length,
     blocksRemoved: data.diff.blocks.removed.length,
     blocksModified: data.diff.blocks.modified.length,
@@ -492,9 +523,9 @@ function summarize(data: SourceApplyData, created: boolean) {
     edgesRemoved: data.diff.edges.removed,
     errors: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
     warnings: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
-    notes: data.notes.length,
+    notes: machine ? data.notes : data.notes.length,
     fingerprint: data.base.fingerprint,
     needsRedeployment: data.needsRedeployment,
-    ...(created && data.applied && !data.dryRun ? { guide: SOURCE_AGENTS_FILE } : {}),
+    ...(creating && data.applied && !data.dryRun ? { guide: SOURCE_AGENTS_FILE } : {}),
   }
 }

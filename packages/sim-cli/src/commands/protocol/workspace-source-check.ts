@@ -16,6 +16,7 @@ import {
 } from './source-dir'
 import { unreachableReason } from './source-status'
 import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
+import { verboseFlag } from './source-ui'
 import {
   type CheckFinding,
   checkWorkflowDir,
@@ -96,11 +97,13 @@ async function fetchedCatalog(
 export function attachWorkspaceSourceCheck(source: Command): void {
   const [command, connect] = apiCommand(source, 'check', ['getSourceCatalog'])
   absoluteDirOption(command)
-  strictFlags(
-    command.option(
-      '--dir <dir>',
-      `Workspace source directory: the kind folders and ${WORKSPACE_BASE_FILE}`,
-      '.'
+  verboseFlag(
+    strictFlags(
+      command.option(
+        '--dir <dir>',
+        `Workspace source directory: the kind folders and ${WORKSPACE_BASE_FILE}`,
+        '.'
+      )
     )
   )
     .allowExcessArguments(false)
@@ -108,61 +111,68 @@ export function attachWorkspaceSourceCheck(source: Command): void {
       'Compile every workflow of a workspace source directory locally, without the server'
     )
     .addHelpText('after', `${CHECK_HELP}\n${SOURCE_DIR_BUSY_HELP}`)
-    .action(async (options: { dir: string } & StrictOptions, command: Command) => {
-      const profile = profileFrom(command)
-      const base = toRecord(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
-      await assertWorkspaceDir(options.dir)
-      const workspaceId = directoryWorkspace(
-        options.dir,
-        typeof base.workspaceId === 'string' ? base.workspaceId : null,
-        profile,
-        (from) => `Run it without --workspace to check it against the catalog of ${from}.`
-      )
-      if (!workspaceId) {
-        throw new SimApiError(
-          `${options.dir} has no ${WORKSPACE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`,
-          0
-        )
-      }
-      await withSourceDirLock(options.dir, async () => {
-        const catalog =
-          cachedCatalog(workspaceId) ?? (await fetchedCatalog(connect, workspaceId, options.dir))
-        const workflowInputs = await workspaceWorkflowInputs(options.dir, catalog)
-        const declarations = {
-          ...(await readWorkspaceDeclarations(options.dir)),
-          workflowInputs,
-        }
-        const keys = await workspaceWorkflowKeys(options.dir)
-        const findings: CheckFinding[] = []
-        for (const key of keys) {
-          const checked = await checkWorkflowDir(
-            join(options.dir, KIND_DIRS.workflow, key),
-            catalog,
-            {
-              declarations,
-              strict: strictMode(options),
-              prefix: `${KIND_DIRS.workflow}/${key}/`,
-            }
-          )
-          findings.push(...checked.findings)
-        }
-        for (const { code, message, hint, file, line, column } of declarations.rowFindings) {
-          findings.push({
-            code,
-            severity: 'error',
-            message,
-            ...(hint !== undefined ? { hint } : {}),
-            file,
-            line,
-            column,
-          })
-        }
-        await refreshWorkspaceTypes(
+    .action(
+      async (options: { dir: string; verbose?: boolean } & StrictOptions, command: Command) => {
+        const profile = profileFrom(command)
+        const base = toRecord(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
+        await assertWorkspaceDir(options.dir)
+        const workspaceId = directoryWorkspace(
           options.dir,
-          withWorkflowInputs(declarations.local, workflowInputs)
+          typeof base.workspaceId === 'string' ? base.workspaceId : null,
+          profile,
+          (from) => `Run it without --workspace to check it against the catalog of ${from}.`
         )
-        await refreshWorkspaceTsconfigs(options.dir, workspaceId)
-        reportCheck(profile.output, findings, { workflows: keys.length, catalogHash: catalog.hash })
-      })
-    })
+        if (!workspaceId) {
+          throw new SimApiError(
+            `${options.dir} has no ${WORKSPACE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`,
+            0
+          )
+        }
+        await withSourceDirLock(options.dir, async () => {
+          const catalog =
+            cachedCatalog(workspaceId) ?? (await fetchedCatalog(connect, workspaceId, options.dir))
+          const workflowInputs = await workspaceWorkflowInputs(options.dir, catalog)
+          const declarations = {
+            ...(await readWorkspaceDeclarations(options.dir)),
+            workflowInputs,
+          }
+          const keys = await workspaceWorkflowKeys(options.dir)
+          const findings: CheckFinding[] = []
+          for (const key of keys) {
+            const checked = await checkWorkflowDir(
+              join(options.dir, KIND_DIRS.workflow, key),
+              catalog,
+              {
+                declarations,
+                strict: strictMode(options),
+                prefix: `${KIND_DIRS.workflow}/${key}/`,
+              }
+            )
+            findings.push(...checked.findings)
+          }
+          for (const { code, message, hint, file, line, column } of declarations.rowFindings) {
+            findings.push({
+              code,
+              severity: 'error',
+              message,
+              ...(hint !== undefined ? { hint } : {}),
+              file,
+              line,
+              column,
+            })
+          }
+          await refreshWorkspaceTypes(
+            options.dir,
+            withWorkflowInputs(declarations.local, workflowInputs)
+          )
+          await refreshWorkspaceTsconfigs(options.dir, workspaceId)
+          reportCheck(
+            profile.output,
+            findings,
+            { workflows: keys.length, catalogHash: catalog.hash },
+            options.verbose
+          )
+        })
+      }
+    )
 }

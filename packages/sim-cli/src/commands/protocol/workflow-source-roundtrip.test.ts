@@ -18,23 +18,25 @@ import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { attachProtocolCommands } from './index'
 
+/** The profile every command resolves; a test that reads display output sets `output` to text. */
+const profile = vi.hoisted(() => ({
+  name: 'default',
+  endpoint: 'https://sim.example',
+  authProfile: 'default',
+  apiKey: 'key',
+  oauth: null,
+  workspaceId: '00000000-0000-4000-8000-00000000000b',
+  output: 'json' as 'json' | 'text',
+  sources: {
+    endpoint: 'default' as const,
+    credential: 'env' as const,
+    workspaceId: 'env' as const,
+    output: 'default' as const,
+  },
+}))
+
 vi.mock('../../context', async () => {
   const { SimClient } = await import('../../http/client')
-  const profile = {
-    name: 'default',
-    endpoint: 'https://sim.example',
-    authProfile: 'default',
-    apiKey: 'key',
-    oauth: null,
-    workspaceId: '00000000-0000-4000-8000-00000000000b',
-    output: 'json' as const,
-    sources: {
-      endpoint: 'default' as const,
-      credential: 'env' as const,
-      workspaceId: 'env' as const,
-      output: 'default' as const,
-    },
-  }
   return {
     globalsOf: () => ({}),
     profileFrom: () => profile,
@@ -201,6 +203,7 @@ let catalogRequests: Headers[]
 let stderr: string[]
 
 beforeEach(() => {
+  profile.output = 'json'
   root = mkdtempSync(join(tmpdir(), 'sim-source-roundtrip-'))
   dir = join(root, 'source')
   vi.stubEnv('SIM_CONFIG_DIR', join(root, 'config'))
@@ -786,6 +789,7 @@ describe('apply refusals', () => {
 
   it('prints each compile error as file:line:column with its frame and hint, then exits 1', async () => {
     await get()
+    profile.output = 'text'
     server.apply = () =>
       refusal(400, 'SOURCE_INVALID', {
         diagnostics: [

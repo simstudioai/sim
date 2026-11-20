@@ -751,6 +751,7 @@ sim workspaces source apply [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
 | `--dir <dir>` | Yes | Workspace source directory written by `workspaces source get`. |
 | `--dry-run` | No | Plan and check without writing anything. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
@@ -779,6 +780,7 @@ sim workspaces source check [options]
 | `--dir <dir>` | No | Workspace source directory: the kind folders and .sim/base.json. Defaults to `.`. |
 | `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
 | `--no-strict` | No | Never fail on a warning. |
+| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
 
 </CommandTable>
 

@@ -358,7 +358,7 @@ describe('workspaces source apply', () => {
     expect(summary).toMatchObject({
       workspaceId: 'ws_prod',
       dryRun: true,
-      created: 1,
+      created: [{ kind: 'table', key: 'leads' }],
       diagnostics: [expect.objectContaining({ code: 'W_UNDECLARED', key: 'audit' })],
     })
   })
@@ -525,7 +525,11 @@ describe('workspaces source apply', () => {
       .mocked(console.log)
       .mock.calls.map(([line]) => String(line))
       .join('\n')
-    expect(JSON.parse(printed)).toMatchObject({ applied: 1, created: 1, failed: 'workflow:ingest' })
+    expect(JSON.parse(printed)).toMatchObject({
+      applied: 1,
+      created: [{ kind: 'table', key: 'leads', id: 'tbl_1' }],
+      failed: 'workflow:ingest',
+    })
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// stored\n`)
     expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).resources).toEqual({
       'table:leads': { id: 'tbl_1' },
