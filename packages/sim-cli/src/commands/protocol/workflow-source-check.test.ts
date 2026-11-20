@@ -509,7 +509,7 @@ export default workflow('W', {}, () => {
 
     await check()
     expect(scoped()).toEqual([
-      expect.objectContaining({ code: 'W_REF_OUT_OF_SCOPE', severity: 'error' }),
+      expect.objectContaining({ code: 'E_APPLY_REF_OUT_OF_SCOPE', severity: 'error' }),
     ])
 
     writeLock(['start', 'each', 'inner', 'echo'], { inner: 'each', echo: 'each' })
@@ -525,6 +525,52 @@ export default workflow('W', {}, () => {
       expect.objectContaining({ code: 'W_REF_OUT_OF_SCOPE', severity: 'warning' }),
     ])
     expect(process.exitCode).toBeUndefined()
+  })
+
+  it('fails on an iteration reference an edit types into a block the lock binds outside its loop', async () => {
+    cacheCatalog()
+    const source = (code: string) => `// @sim-sdk 1
+import { fn, loop, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const each = loop.for('Each', { count: 2 }, (p) => {
+    const inner = fn('Inner', { code: 'return 1' })
+    p.to(inner)
+  })
+  const echo = fn('Echo', { code: '${code}' })
+  start.to(each)
+})
+`
+    const lock = {
+      version: 1,
+      blocks: {
+        start: { id: 'id-start', parent: null, ident: 'start', order: 0 },
+        each: { id: 'id-each', parent: null, ident: 'each', order: 1 },
+        inner: { id: 'id-inner', parent: 'each', ident: 'inner', order: 2 },
+        echo: { id: 'id-echo', parent: null, ident: 'echo', order: 3 },
+      },
+      variables: {},
+    }
+    const printed = source('return 1')
+    writeFileSync(join(dir, 'workflow.ts'), printed)
+    writeFileSync(join(dir, '.sim/lock.json'), JSON.stringify(lock))
+    const record = storedEdgesWrite(
+      { files: { 'workflow.ts': printed }, lock, base: { fingerprint: 'sf1:a' } },
+      JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
+    )
+    if (!record) throw new Error('no stored-edges record')
+    writeFileSync(join(dir, record[0]), record[1])
+    writeFileSync(join(dir, 'workflow.ts'), source('return <loop.index>'))
+
+    await check()
+
+    expect(
+      ((result().diagnostics ?? []) as Array<{ code: string; severity: string }>).filter(
+        (finding) => finding.code.includes('OUT_OF_SCOPE')
+      )
+    ).toEqual([expect.objectContaining({ code: 'E_APPLY_REF_OUT_OF_SCOPE', severity: 'error' })])
+    expect(process.exitCode).toBe(1)
   })
 
   it('fails on $ref in a Python function file, naming the tag the file writes instead', async () => {
