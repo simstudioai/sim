@@ -322,6 +322,17 @@ function listNames(names: readonly string[]): string {
   return names.length > 10 ? `${shown}, and ${names.length - 10} more` : shown
 }
 
+/** `E_APPLY_VARIABLE_DELETE` for the stored variables an apply removes, by name. */
+function variableDeleteRefusal(names: readonly string[], span: SourceSpan | undefined): Diagnostic {
+  return {
+    code: 'E_APPLY_VARIABLE_DELETE',
+    severity: 'error',
+    message: `This apply deletes ${names.length} variable${names.length === 1 ? '' : 's'} the source no longer declares: ${listNames(names)}.`,
+    hint: 'Pass --allow-delete (allowDelete=true) to delete them, or declare them again in workflow(name, { variables }) to keep them.',
+    ...withSpan(span),
+  }
+}
+
 /**
  * `E_APPLY_BLOCK_DELETE` for the stored blocks an apply removes. When the source adds blocks of
  * a removed block's type, they may be renames whose name and const both changed with no identity
@@ -836,13 +847,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
           : [getOwn(storedCanonical.workflow.variables, key)?.name ?? key]
       )
   if (removedVariables.length > 0 && !input.allowDelete) {
-    sourceRefusals.push({
-      code: 'E_APPLY_VARIABLE_DELETE',
-      severity: 'error',
-      message: `This apply deletes ${removedVariables.length} variable${removedVariables.length === 1 ? '' : 's'} the source no longer declares: ${listNames(removedVariables)}.`,
-      hint: 'Pass --allow-delete (allowDelete=true) to delete them, or declare them again in workflow(name, { variables }) to keep them.',
-      ...withSpan(metaSpan()),
-    })
+    sourceRefusals.push(variableDeleteRefusal(removedVariables, metaSpan()))
   }
   const renameWarnings = input.allowDelete
     ? probableRenames(removedBlocks, addedBlocks).map(

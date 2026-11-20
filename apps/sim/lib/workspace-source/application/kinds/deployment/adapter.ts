@@ -421,6 +421,72 @@ function draftNotSourceFinding(key: string, declared: boolean) {
   )
 }
 
+/**
+ * The deployment `next` of a workflow whose draft differs from its live version: `live: 'draft'`
+ * deploys the draft the directory vouches for (`W_DEPLOY_DRAFT_NOT_SOURCE` when it vouches for
+ * none, refusing a chat write that would deploy it), and `live: 'pinned'` keeps the live version
+ * (refusing a chat write, which would deploy the draft).
+ */
+async function planLiveDraft(
+  next: DeploymentChange,
+  detail: DeploymentPlan,
+  decl: DeploymentDecl,
+  ctx: PlanContext,
+  facts: {
+    key: string
+    workflowId: string | undefined
+    draftEdited: boolean
+    workflowChange: PlannedChange<'workflow'> | undefined
+  }
+): Promise<void> {
+  const { key, workflowChange } = facts
+  if (decl.live !== 'draft') {
+    next.diagnostics.push(
+      deploymentFinding(
+        key,
+        'I_DEPLOY_DRAFT_NOT_LIVE',
+        `${where('workflow', key)}'s draft differs from its live version, which keeps running: the deployment is pinned.`,
+        "Set `live: 'draft'` to deploy the draft with this apply."
+      )
+    )
+    if (detail.chat === 'replace') {
+      next.diagnostics.push(
+        deploymentFinding(
+          key,
+          'E_DEPLOY_PINNED_CHAT',
+          'Writing the chat deploys the draft, which this pinned deployment keeps out of the live version.',
+          "Set `live: 'draft'`, or leave the chat as it is until the draft should go live."
+        )
+      )
+    }
+    return
+  }
+  const draft = await vouchedDraft(ctx, {
+    workflowId: facts.workflowId,
+    draftEdited: facts.draftEdited,
+    folder: workflowChange,
+    firstDeploy: false,
+  })
+  if (draft) {
+    detail.deploy = true
+    detail.draft = draft
+    next.action = 'update'
+    next.fields = ['live version', ...(next.fields ?? [])]
+    return
+  }
+  next.diagnostics.push(draftNotSourceFinding(key, workflowChange !== undefined))
+  if (detail.chat === 'replace') {
+    next.diagnostics.push(
+      deploymentFinding(
+        key,
+        'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT',
+        'Writing the chat deploys the draft, which holds edits this directory does not declare.',
+        `Get those edits into ${workflowFolder(key)}/ first, or leave the chat as it is.`
+      )
+    )
+  }
+}
+
 /** Plans one declared deployment against the workflow under the same key. */
 async function planDeployment(
   key: string,
@@ -527,51 +593,8 @@ async function planDeployment(
       )
     )
     if (Object.keys(plannedOutputNames).length > 0) detail.plannedOutputNames = plannedOutputNames
-    const draftDiffers = state.needsRedeployment || draftEdited
-    if (draftDiffers && decl.live === 'draft') {
-      const draft = await vouchedDraft(ctx, {
-        workflowId,
-        draftEdited,
-        folder: workflowChange,
-        firstDeploy: false,
-      })
-      if (draft) {
-        detail.deploy = true
-        detail.draft = draft
-        next.action = 'update'
-        next.fields = ['live version', ...(next.fields ?? [])]
-      } else {
-        next.diagnostics.push(draftNotSourceFinding(key, workflowChange !== undefined))
-        if (detail.chat === 'replace') {
-          next.diagnostics.push(
-            deploymentFinding(
-              key,
-              'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT',
-              'Writing the chat deploys the draft, which holds edits this directory does not declare.',
-              `Get those edits into ${workflowFolder(key)}/ first, or leave the chat as it is.`
-            )
-          )
-        }
-      }
-    } else if (draftDiffers) {
-      next.diagnostics.push(
-        deploymentFinding(
-          key,
-          'I_DEPLOY_DRAFT_NOT_LIVE',
-          `${where('workflow', key)}'s draft differs from its live version, which keeps running: the deployment is pinned.`,
-          "Set `live: 'draft'` to deploy the draft with this apply."
-        )
-      )
-      if (detail.chat === 'replace') {
-        next.diagnostics.push(
-          deploymentFinding(
-            key,
-            'E_DEPLOY_PINNED_CHAT',
-            'Writing the chat deploys the draft, which this pinned deployment keeps out of the live version.',
-            "Set `live: 'draft'`, or leave the chat as it is until the draft should go live."
-          )
-        )
-      }
+    if (state.needsRedeployment || draftEdited) {
+      await planLiveDraft(next, detail, decl, ctx, { key, workflowId, draftEdited, workflowChange })
     }
   }
   if (next.action === 'noop') return next
