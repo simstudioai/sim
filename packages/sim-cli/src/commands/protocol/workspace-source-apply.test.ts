@@ -548,9 +548,9 @@ describe('workspaces source apply', () => {
     const [stale] = byCode('E_APPLY_STALE')
     expect(stale.hint).toContain('.sim/targets/ws_prod.json')
     expect(stale.hint).not.toContain('fresh directory')
-    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain(
-      'deletes 1 resource(s) that only workspace ws_prod holds'
-    )
+    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+    expect(stderr).toContain('  ! gone (deleted on the server; kept as the server has it)')
+    expect(stderr).not.toContain('resource(s) that only workspace ws_prod holds')
   })
 
   it('refuses --to naming the workspace the directory was read from', async () => {

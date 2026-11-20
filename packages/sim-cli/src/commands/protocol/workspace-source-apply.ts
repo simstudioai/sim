@@ -197,12 +197,6 @@ function printPlan(
       .filter((change) => change.server !== 'added')
       .map((change) => [`${change.kind}:${change.key}`, change.server])
   )
-  // A promotion reports the target's delete as W_PROMOTE_TARGET_DELETED in place of the server's W_SERVER_DELETED.
-  for (const finding of diagnostics) {
-    if (finding.code === 'W_PROMOTE_TARGET_DELETED' && finding.kind && finding.key) {
-      drifted.set(`${finding.kind}:${finding.key}`, 'deleted')
-    }
-  }
   const driftOf = (change: Change) =>
     change.action === 'noop' ? drifted.get(`${change.kind}:${change.key}`) : undefined
   for (const kind of APPLY_ORDER) {
@@ -246,19 +240,6 @@ function printPlan(
       `${destructive} change(s) delete data that applying an older directory (a reverted commit) does not bring back: a deleted resource stays deleted, and its rows, documents, run history and webhook URLs are gone.`
     )
   }
-}
-
-/**
- * Says loudly, below a promotion's plan, how many resources `--allow-delete` deletes that only the
- * target holds: a promotion deletes everything the directory does not declare.
- */
-function printTargetOnlyDeletes(promotion: Promotion | null, plan: readonly Change[]): void {
-  if (!promotion) return
-  const deletes = plan.filter((change) => change.action === 'delete')
-  if (deletes.length === 0) return
-  printError(
-    `--allow-delete with --to: this promotion deletes ${deletes.length} resource(s) that only workspace ${promotion.target} holds: ${deletes.map((change) => resourceWhere(change.kind, change.key)).join(', ')}.`
-  )
 }
 
 /** The changes that delete something (a resource, rows, documents, columns, a deployment). */
@@ -556,6 +537,16 @@ function promotionHint(code: string, target: string): string | undefined {
   return undefined
 }
 
+/** `finding` with the hint a promotion to `target` gives its code, when it gives one. */
+function withPromotionHint<F extends { hint?: string }>(
+  finding: F,
+  code: string,
+  target: string
+): F {
+  const hint = promotionHint(code, target)
+  return hint === undefined ? finding : { ...finding, hint }
+}
+
 /**
  * The server's findings as a promotion reports them: refusals carry the promotion's hint, and the
  * server's `W_SERVER_DELETED` for a resource the promotion warns about itself
@@ -563,13 +554,11 @@ function promotionHint(code: string, target: string): string | undefined {
  */
 function promotionDiagnostics(diagnostics: readonly Finding[], promotion: Promotion): Finding[] {
   const warned = new Set(promotion.deletedInTarget)
-  return diagnostics.flatMap((finding) => {
-    if (finding.code === 'W_SERVER_DELETED' && warned.has(`${finding.kind}:${finding.key}`)) {
-      return []
-    }
-    const hint = promotionHint(finding.code, promotion.target)
-    return [hint === undefined ? finding : { ...finding, hint }]
-  })
+  return diagnostics.flatMap((finding) =>
+    finding.code === 'W_SERVER_DELETED' && warned.has(`${finding.kind}:${finding.key}`)
+      ? []
+      : [withPromotionHint(finding, finding.code, promotion.target)]
+  )
 }
 
 /**
@@ -608,16 +597,32 @@ function promotionWarnings(promotion: Promotion, plan: readonly Change[]): Findi
   return [...deleted, ...targetOnly]
 }
 
-/** A refusal's findings as a promotion reports them (see {@link promotionDiagnostics}). */
-function rehintRefusal(refusal: unknown, promotion: Promotion): void {
-  if (!(refusal instanceof SimApiError) || !isRecordLike(refusal.details)) return
+/**
+ * `refusal` with its findings as a promotion reports them (see {@link promotionDiagnostics}): a
+ * new error, the caller's left as it was.
+ */
+function rehinted(refusal: unknown, promotion: Promotion): unknown {
+  if (!(refusal instanceof SimApiError) || !isRecordLike(refusal.details)) return refusal
   const { diagnostics } = refusal.details
-  if (!Array.isArray(diagnostics)) return
-  refusal.details.diagnostics = diagnostics.map((finding) => {
-    if (!isRecordLike(finding) || typeof finding.code !== 'string') return finding
-    const hint = promotionHint(finding.code, promotion.target)
-    return hint === undefined ? finding : { ...finding, hint }
-  })
+  if (!Array.isArray(diagnostics)) return refusal
+  const details = {
+    ...refusal.details,
+    diagnostics: diagnostics.map((finding) =>
+      isRecordLike(finding) && typeof finding.code === 'string'
+        ? withPromotionHint(finding, finding.code, promotion.target)
+        : finding
+    ),
+  }
+  const copy = new SimApiError(
+    refusal.message,
+    refusal.status,
+    refusal.code,
+    details,
+    refusal.exitCode,
+    refusal.requestId
+  )
+  copy.retryAfterMs = refusal.retryAfterMs
+  return copy
 }
 
 /**
@@ -728,8 +733,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
             refusal = error
           }
         }
-        if (promotion) rehintRefusal(refusal, promotion)
-        return printRefusal(refusal, profile.output, {
+        return printRefusal(promotion ? rehinted(refusal, promotion) : refusal, profile.output, {
           ...(dryRun ? {} : { ifAnswerLost: answerLostHint(options.dir) }),
           verbose: options.verbose === true,
         })
@@ -779,7 +783,6 @@ export function attachWorkspaceSourceApply(source: Command): void {
           if (mode !== 'write') {
             preview = reported(await send(submission, true))
             printPlan(preview.plan, preview.diagnostics)
-            printTargetOnlyDeletes(promotion, preview.plan)
             findings.print(preview.diagnostics)
             const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
             if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))

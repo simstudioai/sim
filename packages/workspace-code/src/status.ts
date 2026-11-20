@@ -136,6 +136,7 @@ const SERVER_FINDINGS: ReadonlyMap<string, ServerChange> = new Map(
     W_SERVER_CHANGED: 'changed',
     W_SERVER_DELETED: 'deleted',
     W_SERVER_MOVED: 'moved',
+    W_PROMOTE_TARGET_DELETED: 'deleted',
     E_APPLY_STALE: 'changed',
     W_UNDECLARED: 'added',
     E_APPLY_NO_BASE: 'added',
