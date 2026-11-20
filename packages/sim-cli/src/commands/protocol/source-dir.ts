@@ -878,11 +878,7 @@ export async function writeBack(
     [SOURCE_LOCK_FILE, `${JSON.stringify(answer.lock, null, 2)}\n`],
     [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`],
   ]
-  const write = [
-    ...printed,
-    ...(folder ? [] : writtenFiles(writtenRecord(files))),
-    ...extra.write,
-  ]
+  const write = [...printed, ...(folder ? [] : writtenFiles(writtenRecord(files))), ...extra.write]
   const orphaned = orphanedCodeFiles(previousLock, answer.lock, Object.keys(answer.files))
   const unnamed = await unnamedCodeFiles(dir, previousLock, answer, orphaned)
   await updateSourceDir(dir, {
