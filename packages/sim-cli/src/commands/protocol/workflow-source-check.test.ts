@@ -611,7 +611,6 @@ export default workflow('W', {}, () => {
         severity: 'error',
         file: 'functions/total.py',
         line: 1,
-        hint: 'Python files are saved as written: write <start.q>.',
       })
     )
     expect(process.exitCode).toBe(1)

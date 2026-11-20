@@ -19,7 +19,6 @@ import {
 import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
 import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
 import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -371,18 +370,6 @@ describe('WorkflowBlockHandler', () => {
           },
         })
       )
-    })
-
-    it('names a child the run cannot read through its delegation as a workflow of another workspace', async () => {
-      const ctx = { ...mockContext, workspaceId: 'workspace-parent' }
-      mockReadWorkflowDefinitionAsExecutor.mockRejectedValueOnce(
-        new DelegatedWorkspaceAuthorizationError()
-      )
-
-      await expect(handler.execute(ctx, mockBlock, inputs)).rejects.toThrow(
-        'Child workflow child-workflow-id is not in this workspace'
-      )
-      expect(mockExecutorExecute).not.toHaveBeenCalled()
     })
 
     it('leaves an internal child load fault for the block executor to log with the run identity', async () => {

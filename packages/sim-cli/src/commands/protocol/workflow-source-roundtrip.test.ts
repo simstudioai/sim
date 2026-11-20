@@ -358,6 +358,7 @@ describe('the source directory never reaches outside --dir', () => {
     expect(existsSync(join(root, 'escape.js'))).toBe(false)
     expect(read('workflow.ts')).toBe('// changed\n')
     expect(JSON.parse(read('.sim/base.json')).fingerprint).not.toBe(FIRST)
+    expect(stderr.join('\n')).toContain('the answer named ../escape.js, which the CLI never writes')
   })
 
   it.each([
@@ -436,6 +437,9 @@ describe('the files a server answer may write', () => {
 
     expect(existsSync(join(dir, '.git'))).toBe(false)
     expect(JSON.parse(read('.sim/base.json')).fingerprint).not.toBe(FIRST)
+    expect(stderr.join('\n')).toContain(
+      'the answer named .git/hooks/pre-commit, which the CLI never writes'
+    )
   })
 })
 

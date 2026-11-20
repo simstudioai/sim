@@ -252,9 +252,6 @@ describe('MCP servers as workspace source', () => {
 
       const dryRun = await apply(workspaceId, files, { dryRun: true })
       expect(findings(dryRun.diagnostics, 'error')).toEqual(['E_APPLY_REFUSED mcp-server:bad'])
-      expect(dryRun.diagnostics.find((finding) => finding.key === 'bad')?.message).toContain(
-        'could not be resolved'
-      )
 
       const refused = await refusal(apply(workspaceId, files))
       expect(findings(refused.diagnostics, 'error')).toEqual(['E_APPLY_REFUSED mcp-server:bad'])

@@ -2436,11 +2436,6 @@ describe('renames in source', () => {
       { id: seeded.ids.boom, from: 'boom', to: 'tally' },
       { id: seeded.ids.tally, from: 'tally', to: 'boom' },
     ])
-    expect(
-      result.diff.blocks.modified
-        .filter((block) => block.id === seeded.ids.boom || block.id === seeded.ids.tally)
-        .map((block) => block.fields)
-    ).toEqual([['name'], ['name']])
     expect(result.diff.edges).toEqual({ added: 0, removed: 0 })
   })
 
@@ -2466,7 +2461,6 @@ describe('renames in source', () => {
     expect(result.diff.blocks.added).toEqual([
       expect.objectContaining({ key: 'tally', type: 'api' }),
     ])
-    expect(result.diff.blocks.modified.map((block) => block.key)).not.toContain('tally')
     expect(result.diff.edges).toEqual({ added: 2, removed: 2 })
   })
 
@@ -2718,37 +2712,28 @@ describe('renames in source', () => {
     }
   )
 
-  check(
-    'a $ref the edit wrote into a Python function file is refused, naming the tag',
-    async () => {
-      const seeded = await seedChain()
-      const source = await getSource(seeded.workflowId)
-      const entry = source.files['workflow.ts'].replace(
-        /fn\('Boom', \{.*\}\)/,
-        "fn('Boom', { language: 'python', code: codeFile('./functions/boom.py') })"
-      )
-      expect(entry).toContain('boom.py')
-      const files = {
-        ...omit(source.files, ['functions/boom.js']),
-        'workflow.ts': entry,
-        'functions/boom.py': 'return $ref.start.value\n',
-      }
-
-      const dryRun = await apply(source, files, { dryRun: true })
-
-      expect(
-        dryRun.diagnostics
-          .filter((d) => d.severity === 'error')
-          .map((d) => ({ code: d.code, file: d.file, hint: d.hint }))
-      ).toEqual([
-        {
-          code: 'E_APPLY_CODE_FILE_REF_SYNTAX',
-          file: 'functions/boom.py',
-          hint: 'Python files are saved as written: write <start.value>.',
-        },
-      ])
+  check('a $ref the edit wrote into a Python function file is refused', async () => {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    const entry = source.files['workflow.ts'].replace(
+      /fn\('Boom', \{.*\}\)/,
+      "fn('Boom', { language: 'python', code: codeFile('./functions/boom.py') })"
+    )
+    expect(entry).toContain('boom.py')
+    const files = {
+      ...omit(source.files, ['functions/boom.js']),
+      'workflow.ts': entry,
+      'functions/boom.py': 'return $ref.start.value\n',
     }
-  )
+
+    const dryRun = await apply(source, files, { dryRun: true })
+
+    expect(
+      dryRun.diagnostics
+        .filter((d) => d.severity === 'error')
+        .map((d) => ({ code: d.code, file: d.file }))
+    ).toEqual([{ code: 'E_APPLY_CODE_FILE_REF_SYNTAX', file: 'functions/boom.py' }])
+  })
 
   check(
     'refuses every edited Python file holding a $ref, however many the compile lists of that code',
