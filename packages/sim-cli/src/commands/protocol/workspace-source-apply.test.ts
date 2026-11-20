@@ -430,6 +430,33 @@ describe('workspaces source apply', () => {
     expect(stderr).toContain('2 change(s) delete data that applying an older directory')
   })
 
+  it('prints a delete refused for want of --allow-delete as refused, not unchanged', async () => {
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        plan: [
+          { kind: 'skill', key: 'tone', action: 'noop' },
+          { kind: 'skill', key: 'brief', action: 'noop' },
+        ],
+        diagnostics: [
+          {
+            code: 'E_APPLY_DELETE_NOT_ALLOWED',
+            severity: 'error',
+            message: 'skills/tone is no longer declared; deleting "tone" needs --allow-delete.',
+            kind: 'skill',
+            key: 'tone',
+          },
+        ],
+      })
+    )
+
+    await apply('--dry-run')
+
+    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+    expect(stderr).toContain('skills: 1 delete refused, 1 unchanged')
+    expect(stderr).toContain('  - tone — refused, needs --allow-delete')
+  })
+
   it('prints a --to dry run with its findings in the JSON result', async () => {
     request.mockImplementation(async (path: string, options: { body?: unknown }) => {
       if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {

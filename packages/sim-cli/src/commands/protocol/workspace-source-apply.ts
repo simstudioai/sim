@@ -178,11 +178,16 @@ function printPlan(
   )
   const driftOf = (change: Change) =>
     change.action === 'noop' ? drifted.get(`${change.kind}:${change.key}`) : undefined
-  const stale = new Set(
-    diagnostics
-      .filter((finding) => finding.code === 'E_APPLY_STALE')
-      .map((finding) => `${finding.kind}:${finding.key}`)
-  )
+  const addressesOf = (code: string) =>
+    new Set(
+      diagnostics
+        .filter((finding) => finding.code === code)
+        .map((finding) => `${finding.kind}:${finding.key}`)
+    )
+  const stale = addressesOf('E_APPLY_STALE')
+  const deleteRefused = addressesOf('E_APPLY_DELETE_NOT_ALLOWED')
+  const refusedDelete = (change: Change) =>
+    change.action === 'noop' && deleteRefused.has(`${change.kind}:${change.key}`)
   for (const kind of APPLY_ORDER) {
     const changes = plan.filter((change) => change.kind === kind)
     if (changes.length === 0) continue
@@ -191,9 +196,11 @@ function printPlan(
       const drift = driftOf(change)
       const label = drift
         ? `${drift} on the server`
-        : change.action === 'noop'
-          ? 'unchanged'
-          : change.action
+        : refusedDelete(change)
+          ? 'delete refused'
+          : change.action === 'noop'
+            ? 'unchanged'
+            : change.action
       counts.set(label, (counts.get(label) ?? 0) + 1)
     }
     printError(
@@ -206,6 +213,10 @@ function printPlan(
           ? 'your edit is refused as stale'
           : 'kept as the server has it'
         printError(`  ! ${change.key} (${drift} on the server; ${fate})`)
+        continue
+      }
+      if (refusedDelete(change)) {
+        printError(`  - ${change.key} — refused, needs --allow-delete`)
         continue
       }
       if (change.action === 'noop') continue
