@@ -773,8 +773,38 @@ function moveToParent(
     return
   }
   if (parentId === currentParent) return
+  if (isSelfOrDescendant(parentId, blockId, ctx.modifiedState.blocks)) {
+    logSkippedItem(ctx.skippedItems, {
+      type: 'invalid_subflow_parent',
+      operationType: 'edit',
+      blockId,
+      reason: `Cannot place block "${blockId}" in "${parentId}" - that would place the block inside itself`,
+      details: { parentId },
+    })
+    return
+  }
   if (!subflowContainer(parentId, blockId, 'edit', ctx)) return
   placeInSubflow(block, parentId)
+}
+
+/**
+ * Whether block `candidateId` is block `ancestorId` itself or sits anywhere inside it, following
+ * the `parentId` chain up from `candidateId`. Making `ancestorId` a child of such a block would
+ * create a parent cycle.
+ */
+function isSelfOrDescendant(
+  candidateId: string,
+  ancestorId: string,
+  blocks: Record<string, BlockState>
+): boolean {
+  const seen = new Set<string>()
+  let current: string | undefined = candidateId
+  while (current && !seen.has(current)) {
+    if (current === ancestorId) return true
+    seen.add(current)
+    current = blocks[current]?.data?.parentId
+  }
+  return false
 }
 
 export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationContext): void {

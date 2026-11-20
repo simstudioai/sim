@@ -1748,6 +1748,33 @@ describe('moving an existing block with edit params.parentId', () => {
       }),
     ])
   })
+  it.each([
+    ['itself', 'loop-1', 'loop-1'],
+    ['a container nested inside it', 'loop-1', 'loop-2'],
+  ])('refuses to make a container a child of %s', (_label, blockId, parentId) => {
+    const workflow = workflowWithLoop()
+    const nested = {
+      ...workflow.blocks['loop-1'],
+      id: 'loop-2',
+      name: 'loop-2',
+      data: { loopType: 'for', count: 2, parentId: 'loop-1', extent: 'parent' },
+      position: { x: 5, y: 5 },
+    }
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      { ...workflow, blocks: { ...workflow.blocks, 'loop-2': nested } },
+      [{ operation_type: 'edit', block_id: blockId, params: { parentId } }]
+    )
+
+    expect(state.blocks['loop-1'].data?.parentId).toBeUndefined()
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'invalid_subflow_parent',
+        operationType: 'edit',
+        blockId,
+        reason: expect.stringContaining('inside itself'),
+      }),
+    ])
+  })
 })
 
 describe('edge cycles', () => {
