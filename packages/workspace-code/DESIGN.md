@@ -332,8 +332,11 @@ to another (prod) without rebinding the directory. The CLI reads the target as a
 (`GET /source` for the managed kinds, no blob downloads) and composes the submission with
 `promotionSubmission` (`src/promote.ts`): the directory's text with every workflow folder whole,
 each folder's `.sim/lock.json` and `.sim/base.json` replaced by the target's folder of the same key
-(or dropped, so the key is created), and the target's root base, narrowed to the keys the
-directory declares unless `--allow-delete`. The server sees an ordinary apply against its own base,
+(or dropped, so the key is created), and the target's root base. A base entry the directory does
+not declare stays in it when the promotion record holds it for the same id (the directory deleted
+it since, so the apply refuses it without `--allow-delete` as it would at home); one only the target
+ever held (`targetOnly`) leaves it unless `--allow-delete`, and the CLI names each such delete
+`W_PROMOTE_DELETES_TARGET_ONLY`. The server sees an ordinary apply against its own base,
 so every rule holds unchanged: a resource bound under the key is updated in place (a workflow keeps
 its id and block ids through the target's lock), an unbound one of the same name is adopted, a
 missing one created, and secrets and credentials bind by name and key to the target's own. The

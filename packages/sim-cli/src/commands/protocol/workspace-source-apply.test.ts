@@ -474,6 +474,7 @@ describe('workspaces source apply', () => {
 
   it('a --to dry run warns of what the target deleted since the last promotion, gives stale findings a promotion hint, and names each target-only delete', async () => {
     const leads = { id: 'tbl_prod', fingerprint: `rf1:${'a'.repeat(64)}` }
+    const dropped = { id: 'tbl_dropped', fingerprint: `rf1:${'d'.repeat(64)}` }
     write(
       '.sim/targets/ws_prod.json',
       JSON.stringify({
@@ -482,6 +483,7 @@ describe('workspaces source apply', () => {
         resources: {
           'table:leads': leads,
           'table:gone': { id: 'tbl_gone', fingerprint: `rf1:${'c'.repeat(64)}` },
+          'table:dropped': dropped,
         },
         workflows: {},
       })
@@ -493,12 +495,20 @@ describe('workspaces source apply', () => {
           data: {
             workspaceId: 'ws_prod',
             kinds: ['table'],
-            files: { 'tables/leads.ts': LEADS, 'tables/prod-only.ts': LEADS },
+            files: {
+              'tables/leads.ts': LEADS,
+              'tables/prod-only.ts': LEADS,
+              'tables/dropped.ts': LEADS,
+            },
             blobs: [],
             base: {
               version: 1,
               workspaceId: 'ws_prod',
-              resources: { 'table:leads': leads, 'table:prod-only': { id: 'tbl_only' } },
+              resources: {
+                'table:leads': leads,
+                'table:prod-only': { id: 'tbl_only' },
+                'table:dropped': dropped,
+              },
             },
             skipped: [],
             diagnostics: [],
@@ -512,6 +522,7 @@ describe('workspaces source apply', () => {
           { kind: 'table', key: 'gone', action: 'noop' },
           { kind: 'table', key: 'leads', action: 'noop' },
           { kind: 'table', key: 'prod-only', action: 'delete' },
+          { kind: 'table', key: 'dropped', action: 'delete' },
         ],
         diagnostics: [
           {

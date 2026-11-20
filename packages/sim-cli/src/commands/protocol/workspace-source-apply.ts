@@ -409,6 +409,8 @@ interface Promotion {
   target: string
   /** What the target deleted since the last promotion that the directory declares (addresses). */
   deletedInTarget: string[]
+  /** What only the target holds: undeclared, and no promotion from the directory left it there. */
+  targetOnly: string[]
 }
 
 /**
@@ -456,6 +458,7 @@ async function promoted(
     record,
     target,
     deletedInTarget: composed.deletedInTarget,
+    targetOnly: composed.targetOnly,
   }
 }
 
@@ -556,9 +559,13 @@ function promotionWarnings(
       },
     ]
   })
+  const onlyInTarget = new Set(promotion.targetOnly)
   const targetOnly = outcome.plan
     .filter(
-      (change) => change.action === 'delete' && (!outcome.failed || wasWritten(change, outcome))
+      (change) =>
+        change.action === 'delete' &&
+        onlyInTarget.has(`${change.kind}:${change.key}`) &&
+        (!outcome.failed || wasWritten(change, outcome))
     )
     .map(
       (change): Finding => ({
