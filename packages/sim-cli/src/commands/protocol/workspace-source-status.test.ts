@@ -134,6 +134,24 @@ describe('workspaces source status', () => {
     expect(process.exitCode ?? 0).toBe(0)
   })
 
+  it('lists the warnings its plan counts', async () => {
+    const warning = {
+      code: 'W_UNRESOLVED_REF',
+      severity: 'warning',
+      message: '$ref.nosuch.x names no block, so it does not resolve at run time.',
+      file: 'workflows/ingest/functions/f.js',
+      line: 1,
+      column: 8,
+      kind: 'workflow',
+      key: 'ingest',
+    }
+    mockRequest.mockResolvedValue(dryRun([], [warning]))
+
+    await run('status')
+
+    expect(printed()).toMatchObject({ plan: { warnings: 1 }, diagnostics: [warning] })
+  })
+
   it('waits for no writer: a status while another command holds the directory exits 10, reading nothing', async () => {
     write('.sim/command.lock/owner.json', JSON.stringify({ pid: process.pid, host: hostname() }))
     mockRequest.mockResolvedValue(dryRun())

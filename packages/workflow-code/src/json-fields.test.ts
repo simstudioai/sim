@@ -231,6 +231,38 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
     expect(untyped(code, 'w', printed)).toHaveLength(1)
   })
 
+  it('on an apply, stays quiet on an unchanged JSON field whose reference only a rename rewrote', () => {
+    const code = 'return { v: $ref.start.v }'
+    const printed = compile(code, 'v').workflow
+    if (!printed) throw new Error('the source did not compile')
+    const renamed = (stored: CanonicalWorkflow, renamedKeys: ReadonlyMap<string, string>) => {
+      const text = `// @sim-sdk 1\n${FN_IMPORTS}\n\nexport default workflow('Test', {}, () => {
+  const start = trigger.start('Start')
+  const score = fn('Lead Score', { code: ${JSON.stringify(code)} })
+  const next = api('Next', { url: 'https://x', body: { v: score.result.v } })
+  start.to(score)
+  score.to(next)
+})\n`
+      return compileWorkflow({
+        entry: { path: 'workflow.ts', text },
+        files: new Map(),
+        catalog: TEST_CATALOG,
+        sdkMajor: 1,
+        stored,
+        renamedKeys,
+      }).diagnostics.filter((d) => d.code === 'W_JSON_REF_UNTYPED')
+    }
+
+    const { score, ...others } = printed.blocks
+    if (!score) throw new Error('the source has no score block')
+    const rekeyed = { ...printed, blocks: { ...others, leadscore: { ...score, key: 'leadscore' } } }
+    const renames = new Map([['score', 'leadscore']])
+
+    expect(renamed(printed, renames)).toEqual([])
+    expect(renamed(rekeyed, renames)).toEqual([])
+    expect(renamed(printed, new Map())).toHaveLength(1)
+  })
+
   it('on an apply, warns on an unchanged JSON field when the Function it reads now returns text there', () => {
     const printed = compile('return { v: 1 }', 'v').workflow
     if (!printed) throw new Error('the source did not compile')

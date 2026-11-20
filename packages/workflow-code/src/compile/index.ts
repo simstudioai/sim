@@ -15,6 +15,7 @@ import type { LocatedDiagnostic, SourceSpan } from '../diagnostics/frame'
 import { jsonFieldText, type RefTypeScope, refValueKind } from '../json-fields'
 import { utf8Bytes } from '../limits'
 import { lockIdentRenames, type SourceHints, type WorkflowLockV1 } from '../lock'
+import { renamedReferenceRewriter } from '../materialize/values'
 import type {
   AnchorKey,
   BlockKey,
@@ -433,19 +434,42 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
 const BYTE_ORDER_MARK = '\uFEFF'
 
 /**
- * Whether the stored workflow holds `value` in `param` of block `key` already: a JSON field the
- * source left as it was printed, whose untyped references the edit did not write, so
- * `W_JSON_REF_UNTYPED` is not repeated on every apply of a workflow it was saved with.
+ * The stored workflow as the source names it: `block` looks a block up by its source key (under
+ * that key in a stored model re-keyed by the renames, else under its stored key) and `holds` says
+ * whether a param holds `value` already, both through the block renames of the apply (`renamed`,
+ * stored key → source key), whose reference rewrites are no edit of the source.
  */
-function storedHolds(
+interface StoredView {
+  block(key: BlockKey): CanonicalBlock | undefined
+  holds(key: BlockKey, param: string, value: string): boolean
+}
+
+function storedView(
   stored: CanonicalWorkflow | undefined,
-  key: BlockKey,
-  param: string,
-  value: string
-): boolean {
-  const held = stored && getOwn(stored.blocks, key)
-  const storedParam = held ? getOwn(held.params, param) : undefined
-  return storedParam?.kind === 'value' && storedParam.value === value
+  renamed: ReadonlyMap<BlockKey, BlockKey>
+): StoredView {
+  const storedKeyOf = new Map([...renamed].map(([from, to]) => [to, from]))
+  const rewrite = renamedReferenceRewriter([...renamed].map(([from, to]) => ({ from, to })))
+  const block = (key: BlockKey) => {
+    if (!stored) return undefined
+    const storedKey = storedKeyOf.get(key)
+    return (
+      getOwn(stored.blocks, key) ??
+      (storedKey === undefined ? undefined : getOwn(stored.blocks, storedKey))
+    )
+  }
+  return {
+    block,
+    holds: (key, param, value) => {
+      const held = block(key)
+      const storedParam = held ? getOwn(held.params, param) : undefined
+      return (
+        storedParam?.kind === 'value' &&
+        typeof storedParam.value === 'string' &&
+        rewrite(storedParam.value) === value
+      )
+    },
+  }
 }
 
 /**
@@ -654,7 +678,9 @@ function compileEntry(
   const unreadRenames = unread
     ? lockIdentRenames(hints, unread, (key) => Object.hasOwn(unread.blocks, key))
     : new Map<BlockKey, BlockKey>()
-  checkCodeFileRefs(ctx, new Map([...unreadRenames, ...(input.renamedKeys ?? [])]))
+  const renamed = new Map([...unreadRenames, ...(input.renamedKeys ?? [])])
+  checkCodeFileRefs(ctx, renamed)
+  const stored = storedView(input.stored, renamed)
 
   const refTypes: RefTypeScope = {
     catalog: input.catalog,
@@ -672,11 +698,8 @@ function compileEntry(
       // An unchanged field stays quiet only while what it reads is too: a Function that now
       // returns text where it returned a number makes the same bare token break the JSON.
       if (
-        storedHolds(input.stored, ref.blockKey, id, value) &&
-        referencedResultKind(
-          ref.token,
-          (key) => input.stored && getOwn(input.stored.blocks, key)
-        ) === returned
+        stored.holds(ref.blockKey, id, value) &&
+        referencedResultKind(ref.token, stored.block) === returned
       ) {
         continue
       }

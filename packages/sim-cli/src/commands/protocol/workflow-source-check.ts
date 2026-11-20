@@ -25,7 +25,9 @@ import { SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
+  digest,
   directoryWorkspace,
+  readFolderWritten,
   readSourceJson,
   readSourceText,
   readStarterWorkspace,
@@ -89,6 +91,18 @@ const STORED_EXEMPT_CODES: ReadonlySet<string> = new Set(['W_BRANCH_UNWIRED'])
 const EDIT_SCOPED_CODES: ReadonlySet<string> = new Set(['W_JSON_REF_UNTYPED'])
 
 /**
+ * Warnings in a function code file a check refuses under the server's error code, whatever the
+ * strict mode, when that file changed since the get wrote it (or is new; a file only moved from
+ * the path the lock bound its block to is unchanged while its text matches that path's digest):
+ * the server refuses them on code the edit changed, and keeps them as warnings only on code the
+ * stored workflow already holds. `W_UNRESOLVED_REF`, a `$ref` naming no block or variable, which fails at run time, is
+ * `E_APPLY_UNRESOLVED_REF`.
+ */
+const EDITED_FILE_REFUSALS: ReadonlyMap<string, CheckFinding['code']> = new Map([
+  ['W_UNRESOLVED_REF', 'E_APPLY_UNRESOLVED_REF'],
+])
+
+/**
  * Which {@link STRICT_CODES} warnings fail a check: `new` those on a block the lock does not bind
  * (one added since the get, or every block of a workflow that has no lock yet), `all` every one,
  * `off` none. Printed source can hold such a warning on a block nobody edited (a field left empty
@@ -125,8 +139,12 @@ These warnings, which an apply saves as written, fail the check as errors on eve
 does not bind (a block added since the get, or every block of a new workflow):
 ${[...STRICT_CODES].map((code) => `  ${code}`).join(',\n')}.
 --strict fails on them in every block, except ${[...STORED_EXEMPT_CODES].join(', ')} on a block the
-lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict never
-fails on a warning. ${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not
+lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails
+on none of them. In a function file changed since the get, ${[...EDITED_FILE_REFUSALS]
+  .map(([warning, refusal]) => `${warning} is the error ${refusal}`)
+  .join(
+    ', '
+  )} in every mode, as the server refuses it. ${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not
 bind, and with --strict on every block.`
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
@@ -479,6 +497,22 @@ export async function checkWorkflowDir(
       : []
   const bound = (blockKey: string | undefined) =>
     lock !== undefined && blockKey !== undefined && Object.hasOwn(lock.blocks, blockKey)
+  const written = await readFolderWritten(dir)
+  const edited = (file: string, blockKey: string | undefined) => {
+    const text = files[file]
+    if (text === undefined) return true
+    const textDigest = digest(text)
+    if (written.digests[file] === textDigest) return false
+    const previousFile =
+      lock && blockKey !== undefined && Object.hasOwn(lock.blocks, blockKey)
+        ? lock.blocks[blockKey].codeFile
+        : undefined
+    return previousFile === undefined || written.digests[previousFile] !== textDigest
+  }
+  const editedRefusal = (code: string, file: string | undefined, blockKey: string | undefined) =>
+    file !== undefined && file !== SOURCE_ENTRY_FILE && edited(file, blockKey)
+      ? EDITED_FILE_REFUSALS.get(code)
+      : undefined
   const fails = (code: string, blockKey: string | undefined) =>
     STRICT_CODES.has(code) &&
     !(STORED_EXEMPT_CODES.has(code) && bound(blockKey)) &&
@@ -491,9 +525,10 @@ export async function checkWorkflowDir(
     ...compiled.diagnostics.filter((diagnostic) => reported(diagnostic.code, diagnostic.blockKey)),
     ...declared,
   ].map(({ code, severity, message, hint, frame, span, blockKey }): CheckFinding => {
-    const raised = severity === 'warning' && fails(code, blockKey)
+    const refusal = severity === 'warning' ? editedRefusal(code, span?.file, blockKey) : undefined
+    const raised = refusal !== undefined || (severity === 'warning' && fails(code, blockKey))
     return {
-      code,
+      code: refusal ?? code,
       severity: raised ? 'error' : severity,
       message: raised ? message.replace(KEPT_AS_WRITTEN, '.') : message,
       ...(hint !== undefined ? { hint } : {}),

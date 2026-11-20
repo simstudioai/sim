@@ -334,6 +334,11 @@ export interface CommandSpec {
    */
   confirm?: string
   /**
+   * Accept `-y/--yes` without a `confirm` gate, as a no-op: a write callers run beside confirmed
+   * ones (a deploy after `workflows source apply --yes`) takes the flag they pass there.
+   */
+  acceptsYes?: true
+  /**
    * Discover table columns from inside this nested field as well as from the
    * row's own scalars.
    *

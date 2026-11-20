@@ -62,7 +62,7 @@ const FILE_EDIT_HELP =
  * shape guessable, the same way `TABLE_FILTER_HELP` does for the predicate.
  */
 const WORKFLOW_OPERATIONS_HELP =
-  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"success":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId'
+  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"success":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId. To move an existing block into a loop or parallel (keeping its id), edit it with params {"parentId":"<loop-id>"}; {"parentId":null} moves it out'
 const WORKFLOW_SET_BLOCK_ENABLED_HELP =
   'Blocks to enable or disable, applied after --operations: [{"block_id":"<uuid>","enabled":false}]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined'
 const WORKFLOW_VARIABLE_OPERATIONS_HELP =
@@ -697,6 +697,7 @@ export const CLI_CONTRACT: CliContract = {
   revertWorkflowVersion: {
     confirm: 'This overwrites the draft graph with the selected version and cannot be undone.',
   },
+  deployWorkflow: { acceptsYes: true },
   // A rollback is the deployed counterpart of that revert, and the more
   // consequential of the two: a revert only rewrites the draft, while this
   // changes which version production serves. Gating the draft write and not the

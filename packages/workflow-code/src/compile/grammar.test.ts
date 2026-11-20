@@ -1104,6 +1104,44 @@ describe('errors, each with its code, location and hint', () => {
     expect(codes(compile({}))).toEqual(['W_UNRESOLVED_REF 8', 'W_UNRESOLVED_REF 27'])
   })
 
+  it('names the probable new key of a block the lock binds that source renamed past recognition', () => {
+    const text = source(
+      [
+        START,
+        "const fetcher = api('Fetch Page', { url: 'x' })",
+        "const f = fn('F', { code: codeFile('./fns/f.js') })",
+      ].join('\n')
+    )
+    const lockBlock = (id: string, ident: string, order: number) => ({
+      id,
+      parent: null,
+      ident,
+      order,
+    })
+    const storedUnread = {
+      version: 1 as const,
+      blocks: {
+        start: lockBlock('b-start', 'start', 0),
+        lookup: lockBlock('b-lookup', 'lookup', 1),
+        f: lockBlock('b-f', 'f', 2),
+      },
+      variables: {},
+    }
+    const result = compileWorkflow({
+      entry: { path: ENTRY, text },
+      files: new Map([['workflows/fns/f.js', 'return $ref.lookup.data']]),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      knownKeys: new Set(Object.keys(storedUnread.blocks)),
+      storedUnread,
+    })
+
+    const finding = result.diagnostics.find((d) => d.code === 'W_UNRESOLVED_REF')
+    expect(finding?.hint).toBe(
+      '$ref.lookup is a block this workflow had that workflow.ts no longer declares under that key: if Fetch Page is it renamed, write $ref.fetchpage.data.'
+    )
+  })
+
   it('reports a syntax error inside a code file at its own location', () => {
     const result = run(source("const f = fn('F', { code: codeFile('./fns/bad.js') })"), {
       'workflows/fns/bad.js': 'return (',

@@ -53,6 +53,7 @@ import {
   type NextStep,
   nextStep,
   pathFilter,
+  planFindings,
   printDiffReport,
   printStatusReport,
   type ServerCheck,
@@ -63,6 +64,7 @@ import {
   unreachableReason,
 } from './source-status'
 import { withSourceExitCode } from './source-tree'
+import type { Diagnostic } from './source-ui'
 import { destructiveChanges } from './workspace-source-apply'
 import {
   assertWorkspaceDir,
@@ -220,13 +222,17 @@ function planAsApplied(
   )
 }
 
+/** The dry run's findings the plan counts: all but the server changes the status lists. */
+function workspacePlanFindings(data: ApplyData): Diagnostic[] {
+  return planFindings(data.diagnostics, isServerChangeFinding)
+}
+
 function planSummary(data: ApplyData, plan: readonly PlannedChange[]): WorkspacePlanSummary {
   const count = (...actions: string[]) =>
     plan.filter((change) => actions.includes(change.action)).length
+  const planned = workspacePlanFindings(data)
   const findings = (severity: string) =>
-    data.diagnostics.filter(
-      (finding) => finding.severity === severity && !isServerChangeFinding(finding.code)
-    ).length
+    planned.filter((finding) => finding.severity === severity).length
   return {
     create: count('create'),
     update: count('update', 'adopt'),
@@ -401,7 +407,8 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             output,
             `Workspace ${workspaceId ?? '(no base)'} in ${options.dir}`,
             report,
-            planLine
+            planLine,
+            data ? workspacePlanFindings(data) : []
           )
           setSoftExitCode(statusExitCode(status.state, login))
         },

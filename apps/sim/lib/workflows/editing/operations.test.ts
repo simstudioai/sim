@@ -1683,6 +1683,177 @@ describe('connection shape validation', () => {
   })
 })
 
+describe('moving an existing block with edit params.parentId', () => {
+  function workflowWithLoop() {
+    const block = (id: string, type: string, data: Record<string, unknown> = {}) => ({
+      id,
+      type,
+      name: id,
+      position: { x: 400, y: 200 },
+      enabled: true,
+      subBlocks: {},
+      outputs: {},
+      data,
+    })
+    return {
+      blocks: {
+        'loop-1': {
+          ...block('loop-1', 'loop', { loopType: 'for', count: 2 }),
+          position: { x: 50, y: 60 },
+        },
+        'fn-1': block('fn-1', 'function'),
+        'fn-2': {
+          ...block('fn-2', 'function', { parentId: 'loop-1', extent: 'parent' }),
+          position: { x: 10, y: 20 },
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+  }
+
+  it('moves a top-level block into a loop, keeping its id', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflowWithLoop(), [
+      { operation_type: 'edit', block_id: 'fn-1', params: { parentId: 'loop-1' } },
+    ])
+
+    expect(skippedItems).toEqual([])
+    expect(state.blocks['fn-1'].data).toMatchObject({ parentId: 'loop-1', extent: 'parent' })
+    expect(state.blocks['fn-1'].position).toEqual({ x: 0, y: 0 })
+  })
+
+  it('moves a block out of its loop with a null parentId, where it sat on the canvas', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflowWithLoop(), [
+      { operation_type: 'edit', block_id: 'fn-2', params: { parentId: null } },
+    ])
+
+    expect(skippedItems).toEqual([])
+    expect(state.blocks['fn-2'].data?.parentId).toBeUndefined()
+    expect(state.blocks['fn-2'].position).toEqual({ x: 60, y: 80 })
+  })
+
+  it('declines a parentId that names no loop or parallel, saying so', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflowWithLoop(), [
+      { operation_type: 'edit', block_id: 'fn-1', params: { parentId: 'fn-2' } },
+    ])
+
+    expect(state.blocks['fn-1'].data?.parentId).toBeUndefined()
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'invalid_subflow_parent',
+        operationType: 'edit',
+        blockId: 'fn-1',
+        reason: expect.stringContaining('not a loop or parallel container'),
+      }),
+    ])
+  })
+  it.each([
+    ['itself', 'loop-1', 'loop-1'],
+    ['a container nested inside it', 'loop-1', 'loop-2'],
+  ])('refuses to make a container a child of %s', (_label, blockId, parentId) => {
+    const workflow = workflowWithLoop()
+    const nested = {
+      ...workflow.blocks['loop-1'],
+      id: 'loop-2',
+      name: 'loop-2',
+      data: { loopType: 'for', count: 2, parentId: 'loop-1', extent: 'parent' },
+      position: { x: 5, y: 5 },
+    }
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      { ...workflow, blocks: { ...workflow.blocks, 'loop-2': nested } },
+      [{ operation_type: 'edit', block_id: blockId, params: { parentId } }]
+    )
+
+    expect(state.blocks['loop-1'].data?.parentId).toBeUndefined()
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'invalid_subflow_parent',
+        operationType: 'edit',
+        blockId,
+        reason: expect.stringContaining('inside itself'),
+      }),
+    ])
+  })
+
+  it('refuses to insert an existing container into a container nested inside it', () => {
+    const OUTER = '7c7c7c7c-7c7c-4c7c-8c7c-7c7c7c7c7c7c'
+    const INNER = '8d8d8d8d-8d8d-4d8d-8d8d-8d8d8d8d8d8d'
+    const workflow = workflowWithLoop()
+    const loop = workflow.blocks['loop-1']
+    const blocks = {
+      [OUTER]: { ...loop, id: OUTER, name: 'outer' },
+      [INNER]: {
+        ...loop,
+        id: INNER,
+        name: 'inner',
+        data: { loopType: 'for', count: 2, parentId: OUTER, extent: 'parent' },
+        position: { x: 5, y: 5 },
+      },
+    }
+    const { state, skippedItems } = applyOperationsToWorkflowState({ ...workflow, blocks }, [
+      {
+        operation_type: 'insert_into_subflow',
+        block_id: OUTER,
+        params: { subflowId: INNER, type: 'loop', name: 'outer' },
+      },
+    ])
+
+    expect(state.blocks[OUTER].data?.parentId).toBeUndefined()
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'invalid_subflow_parent',
+        operationType: 'insert_into_subflow',
+        blockId: OUTER,
+        reason: expect.stringContaining('inside itself'),
+      }),
+    ])
+  })
+
+  it('moves a block into a loop the same batch adds, through its normalized id', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflowWithLoop(), [
+      {
+        operation_type: 'add',
+        block_id: 'new-loop',
+        params: { type: 'loop', name: 'New Loop', inputs: { loopType: 'for', iterations: 2 } },
+      },
+      { operation_type: 'edit', block_id: 'fn-1', params: { parentId: 'new-loop' } },
+    ])
+
+    expect(skippedItems).toEqual([])
+    const newLoopId = Object.keys(state.blocks).find((id) => state.blocks[id].name === 'New Loop')
+    expect(newLoopId).toBeDefined()
+    expect(newLoopId).not.toBe('new-loop')
+    expect(state.blocks['fn-1'].data?.parentId).toBe(newLoopId)
+  })
+
+  it('moves a block out of a nested loop to where it sat on the canvas', () => {
+    const workflow = workflowWithLoop()
+    const inner = {
+      ...workflow.blocks['loop-1'],
+      id: 'loop-2',
+      name: 'loop-2',
+      data: { loopType: 'for', count: 2, parentId: 'loop-1', extent: 'parent' },
+      position: { x: 100, y: 200 },
+    }
+    const child = {
+      ...workflow.blocks['fn-2'],
+      id: 'fn-3',
+      name: 'fn-3',
+      data: { parentId: 'loop-2', extent: 'parent' },
+      position: { x: 1, y: 2 },
+    }
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      { ...workflow, blocks: { ...workflow.blocks, 'loop-2': inner, 'fn-3': child } },
+      [{ operation_type: 'edit', block_id: 'fn-3', params: { parentId: null } }]
+    )
+
+    expect(skippedItems).toEqual([])
+    expect(state.blocks['fn-3'].data?.parentId).toBeUndefined()
+    expect(state.blocks['fn-3'].position).toEqual({ x: 151, y: 262 })
+  })
+})
+
 describe('edge cycles', () => {
   const BLOCK_A = '5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a'
   const BLOCK_B = '6b6b6b6b-6b6b-4b6b-8b6b-6b6b6b6b6b6b'

@@ -56,6 +56,7 @@ export {
   codeFrame,
   type Diagnostic,
   type DiagnosticFields,
+  type LocatedDiagnostic,
   type SourceSpan,
   splitLines,
 } from './diagnostics/frame'
@@ -110,7 +111,7 @@ export type {
 } from './model'
 export { assignIdentifiers, printWorkflow } from './print'
 export { hasSuspiciousCharacter, printKey, quoteString } from './print/strings'
-export { invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
+export { getOwn, invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
 export { JS_RESERVED_WORDS, SDK_CORE_EXPORTS } from './sdk'
 export { holdsSecret } from './secrets'
 export {

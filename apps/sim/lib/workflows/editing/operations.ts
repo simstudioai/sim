@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { isNonEmptyValue } from '@sim/workflow-code/catalog/canonical-index'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { checkBlockPlacement } from '@/lib/workflows/editing/gates'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
@@ -483,6 +484,10 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     else block.type = params.type
   }
 
+  if (params && Object.hasOwn(params, 'parentId')) {
+    moveToParent(block, block_id, params.parentId, ctx)
+  }
+
   if (params?.inputs) {
     if (!block.subBlocks) block.subBlocks = {}
 
@@ -740,6 +745,81 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
   }
 }
 
+/**
+ * An edit's `params.parentId`: moves existing block `block` into the loop or parallel it names,
+ * or with `null` (or an empty string) out of its container onto the canvas, keeping its id, as
+ * `insert_into_subflow` and `extract_from_subflow` move one. A parentId that is no container is
+ * declined with the reason.
+ */
+function moveToParent(
+  block: BlockState,
+  blockId: string,
+  parentId: unknown,
+  ctx: OperationContext
+): void {
+  const currentParent = block.data?.parentId
+  if (parentId === null || parentId === '') {
+    if (currentParent) placeAtTopLevel(block, currentParent, ctx.modifiedState.blocks)
+    return
+  }
+  if (typeof parentId !== 'string') {
+    logSkippedItem(ctx.skippedItems, {
+      type: 'invalid_subflow_parent',
+      operationType: 'edit',
+      blockId,
+      reason: `params.parentId of block "${blockId}" must be a loop or parallel id, or null to move it out of its container`,
+      details: { parentId },
+    })
+    return
+  }
+  if (parentId === currentParent) return
+  if (nestsInItself(blockId, parentId, 'edit', ctx)) return
+  if (!subflowContainer(parentId, blockId, 'edit', ctx)) return
+  placeInSubflow(block, parentId)
+}
+
+/**
+ * Whether placing existing block `blockId` in container `parentId` would put it inside itself
+ * (`parentId` is the block or sits anywhere inside it, a parent cycle), after recording why
+ * `operationType` skips it.
+ */
+function nestsInItself(
+  blockId: string,
+  parentId: string,
+  operationType: string,
+  ctx: OperationContext
+): boolean {
+  if (!isSelfOrDescendant(parentId, blockId, ctx.modifiedState.blocks)) return false
+  logSkippedItem(ctx.skippedItems, {
+    type: 'invalid_subflow_parent',
+    operationType,
+    blockId,
+    reason: `Cannot place block "${blockId}" in "${parentId}" - that would place the block inside itself`,
+    details: { parentId },
+  })
+  return true
+}
+
+/**
+ * Whether block `candidateId` is block `ancestorId` itself or sits anywhere inside it, following
+ * the `parentId` chain up from `candidateId`. Making `ancestorId` a child of such a block would
+ * create a parent cycle.
+ */
+function isSelfOrDescendant(
+  candidateId: string,
+  ancestorId: string,
+  blocks: Record<string, BlockState>
+): boolean {
+  const seen = new Set<string>()
+  let current: string | undefined = candidateId
+  while (current && !seen.has(current)) {
+    if (current === ancestorId) return true
+    seen.add(current)
+    current = blocks[current]?.data?.parentId
+  }
+  return false
+}
+
 export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationContext): void {
   const { modifiedState, skippedItems, validationErrors, permissionConfig, deferredConnections } =
     ctx
@@ -859,39 +939,7 @@ export function handleInsertIntoSubflowOperation(
     return
   }
 
-  const subflowBlock = modifiedState.blocks[subflowId]
-  if (!subflowBlock) {
-    logSkippedItem(skippedItems, {
-      type: 'invalid_subflow_parent',
-      operationType: 'insert_into_subflow',
-      blockId: block_id,
-      reason: `Subflow block "${subflowId}" not found - block "${block_id}" not inserted`,
-      details: { subflowId },
-    })
-    return
-  }
-
-  if (subflowBlock.locked) {
-    logSkippedItem(skippedItems, {
-      type: 'block_locked',
-      operationType: 'insert_into_subflow',
-      blockId: block_id,
-      reason: `Subflow "${subflowId}" is locked - cannot insert block "${block_id}"`,
-      details: { subflowId },
-    })
-    return
-  }
-
-  if (subflowBlock.type !== 'loop' && subflowBlock.type !== 'parallel') {
-    logSkippedItem(skippedItems, {
-      type: 'invalid_subflow_parent',
-      operationType: 'insert_into_subflow',
-      blockId: block_id,
-      reason: `Cannot insert block "${block_id}" into "${subflowId}" - the target is a "${subflowBlock.type}" block, not a loop or parallel container`,
-      details: { subflowId, subflowType: subflowBlock.type },
-    })
-    return
-  }
+  if (!subflowContainer(subflowId, block_id, 'insert_into_subflow', ctx)) return
 
   const existingBlock = modifiedState.blocks[block_id]
 
@@ -905,17 +953,9 @@ export function handleInsertIntoSubflowOperation(
       })
       return
     }
+    if (nestsInItself(block_id, subflowId, 'insert_into_subflow', ctx)) return
 
-    // Moving existing block into subflow — update parent and reset position.
-    // Position must be reset because React Flow uses coordinates relative to
-    // the parent container; keeping the old absolute position would place the
-    // block far outside the container's bounds.
-    existingBlock.data = {
-      ...existingBlock.data,
-      parentId: subflowId,
-      extent: 'parent' as const,
-    }
-    existingBlock.position = { x: 0, y: 0 }
+    placeInSubflow(existingBlock, subflowId)
 
     if (params.inputs) {
       const validationResult = validateInputsForBlock(
@@ -1092,23 +1132,86 @@ export function handleExtractFromSubflowOperation(
     })
   }
 
-  // Convert from relative (to container) to absolute position so the block
-  // appears at roughly the same visual location after extraction. This avoids
-  // needing targeted layout to reposition it — extracted blocks often lose
-  // their edges to siblings still in the container, making them disconnected
-  // and causing layout to stack them at layer 0.
-  const container = modifiedState.blocks[subflowId]
-  if (container?.position && block.position) {
-    block.position = {
-      x: (container.position.x ?? 0) + (block.position.x ?? 0),
-      y: (container.position.y ?? 0) + (block.position.y ?? 0),
-    }
-  } else {
-    // Fallback to (0,0) which signals to blocksNeedingLayout in index.ts
-    // that this block requires targeted layout repositioning.
-    block.position = { x: 0, y: 0 }
-  }
+  placeAtTopLevel(block, subflowId, modifiedState.blocks)
+}
 
+/**
+ * The loop or parallel container `subflowId` names, for `operationType` to place block `blockId`
+ * in, or `null` after recording why it cannot: no such block, locked, or not a container.
+ */
+function subflowContainer(
+  subflowId: string,
+  blockId: string,
+  operationType: string,
+  ctx: OperationContext
+): BlockState | null {
+  const container: BlockState | undefined = ctx.modifiedState.blocks[subflowId]
+  if (!container) {
+    logSkippedItem(ctx.skippedItems, {
+      type: 'invalid_subflow_parent',
+      operationType,
+      blockId,
+      reason: `Subflow block "${subflowId}" not found - block "${blockId}" not placed in it`,
+      details: { subflowId },
+    })
+    return null
+  }
+  if (container.locked) {
+    logSkippedItem(ctx.skippedItems, {
+      type: 'block_locked',
+      operationType,
+      blockId,
+      reason: `Subflow "${subflowId}" is locked - cannot place block "${blockId}" in it`,
+      details: { subflowId },
+    })
+    return null
+  }
+  if (container.type !== 'loop' && container.type !== 'parallel') {
+    logSkippedItem(ctx.skippedItems, {
+      type: 'invalid_subflow_parent',
+      operationType,
+      blockId,
+      reason: `Cannot place block "${blockId}" in "${subflowId}" - the target is a "${container.type}" block, not a loop or parallel container`,
+      details: { subflowId, subflowType: container.type },
+    })
+    return null
+  }
+  return container
+}
+
+/**
+ * Makes `block` a child of container `subflowId`. Its position resets because React Flow reads a
+ * child's coordinates relative to its container; the old absolute position would place it far
+ * outside the container's bounds.
+ */
+function placeInSubflow(block: BlockState, subflowId: string): void {
+  block.data = { ...block.data, parentId: subflowId, extent: 'parent' }
+  block.position = { x: 0, y: 0 }
+}
+
+/**
+ * Takes `block` out of container `containerId` onto the canvas, at the absolute position it showed
+ * at (its own offset plus that of every enclosing container), so it needs no targeted layout (an
+ * extracted block often loses its edges to siblings left in the container, and layout would stack
+ * it at layer 0). Without every position it goes to (0,0), which marks it for targeted layout.
+ */
+function placeAtTopLevel(
+  block: BlockState,
+  containerId: string,
+  blocks: Record<string, BlockState>
+): void {
+  let position = block.position ? { x: block.position.x ?? 0, y: block.position.y ?? 0 } : null
+  const seen = new Set<string>()
+  let current: string | undefined = containerId
+  while (position && current && !seen.has(current)) {
+    seen.add(current)
+    const container: BlockState | undefined = blocks[current]
+    position = container?.position
+      ? { x: position.x + (container.position.x ?? 0), y: position.y + (container.position.y ?? 0) }
+      : null
+    current = container?.data?.parentId
+  }
+  block.position = position ?? { x: 0, y: 0 }
   if (block.data) {
     block.data.parentId = undefined
     block.data.extent = undefined
