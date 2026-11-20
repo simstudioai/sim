@@ -284,6 +284,22 @@ describe('sim workflows source check', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('refuses a codeFile() path holding a NUL byte by its code, reading no such file', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace('import { response,', 'import { codeFile, fn, response,').replace(
+        '  start.to(done)',
+        "  const step = fn('Step', { code: codeFile('./functions/\\u0000x.js') })\n  start.to(done)"
+      )
+    )
+
+    await check()
+
+    expect(findingLines()).toMatch(/error E_CODE_FILE_PATH/)
+    expect(process.exitCode).toBe(1)
+  })
+
   it('puts each finding in the JSON on stdout', async () => {
     cacheCatalog()
     writeFileSync(

@@ -91,11 +91,13 @@ export function assertSendableCodeFiles(files: Record<string, string>): void {
 
 /**
  * A path inside the source directory, normalized (`./functions/x.js` → `functions/x.js`), or
- * `null` for an absolute path, a drive letter or a `..` escape.
+ * `null` for an absolute path, a drive letter, a `..` escape or a NUL byte (which no file name
+ * holds, so the compile refuses the path as `E_CODE_FILE_PATH`).
  */
 export function sourceRelativePath(path: string): string | null {
   const normalized = posix.normalize(path.replace(/\\/g, '/'))
   if (
+    normalized.includes('\0') ||
     normalized.startsWith('/') ||
     /^[A-Za-z]:/.test(normalized) ||
     normalized === '.' ||
