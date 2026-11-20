@@ -46,6 +46,7 @@ function runWait(listings: Job[][], apiStatus = 0) {
       script,
     ],
     {
+      timeout: 5_000,
       encoding: 'utf8',
       env: {
         PATH: process.env.PATH,
