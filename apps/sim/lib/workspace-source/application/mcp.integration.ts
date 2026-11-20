@@ -221,6 +221,29 @@ afterAll(async () => {
 
 describe('MCP servers as workspace source', () => {
   check(
+    'refuses in the dry run a server URL whose host does not resolve, so the apply writes nothing',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        'mcp/github.ts': github(),
+        'mcp/bad.ts': serverFile(
+          `{ name: 'Bad', url: 'https://nonexistent-host-wac-e2e.invalid/mcp' }`
+        ),
+      }
+
+      const dryRun = await apply(workspaceId, files, { dryRun: true })
+      expect(findings(dryRun.diagnostics, 'error')).toEqual(['E_APPLY_REFUSED mcp-server:bad'])
+      expect(dryRun.diagnostics.find((finding) => finding.key === 'bad')?.message).toContain(
+        'could not be resolved'
+      )
+
+      const refused = await refusal(apply(workspaceId, files))
+      expect(findings(refused.diagnostics, 'error')).toEqual(['E_APPLY_REFUSED mcp-server:bad'])
+      expect(await liveServers(workspaceId)).toEqual([])
+    }
+  )
+
+  check(
     'creates a server and the workflow calling its tool in one apply, storing the env reference',
     async () => {
       const { workspaceId, created } = await setUp()

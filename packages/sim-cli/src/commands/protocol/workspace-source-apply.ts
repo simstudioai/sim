@@ -153,8 +153,38 @@ function refusesApply(data: ApplyData): boolean {
   )
 }
 
-/** The plan as a person reads it: per kind, the counts, then each change with what it touches. */
-function printPlan(plan: Change[]): void {
+/** What an apply that wrote did, for the plan reprinted after it stopped part-way. */
+type PlanOutcome = Pick<ApplyData, 'applied' | 'failed'>
+
+const sameChange = (a: Pick<Change, 'kind' | 'key'>, b: Pick<Change, 'kind' | 'key'>) =>
+  a.kind === b.kind && a.key === b.key
+
+/** Whether `change`, which the plan writes, was written: not held back, and in `applied`. */
+function wasWritten(change: Change, outcome: PlanOutcome): boolean {
+  return outcome.applied.some((written) => sameChange(written, change))
+}
+
+/** The changes a stopped apply planned to write and did not, as `kind:key`. */
+function notWritten(data: ApplyData): string[] {
+  return data.plan
+    .filter((change) => change.action !== 'noop' && !change.held && !wasWritten(change, data))
+    .map((change) => `${change.kind}:${change.key}`)
+}
+
+/** How a stopped apply left one planned write: written, the one that failed, or not attempted. */
+function outcomeText(change: Change, outcome: PlanOutcome): string {
+  if (change.held) return ''
+  if (wasWritten(change, outcome)) return ' — written'
+  return outcome.failed && sameChange(outcome.failed, change)
+    ? ' — failed, not written'
+    : ' — not written'
+}
+
+/**
+ * The plan as a person reads it: per kind, the counts, then each change with what it touches.
+ * With `outcome` (an apply that stopped part-way), each change says whether it was written.
+ */
+function printPlan(plan: Change[], outcome?: PlanOutcome): void {
   for (const kind of APPLY_ORDER) {
     const changes = plan.filter((change) => change.kind === kind)
     if (changes.length === 0) continue
@@ -173,7 +203,8 @@ function printPlan(plan: Change[]): void {
           ? ` — deletes ${lost.map(([what, count]) => `${count} ${what}`).join(', ')}`
           : ''
       const held = change.held ? ' — held back (see its error)' : ''
-      printError(`  ${SYMBOLS[change.action]} ${change.key}${fields}${loses}${held}`)
+      const status = outcome ? outcomeText(change, outcome) : ''
+      printError(`  ${SYMBOLS[change.action]} ${change.key}${fields}${loses}${held}${status}`)
     }
   }
   const destructive = destructiveChanges(plan)
@@ -639,7 +670,10 @@ export function attachWorkspaceSourceApply(source: Command): void {
               abandoned: `Stopped before the apply answered. ${answerLostHint(options.dir)}`,
             }
           )
-          if (mode === 'write') printPlan(data.plan)
+          if (data.failed) {
+            printError('The apply stopped part-way; each planned change:')
+            printPlan(data.plan, data)
+          } else if (mode === 'write') printPlan(data.plan)
           const held = data.plan.filter((change) => change.held)
           if (held.length > 0) {
             printError(
@@ -710,7 +744,9 @@ function summarize(data: ApplyData) {
     destructive: destructiveChanges(changes),
     unchanged: data.plan.filter((change) => change.action === 'noop').length,
     held: data.plan.filter((change) => change.held).length,
-    ...(data.failed ? { failed: `${data.failed.kind}:${data.failed.key}` } : {}),
+    ...(data.failed
+      ? { failed: `${data.failed.kind}:${data.failed.key}`, notWritten: notWritten(data) }
+      : {}),
     ...(data.applyId ? { applyId: data.applyId } : {}),
     errors: data.diagnostics.filter((finding) => finding.severity === 'error').length,
     warnings: data.diagnostics.filter((finding) => finding.severity === 'warning').length,

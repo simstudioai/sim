@@ -44,6 +44,7 @@ import { authorizeWorkspaceOperation, ForbiddenOperationError } from '@/lib/core
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
+  assertMcpServerUrlAccepted,
   createMcpServerUseCase,
   deleteMcpServerUseCase,
   discoverMcpServerToolsUseCase,
@@ -525,14 +526,18 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
     const { principal } = ctx
     const workspaceId = ctx.workspace.workspaceId
     const decl = change.decl
-    if (
-      (change.action === 'create' || (change.detail?.replace && !change.detail.replacement)) &&
-      decl
-    ) {
+    const createsServer =
+      change.action === 'create' || (change.detail?.replace && !change.detail.replacement)
+    if (createsServer && decl) {
       await createMcpServerUseCase.authorize({
         principal,
         input: { workspaceId, name: decl.name, url: decl.url },
       })
+    }
+    // The URL is checked as the write checks it (allowlist, egress policy, DNS), so a URL the
+    // write would refuse refuses the plan, not the apply after other resources were written.
+    if (decl && (createsServer || change.detail?.changed.includes('url'))) {
+      await assertMcpServerUrlAccepted(decl.url)
     }
     await authorizeCarriedHeaders(change, ctx)
     if (!change.storedId) return

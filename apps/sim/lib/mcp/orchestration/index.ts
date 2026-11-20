@@ -12,6 +12,7 @@ export {
   performDeleteMcpServer,
   performUpdateMcpServer,
   updateMcpServer,
+  validateMcpServerUrl,
 } from './server-lifecycle'
 export {
   type PerformCreateWorkflowMcpServerParams,

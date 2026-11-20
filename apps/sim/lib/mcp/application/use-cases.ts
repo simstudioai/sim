@@ -31,6 +31,7 @@ import {
   deleteMcpServer,
   type PerformMcpServerResult,
   updateMcpServer as updateMcpServerRecord,
+  validateMcpServerUrl,
 } from '@/lib/mcp/orchestration'
 import {
   getMcpServerIdState,
@@ -65,6 +66,17 @@ function requireSuccessfulResult(
     default:
       throw new Error(fallback)
   }
+}
+
+/**
+ * Refuses an MCP server URL that creating a server at it, or moving one to it, would refuse,
+ * without writing: off the domain allowlist or resolving where egress forbids (forbidden), or a
+ * hostname that does not resolve (validation). A caller that writes several resources in one
+ * operation checks every URL up front, so it never stops after the first writes on one of these.
+ */
+export async function assertMcpServerUrlAccepted(url: string): Promise<void> {
+  const validation = await validateMcpServerUrl(url)
+  if (!validation.ok) requireSuccessfulResult(validation.result, 'The MCP server URL is refused')
 }
 
 const authorizationOptions = { delegation: mcpServerDelegationPolicy }

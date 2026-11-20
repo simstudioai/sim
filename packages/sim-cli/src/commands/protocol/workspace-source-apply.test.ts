@@ -609,6 +609,33 @@ describe('workspaces source apply', () => {
     })
   })
 
+  it('after a part-way stop, reprints the plan marking each change written or not', async () => {
+    request.mockResolvedValue(
+      answer({
+        plan: [
+          { kind: 'skill', key: 'second', action: 'create' },
+          { kind: 'mcp-server', key: 'bad', action: 'create' },
+          { kind: 'file', key: 'partial.txt', action: 'create' },
+          { kind: 'table', key: 'leads', action: 'noop' },
+        ],
+        applied: [{ kind: 'skill', key: 'second', action: 'create', id: 'sk_1' }],
+        failed: { kind: 'mcp-server', key: 'bad', code: 'E_APPLY_FAILED', message: 'failed' },
+      })
+    )
+
+    await apply('--yes')
+
+    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+    expect(stderr).toContain('+ second — written')
+    expect(stderr).toContain('+ bad — failed, not written')
+    expect(stderr).toContain('+ partial.txt — not written')
+    const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(printed).toMatchObject({
+      failed: 'mcp-server:bad',
+      notWritten: ['mcp-server:bad', 'file:partial.txt'],
+    })
+  })
+
   it.each([
     ['E_APPLY_STALE', 5],
     ['E_APPLY_LOCKED', 6],

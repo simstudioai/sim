@@ -115,7 +115,7 @@ Commit the whole directory, including `.sim/`: its base files are what an apply 
 - A document or file over 10 MB, or whose name a directory cannot hold, is left out of `get` and listed in `.sim/skipped.json`. An apply never writes or deletes it.
 - Hidden files (a name starting with a dot, such as `files/.env`) and names with a character no workspace path holds (such as `:` or `?`) are never sent. An apply names each one in a `W_PATH_NOT_SENT` warning.
 - A knowledge base's `embeddingModel` is fixed when it is created. An apply that changes it is refused.
-- An apply that stops part-way exits `8` and saves what it wrote into the directory. Run the same apply again until it exits `0`.
+- An apply that stops part-way exits `8`, prints the plan again with each change marked written or not written (`notWritten` in JSON), and saves what it wrote into the directory. Run the same apply again until it exits `0`. The dry run checks an MCP server's URL as the write does, so an unresolvable host is refused before anything is written.
 - An apply exits `5` when a resource changed in Sim after you read it. Run `get` into a new directory and reapply your edit.
 
 See [CLI workspace commands](/cli/workspaces) for every flag.
