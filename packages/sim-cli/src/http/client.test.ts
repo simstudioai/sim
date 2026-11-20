@@ -1019,3 +1019,73 @@ describe('OAuth bearer credentials', () => {
     expect(init.headers).not.toHaveProperty('authorization')
   })
 })
+
+describe('encoded answers', () => {
+  function profile(overrides: Partial<ConstructorParameters<typeof SimClient>[0]>) {
+    return {
+      name: 'default',
+      endpoint: 'https://sim.example',
+      authProfile: 'default',
+      apiKey: 'key',
+      oauth: null,
+      workspaceId: 'ws_1',
+      output: 'json' as const,
+      sources: {
+        endpoint: 'default' as const,
+        credential: 'env' as const,
+        workspaceId: 'env' as const,
+        output: 'default' as const,
+      },
+      ...overrides,
+    }
+  }
+
+  /** A local server that answers brotli when asked, recording each request's Accept-Encoding. */
+  async function encodingServer(body: unknown) {
+    const { createServer } = await import('node:http')
+    const { brotliCompressSync } = await import('node:zlib')
+    const asked: Array<string | undefined> = []
+    const server = createServer((request, response) => {
+      asked.push(request.headers['accept-encoding'])
+      const json = Buffer.from(JSON.stringify(body))
+      const br = /\bbr\b/.test(request.headers['accept-encoding'] ?? '')
+      response.writeHead(200, {
+        'content-type': 'application/json',
+        ...(br ? { 'content-encoding': 'br' } : {}),
+      })
+      response.end(br ? brotliCompressSync(json) : json)
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    const port = typeof address === 'object' && address ? address.port : 0
+    return { endpoint: `http://127.0.0.1:${port}`, asked, close: () => server.close() }
+  }
+
+  it('asks for brotli on the wire and reads the decoded answer', async () => {
+    const body = { data: { blocks: 'x'.repeat(50_000) } }
+    const server = await encodingServer(body)
+    try {
+      const wire = new SimClient(profile({ endpoint: server.endpoint }))
+
+      await expect(wire.request('/api/v2/catalog')).resolves.toEqual(body)
+      expect(server.asked).toEqual(['br, gzip'])
+    } finally {
+      server.close()
+    }
+  })
+
+  it('never asks an in-process transport for an encoding it would hand back undecoded', async () => {
+    const transport = vi.fn(
+      async (_url: string | URL | Request, _init?: RequestInit) =>
+        new Response(JSON.stringify({ data: 1 }), {
+          headers: { 'content-type': 'application/json' },
+        })
+    )
+    const embedded = new SimClient(profile({ transport }))
+
+    await embedded.request('/api/v2/catalog')
+
+    const init = transport.mock.calls[0]?.[1]
+    expect(new Headers(init?.headers).has('accept-encoding')).toBe(false)
+  })
+})

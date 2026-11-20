@@ -109,6 +109,9 @@ export function buildUrl(
   return url.toString()
 }
 
+/** The encodings the CLI asks for; Node's fetch would otherwise offer only gzip and deflate. */
+const ACCEPT_ENCODING = 'br, gzip'
+
 /**
  * Statuses `fetch` would otherwise follow for us, and must not.
  *
@@ -731,6 +734,10 @@ export class SimClient {
             ? { authorization: `Bearer ${credential.oauth.accessToken}` }
             : {}),
           accept: 'application/json',
+          // Large answers (the block catalog, a workspace's source) come encoded, a tenth of
+          // their size; fetch decodes them. An in-process transport reads the handler's
+          // response as it is, so it never asks for an encoding.
+          ...(this.profile.transport ? {} : { 'accept-encoding': ACCEPT_ENCODING }),
           ...identityHeaders(),
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
           ...options.headers,
