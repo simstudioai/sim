@@ -109,13 +109,21 @@ export function unreadAdoptFinding(
   )
 }
 
-/** `I_SERVER_CHANGED`: the server drifted; the directory leaves the resource as it is. */
+/** How to bring a change made on the server into the directory. */
+export const DRIFT_HINT =
+  'Run `sim workspaces source get` into a fresh directory to see what changed.'
+
+/**
+ * `W_SERVER_CHANGED`: the server drifted from the directory, which leaves the resource as the
+ * server has it: the apply keeps the server's version and never reverts it.
+ */
 export function serverChangedFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
   return kindFinding(
     kind,
     key,
-    'I_SERVER_CHANGED',
-    `${where(kind, key)} changed on the server; this directory leaves it as it is, and the next get shows the change.`
+    'W_SERVER_CHANGED',
+    `${where(kind, key)} changed on the server since this directory was read; the apply keeps the server's version (not reverted).`,
+    { hint: DRIFT_HINT }
   )
 }
 
@@ -212,8 +220,9 @@ export function serverGoneFinding(
   return kindFinding(
     kind,
     key,
-    movedTo === undefined ? 'I_SERVER_DELETED' : 'I_SERVER_MOVED',
-    `${where(kind, key)} was ${gone}; this directory does not create it again, and the next get shows that.`
+    movedTo === undefined ? 'W_SERVER_DELETED' : 'W_SERVER_MOVED',
+    `${where(kind, key)} was ${gone}; the apply keeps it that way (not created again).`,
+    { hint: DRIFT_HINT }
   )
 }
 

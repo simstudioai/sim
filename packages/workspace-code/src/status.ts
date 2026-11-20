@@ -133,9 +133,9 @@ export function localResourceChanges(files: readonly ChangedFile[]): LocalResour
  */
 const SERVER_FINDINGS: ReadonlyMap<string, ServerChange> = new Map(
   Object.entries({
-    I_SERVER_CHANGED: 'changed',
-    I_SERVER_DELETED: 'deleted',
-    I_SERVER_MOVED: 'moved',
+    W_SERVER_CHANGED: 'changed',
+    W_SERVER_DELETED: 'deleted',
+    W_SERVER_MOVED: 'moved',
     E_APPLY_STALE: 'changed',
     W_UNDECLARED: 'added',
     E_APPLY_NO_BASE: 'added',

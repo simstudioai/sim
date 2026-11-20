@@ -280,12 +280,12 @@ const PLAN_CODES = [
    * not declare it).
    */
   'W_PROMOTE_DELETES_TARGET_ONLY',
-  /** The server changed a resource the directory leaves as it was; the next get shows it. */
-  'I_SERVER_CHANGED',
+  /** The server changed a resource the directory leaves alone; the apply keeps it. */
+  'W_SERVER_CHANGED',
   /** The server deleted a resource the directory leaves as it was; it is not created again. */
-  'I_SERVER_DELETED',
+  'W_SERVER_DELETED',
   /** The server moved a resource the directory leaves as it was; it is not created again. */
-  'I_SERVER_MOVED',
+  'W_SERVER_MOVED',
   /** A key bound to a deleted resource was bound to the one this apply wrote. */
   'I_KEY_REBOUND',
   /** A declaration under a new key for a resource the base read under another: keys never move. */

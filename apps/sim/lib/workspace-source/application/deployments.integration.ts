@@ -1032,7 +1032,7 @@ describe('workspace source: deployments', () => {
     )
     expect(codes(stale.diagnostics)).toEqual(['E_APPLY_STALE'])
     const unchanged = await apply(workspaceId, files, { base })
-    expect(codes(unchanged.diagnostics, 'info')).toContain('I_SERVER_CHANGED')
+    expect(codes(unchanged.diagnostics, 'warning')).toContain('W_SERVER_CHANGED')
   })
 
   check('warns when an apply edits a deployed workflow no deployment file covers', async () => {

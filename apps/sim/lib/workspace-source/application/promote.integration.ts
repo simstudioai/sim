@@ -310,9 +310,9 @@ describe('workspace source promotion', () => {
 
       const untouched = await promoteRecorded(await runner.get(dev), prod, first.record)
       expect(untouched.result.applied).toEqual([])
-      expect(codes(untouched.result.diagnostics, 'info').sort()).toEqual([
-        'I_SERVER_DELETED',
-        'I_SERVER_DELETED',
+      expect(codes(untouched.result.diagnostics, 'warning').sort()).toEqual([
+        'W_SERVER_DELETED',
+        'W_SERVER_DELETED',
       ])
       expect((await liveWorkflows(prod)).map((row) => row.name)).toEqual(['Ingest'])
       expect((await runner.get(prod)).files['skills/tone.md']).toBeUndefined()

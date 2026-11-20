@@ -711,7 +711,7 @@ describe('knowledge bases as workspace source', () => {
 
       const untouched = await apply(workspaceId, dir, { base: read.base, carry: 'none' })
       expect(untouched.applied).toEqual([])
-      expect(codes(untouched.diagnostics, 'info')).toContain('I_SERVER_CHANGED')
+      expect(codes(untouched.diagnostics, 'warning')).toContain('W_SERVER_CHANGED')
       expect(await snapshot(workspaceId)).toEqual(before)
     }
   )
@@ -1299,7 +1299,7 @@ describe('knowledge bases as workspace source', () => {
       const unchanged = await apply(workspaceId, dir, { base: read.base, carry: 'none' })
 
       expect(unchanged.applied).toEqual([])
-      expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_CHANGED'])
+      expect(codes(unchanged.diagnostics, 'warning')).toEqual(['W_SERVER_CHANGED'])
       expect(await snapshot(workspaceId)).toEqual(before)
 
       const stale = await refusal(

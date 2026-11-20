@@ -93,7 +93,7 @@ and on the server now:
 
 | local vs base | server vs base | outcome |
 |---|---|---|
-| equal | any | `noop` (`I_SERVER_CHANGED` when the server drifted) |
+| equal | any | `noop` (`W_SERVER_CHANGED` when the server drifted) |
 | differs | equal | `apply` |
 | differs | differs | `noop` if local equals server (base refreshed), else `stale` |
 

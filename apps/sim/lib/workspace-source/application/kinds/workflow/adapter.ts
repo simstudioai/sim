@@ -9,7 +9,7 @@
  *   409, re-checked under the workflow row lock), which keeps the folder appliable on its own with
  *   `sim workflows source apply`. The root base's fingerprint only guards a delete.
  * - A folder sent unchanged (only its base, `isUnchanged`) is a no-op with no drift check, so it
- *   never reports `I_SERVER_CHANGED`. The workflow's fingerprint hashes its canonicalized stored
+ *   never reports `W_SERVER_CHANGED`. The workflow's fingerprint hashes its canonicalized stored
  *   graph, so telling whether it drifted means reading and canonicalizing every declared workflow
  *   on every apply, the cost the unchanged folder exists to avoid; no cheaper stored token tracks
  *   it (the row's `updatedAt` also moves on a drag or a resize, which source never shows). The

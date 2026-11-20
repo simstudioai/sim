@@ -19,6 +19,7 @@ import {
   promotionRecordPath,
   promotionSubmission,
 } from '@sim/workspace-code/promote'
+import { serverResourceChanges } from '@sim/workspace-code/status'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { DEFERRED_INTERRUPT_BOUND_MS, deferInterrupts } from '#sim-cli/terminal/interrupts'
@@ -181,19 +182,51 @@ function outcomeText(change: Change, outcome: PlanOutcome): string {
 }
 
 /**
- * The plan as a person reads it: per kind, the counts, then each change with what it touches.
+ * The plan as a person reads it: per kind, the counts, then each change with what it touches. A
+ * resource the apply leaves alone that the server changed, deleted or moved since the directory
+ * was read (`diagnostics` say which) counts as that, never as unchanged, and is listed with `!`.
  * With `outcome` (an apply that stopped part-way), each change says whether it was written.
  */
-function printPlan(plan: Change[], outcome?: PlanOutcome): void {
+function printPlan(
+  plan: Change[],
+  diagnostics: ApplyData['diagnostics'],
+  outcome?: PlanOutcome
+): void {
+  const drifted = new Map<string, string>(
+    serverResourceChanges(diagnostics)
+      .filter((change) => change.server !== 'added')
+      .map((change) => [`${change.kind}:${change.key}`, change.server])
+  )
+  // A promotion reports the target's delete as W_PROMOTE_TARGET_DELETED in place of the server's W_SERVER_DELETED.
+  for (const finding of diagnostics) {
+    if (finding.code === 'W_PROMOTE_TARGET_DELETED' && finding.kind && finding.key) {
+      drifted.set(`${finding.kind}:${finding.key}`, 'deleted')
+    }
+  }
+  const driftOf = (change: Change) =>
+    change.action === 'noop' ? drifted.get(`${change.kind}:${change.key}`) : undefined
   for (const kind of APPLY_ORDER) {
     const changes = plan.filter((change) => change.kind === kind)
     if (changes.length === 0) continue
     const counts = new Map<string, number>()
-    for (const change of changes) counts.set(change.action, (counts.get(change.action) ?? 0) + 1)
+    for (const change of changes) {
+      const drift = driftOf(change)
+      const label = drift
+        ? `${drift} on the server`
+        : change.action === 'noop'
+          ? 'unchanged'
+          : change.action
+      counts.set(label, (counts.get(label) ?? 0) + 1)
+    }
     printError(
-      `${KIND_DIRS[kind]}: ${[...counts].map(([action, count]) => `${count} ${action === 'noop' ? 'unchanged' : action}`).join(', ')}`
+      `${KIND_DIRS[kind]}: ${[...counts].map(([label, count]) => `${count} ${label}`).join(', ')}`
     )
     for (const change of changes) {
+      const drift = driftOf(change)
+      if (drift) {
+        printError(`  ! ${change.key} (${drift} on the server; kept as the server has it)`)
+        continue
+      }
       if (change.action === 'noop') continue
       const fields =
         change.fields && change.fields.length > 0 ? ` (${change.fields.join(', ')})` : ''
@@ -525,13 +558,13 @@ function promotionHint(code: string, target: string): string | undefined {
 
 /**
  * The server's findings as a promotion reports them: refusals carry the promotion's hint, and the
- * server's `I_SERVER_DELETED` for a resource the promotion warns about itself
+ * server's `W_SERVER_DELETED` for a resource the promotion warns about itself
  * (`W_PROMOTE_TARGET_DELETED`) is left out.
  */
 function promotionDiagnostics(diagnostics: readonly Finding[], promotion: Promotion): Finding[] {
   const warned = new Set(promotion.deletedInTarget)
   return diagnostics.flatMap((finding) => {
-    if (finding.code === 'I_SERVER_DELETED' && warned.has(`${finding.kind}:${finding.key}`)) {
+    if (finding.code === 'W_SERVER_DELETED' && warned.has(`${finding.kind}:${finding.key}`)) {
       return []
     }
     const hint = promotionHint(finding.code, promotion.target)
@@ -744,7 +777,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
           let preview: ApplyData | null = null
           if (mode !== 'write') {
             preview = reported(await send(submission, true))
-            printPlan(preview.plan)
+            printPlan(preview.plan, preview.diagnostics)
             printTargetOnlyDeletes(promotion, preview.plan)
             findings.print(preview.diagnostics)
             const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
@@ -791,8 +824,8 @@ export function attachWorkspaceSourceApply(source: Command): void {
           )
           if (data.failed) {
             printError('The apply stopped part-way; each planned change:')
-            printPlan(data.plan, data)
-          } else if (mode === 'write') printPlan(data.plan)
+            printPlan(data.plan, data.diagnostics, data)
+          } else if (mode === 'write') printPlan(data.plan, data.diagnostics)
           const held = data.plan.filter((change) => change.held)
           if (held.length > 0) {
             printError(

@@ -694,8 +694,8 @@ describe('MCP servers as workspace source', () => {
       })
       const gone = await apply(workspaceId, edited.files, { base: edited.base })
       expect(findings(gone.diagnostics, 'error')).toEqual([])
-      expect(findings(gone.diagnostics, 'info')).toEqual([
-        `I_SERVER_DELETED mcp-server:${path.slice(4, -3)}`,
+      expect(findings(gone.diagnostics, 'warning')).toEqual([
+        `W_SERVER_DELETED mcp-server:${path.slice(4, -3)}`,
       ])
       expect(gone.applied).toEqual([])
     }

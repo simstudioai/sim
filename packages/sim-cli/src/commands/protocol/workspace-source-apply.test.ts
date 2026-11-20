@@ -163,6 +163,42 @@ describe('workspaces source apply', () => {
     expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('+ leads')
   })
 
+  it('counts and lists a resource the server changed or deleted, never as unchanged, and keeps its warning in the JSON', async () => {
+    const drift = (code: string, kind: string, key: string) => ({
+      code,
+      severity: 'warning',
+      message: `${kind} ${key} drifted.`,
+      kind,
+      key,
+    })
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        plan: [
+          { kind: 'skill', key: 'tone', action: 'noop' },
+          { kind: 'file', key: 'notes.txt', action: 'noop' },
+          { kind: 'file', key: 'partial.txt', action: 'noop' },
+        ],
+        diagnostics: [
+          drift('W_SERVER_CHANGED', 'skill', 'tone'),
+          drift('W_SERVER_DELETED', 'file', 'partial.txt'),
+        ],
+      })
+    )
+
+    await apply('--dry-run')
+
+    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+    expect(stderr).toContain('skills: 1 changed on the server')
+    expect(stderr).toContain('files: 1 unchanged, 1 deleted on the server')
+    expect(stderr).toContain('  ! partial.txt (deleted on the server; kept as the server has it)')
+    const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(printed.diagnostics.map((finding: { code: string }) => finding.code)).toEqual([
+      'W_SERVER_CHANGED',
+      'W_SERVER_DELETED',
+    ])
+  })
+
   it('puts each finding of a dry run in the JSON on stdout', async () => {
     const finding = {
       code: 'E_DECL_SHAPE',
@@ -479,9 +515,9 @@ describe('workspaces source apply', () => {
         ],
         diagnostics: [
           {
-            code: 'I_SERVER_DELETED',
-            severity: 'info',
-            message: 'tables/gone was deleted on the server; the next get shows that.',
+            code: 'W_SERVER_DELETED',
+            severity: 'warning',
+            message: 'tables/gone was deleted on the server; the apply keeps it deleted.',
             kind: 'table',
             key: 'gone',
           },
@@ -505,7 +541,7 @@ describe('workspaces source apply', () => {
     expect(byCode('W_PROMOTE_TARGET_DELETED')).toEqual([
       expect.objectContaining({ kind: 'table', key: 'gone' }),
     ])
-    expect(byCode('I_SERVER_DELETED')).toEqual([])
+    expect(byCode('W_SERVER_DELETED')).toEqual([])
     expect(byCode('W_PROMOTE_DELETES_TARGET_ONLY')).toEqual([
       expect.objectContaining({ kind: 'table', key: 'prod-only' }),
     ])

@@ -444,7 +444,7 @@ describe('workspace source apply', () => {
 
       const untouched = await apply(workspaceId, read.files, { base: read.base })
       expect(untouched.applied).toEqual([])
-      expect(codes(untouched.diagnostics, 'info')).toContain('I_SERVER_CHANGED')
+      expect(codes(untouched.diagnostics, 'warning')).toContain('W_SERVER_CHANGED')
       expect(await tableSnapshot(workspaceId)).toEqual(before)
     }
   )
@@ -563,7 +563,7 @@ describe('workspace source apply', () => {
 
       const untouched = await apply(workspaceId, read.files, { base: read.base, only: ['table'] })
       expect(untouched.applied).toEqual([])
-      expect(codes(untouched.diagnostics, 'info')).toContain('I_SERVER_DELETED')
+      expect(codes(untouched.diagnostics, 'warning')).toContain('W_SERVER_DELETED')
       expect(await tables(workspaceId)).toEqual([])
 
       const { 'table:leads': _deleted, ...resources } = read.base.resources

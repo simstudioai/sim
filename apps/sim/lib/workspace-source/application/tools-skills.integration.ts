@@ -347,7 +347,10 @@ describe('workspace source: custom tools and skills', () => {
 
     const untouched = await apply(workspaceId, read.files, { base: read.base })
     expect(untouched.applied).toEqual([])
-    expect(codes(untouched.diagnostics, 'info')).toEqual(['I_SERVER_CHANGED', 'I_SERVER_CHANGED'])
+    expect(codes(untouched.diagnostics, 'warning')).toEqual([
+      'W_SERVER_CHANGED',
+      'W_SERVER_CHANGED',
+    ])
   })
 
   check('refuses a title another tool holds, naming its key, and an invalid schema', async () => {
@@ -582,7 +585,7 @@ describe('workspace source: custom tools and skills', () => {
 
       const untouched = await apply(workspaceId, read.files, { base: read.base })
       expect(untouched.applied).toEqual([])
-      expect(codes(untouched.diagnostics, 'info')).toContain('I_SERVER_DELETED')
+      expect(codes(untouched.diagnostics, 'warning')).toContain('W_SERVER_DELETED')
       expect((await snapshot(workspaceId)).skills).toEqual([])
 
       const { 'skill:tone': _deleted, ...resources } = read.base.resources
@@ -962,7 +965,7 @@ describe('workspace source: custom tools and skills', () => {
         { base: retitled.base }
       )
       expect(codes(gone.diagnostics)).toEqual([])
-      expect(codes(gone.diagnostics, 'info')).toEqual(['I_SERVER_DELETED'])
+      expect(codes(gone.diagnostics, 'warning')).toEqual(['W_SERVER_DELETED'])
       expect(gone.applied).toEqual([])
     }
   )

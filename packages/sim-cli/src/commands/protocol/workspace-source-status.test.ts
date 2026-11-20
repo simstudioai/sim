@@ -435,7 +435,13 @@ describe('workspaces source status', () => {
       dryRun(
         [{ kind: 'workflow', key: 'ingest', action: 'noop' }],
         [
-          { code: 'I_SERVER_CHANGED', severity: 'info', message: 'm', kind: 'table', key: 'leads' },
+          {
+            code: 'W_SERVER_CHANGED',
+            severity: 'warning',
+            message: 'm',
+            kind: 'table',
+            key: 'leads',
+          },
           {
             code: 'E_APPLY_STALE',
             severity: 'error',
