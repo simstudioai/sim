@@ -584,6 +584,32 @@ describe('typed references in JSON fields', () => {
     expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
   })
 
+  it('still warns that an input the start does not declare is stored bare, as a caller may pass text', () => {
+    const result = run(
+      [
+        "const start = trigger.start('Start', { inputFormat: { query: 'string' } })",
+        "const a = api('A', { url: 'https://x', body: { items: start.list } })",
+        'start.to(a)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_OUTPUT_PATH_UNDECLARED')).toHaveLength(1)
+    expect(findings(result, 'W_JSON_REF_UNTYPED')).toHaveLength(1)
+  })
+
+  it('reports x.error on a block with no error edge once, not also as untyped', () => {
+    const result = run(
+      [
+        START,
+        "const a = api('A', { url: 'https://x' })",
+        "const b = api('B', { url: 'https://x', body: { failure: a.error } })",
+        'start.to(a)',
+        'a.to(b)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_OUTPUT_PATH_UNDECLARED')).toHaveLength(1)
+    expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
+  })
+
   it('tells an untyped reference to stay bare unless it holds text', () => {
     const result = run(
       `${START}\nconst a = api('A', { url: 'https://x', body: { items: start.input.list } })`

@@ -745,18 +745,17 @@ function compileEntry(
     if (edge.port.kind === 'error') erroring.add(edge.from)
   }
   checkErrorOutputRefs(ctx, erroring)
-  // A reference to an output that does not exist is that one finding: whether text there would
-  // break the JSON is moot until the path is fixed.
-  const unknownAt = new Set(
-    reporter.diagnostics
-      .filter(
-        (d) =>
-          d.code === 'W_UNKNOWN_OUTPUT_PATH' ||
-          d.code === 'W_OUTPUT_PATH_UNDECLARED' ||
-          d.code === 'W_UNRESOLVED_REF'
-      )
-      .map((d) => `${d.span.file}:${d.span.start}`)
-  )
+  // A reference to an output that does not exist, or to `x.error` where nothing errors, is that
+  // one finding: whether text there would break the JSON is moot until the path is fixed. An input
+  // the start does not declare is not: a caller may still pass text there.
+  const unknownAt = new Set([
+    ...reporter.diagnostics
+      .filter((d) => d.code === 'W_UNKNOWN_OUTPUT_PATH' || d.code === 'W_UNRESOLVED_REF')
+      .map((d) => `${d.span.file}:${d.span.start}`),
+    ...ctx.errorOutputRefs
+      .filter(({ target }) => !erroring.has(target.key))
+      .map(({ at }) => `${at.file}:${at.start}`),
+  ])
   for (const ref of untyped) {
     if (unknownAt.has(`${ref.range.file}:${ref.range.start}`)) continue
     reporter.report(
