@@ -17,6 +17,7 @@ import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { updateTableColumnUseCase } from '@/lib/table/application/columns'
@@ -767,6 +768,26 @@ export default defineTable({
       ).toContain('columns.notes (drop)')
       expect((await storedTable(workspaceId)).schema.columns).toEqual(columnsBefore)
       expect(await storedRows(workspaceId)).toEqual(rowsBefore)
+    }
+  )
+
+  check(
+    'creates a managed table holding the most rows a directory may declare, in one apply',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const count = WORKSPACE_SOURCE_LIMITS.maxTableRows
+      const rows = Array.from(
+        { length: count },
+        (_, index) => `{"code":"c${index}","seats":${index},"tier":"basic"}\n`
+      ).join('')
+
+      const created = await apply(workspaceId, {
+        'tables/plans.ts': MANAGED,
+        'tables/plans.rows.jsonl': rows,
+      })
+
+      expect(created.failed).toBeUndefined()
+      expect((await storedTable(workspaceId)).rowCount).toBe(count)
     }
   )
 

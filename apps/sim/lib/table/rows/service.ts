@@ -13,6 +13,7 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { escapeLikePattern } from '@sim/utils/string'
 import { and, asc, count, eq, getTableColumns, inArray, isNull, type SQL, sql } from 'drizzle-orm'
@@ -343,6 +344,13 @@ export interface BatchInsertOptions extends TxRowWriteOptions {
 }
 
 /**
+ * Rows one insert statement writes: each row binds nine parameters, and Postgres accepts at most
+ * 65,535 in one statement, so a batch larger than this (workspace source writes up to 10,000
+ * rows in one transaction) is inserted in several statements.
+ */
+const INSERT_CHUNK_ROWS = 1_000
+
+/**
  * Transaction-bound variant of `batchInsertRows`. Validates rows and unique
  * constraints, then performs INSERTs inside the provided transaction. Caller
  * is responsible for opening the transaction. Use when row inserts must be
@@ -438,7 +446,10 @@ export async function batchInsertRowsWithTx(
     rowState: 'new',
     mode: 'replace',
     mutate: async () => {
-      const rows = await trx.insert(userTableRows).values(rowsToInsert).returning()
+      const rows: (typeof userTableRows.$inferSelect)[] = []
+      for (const chunk of chunkArray(rowsToInsert, INSERT_CHUNK_ROWS)) {
+        rows.push(...(await trx.insert(userTableRows).values(chunk).returning()))
+      }
       return { value: rows, affectedRowIds: rows.map((row) => row.id) }
     },
   })
