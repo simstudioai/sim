@@ -759,7 +759,7 @@ function moveToParent(
 ): void {
   const currentParent = block.data?.parentId
   if (parentId === null || parentId === '') {
-    if (currentParent) placeAtTopLevel(block, ctx.modifiedState.blocks[currentParent])
+    if (currentParent) placeAtTopLevel(block, currentParent, ctx.modifiedState.blocks)
     return
   }
   if (typeof parentId !== 'string') {
@@ -1118,7 +1118,7 @@ export function handleExtractFromSubflowOperation(
     })
   }
 
-  placeAtTopLevel(block, modifiedState.blocks[subflowId])
+  placeAtTopLevel(block, subflowId, modifiedState.blocks)
 }
 
 /**
@@ -1176,20 +1176,28 @@ function placeInSubflow(block: BlockState, subflowId: string): void {
 }
 
 /**
- * Takes `block` out of `container` onto the canvas, at the absolute position it showed at, so it
- * needs no targeted layout (an extracted block often loses its edges to siblings left in the
- * container, and layout would stack it at layer 0). Without both positions it goes to (0,0),
- * which marks it for targeted layout.
+ * Takes `block` out of container `containerId` onto the canvas, at the absolute position it showed
+ * at (its own offset plus that of every enclosing container), so it needs no targeted layout (an
+ * extracted block often loses its edges to siblings left in the container, and layout would stack
+ * it at layer 0). Without every position it goes to (0,0), which marks it for targeted layout.
  */
-function placeAtTopLevel(block: BlockState, container: BlockState | undefined): void {
-  if (container?.position && block.position) {
-    block.position = {
-      x: (container.position.x ?? 0) + (block.position.x ?? 0),
-      y: (container.position.y ?? 0) + (block.position.y ?? 0),
-    }
-  } else {
-    block.position = { x: 0, y: 0 }
+function placeAtTopLevel(
+  block: BlockState,
+  containerId: string,
+  blocks: Record<string, BlockState>
+): void {
+  let position = block.position ? { x: block.position.x ?? 0, y: block.position.y ?? 0 } : null
+  const seen = new Set<string>()
+  let current: string | undefined = containerId
+  while (position && current && !seen.has(current)) {
+    seen.add(current)
+    const container: BlockState | undefined = blocks[current]
+    position = container?.position
+      ? { x: position.x + (container.position.x ?? 0), y: position.y + (container.position.y ?? 0) }
+      : null
+    current = container?.data?.parentId
   }
+  block.position = position ?? { x: 0, y: 0 }
   if (block.data) {
     block.data.parentId = undefined
     block.data.extent = undefined

@@ -1792,6 +1792,32 @@ describe('moving an existing block with edit params.parentId', () => {
     expect(newLoopId).not.toBe('new-loop')
     expect(state.blocks['fn-1'].data?.parentId).toBe(newLoopId)
   })
+
+  it('moves a block out of a nested loop to where it sat on the canvas', () => {
+    const workflow = workflowWithLoop()
+    const inner = {
+      ...workflow.blocks['loop-1'],
+      id: 'loop-2',
+      name: 'loop-2',
+      data: { loopType: 'for', count: 2, parentId: 'loop-1', extent: 'parent' },
+      position: { x: 100, y: 200 },
+    }
+    const child = {
+      ...workflow.blocks['fn-2'],
+      id: 'fn-3',
+      name: 'fn-3',
+      data: { parentId: 'loop-2', extent: 'parent' },
+      position: { x: 1, y: 2 },
+    }
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      { ...workflow, blocks: { ...workflow.blocks, 'loop-2': inner, 'fn-3': child } },
+      [{ operation_type: 'edit', block_id: 'fn-3', params: { parentId: null } }]
+    )
+
+    expect(skippedItems).toEqual([])
+    expect(state.blocks['fn-3'].data?.parentId).toBeUndefined()
+    expect(state.blocks['fn-3'].position).toEqual({ x: 151, y: 262 })
+  })
 })
 
 describe('edge cycles', () => {
