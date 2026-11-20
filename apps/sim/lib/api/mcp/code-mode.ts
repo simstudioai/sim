@@ -32,7 +32,7 @@ const MAX_CALLS_PER_RUN = 200
 /** Calls one program may have in flight at once, so a `Promise.all` cannot fan out a whole page of requests. */
 const MAX_CONCURRENT_CALLS = 8
 const MAX_CODE_CHARS = 100_000
-/** Slack past the isolate's own timeout, so a run that never queued still ends with the isolate's TimeoutError. */
+/** Slack past `timeoutMs` for the sandbox to start and hand back a run that ends on time. */
 const DEADLINE_GRACE_MS = 1000
 const NOT_SENT = 'The program ended before this call was sent.'
 
@@ -299,7 +299,7 @@ export async function runCodeMode(
       return failure(
         {
           name: 'TimeoutError',
-          message: `The program did not finish within ${timeoutMs}ms, including time spent waiting for a sandbox.`,
+          message: `The program did not finish within ${timeoutMs}ms.`,
         },
         calls
       )
