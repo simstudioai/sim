@@ -1725,22 +1725,22 @@ describe('iteration references outside their container', () => {
         [
           START,
           "const lp = parallel.count('Fan', { count: 2 }, (p) => {",
-          "  const inner = fn('Inner', { code: codeFile('./fns/inner.js') })",
+          "  const inner = fn('Inner', { code: codeFile('./functions/inner.js') })",
           '  p.to(inner)',
           '})',
-          "const after = fn('After', { code: codeFile('./fns/after.js') })",
+          "const after = fn('After', { code: codeFile('./functions/after.js') })",
           'start.to(lp)',
           'lp.to(after)',
         ].join('\n')
       ),
       {
-        'workflows/fns/inner.js': 'return [$ref.parallel.index, $ref.fan.currentItem]',
-        'workflows/fns/after.js': 'return [$ref.loop.index, $ref.fan.index, $ref.fan.results]',
+        'workflows/functions/inner.js': 'return [$ref.parallel.index, $ref.fan.currentItem]',
+        'workflows/functions/after.js': 'return [$ref.loop.index, $ref.fan.index, $ref.fan.results]',
       }
     )
     expect(codes(result).map((d) => [d.blockKey, d.span.file])).toEqual([
-      ['after', 'workflows/fns/after.js'],
-      ['after', 'workflows/fns/after.js'],
+      ['after', 'workflows/functions/after.js'],
+      ['after', 'workflows/functions/after.js'],
     ])
   })
 
@@ -1791,10 +1791,10 @@ describe('reference tags written in a code file', () => {
   it('checks tags in JavaScript strings as it checks $ref chains', () => {
     const result = run(
       source(
-        [START, "const f = fn('F', { code: codeFile('./fns/f.js') })", 'start.to(f)'].join('\n')
+        [START, "const f = fn('F', { code: codeFile('./functions/f.js') })", 'start.to(f)'].join('\n')
       ),
       {
-        'workflows/fns/f.js': [
+        'workflows/functions/f.js': [
           "const a = '<nosuchblock.x>'",
           'const b = `<variable.ghost>`',
           "const html = '<b>' + a + '</b>'",
@@ -1805,12 +1805,12 @@ describe('reference tags written in a code file', () => {
     expect(unresolved(result)).toEqual([
       {
         message: '<nosuchblock.x> names no block, so it does not resolve at run time.',
-        file: 'workflows/fns/f.js',
+        file: 'workflows/functions/f.js',
         line: 1,
       },
       {
         message: '<variable.ghost>: no workflow variable is keyed ghost.',
-        file: 'workflows/fns/f.js',
+        file: 'workflows/functions/f.js',
         line: 2,
       },
     ])
@@ -1821,16 +1821,16 @@ describe('reference tags written in a code file', () => {
       source(
         [
           START,
-          "const f = fn('F', { language: 'python', code: codeFile('./fns/f.py') })",
+          "const f = fn('F', { language: 'python', code: codeFile('./functions/f.py') })",
           'start.to(f)',
         ].join('\n')
       ),
-      { 'workflows/fns/f.py': 'q = <start.q>\nr = <gone.value>\nreturn [q, r]' }
+      { 'workflows/functions/f.py': 'q = <start.q>\nr = <gone.value>\nreturn [q, r]' }
     )
     expect(unresolved(result)).toEqual([
       {
         message: '<gone.value> names no block, so it does not resolve at run time.',
-        file: 'workflows/fns/f.py',
+        file: 'workflows/functions/f.py',
         line: 2,
       },
     ])
@@ -1848,22 +1848,22 @@ describe('$ref and $env in a Python or shell code file', () => {
       source(
         [
           START,
-          "const f = fn('F', { language: 'python', code: codeFile('./fns/f.py') })",
+          "const f = fn('F', { language: 'python', code: codeFile('./functions/f.py') })",
           'start.to(f)',
         ].join('\n')
       ),
-      { 'workflows/fns/f.py': "q = $ref.start.q\nkey = $env.API_KEY\nreturn '$5 ok'" }
+      { 'workflows/functions/f.py': "q = $ref.start.q\nkey = $env.API_KEY\nreturn '$5 ok'" }
     )
     expect(syntax(result)).toEqual([
       {
         hint: 'Python files are saved as written: write <start.q>.',
-        file: 'workflows/fns/f.py',
+        file: 'workflows/functions/f.py',
         line: 1,
         column: 5,
       },
       {
         hint: 'Python files are saved as written: write {{API_KEY}}.',
-        file: 'workflows/fns/f.py',
+        file: 'workflows/functions/f.py',
         line: 2,
         column: 7,
       },
@@ -1875,19 +1875,19 @@ describe('$ref and $env in a Python or shell code file', () => {
       source(
         [
           START,
-          "const sh = fn('Sh', { language: 'shell', code: codeFile('./fns/s.sh') })",
-          "const js = fn('Js', { code: codeFile('./fns/j.js') })",
+          "const sh = fn('Sh', { language: 'shell', code: codeFile('./functions/s.sh') })",
+          "const js = fn('Js', { code: codeFile('./functions/j.js') })",
           'start.to(sh)',
           'sh.to(js)',
         ].join('\n')
       ),
       {
-        'workflows/fns/s.sh': 'echo "$ref.start.q" "$HOME"',
-        'workflows/fns/j.js': 'return $ref.start.q',
+        'workflows/functions/s.sh': 'echo "$ref.start.q" "$HOME"',
+        'workflows/functions/j.js': 'return $ref.start.q',
       }
     )
     expect(syntax(result).map((d) => [d.file, d.hint])).toEqual([
-      ['workflows/fns/s.sh', 'Shell files are saved as written: write <start.q>.'],
+      ['workflows/functions/s.sh', 'Shell files are saved as written: write <start.q>.'],
     ])
   })
 })
