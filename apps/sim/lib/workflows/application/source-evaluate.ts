@@ -971,7 +971,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     blocks,
     diff: graphDiff,
     workspaceId: scope.workspaceId,
-    pendingIds: new Set((input.pendingResources ?? []).map((entry) => entry.id)),
+    pending: input.pendingResources ?? [],
     keyOf: keyOfId,
   })
   const diagnostics = [

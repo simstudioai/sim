@@ -9,6 +9,7 @@ import { db } from '@sim/db'
 import { knowledgeBase, user, userTableDefinitions, workflow, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
+import type { ResourceKind } from '@sim/workflow-code'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -22,9 +23,13 @@ const otherWorkspace = generateId()
 
 /** The block type and the field id that names each kind by id. */
 const KINDS = {
-  table: { blockType: 'table', selector: 'table-selector' },
-  workflow: { blockType: 'workflow', selector: 'workflow-selector' },
-  'knowledge base': { blockType: 'knowledge', selector: 'knowledge-base-selector' },
+  table: { blockType: 'table', selector: 'table-selector', kind: 'table' },
+  workflow: { blockType: 'workflow', selector: 'workflow-selector', kind: 'workflow' },
+  'knowledge base': {
+    blockType: 'knowledge',
+    selector: 'knowledge-base-selector',
+    kind: 'knowledge-base',
+  },
 } as const
 
 type Kind = keyof typeof KINDS
@@ -89,13 +94,13 @@ function blockNaming(kind: Kind, value: string): BlockState {
 async function refusedIds(
   blocks: BlockState[],
   diff: Pick<GraphDiff, 'added' | 'modified'>,
-  pendingIds: string[] = []
+  pending: ReadonlyArray<{ kind: ResourceKind; id: string }> = []
 ): Promise<string[]> {
   const refusals = await foreignResourceRefusals({
     blocks: Object.fromEntries(blocks.map((block) => [block.id, block])),
     diff: { removed: [], edgesAdded: [], edgesRemoved: [], ...diff },
     workspaceId: ownWorkspace,
-    pendingIds: new Set(pendingIds),
+    pending,
     keyOf: () => undefined,
   })
   expect(refusals.every((refusal) => refusal.code === 'E_MAT_UNKNOWN_RESOURCE')).toBe(true)
@@ -140,12 +145,23 @@ describe('foreignResourceRefusals', () => {
       const refused = await refusedIds(
         blocks,
         { added: blocks.map((block) => block.id), modified: [] },
-        [pending]
+        [{ kind: KINDS[kind].kind, id: pending }]
       )
 
       expect(refused.sort()).toEqual([foreign, archived].sort())
     }
   )
+
+  it('counts a pending id as held only in a field of its own kind', async () => {
+    const adopted = await insertResource('knowledge base', ownWorkspace)
+    const block = blockNaming('table', adopted)
+
+    expect(
+      await refusedIds([block], { added: [block.id], modified: [] }, [
+        { kind: 'knowledge-base', id: adopted },
+      ])
+    ).toEqual([adopted])
+  })
 
   it('checks every id of a comma-separated value', async () => {
     const own = await insertResource('table', ownWorkspace)

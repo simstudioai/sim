@@ -7,7 +7,7 @@
  */
 import { db } from '@sim/db'
 import { knowledgeBase, userTableDefinitions, workflow } from '@sim/db/schema'
-import type { Diagnostic } from '@sim/workflow-code'
+import type { Diagnostic, ResourceKind } from '@sim/workflow-code'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { GraphDiff } from '@/lib/workflows/code/apply/graph-diff'
@@ -15,18 +15,25 @@ import { getBlock } from '@/blocks/registry'
 
 /** The workspace-owned resources a block names by id, by the picker type that names them. */
 const SCOPED_SELECTORS = {
-  'table-selector': { noun: 'table', plural: 'tables', example: "table('leads')" },
+  'table-selector': {
+    kind: 'table',
+    noun: 'table',
+    plural: 'tables',
+    example: "table('leads')",
+  },
   'workflow-selector': {
+    kind: 'workflow',
     noun: 'workflow',
     plural: 'workflows',
     example: "childWorkflow('report')",
   },
   'knowledge-base-selector': {
+    kind: 'knowledge-base',
     noun: 'knowledge base',
     plural: 'knowledge bases',
     example: "knowledgeBase('docs')",
   },
-} as const
+} as const satisfies Record<string, { kind: ResourceKind }>
 
 type ScopedSelector = keyof typeof SCOPED_SELECTORS
 
@@ -127,16 +134,18 @@ async function heldIds(
 /**
  * `E_MAT_UNKNOWN_RESOURCE` for each table, workflow or knowledge base id a block this apply adds,
  * or a field it changes, writes verbatim that is not a live resource of `workspaceId`. An id an
- * enclosing apply creates first (`pendingIds`) counts as held; a field the apply leaves alone is
- * not checked, so a stored dangling id only refuses the edit that writes it.
+ * enclosing apply creates or adopts first (`pending`) counts as held in a field of its own kind
+ * only; a field the apply leaves alone is not checked, so a stored dangling id only refuses the
+ * edit that writes it.
  */
 export async function foreignResourceRefusals(input: {
   blocks: Readonly<Record<string, BlockState>>
   diff: GraphDiff
   workspaceId: string
-  pendingIds: ReadonlySet<string>
+  pending: ReadonlyArray<{ kind: ResourceKind; id: string }>
   keyOf: (blockId: string) => string | undefined
 }): Promise<Diagnostic[]> {
+  const pending = new Set(input.pending.map(({ kind, id }) => `${kind}:${id}`))
   const changedFields = new Map<string, ReadonlySet<string> | 'all'>([
     ...input.diff.added.map((id) => [id, 'all'] as const),
     ...input.diff.modified.map((change) => [change.id, new Set(change.subBlocks)] as const),
@@ -148,7 +157,9 @@ export async function foreignResourceRefusals(input: {
     for (const [fieldId, field] of scopedFields(block.type)) {
       if (changed !== 'all' && !changed.has(fieldId)) continue
       for (const id of idsOf(block.subBlocks?.[fieldId]?.value)) {
-        if (!input.pendingIds.has(id)) named.push({ ...field, id, blockId })
+        if (!pending.has(`${SCOPED_SELECTORS[field.selector].kind}:${id}`)) {
+          named.push({ ...field, id, blockId })
+        }
       }
     }
   }
