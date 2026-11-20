@@ -1,20 +1,24 @@
 /**
- * Real PostgreSQL coverage for a canvas keystroke racing a whole-graph replace. A source apply
- * locks the workflow row, re-reads the graph, then deletes and re-inserts every block from what it
- * read; a revert to a deployed version deletes and re-inserts without the lock. A keystroke flushed
- * inside either window must survive the replace or be reported to its sender as failed (the client
- * retries a retryable failure): it may never be confirmed and then vanish. A variable keystroke
- * racing an apply that rewrites the variables must not revert the apply's own change either.
+ * Real PostgreSQL coverage for a canvas keystroke racing a whole-graph write. Every production
+ * graph writer (a source apply, a revert to a deployed version, a normalized-state replace) locks
+ * the workflow row and then saves through `saveWorkflowToNormalizedTables`, which rewrites only the
+ * rows that changed. A keystroke flushed inside that window waits for the row lock and then lands
+ * on the saved graph, so it is confirmed and kept. A writer that skipped the lock and deleted the
+ * block under the flush (none does in production) must still never see a keystroke confirmed and
+ * then lost: the flush reports it failed, which the client retries. A variable keystroke racing an
+ * apply that rewrites the variables must not revert the apply's own change either.
  *
- * Drives the real `subblock-update` and `variable-update` handlers (real permission checks and flush) with only the
- * socket and the room manager stood in, and runs the replace's SQL sequence by hand at each
- * interleaving point.
+ * Drives the real `subblock-update` and `variable-update` handlers (real permission checks and
+ * flush) with only the socket and the room manager stood in, and interleaves the keystroke at each
+ * point of the writer's transaction. Each interleaving has one correct outcome, asserted exactly.
  */
 import { db, runOutsideTransactionContext } from '@sim/db'
 import { permissions, user, workflow, workflowBlocks, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { setupSubblocksHandlers } from '@/handlers/subblocks'
@@ -80,48 +84,88 @@ async function storedValue(): Promise<unknown> {
   return subBlocks?.code?.value
 }
 
-/** Resolves once `settled` resolves or another session is waiting on a lock. */
-async function untilSettledOrBlocked(settled: Promise<unknown>): Promise<void> {
+async function storedName(): Promise<string | undefined> {
+  const [row] = await db
+    .select({ name: workflowBlocks.name })
+    .from(workflowBlocks)
+    .where(eq(workflowBlocks.id, blockId))
+  return row?.name
+}
+
+/**
+ * Waits until `settled` resolves (`settled`) or another session waits on a lock (`blocked`), and
+ * fails the test when neither happens: an interleave that silently ran after the writer instead
+ * would pass for a broken flush as for a sound one.
+ */
+async function untilSettledOrBlocked(settled: Promise<unknown>): Promise<'settled' | 'blocked'> {
   let done = false
   void settled.then(() => {
     done = true
   })
-  for (let attempt = 0; attempt < 200 && !done; attempt++) {
+  for (let attempt = 0; attempt < 500; attempt++) {
+    if (done) return 'settled'
     const [{ waiting }] = await db.execute<{ waiting: number }>(
       sql`select count(*)::int as waiting from pg_stat_activity
           where datname = current_database() and wait_event_type = 'Lock'`
     )
-    if (waiting > 0) return
+    if (waiting > 0) return 'blocked'
     await sleep(10)
+  }
+  throw new Error('The keystroke neither settled nor waited on a lock')
+}
+
+const RENAMED = 'Function 1 (applied)'
+
+/** The block as the writer saves it: the code it read, under a new name. */
+function savedBlock(): BlockState {
+  return {
+    id: blockId,
+    type: 'function',
+    name: RENAMED,
+    position: { x: 0, y: 0 },
+    subBlocks: { code: { id: 'code', type: 'code', value: BEFORE } },
+    outputs: {},
+    enabled: true,
   }
 }
 
-type Writer = 'locking' | 'blind'
-type Point = 'after-reread' | 'after-delete'
+type Point = 'after-lock' | 'after-save'
 
 /**
- * A whole-graph replace, statement for statement: a `locking` writer (a source apply) locks the
- * live workflow row and re-reads the blocks first, a `blind` one (a revert to a deployed version)
- * does not; both then delete every block and re-insert the graph they started from. `interleave`
- * runs at `point` inside it, on its own connections, as the realtime server's flush would.
+ * A production graph write: lock the live workflow row, then save the graph through the real
+ * diff save, renaming the block from what it read. `interleave` runs at `point` inside the
+ * transaction, on its own connections, as the realtime server's flush would.
  */
-async function replaceGraph(writer: Writer, point: Point, interleave: () => Promise<void>) {
+async function lockedSave(point: Point, interleave: () => Promise<void>) {
   await db.transaction(async (tx) => {
-    if (writer === 'locking') {
-      await tx
-        .select({ id: workflow.id })
-        .from(workflow)
-        .where(and(eq(workflow.id, workflowId), isNull(workflow.archivedAt)))
-        .limit(1)
-        .for('update')
-    }
+    await tx
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(and(eq(workflow.id, workflowId), isNull(workflow.archivedAt)))
+      .limit(1)
+      .for('update')
+    if (point === 'after-lock') await runOutsideTransactionContext(interleave)
+    await saveWorkflowToNormalizedTables(
+      workflowId,
+      { blocks: { [blockId]: savedBlock() }, edges: [], loops: {}, parallels: {} },
+      tx
+    )
+    if (point === 'after-save') await runOutsideTransactionContext(interleave)
+  })
+}
+
+/**
+ * A writer that skips the workflow row lock and deletes every block before re-inserting what it
+ * read: no production writer does, but it is the case the flush's rows-affected check exists for.
+ */
+async function unlockedReplace(interleave: () => Promise<void>) {
+  await db.transaction(async (tx) => {
     const read = await tx
       .select()
       .from(workflowBlocks)
       .where(eq(workflowBlocks.workflowId, workflowId))
-    if (point === 'after-reread') await runOutsideTransactionContext(interleave)
     await tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
-    if (point === 'after-delete') await runOutsideTransactionContext(interleave)
+    await runOutsideTransactionContext(interleave)
     await tx.insert(workflowBlocks).values(read)
   })
 }
@@ -179,13 +223,35 @@ describe('subblock flush racing a whole-graph replace', () => {
     })
   })
 
-  it.each<[Writer, Point]>([
-    ['locking', 'after-reread'],
-    ['locking', 'after-delete'],
-    ['blind', 'after-delete'],
-  ])('never confirms a keystroke a %s replace then loses (keystroke %s)', async (writer, point) => {
+  const keystroke = (handlers: Record<string, Handler>, outcome: Promise<Outcome>) => async () => {
+    await handlers['subblock-update']({
+      workflowId,
+      blockId,
+      subblockId: 'code',
+      value: TYPED,
+      timestamp: Date.now(),
+      operationId: generateId(),
+    })
+    expect(await untilSettledOrBlocked(outcome)).toBe('blocked')
+  }
+
+  it.each<Point>(['after-lock', 'after-save'])(
+    'keeps a keystroke flushed inside a locked save (%s), and the save’s own change',
+    async (point) => {
+      const { handlers, outcome } = connect()
+      await lockedSave(point, keystroke(handlers, outcome))
+
+      expect({
+        reported: await outcome,
+        code: await storedValue(),
+        name: await storedName(),
+      }).toEqual({ reported: 'operation-confirmed', code: TYPED, name: RENAMED })
+    }
+  )
+
+  it('reports a keystroke an unlocked replace deletes the block under as failed, never confirmed', async () => {
     const { handlers, outcome } = connect()
-    await replaceGraph(writer, point, async () => {
+    await unlockedReplace(async () => {
       await handlers['subblock-update']({
         workflowId,
         blockId,
@@ -194,12 +260,13 @@ describe('subblock flush racing a whole-graph replace', () => {
         timestamp: Date.now(),
         operationId: generateId(),
       })
-      await untilSettledOrBlocked(outcome)
+      expect(await untilSettledOrBlocked(outcome)).toBe('blocked')
     })
-    const reported = await outcome
-    const stored = await storedValue()
-    expect({ reported, stored }).not.toEqual({ reported: 'operation-confirmed', stored: BEFORE })
-    if (reported === 'operation-confirmed') expect(stored).toBe(TYPED)
+
+    expect({ reported: await outcome, code: await storedValue() }).toEqual({
+      reported: 'operation-failed',
+      code: BEFORE,
+    })
   })
 })
 
@@ -237,7 +304,7 @@ describe('variable flush racing an apply that rewrites the variables', () => {
           timestamp: Date.now(),
           operationId: generateId(),
         })
-        await untilSettledOrBlocked(outcome)
+        expect(await untilSettledOrBlocked(outcome)).toBe('blocked')
       })
       const read = locked.variables as Record<string, ReturnType<typeof variable>>
       await tx
@@ -251,7 +318,10 @@ describe('variable flush racing an apply that rewrites the variables', () => {
       .from(workflow)
       .where(eq(workflow.id, workflowId))
     const stored = row.variables as Record<string, { value: string }>
-    expect(stored[otherVariableId].value).toBe(APPLIED)
-    if (reported === 'operation-confirmed') expect(stored[variableId].value).toBe(TYPED)
+    expect({
+      reported,
+      typed: stored[variableId].value,
+      applied: stored[otherVariableId].value,
+    }).toEqual({ reported: 'operation-confirmed', typed: TYPED, applied: APPLIED })
   })
 })
