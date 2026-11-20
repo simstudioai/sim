@@ -19,7 +19,7 @@ import {
   workflowState,
 } from './fixtures.test-helpers'
 import { QUIRK_STATES } from './quirks.test-helpers'
-import { rewriteRenamedReferences } from './values'
+import { renamedReferenceRewriter, rewriteRenamedReferences } from './values'
 
 function run(
   workflow: CanonicalWorkflow,
@@ -1184,5 +1184,21 @@ describe('rewriteRenamedReferences', () => {
     const tools = getOwn(out, 'tools')
     expect(tools?.kind === 'tools' && Object.hasOwn(tools.tools[0].params, '__proto__')).toBe(true)
     expect(tools?.kind === 'tools' && getOwn(tools.tools[0].params, '__proto__')).toBe('<load.z>')
+  })
+})
+
+describe('renamedReferenceRewriter', () => {
+  it('rewrites swapped and chained renames at once, never a token a rename already wrote', () => {
+    const swap = renamedReferenceRewriter([
+      { from: 'a', to: 'b' },
+      { from: 'b', to: 'a' },
+    ])
+    expect(swap('<a.x> <B.y>')).toBe('<b.x> <a.y>')
+
+    const chain = renamedReferenceRewriter([
+      { from: 'a', to: 'b' },
+      { from: 'b', to: 'c' },
+    ])
+    expect(chain('<a.x> <b.y>')).toBe('<b.x> <c.y>')
   })
 })

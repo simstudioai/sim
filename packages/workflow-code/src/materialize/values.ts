@@ -175,18 +175,25 @@ function rewriteBlock(block: CanonicalBlock, rewrite: (text: string) => string):
 
 /**
  * A function rewriting every `<from.` reference token in a text to `<to.`, case-insensitively, as
- * an apply rewrites the references to a renamed block.
+ * an apply rewrites the references to a renamed block. Every rename applies in one pass, so a
+ * token one rename wrote is never rewritten again by another (swapped or chained renames).
  */
 export function renamedReferenceRewriter(
   renames: ReadonlyArray<{ from: BlockKey; to: BlockKey }>
 ): (text: string) => string {
-  const patterns = renames.map(({ from, to }) => ({
-    pattern: new RegExp(`<${escapeRegExp(from)}\\.`, 'gi'),
-    replacement: `<${to}.`,
-  }))
+  const targets = new Map<string, BlockKey>()
+  for (const { from, to } of renames) {
+    const key = from.toLowerCase()
+    if (!targets.has(key)) targets.set(key, to)
+  }
+  if (targets.size === 0) return (text) => text
+  const pattern = new RegExp(`<(${[...targets.keys()].map(escapeRegExp).join('|')})\\.`, 'gi')
   return (text) =>
     text.includes('<')
-      ? patterns.reduce((acc, { pattern, replacement }) => acc.replace(pattern, replacement), text)
+      ? text.replace(pattern, (token, from: string) => {
+          const to = targets.get(from.toLowerCase())
+          return to === undefined ? token : `<${to}.`
+        })
       : text
 }
 
