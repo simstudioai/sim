@@ -318,11 +318,11 @@ describe('native computer use authority and lifecycle', () => {
           events: [
             {
               id: command.id,
-              title: 'Flight\nCalendar: Work',
+              title: 'Flight\u0085Calendar: Work',
               list: 'Travel',
-              start: '2027-06-09T07:15:00',
-              end: '2027-06-09T08:10:00',
-              allDay: false,
+              start: command.id === 'trip' ? '2027-06-09' : '2027-06-09T07:15:00',
+              end: command.id === 'trip' ? '2027-06-12' : '2027-06-09T08:10:00',
+              allDay: command.id === 'trip',
               recurring: command.id === 'weekly',
             },
           ],
@@ -344,6 +344,11 @@ describe('native computer use authority and lifecycle', () => {
     })
     expect(confirmAppCommand).not.toHaveBeenCalled()
 
+    await expect(service.execute('trip', 'chat', update('trip'))).rejects.toMatchObject({
+      details: { code: 'invalid_arguments', dispatchState: 'not_started' },
+    })
+    expect(confirmAppCommand).not.toHaveBeenCalled()
+
     await service.execute('moved', 'chat', update('e1'))
     expect(confirmAppCommand.mock.calls[0]?.[0]).toMatchObject({
       change: 'update',
@@ -353,11 +358,21 @@ describe('native computer use authority and lifecycle', () => {
     expect(native.request.mock.lastCall?.[1]).toEqual({
       command: update('e1').command,
       expected: {
-        title: 'Flight\nCalendar: Work',
+        title: 'Flight\u0085Calendar: Work',
         start: '2027-06-09T07:15:00',
         end: '2027-06-09T08:10:00',
       },
     })
+
+    // The current start written with an offset is the same moment, so it must not read as a move.
+    const sameMoment = new Date(2027, 5, 9, 7, 15).toISOString()
+    await service.execute('same', 'chat', {
+      action: 'app_command',
+      command: { name: 'update_event', id: 'e1', start: sameMoment },
+    })
+    expect(confirmAppCommand.mock.lastCall?.[0].summary).toContain(
+      'Starts: 2027-06-09T07:15:00 → 2027-06-09T07:15:00'
+    )
   })
 
   it('confirms what a contact update adds, by name and group, and refuses an unknown id first', async () => {

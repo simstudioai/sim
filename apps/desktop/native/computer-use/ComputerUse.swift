@@ -419,8 +419,8 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
         }
         let now = eventItem(event)
         let moved = (title != nil && now["title"] as? String != expected.title)
-            || (command.start != nil && now["start"] as? String != expected.start)
-            || (command.end != nil && now["end"] as? String != expected.end)
+            // Either boundary is checked when either changes: the one kept is saved beside the one moved.
+            || ((command.start != nil || command.end != nil) && (now["start"] as? String != expected.start || now["end"] as? String != expected.end))
             || (command.location != nil && now["location"] as? String != expected.location)
             || (command.notes != nil && now["notes"] as? String != expected.notes)
         guard !moved else {
@@ -505,7 +505,7 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
         try checkCancellation()
         inputDispatched = true
         try store.save(reminder, commit: true)
-        return ["kind": "command", "command": command.name, "created": ["id": reminder.calendarItemIdentifier, "title": title, "list": list.title]]
+        return ["kind": "command", "command": command.name, "created": ["id": reminder.calendarItemIdentifier, "title": title, "list": bounded(list.title, 1024)]]
     case "list_calendars":
         let allCalendars = try calendarStore().calendars(for: .event)
         let calendars = allCalendars.prefix(200).map { calendar -> [String: Any] in
@@ -540,7 +540,7 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
         try checkCancellation()
         inputDispatched = true
         try store.save(event, span: .thisEvent, commit: true)
-        return ["kind": "command", "command": command.name, "created": ["id": event.eventIdentifier ?? event.calendarItemIdentifier, "title": title, "list": calendar.title]]
+        return ["kind": "command", "command": command.name, "created": ["id": event.eventIdentifier ?? event.calendarItemIdentifier, "title": title, "list": bounded(calendar.title, 1024)]]
     case "list_contact_groups":
         let allGroups = try contactStore().groups(matching: nil)
         let groups = allGroups.prefix(200).map { group -> [String: Any] in

@@ -251,6 +251,9 @@ const DateOrDateTime = z
     "Use a real date and time",
   );
 const CommandNotes = z.string().max(8000).optional();
+const UpdatedEventBoundary = DateOrDateTime.describe(
+  "In the event's own form: YYYY-MM-DD for an all-day event, else an ISO 8601 date-time (this Mac's local time without an offset).",
+);
 const EventBoundary = DateOrDateTime.describe(
   "ISO 8601 date-time, or YYYY-MM-DD when allDay is true. Without an offset it is this Mac's local time, as typing it into Calendar would be.",
 );
@@ -359,8 +362,8 @@ export const AppCommandSchema = z.discriminatedUnion("name", [
         .max(256)
         .describe("An id from find_events or create_event; repeating events are refused."),
       title: CommandTitle.optional(),
-      start: EventBoundary.optional(),
-      end: EventBoundary.optional(),
+      start: UpdatedEventBoundary.optional(),
+      end: UpdatedEventBoundary.optional(),
       location: z.string().max(1024).optional().describe("Replaces the location; an empty string clears it."),
       notes: CommandNotes.describe("Replaces the notes; an empty string clears them."),
     })
