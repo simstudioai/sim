@@ -83,6 +83,27 @@ describe('refuseEditedFindings', () => {
     expect(errors(refuseEditedFindings(compiled, edited('call')))).toEqual([])
   })
 
+  it('refuses an iteration field a shared code file reads for a block outside the loop', () => {
+    const compiled = compile(
+      [
+        START,
+        "const lp = loop.forEach('Each', { collection: '[1]' }, (body) => {",
+        "  const inner = fn('Inner', { code: codeFile('./functions/index.js') })",
+        '  body.to(inner)',
+        '})',
+        "const after = fn('After', { code: codeFile('./functions/index.js') })",
+        'start.to(lp)',
+        'lp.to(after)',
+      ],
+      { 'functions/index.js': 'return $ref.each.index' }
+    )
+
+    expect(errors(refuseEditedFindings(compiled, edited('after')))).toEqual([
+      'E_APPLY_REF_OUT_OF_SCOPE after',
+    ])
+    expect(errors(refuseEditedFindings(compiled, edited('inner')))).toEqual([])
+  })
+
   it('refuses a path no output has in an edited code file, and only there', () => {
     const compiled = compile(
       [

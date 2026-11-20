@@ -387,7 +387,11 @@ function readCodeFile(
     return null
   }
   const cached = budget.reads.get(path)
-  if (cached !== undefined) return cached === null ? null : { code: cached, path }
+  if (cached !== undefined) {
+    if (cached === null) return null
+    budget.sharedReads.push({ path, blockKey: decl.key })
+    return { code: cached, path }
+  }
   ctx.reporter.addFile(path, text)
   if (!checkStorableText(path, text, ctx.reporter, decl.key)) {
     budget.reads.set(path, null)

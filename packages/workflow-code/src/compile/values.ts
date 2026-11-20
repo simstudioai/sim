@@ -941,6 +941,7 @@ export function checkCodeFileRefs(
   ctx: CompileContext,
   renamed: ReadonlyMap<BlockKey, BlockKey>
 ): void {
+  checkSharedCodeFileScopes(ctx, renamed)
   for (const { path, blockKey, refs } of ctx.codeFiles.chains) {
     for (const ref of refs) {
       const at: Range = { file: path, start: ref.start, end: ref.end }
@@ -1004,6 +1005,37 @@ export function checkCodeFileRefs(
           blockKey,
         }
       )
+    }
+  }
+}
+
+/**
+ * `W_REF_OUT_OF_SCOPE` for an iteration field a shared code file reads, for each block after the
+ * first that runs it (`sharedReads`): whether the read is in scope depends on where the block
+ * sits, which {@link checkCodeFileRefs} checked only for the first.
+ */
+function checkSharedCodeFileScopes(
+  ctx: CompileContext,
+  renamed: ReadonlyMap<BlockKey, BlockKey>
+): void {
+  const refsByPath = new Map(ctx.codeFiles.chains.map(({ path, refs }) => [path, refs]))
+  for (const { path, blockKey } of ctx.codeFiles.sharedReads) {
+    for (const ref of refsByPath.get(path) ?? []) {
+      if (ref.kind === 'env') continue
+      const at: Range = { file: path, start: ref.start, end: ref.end }
+      const [head, property] = ref.segments
+      if (head?.kind !== 'name' || property?.kind !== 'name') continue
+      if (isReservedWorkflowBlockName(head.name)) {
+        checkIterationTag(ctx, at, blockKey, ref.segments)
+        continue
+      }
+      const renamedTo = renamed.get(head.name)
+      const target =
+        ctx.declsByKey.get(head.name) ??
+        (renamedTo === undefined ? undefined : ctx.declsByKey.get(renamedTo))
+      if (target && containerKindOf(target)) {
+        checkIterationScope(ctx, at, blockKey, target, property.name)
+      }
     }
   }
 }

@@ -126,6 +126,11 @@ interface CodeFileBudget {
    * once every block is known (`checkCodeFileRefs`).
    */
   chains: Array<{ path: string; blockKey: BlockKey; refs: CodeFileRef[] }>
+  /**
+   * A file another block already read, by each later block that reads it too: its references are
+   * checked for that block's iteration scope only, as every other check depends on the file alone.
+   */
+  sharedReads: Array<{ path: string; blockKey: BlockKey }>
 }
 
 /** The state one compile threads through every pass: inputs, the reporter and what it collected. */

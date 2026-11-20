@@ -549,7 +549,7 @@ function compileEntry(
     catalog: input.catalog,
     files: input.files,
     limits,
-    codeFiles: { reads: new Map(), refs: 0, bytes: utf8Bytes(text), chains: [] },
+    codeFiles: { reads: new Map(), refs: 0, bytes: utf8Bytes(text), chains: [], sharedReads: [] },
     comments: new CommentCollector(file, reporter),
     decls: [],
     declsByKey: new Map(),
