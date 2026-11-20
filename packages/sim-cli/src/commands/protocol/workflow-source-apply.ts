@@ -36,7 +36,7 @@ import {
   writeBack,
 } from './source-dir'
 import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
-import { cachedCatalogByHash } from './source-tree'
+import { cachedCatalogByHash, printTreeResult } from './source-tree'
 import {
   type CreatedResource,
   confirm,
@@ -546,7 +546,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
           printError(
             `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, then run \`${createCommand(options.dir, workspaceId)} --yes\`.`
           )
-          printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
+          printTreeResult(profile.output, { created: false, scaffolded: true, ...tree })
           return
         }
         assertDeployable(options)

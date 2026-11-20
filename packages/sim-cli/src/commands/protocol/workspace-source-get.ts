@@ -20,7 +20,6 @@ import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
 import { removeStagingOnSignal } from './files-get'
-import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
   checkedPath,
@@ -44,6 +43,7 @@ import {
   finishTree,
   loadCatalog,
   loadWorkspaceTypes,
+  printTreeResult,
   sourceTreeChange,
   withSourceExitCode,
 } from './source-tree'
@@ -164,7 +164,7 @@ async function writeWorkspaceSource(
   dir: string,
   source: WorkspaceSource,
   force: boolean
-): Promise<{ written: number; removed: number; guide: string }> {
+): Promise<{ written: number; removed: number; guide: string; primer: string }> {
   assertWorkspacePaths(Object.keys(source.files))
   assertListedBlobs(source.blobs)
   const blobs = new Map(source.blobs.map((blob) => [blob.path, blob]))
@@ -304,8 +304,13 @@ async function writeWorkspaceSource(
       ],
     })
     await rm(downloads, { recursive: true, force: true })
-    const summary = finishTree(dir, write.length + stale.length, workspaceTypes, tree.ownsTsconfig)
-    return { written: summary.files, removed: gone.size, guide: summary.guide }
+    const summary = finishTree(dir, write.length + stale.length, workspaceTypes, tree)
+    return {
+      written: summary.files,
+      removed: gone.size,
+      guide: summary.guide,
+      primer: summary.primer,
+    }
   } finally {
     if (partial) await rm(partial, { recursive: true, force: true })
     disposeSignalCleanup()
@@ -394,7 +399,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
             throw withSourceExitCode(error)
           })
         const result = await writeWorkspaceSource(client, options.dir, data, options.force === true)
-        printProtocolResult(profile.output, {
+        printTreeResult(profile.output, {
           workspaceId: data.workspaceId,
           dir: options.dir,
           kinds: data.kinds,
@@ -403,6 +408,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
           removed: result.removed,
           skipped: data.skipped.length,
           guide: result.guide,
+          primer: result.primer,
         })
       })
     })

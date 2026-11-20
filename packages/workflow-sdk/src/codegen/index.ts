@@ -7,15 +7,25 @@ export {
   sdkIndexHeader,
 } from './generate'
 export {
+  checkedBlockTypes,
   defaultBlockFiles,
   fullBlockFiles,
   referencedBlockTypes,
+  referencedBuilders,
   SDK_GUIDE_FILE,
   SDK_INDEX_FILE,
   SDK_MODELS_FILE,
 } from './layout'
 export { SDK_MAJOR } from './major'
 export { SPECIAL_BUILDER_KEYS } from './names'
+export {
+  type BuilderLookup,
+  type BuilderReference,
+  builderSnippet,
+  describeBuilder,
+  lookupBuilder,
+  renderBuilderReference,
+} from './reference'
 export { SOURCE_COMPILER_OPTIONS, typecheckCommand } from './tsconfig'
 export {
   type GenerateWorkspaceTypesFn,

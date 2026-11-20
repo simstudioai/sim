@@ -1477,6 +1477,38 @@ Without --server, each file created, edited or deleted since the directory was r
 
 API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
 
+### Print a builder's params and outputs from the cached block catalog
+
+Offline.
+
+```bash
+sim workflows source params <builder> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `builder` | Yes | Builder path (table.upsertRow, agent, trigger.schedule) or namespace |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Source directory whose catalog to read. Defaults to `.`. |
+
+</CommandTable>
+
+Prints a builder's params (required first, with enums and defaults), the gate field that picks which others apply, and its outputs, from the block catalog the last get, create or check cached. No request is made. &lt;builder&gt; is the dotted builder path as source writes it: table.upsertRow, agent, trigger.schedule, slack.sendMessage (slack.tool.sendMessage names the same builder). A namespace (gmail, trigger.gmail) lists its builders; a construct core.d.ts declares (loop, parallel, t, env) prints its declaration. Run it from a workflow or workspace source directory, or pass --dir.
+
+Exit codes: 0 printed; 1 no builder or namespace of that name (the closest one is named), or no cached catalog (run a get once).
+
 ### List the tables, knowledge bases, credentials, workflows, skills, custom tools, MCP servers and env names source can name
 
 ```bash

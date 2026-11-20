@@ -148,6 +148,21 @@ describe('workspaces source get', () => {
     expect(existsSync(join(dir, 'tables/accounts.rows.jsonl'))).toBe(false)
   })
 
+  it('writes the workspace primer atop the guide, and the deep dives to the advanced guide it names', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+
+    await get()
+
+    const agents = readFileSync(join(dir, '.sim/AGENTS.md'), 'utf8')
+    expect(agents.startsWith('# Sim workspace source: primer')).toBe(true)
+    expect(agents).toContain('`.sim/GUIDE-advanced.md`')
+    expect(agents).not.toContain('## Git and CI')
+    const advanced = readFileSync(join(dir, '.sim/GUIDE-advanced.md'), 'utf8')
+    for (const section of ['## Deletes', '## Git and CI', '## Promote to another workspace']) {
+      expect(advanced).toContain(section)
+    }
+  })
+
   it('refuses to restore a file deleted since the CLI wrote it, a pending delete', async () => {
     serve({ 'tables/leads.ts': LEADS, 'tables/accounts.ts': ACCOUNTS })
     await get()

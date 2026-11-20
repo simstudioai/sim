@@ -33,6 +33,7 @@ export const GET = defineV2JsonRoute({
   }),
   useCase: readWorkflowSource,
   present: (source) => ({ data: source }),
+  encodeLargeBody: true,
 })
 
 /**

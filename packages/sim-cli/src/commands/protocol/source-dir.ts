@@ -45,7 +45,7 @@ import { SimApiError } from '../../http/client'
 import { embeddedFileContent } from '../../transfer/local-file'
 import { removeStagingOnSignal, saveToFile } from './files-get'
 
-/** Generated SDK declarations: every block in the workspace catalog, plus `workspace.d.ts`. */
+/** Generated SDK declarations: the blocks the source uses (every block's are cached), plus `workspace.d.ts`. */
 export const SOURCE_SDK_DIR = '.sim/sdk'
 /** A short guide for an agent working in the directory; never a top-level `AGENTS.md`. */
 export const SOURCE_AGENTS_FILE = '.sim/AGENTS.md'
@@ -112,7 +112,7 @@ const GITATTRIBUTES_LINES = [
   `${SOURCE_ENTRY_FILE} text eol=lf`,
   `${SOURCE_FUNCTIONS_DIR}/** text eol=lf`,
 ]
-/** Files read or written at once on a local disk; the declarations run to thousands of small files. */
+/** Files read or written at once on a local disk; a catalog's declarations run to hundreds of small files. */
 export const FILE_CONCURRENCY = 32
 
 /**

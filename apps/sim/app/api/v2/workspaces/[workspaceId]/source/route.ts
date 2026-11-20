@@ -36,6 +36,7 @@ export const GET = defineV2JsonRoute({
   }),
   useCase: withSourceSlot(readWorkspaceSource, 'read'),
   present: (source) => ({ data: source }),
+  encodeLargeBody: true,
 })
 
 /**

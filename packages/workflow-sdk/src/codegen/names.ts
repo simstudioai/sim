@@ -84,3 +84,15 @@ export function builderEntries(catalog: BlockCatalog): BuilderEntry[] {
   }
   return entries
 }
+
+/**
+ * The entry of the catalog builder `key`, or `null` when the catalog has none, named as
+ * {@link builderEntries} names it. It does not validate the rest of the map.
+ */
+export function builderEntry(catalog: BlockCatalog, key: string): BuilderEntry | null {
+  const builder = catalogBuilder(catalog, key)
+  if (!builder || !catalogBlock(catalog, builder.type)) return null
+  const path = key.split('.')
+  const special = path.length === 1 ? SDK_SPECIAL_BUILDERS[path[0]] : undefined
+  return { key, path, builder, special, typeName: pascal(path) }
+}
