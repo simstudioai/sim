@@ -44,10 +44,13 @@ import {
   type FindingsOutput,
   findingsOutput,
   fresh,
+  planNext,
   printRefusal,
   refusedExitCode,
-  requireConsent,
+  shellWord,
+  stopAtPlan,
   verboseFlag,
+  writeMode,
 } from './source-ui'
 import { storedEdgesWrite } from './stored-edges'
 import {
@@ -65,7 +68,9 @@ file:line:column with its frame and hint) or the command failed; 5 the workflow 
 directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry);
 6 the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1,
 E_APPLY_LOCKED_BLOCK); 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's
-retries, so nothing was written: wait a minute and run it again.`
+retries, so nothing was written: wait a minute and run it again; 14 without --yes and with no
+terminal to ask: the plan was printed with no errors and nothing was written (run the same
+command with --yes to apply it).`
 
 const CREATE_EXIT_CODES_HELP = `
 Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each
@@ -73,7 +78,8 @@ printed as file:line:column with its frame and hint), the workflow name is taken
 (SOURCE_NAME_TAKEN: pass --name), a starter written for another workspace
 (SOURCE_OTHER_WORKSPACE: pass --workspace), or the command failed; 6 the folder is locked; 7 the
 source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created:
-wait a minute and run it again.`
+wait a minute and run it again; 14 without --yes and with no terminal to ask: the plan was
+printed with no errors and nothing was created (run the same command with --yes).`
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 
@@ -253,6 +259,8 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   save: (data: SourceApplyData) => Promise<void>
   /** The next step when the write's answer never came back, so it may have been stored. */
   ifAnswerLost: string
+  /** This write as a command, without `--yes`: what a `plan` run names next with it. */
+  command: string
 }): Promise<void> {
   const { options, creating } = args
   /** Sends the write (or its dry run); a refusal prints its diagnostics and rethrows. */
@@ -289,7 +297,8 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       }
     )
   }
-  if (!options.dryRun && !options.yes) {
+  const mode = writeMode(options)
+  if (mode === 'ask' || mode === 'plan') {
     const preview = await send(true)
     printFindings(preview, findings, notes)
     if (preview.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
@@ -298,6 +307,11 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       return
     }
     printError(diffSummary(preview))
+    if (mode === 'plan') {
+      stopAtPlan()
+      report(preview, { next: planNext(args.command) })
+      return
+    }
     if (!(await confirm(args.question))) {
       throw new SimApiError('Nothing was applied.', 0, 'CANCELLED')
     }
@@ -321,6 +335,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       })
 
   const stored = !data.dryRun && !refused && (data.applied || !creating)
+  if (mode === 'write' && stored) printError(diffSummary(data))
   report(
     data,
     stored
@@ -453,7 +468,6 @@ export function attachWorkflowSourceApply(source: Command): void {
     .action(async (named: string | undefined, options: SourceWriteOptions) =>
       withWorkspaceFolderLock(options.dir, async () => {
         assertDeployable(options)
-        requireConsent(options, 'writes the workflow draft', 'apply')
         const { client, profile } = connectApply()
         const lock = await readLock(options.dir)
         const base = await readBase(options.dir, named)
@@ -463,6 +477,7 @@ export function attachWorkflowSourceApply(source: Command): void {
           options,
           creating: false,
           question: `Apply these changes to workflow ${workflowId}?`,
+          command: `sim workflows source apply --dir ${shellWord(options.dir)}${options.allowDelete ? ' --allow-delete' : ''}${options.deploy ? ' --deploy' : ''}`,
           output: profile.output,
           client,
           operation: 'applyWorkflowSource',
@@ -535,7 +550,6 @@ export function attachWorkflowSourceCreate(source: Command): void {
           return
         }
         assertDeployable(options)
-        requireConsent(options, 'creates a workflow', 'create')
         const { client, profile } = connectCreate()
         const workspaceId = client.requireWorkspace()
         await assertStarterWorkspace(
@@ -548,6 +562,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
           options,
           creating: true,
           question: 'Create this workflow?',
+          command: `${createCommand(shellWord(options.dir), workspaceId)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${options.deploy ? ' --deploy' : ''}`,
           output: profile.output,
           client,
           operation: 'createWorkflowFromSource',

@@ -158,28 +158,62 @@ function dryRunFlags() {
 }
 
 describe('sim workflows source apply', () => {
-  it('refuses without --yes when nobody is at a terminal, sending nothing', async () => {
+  it('without --yes and nobody at a terminal, prints the plan, writes nothing and exits 14', async () => {
     setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true }))
 
-    const error = await apply(WORKFLOW_ID, '--dir', dir).catch((caught: unknown) => caught)
+    await apply(WORKFLOW_ID, '--dir', dir, '--allow-delete')
 
-    expect(error).toBeInstanceOf(SimApiError)
-    expect((error as SimApiError).code).toBe('CONFIRMATION_REQUIRED')
-    expect((error as SimApiError).message).toContain('--yes')
-    expect(request).not.toHaveBeenCalled()
+    expect(dryRunFlags()).toEqual([true])
+    expect(process.exitCode).toBe(14)
+    expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(ENTRY)
+    expect(stdoutJson()).toMatchObject({
+      applied: false,
+      dryRun: true,
+      next: { command: `sim workflows source apply --dir ${dir} --allow-delete --yes` },
+    })
+    expect(stderrLines().join('\n')).toContain('Blocks: 1 added')
   })
 
-  it('refuses a create without --yes and sends nothing', async () => {
+  it('without --yes, exits with the refusal and names no next step when the plan has errors', async () => {
     setTerminal(false)
+    request.mockResolvedValue(
+      outcome({
+        dryRun: true,
+        diagnostics: [{ code: 'E_UNKNOWN_PARAM', severity: 'error', message: 'No param x.' }],
+      })
+    )
 
-    const error = await program()
-      .parseAsync(['node', 'sim', 'workflows', 'source', 'create', '--dir', dir])
-      .catch((caught: unknown) => caught)
+    await apply(WORKFLOW_ID, '--dir', dir)
 
-    expect(error).toBeInstanceOf(SimApiError)
-    expect((error as SimApiError).code).toBe('CONFIRMATION_REQUIRED')
-    expect((error as SimApiError).message).toContain('--yes to create')
-    expect(request).not.toHaveBeenCalled()
+    expect(process.exitCode).toBe(1)
+    expect(stdoutJson()).not.toHaveProperty('next')
+  })
+
+  it('plans a create without --yes and creates nothing', async () => {
+    setTerminal(false)
+    rmSync(join(dir, '.sim/base.json'))
+    request.mockResolvedValue(outcome({ dryRun: true }))
+
+    await program().parseAsync(['node', 'sim', 'workflows', 'source', 'create', '--dir', dir])
+
+    expect(dryRunFlags()).toEqual([true])
+    expect(process.exitCode).toBe(14)
+    expect(stdoutJson()).toMatchObject({
+      next: {
+        command: `sim workflows source create --dir ${dir} --workspace ${WORKSPACE_ID} --yes`,
+      },
+    })
+  })
+
+  it('with --yes, prints the summary of what it applied', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome())
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+
+    expect(dryRunFlags()).toEqual([false])
+    expect(stderrLines().join('\n')).toContain('Blocks: 1 added, 0 removed')
   })
 
   it('applies at once with --yes and saves what the server stored', async () => {

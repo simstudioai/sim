@@ -175,6 +175,7 @@ The CLI resends a request the API answers `429` only when sending it twice is sa
 | `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
 | `10` | `--dir` is a workflow folder of a workspace directory another `sim` command is using (`SOURCE_DIR_BUSY`); nothing was written: run it again once the other finished |
 | `13` | `AUTH_REQUIRED`: not logged in, or the server refused the credential; nothing was sent |
+| `14` | Run without `--yes` and with no terminal to ask: the plan was printed with no errors and nothing was written; run the same command with `--yes` |
 | `130` | Interrupted (Ctrl-C). A write already sent is finished and saved into the directory first; a second Ctrl-C stops at once and prints that it may have been written and how to check |
 
 | Code | `sim workflows source status` or `sim workspaces source status` |

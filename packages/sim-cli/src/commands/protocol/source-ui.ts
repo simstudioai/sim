@@ -10,10 +10,11 @@ import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { askLine } from '#sim-cli/terminal/line-input'
 import type { OutputFormat } from '../../config/index'
-import { embedStore } from '../../embed-context'
+import { embedStore, setSoftExitCode } from '../../embed-context'
 import {
   SOURCE_BUSY_EXIT_CODE,
   SOURCE_LOCKED_EXIT_CODE,
+  SOURCE_PLANNED_EXIT_CODE,
   SOURCE_STALE_EXIT_CODE,
   SOURCE_TOO_LARGE_EXIT_CODE,
 } from '../../exit-codes'
@@ -317,19 +318,34 @@ function refusalDetails(
 }
 
 /**
- * A write without `--yes` or `--dry-run` where no terminal can ask: the generic refusal, naming
- * what the write does (`writes the workflow draft`) and its verb (`apply`).
+ * How a source write proceeds: `dry-run` checks only; `write` writes at once (`--yes`); `ask`
+ * previews and asks on a terminal; `plan` (no `--yes` and no terminal to ask) previews, prints the
+ * plan and stops with {@link SOURCE_PLANNED_EXIT_CODE}, so an agent's edit loop sees the plan
+ * without a separate dry run and applies it with `--yes`.
  */
-export function requireConsent(
-  options: { dryRun?: boolean; yes?: boolean },
-  action: string,
-  verb: string
-): void {
-  if (!options.dryRun && !options.yes && !canPrompt()) {
-    throw new SimApiError(
-      `This ${action}. Re-run with --yes to ${verb} it, or with --dry-run to check it without writing.`,
-      0,
-      'CONFIRMATION_REQUIRED'
-    )
+export type WriteMode = 'dry-run' | 'write' | 'ask' | 'plan'
+
+/** The {@link WriteMode} of a write's `--dry-run` and `--yes` flags, here. */
+export function writeMode(options: { dryRun?: boolean; yes?: boolean }): WriteMode {
+  if (options.dryRun) return 'dry-run'
+  if (options.yes) return 'write'
+  return canPrompt() ? 'ask' : 'plan'
+}
+
+/** `value` as one shell word: as it is when it needs no quoting, else single-quoted. */
+export function shellWord(value: string): string {
+  return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`
+}
+
+/** The next step a `plan` run names: the same write with `--yes`. */
+export function planNext(command: string): { command: string; reason: string } {
+  return {
+    command: `${command} --yes`,
+    reason: 'Nothing was written: this is the plan. Run it with --yes to apply it.',
   }
+}
+
+/** Marks a `plan` run that found no errors: nothing was written, applying needs `--yes`. */
+export function stopAtPlan(): void {
+  setSoftExitCode(SOURCE_PLANNED_EXIT_CODE)
 }

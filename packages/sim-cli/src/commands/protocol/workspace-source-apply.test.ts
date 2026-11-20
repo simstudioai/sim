@@ -130,6 +130,38 @@ afterEach(() => {
 })
 
 describe('workspaces source apply', () => {
+  it('without --yes and nobody at a terminal, prints the plan, writes nothing and exits 14', async () => {
+    request.mockResolvedValue(
+      answer({ dryRun: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
+    )
+
+    await apply('--allow-delete')
+
+    expect(request.mock.calls.map((call) => call[1].query?.dryRun === true)).toEqual([true])
+    expect(process.exitCode).toBe(14)
+    const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(printed).toMatchObject({
+      dryRun: true,
+      created: [{ kind: 'table', key: 'leads' }],
+      next: { command: `sim workspaces source apply --dir ${dir} --allow-delete --yes` },
+    })
+    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('+ leads')
+  })
+
+  it('with --yes, prints the plan it applied', async () => {
+    request.mockResolvedValue(
+      answer({
+        plan: [{ kind: 'table', key: 'leads', action: 'create' }],
+        applied: [{ kind: 'table', key: 'leads', action: 'create', id: 'tbl_1' }],
+      })
+    )
+
+    await apply('--yes')
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('+ leads')
+  })
+
   it('puts each finding of a dry run in the JSON on stdout', async () => {
     const finding = {
       code: 'E_DECL_SHAPE',

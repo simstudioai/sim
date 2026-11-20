@@ -47,10 +47,13 @@ import {
   confirm,
   createdText,
   findingsOutput,
+  planNext,
   printRefusal,
   refusedExitCode,
-  requireConsent,
+  shellWord,
+  stopAtPlan,
   verboseFlag,
+  writeMode,
 } from './source-ui'
 import { removedWorkflowRecords, workflowFolderRecords } from './stored-edges'
 import {
@@ -98,7 +101,9 @@ part-way (stale, locked, forbidden) saves what was written too, and exits as tha
 or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a
 minute and apply again (binary files already uploaded are not sent again); 10 another apply is
 writing the workspace (SOURCE_BUSY), or another command is using the directory
-(SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished.`
+(SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished; 14
+without --yes and with no terminal to ask: the plan was printed with no errors and nothing was
+written (run the same command with --yes to apply it).`
 
 const SYMBOLS: Record<Change['action'], string> = {
   create: '+',
@@ -420,7 +425,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     .description('Apply a workspace source directory')
     .addHelpText('after', `${EXIT_CODES_HELP}${SOURCE_WRITE_EXIT_CODES_HELP}`)
     .action(async (options: ApplyOptions) => {
-      requireConsent(options, 'writes the workspace', 'apply')
+      const mode = writeMode(options)
       const only = parseKinds(options.only)
       const { client, profile } = connect()
       const readFrom = baseWorkspaceOf(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
@@ -518,29 +523,31 @@ export function attachWorkspaceSourceApply(source: Command): void {
           }
           // The apply repeats findings the preview already showed: each is printed once.
           const findings = findingsOutput(profile.output, options.verbose)
-          const report = (data: ApplyData) => {
-            const result = summarize(data)
+          const report = (data: ApplyData, next?: { command: string; reason: string }) => {
+            const result = { ...summarize(data), ...(next ? { next } : {}) }
             printProtocolResult(
               profile.output,
               { ...result, ...findings.result(data.diagnostics) },
-              { created: createdText(result.created) }
+              { created: createdText(result.created), ...(next ? { next: next.command } : {}) }
             )
           }
           let preview: ApplyData | null = null
-          if (options.dryRun || !options.yes) {
+          if (mode !== 'write') {
             preview = await send(submission, true)
             printPlan(preview.plan)
             findings.print(preview.diagnostics)
             const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
             if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
-            if (options.dryRun || refusesApply(preview)) {
+            if (mode === 'dry-run' || refusesApply(preview)) {
               report(preview)
               return
             }
-            if (
-              !options.yes &&
-              !(await confirm(`Apply these changes to workspace ${workspaceId}?`))
-            ) {
+            if (mode === 'plan') {
+              stopAtPlan()
+              report(preview, planNext(applyCommand(options)))
+              return
+            }
+            if (!(await confirm(`Apply these changes to workspace ${workspaceId}?`))) {
               throw new SimApiError('Nothing was applied.', 0, 'CANCELLED')
             }
           }
@@ -566,6 +573,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               abandoned: `Stopped before the apply answered. ${answerLostHint(options.dir)}`,
             }
           )
+          if (mode === 'write') printPlan(data.plan)
           const held = data.plan.filter((change) => change.held)
           if (held.length > 0) {
             printError(
@@ -579,9 +587,19 @@ export function attachWorkspaceSourceApply(source: Command): void {
           }
           report(data)
         },
-        { readOnly: options.dryRun === true }
+        { readOnly: mode === 'dry-run' || mode === 'plan' }
       )
     })
+}
+
+/** This apply as a command, without `--yes` or `--dry-run`: what a plan run names next. */
+function applyCommand(options: ApplyOptions): string {
+  return [
+    `sim workspaces source apply --dir ${shellWord(options.dir)}`,
+    ...(options.only ? [`--only ${shellWord(options.only)}`] : []),
+    ...(options.to ? [`--to ${shellWord(options.to)}`] : []),
+    ...(options.allowDelete ? ['--allow-delete'] : []),
+  ].join(' ')
 }
 
 /**

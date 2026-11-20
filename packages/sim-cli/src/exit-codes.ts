@@ -72,5 +72,12 @@ export const SOURCE_DRIFT_EXIT_CODE = 12
  */
 export const AUTH_REQUIRED_EXIT_CODE = 13
 
+/**
+ * A `workflows source apply`/`create` or `workspaces source apply` run without `--yes` where no
+ * terminal can ask: it printed the plan a dry run found, with no errors, and wrote nothing. Run
+ * the same command with `--yes` to apply that plan.
+ */
+export const SOURCE_PLANNED_EXIT_CODE = 14
+
 /** The error code of an {@link AUTH_REQUIRED_EXIT_CODE} refusal the CLI raises itself. */
 export const AUTH_REQUIRED_CODE = 'AUTH_REQUIRED'

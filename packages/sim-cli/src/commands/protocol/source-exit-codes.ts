@@ -6,6 +6,7 @@ import {
   SOURCE_LOCAL_CHANGES_EXIT_CODE,
   SOURCE_LOCKED_EXIT_CODE,
   SOURCE_PARTIAL_EXIT_CODE,
+  SOURCE_PLANNED_EXIT_CODE,
   SOURCE_STALE_EXIT_CODE,
   SOURCE_TOO_LARGE_EXIT_CODE,
 } from '../../exit-codes'
@@ -72,6 +73,11 @@ export function sourceExitCodesTable(
       AUTH_REQUIRED_EXIT_CODE,
       'Not logged in, the login expired, or the server refused the credential (`AUTH_REQUIRED`); nothing was sent',
       '`sim login`, or fix or unset `SIM_API_KEY` when the key comes from it; then the same command again',
+    ],
+    [
+      SOURCE_PLANNED_EXIT_CODE,
+      '`apply` or `create` without `--yes` and no terminal to ask: it printed the plan, found no errors, and wrote nothing',
+      'Run the same command with `--yes`',
     ],
     [
       INTERRUPTED_EXIT_CODE,
