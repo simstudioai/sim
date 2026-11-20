@@ -10,7 +10,7 @@ import {
 import type { InferInsertModel, SQL } from 'drizzle-orm'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { PgInsertValue } from 'drizzle-orm/pg-core'
-import { EDGE_LOAD_ORDER } from './load'
+import { edgeLoadOrder } from './load'
 import { pruneWorkflowSourceMeta } from './source-meta'
 import { generateLoopBlocks, generateParallelBlocks } from './subflow-helpers'
 import type { DbOrTx } from './types'
@@ -195,7 +195,7 @@ async function deleteRows(
  * untouched (keeping their timestamps), changed rows are rewritten, and missing or extra rows are
  * inserted or deleted, so an edit costs its size rather than the graph's. Edges, which nothing
  * references, are left alone when unchanged and in order, and otherwise rewritten whole in the
- * state's order (see `EDGE_LOAD_ORDER`).
+ * state's order (see `edgeLoadOrder`).
  *
  * The stored rows are read `FOR UPDATE`, the rows a delete-all would lock. Writes run in
  * foreign-key order: an edge is retargeted before the block it left is deleted, so that block's
@@ -241,7 +241,7 @@ export async function saveWorkflowToNormalizedTables(
         .select()
         .from(workflowEdges)
         .where(eq(workflowEdges.workflowId, workflowId))
-        .orderBy(...EDGE_LOAD_ORDER)
+        .orderBy(...edgeLoadOrder())
         .for('update'),
       tx
         .select()
