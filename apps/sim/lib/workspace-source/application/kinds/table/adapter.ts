@@ -70,6 +70,7 @@ import {
   isColumnOp,
   type TableChanges,
 } from '@/lib/workspace-source/application/kinds/table/diff'
+import { checkColumnRenamesInUse } from '@/lib/workspace-source/application/kinds/table/renames'
 import {
   baseRows,
   namedRows,
@@ -700,6 +701,7 @@ async function managedRowsMovedSinceBase(
 }
 
 export const tableAdapter: KindAdapter<'table', StoredTableState> = {
+  checkRefs: checkColumnRenamesInUse,
   codec: tableCodec,
 
   async load(ctx, { allocate }) {
