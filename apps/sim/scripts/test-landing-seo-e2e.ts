@@ -13,6 +13,7 @@ import { SIM_SITE_URL } from '@sim/utils/site'
 import { load } from 'cheerio'
 import matter from 'gray-matter'
 import {
+  difyProfile,
   dustProfile,
   gumloopProfile,
   langflowProfile,
@@ -22,6 +23,7 @@ import {
   openClawProfile,
   type Prose,
   pipedreamProfile,
+  relevanceAiProfile,
   vellumProfile,
 } from '@/lib/compare/data'
 import { ContentFrontmatterSchema } from '@/lib/content/schema'
@@ -494,6 +496,8 @@ async function run() {
       pipedreamProfile,
       openClawProfile,
       openaiAgentkitProfile,
+      difyProfile,
+      relevanceAiProfile,
     ]) {
       const { status, body } = await get(`/comparisons/${profile.id}`)
       if (status !== 200) {
