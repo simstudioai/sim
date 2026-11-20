@@ -1,0 +1,294 @@
+---
+slug: openai-agent-builder-migration-guide-2026
+title: 'How to Migrate From OpenAI Agent Builder Before the November 30, 2026 Shutdown'
+seoTitle: 'OpenAI Agent Builder Migration Guide 2026'
+description: 'Migrate from OpenAI Agent Builder before November 30, 2026 with a practical inventory, rebuild, testing, and cutover plan.'
+date: 2026-11-20
+updated: 2026-11-20
+authors:
+  - andrew
+readingTime: 12
+tags: [AI Agents, OpenAI, Migration, Sim]
+ogImage: /library/openai-agent-builder-migration-guide-2026/cover.jpg
+draft: false
+faq:
+  - q: "Can OpenAI Agent Builder workflows be imported directly into Sim?"
+    a: "Sim does not provide an automatic OpenAI Agent Builder importer, so teams must recreate prompts, tools, routing, schemas, and deployment behavior in the visual builder. This manual rebuild is a real migration limitation, but it also creates an opportunity to document hidden assumptions and remove obsolete steps."
+  - q: "Can I keep using OpenAI models after moving away from Agent Builder?"
+    a: "Sim can keep using OpenAI models after the workflow moves away from OpenAI Agent Builder. Teams can reconnect OpenAI credentials, recreate model settings, and then test the rebuilt orchestration against saved examples."
+  - q: "Do I have to move from ChatKit when Agent Builder shuts down?"
+    a: "OpenAI says ChatKit remains available, so teams do not have to replace ChatKit solely because Agent Builder is shutting down. A ChatKit application still needs a supported backend if its current workflow depends on the retiring Agent Builder service."
+  - q: "What happens to my OpenAI Evals data after the shutdown?"
+    a: "OpenAI Evals users should export or independently preserve every dataset, grader, expected output, threshold, and historical result required for future regression testing. Teams should not rely on continued access after the deadline unless OpenAI’s first-party migration guidance explicitly guarantees it."
+  - q: "Is Sim open source?"
+    a: "Sim’s core is open source under the OSI-approved Apache License 2.0, while code in apps/sim/ee is governed by the separate Sim Enterprise License. The enterprise code is free for development, testing, and internal non-production use, but production use requires an active Sim Enterprise subscription."
+  - q: "Can Sim be self-hosted with local models?"
+    a: "Sim can be self-hosted with local models served through Ollama, vLLM, LM Studio, or LiteLLM. Local-model support is a self-hosting capability and does not require Sim Enterprise."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License rather than open source under an OSI-approved license. The license permits many internal and self-hosted uses but restricts certain commercial hosting and redistribution scenarios."
+  - q: "Can the replacement agent be deployed without a chat interface?"
+    a: "Sim can deploy a rebuilt workflow as an API or MCP tool instead of requiring a chat interface. An API fits application-controlled experiences, while an MCP deployment lets compatible agents and clients invoke the workflow as a reusable tool."
+  - q: "Should developers choose the Agents SDK or Sim?"
+    a: "OpenAI’s Agents SDK fits development teams that want OpenAI-native, code-first orchestration, while Sim fits teams that want visual orchestration, model-provider choice, self-hosting, and several deployment surfaces. The decision should follow the team’s operating model rather than the shortest initial rebuild."
+  - q: "What is the biggest risk in an OpenAI Agent Builder migration?"
+    a: "OpenAI Agent Builder migrations most often fail when teams copy visible prompts but miss hidden contracts such as tool schemas, message ordering, state, retries, structured outputs, and consumer expectations. A behavioral inventory and parallel regression test reduce this risk."
+  - q: "How long does an OpenAI Agent Builder migration take?"
+    a: "OpenAI Agent Builder migration time depends on the number of tools, branches, evaluations, integrations, and production consumers rather than the number of visible workflow steps. A small documented workflow may take days, while a production agent with side effects, security requirements, and undocumented dependencies can require substantially longer."
+  - q: "Can Sim use my own model-provider API keys?"
+    a: "Sim supports workspace BYOK keys on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise as of November 2026. Self-hosted Sim deployments can also connect supported provider and local-model endpoints."
+  - q: "What should I do if I cannot finish the migration before November 30, 2026?"
+    a: "OpenAI Agent Builder users who cannot finish in time should first protect data and reduce operational risk by preserving prompts and evaluations, disabling unsafe side effects, documenting dependencies, and moving the most critical workflow to a supported path. Teams should not assume OpenAI will extend the deadline unless OpenAI confirms an extension in first-party documentation."
+---
+
+## TL;DR
+
+Sim, the open-source AI workspace, prepared this migration guide for teams that need to replace OpenAI Agent Builder before November 30, 2026. Inventory every prompt, tool, schema, evaluation, and deployment now, choose either OpenAI's code-first path or a visual alternative, and complete a tested cutover before the shutdown date.
+
+As of November 2026, OpenAI says the hosted Agent Builder and Evals experiences covered by its shutdown notice will stop on November 30, 2026, while ChatKit and the Agents SDK will remain available. Teams should confirm the final scope and instructions in [OpenAI's Agent Builder documentation](https://developers.openai.com/api/docs/guides/agent-builder), [migration guide](https://developers.openai.com/api/docs/guides/agent-builder/migrate-from-agent-builder), and [AgentKit announcement](https://openai.com/index/introducing-agentkit/) because an interface remaining available does not guarantee that a workflow behind it will continue running unchanged.
+
+## What is shutting down on November 30, 2026, and what will remain available?
+
+OpenAI is shutting down Agent Builder and the Evals platform identified in its [June 2026 notice](https://developers.openai.com/api/docs/deprecations) on November 30, 2026. OpenAI's documentation says ChatKit and the Agents SDK will remain available.
+
+The distinction matters because Agent Builder, ChatKit, the Agents SDK, and Evals serve different parts of an agent's lifecycle:
+
+| OpenAI component | Status after November 30, 2026 | Migration implication |
+|---|---|---|
+| Agent Builder | Shutting down under OpenAI's notice | Rebuild the workflow in the Agents SDK, ChatGPT Workspace Agents, or another builder |
+| Evals platform | Shutting down under OpenAI's notice | Preserve datasets, graders, expected outputs, and historical results needed for regression testing |
+| [Agents SDK](https://developers.openai.com/api/docs/guides/agents/sdk) | Remains available | Use it when the team wants a code-first OpenAI migration path |
+| [ChatKit](https://developers.openai.com/api/docs/guides/chatkit) | Remains available | Keep the chat interface where appropriate, but connect it to a supported agent backend |
+| [ChatGPT Workspace Agents](https://developers.openai.com/workspace-agents) | OpenAI-recommended path for suitable workspace use cases | Use it for agents intended to operate inside a managed ChatGPT workspace |
+
+ChatKit remaining available does not by itself preserve an Agent Builder workflow. A ChatKit experience that depends on a retired Agent Builder backend still needs a supported replacement behind the interface.
+
+## Who needs to migrate from OpenAI Agent Builder?
+
+OpenAI Agent Builder users need to migrate if a production process, prototype, evaluation pipeline, or ChatKit experience depends on an Agent Builder workflow that will no longer execute after November 30, 2026.
+
+Prioritize the migration if any of these conditions apply:
+
+- A customer-facing chat or embedded assistant invokes the workflow.
+- An internal process depends on Agent Builder for tool calls, retrieval, routing, or structured output.
+- A ChatKit interface points to an Agent Builder-backed deployment.
+- Production releases depend on Evals datasets, graders, or stored evaluation results.
+- The workflow has undocumented prompts, credentials, schemas, or fallback behavior.
+- Another application expects a specific endpoint, response schema, or streaming behavior.
+
+A workflow that is only an experiment still needs an explicit decision: rebuild it, archive its design, or retire it. Leaving that decision until the shutdown increases the risk that prompts, test cases, tool definitions, and expected outputs will be lost or become harder to reconstruct.
+
+## What should you export or inventory before leaving OpenAI Agent Builder?
+
+OpenAI's [migration guide](https://developers.openai.com/api/docs/guides/agent-builder/migrate-from-agent-builder) explains how to export a workflow as Agents SDK code, but it also warns that the process does not convert the workflow graph or guarantee that every behavior transfers unchanged. Teams should therefore create a portable inventory of the agent's behavior rather than assume that one export will reproduce the workflow elsewhere.
+
+Capture the following for every workflow:
+
+1. **System and developer instructions:** Preserve exact text, variable placeholders, prompt versions, and environment-specific differences.
+2. **Model settings:** Record model names, temperature or reasoning settings, token limits, response formats, and fallback models.
+3. **Tools and functions:** Save each tool's name, description, input schema, authentication method, endpoint, timeout, and retry behavior.
+4. **Routing logic:** Document branches, handoffs, stop conditions, loops, failure paths, and human escalation rules.
+5. **Knowledge sources:** Record files, vector stores, retrieval settings, filters, chunking assumptions, and access controls.
+6. **Structured outputs:** Preserve JSON schemas, required fields, validation rules, and examples of accepted and rejected responses.
+7. **State and memory:** Identify what is stored between turns or runs, where it is stored, and how long it is retained.
+8. **Evaluations:** Save prompts, datasets, graders, expected answers, pass thresholds, and representative failures.
+9. **Deployment contracts:** Record endpoint URLs, request and response formats, streaming behavior, consumers, rate expectations, and error handling.
+10. **Operational evidence:** Preserve logs, traces, latency baselines, token usage, failure rates, and known edge cases.
+11. **Ownership and credentials:** Identify the owner of every API key, OAuth connection, secret, data source, and external service.
+12. **Compliance requirements:** Record sensitive-data boundaries, retention expectations, approval steps, and audit requirements.
+
+Screenshots are useful for reconstructing the layout, but screenshots are not a sufficient migration artifact. A reliable inventory explains what each step does, what data enters it, what output it must produce, and how failure is handled.
+
+## Which OpenAI migration path should you choose?
+
+OpenAI recommends the Agents SDK or ChatGPT Workspace Agents in its [first-party migration guide](https://developers.openai.com/api/docs/guides/agent-builder/migrate-from-agent-builder). The right choice depends on whether the agent belongs in application code or inside a managed ChatGPT workspace.
+
+### When should you migrate to the OpenAI Agents SDK?
+
+OpenAI's Agents SDK fits teams that want code-level control over orchestration, tools, handoffs, tracing, deployment, and tests.
+
+Choose the Agents SDK when:
+
+- The agent is part of a software product or backend service.
+- Engineers own deployment and ongoing maintenance.
+- The team wants orchestration behavior represented in code.
+- Existing systems already use OpenAI APIs and development tooling.
+- Automated tests, code review, and infrastructure pipelines are central requirements.
+
+The tradeoff is that a visual Agent Builder workflow must be translated into code and then operated like any other application service.
+
+### When should you migrate to ChatGPT Workspace Agents?
+
+OpenAI's ChatGPT Workspace Agents path fits internal agents whose users already work in a managed ChatGPT workspace.
+
+Choose this path when:
+
+- The primary destination is ChatGPT rather than an independent API or embedded application.
+- Workspace administration and user access are more important than custom deployment surfaces.
+- The use case fits the tools and controls available in the organization's ChatGPT workspace.
+- The team does not need a vendor-neutral visual workflow spanning multiple model providers.
+
+Confirm workspace eligibility, administration, connectors, and current plan requirements in [OpenAI's Workspace Agents documentation](https://developers.openai.com/workspace-agents) as of November 2026 before committing to this route.
+
+### When should you choose a visual builder outside OpenAI?
+
+A visual builder outside OpenAI fits teams that want to preserve visual orchestration, connect business systems, or avoid tying the rebuilt workflow to one model provider.
+
+This path is especially relevant when non-developers need to inspect workflow logic, the agent must call many third-party services, or the team wants the option to keep OpenAI models while also testing other providers.
+
+## Which visual alternatives can replace OpenAI Agent Builder?
+
+Sim fits teams that want multi-provider model choice, visual orchestration, self-hosting, and deployment as an API, Chat experience, or MCP tool. n8n fits integration-heavy automation, while Flowise, Dify, and Langflow provide other visual approaches.
+
+| Alternative | Fit | Model approach | Self-hosting and license | Important migration consideration |
+|---|---|---|---|---|
+| Sim | Visual AI agents that need provider choice and multiple deployment surfaces | Supports OpenAI and other model providers | Sim's core is Apache 2.0; `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Sim can be self-hosted. | No automatic OpenAI Agent Builder importer; teams must rebuild and test the workflow |
+| n8n | Integration-heavy business automation with AI steps | [Connects LLM providers, tools, and memory in node-based workflows](https://docs.n8n.io/build/integrate-ai) | n8n is self-hostable under its [Sustainable Use License](https://docs.n8n.io/n8n-community-license), a fair-code, source-available license | Agent behavior may need to be decomposed into automation nodes and code steps |
+| Flowise | Visual construction of agents and LLM workflows | Its [documentation](https://docs.flowiseai.com/) describes Assistant, Chatflow, and Agentflow builders | Most code is Apache 2.0, with specified enterprise code under a commercial license in the [Flowise license](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) | Evaluate governance and application integrations for the intended deployment |
+| Dify | LLM applications, retrieval, prompts, and visual workflows | Its [workflow documentation](https://docs.dify.ai/en/self-host/use-dify/build/workflow-chatflow) covers model, tool, and logic orchestration | Uses a modified Apache 2.0 license with additional conditions in the [Dify license](https://github.com/langgenius/dify/blob/main/LICENSE) | Confirm that its workflow and deployment surfaces match the existing application contract |
+| Langflow | Developer-oriented visual prototyping around AI components | Its [documentation](https://docs.langflow.org/) describes a visual editor with model-independent components | Available under the [MIT License](https://github.com/langflow-ai/langflow/blob/main/LICENSE) and supports self-hosted deployment | Plan explicitly for production operations, testing, and application integration |
+
+As of November 2026, licensing, hosted-plan limits, and deployment features should be checked on each vendor's own documentation before a purchasing decision.
+
+## What are the key platform facts at a glance?
+
+Sim, OpenAI, and n8n differ most clearly in model scope, deployment ownership, licensing, and billing structure.
+
+- **Sim:** Sim's core is Apache 2.0, `apps/sim/ee` is under the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), and [Sim supports self-hosting](https://docs.sim.ai/platform/self-hosting).
+- **OpenAI:** OpenAI API model and tool usage follow [OpenAI's first-party pricing](https://developers.openai.com/api/docs/pricing) as of November 2026.
+- **n8n:** n8n is self-hostable under its [Sustainable Use License](https://docs.n8n.io/n8n-community-license), and [n8n Cloud pricing](https://n8n.io/pricing/) is based on monthly workflow executions as of November 2026.
+
+The [OpenAI AgentKit comparison](https://www.sim.ai/comparisons/openai-agentkit) covers the detailed product tradeoffs.
+
+## How do you rebuild an OpenAI Agent Builder workflow in Sim?
+
+Rebuild an OpenAI Agent Builder workflow in Sim by translating each prompt, model call, tool, branch, schema, and deployment contract into an explicit workflow in the visual builder.
+
+### 1. Freeze the current behavior
+
+Begin with a fixed baseline of representative inputs, expected outputs, tool calls, latency, and failure cases.
+
+Select examples that cover normal requests, ambiguous requests, unsafe inputs, unavailable tools, invalid tool responses, and requests that require escalation. Preserve these examples outside the retiring Evals platform.
+
+### 2. Map Agent Builder steps to workflow responsibilities
+
+Reproduce responsibilities rather than merely imitating the visual arrangement of the original graph.
+
+For every Agent Builder step, identify whether it performs:
+
+- Prompt construction
+- Model inference
+- Retrieval
+- Tool or API invocation
+- Data transformation
+- Conditional routing
+- Human review
+- State storage
+- Output validation
+- Error recovery
+
+This mapping often reveals hidden behavior that was previously embedded in a prompt or tool description.
+
+### 3. Recreate model calls and instructions
+
+Sim can continue using OpenAI models, so leaving Agent Builder does not require leaving OpenAI's models.
+
+Create the corresponding model steps, copy the instructions carefully, restore required variables, and reproduce structured-output schemas. Run baseline examples immediately because different orchestration layers can expose differences in message order, tool descriptions, and error handling.
+
+According to [Sim's BYOK documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok), workspace BYOK keys work on any Sim Cloud plan. Organization-level keys require Pro for Teams, Max for Teams, or Enterprise as of November 2026. Teams that [self-host Sim](https://docs.sim.ai/platform/self-hosting) can connect supported local model servers such as Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise.
+
+For more detail, see [BYOK Multi-Model AI Agent Builder: How Sim's Bring-Your-Own-Key Works](https://www.sim.ai/library/byok-multi-model-ai-agent-builder).
+
+### 4. Reconnect tools and credentials
+
+Reconnect every external tool with new credentials rather than copying secrets from screenshots, logs, or configuration exports.
+
+Recreate each API operation, input mapping, authentication method, timeout, and error path. Use least-privilege credentials and test read and write operations separately before enabling production actions.
+
+### 5. Rebuild routing and approval logic
+
+Make branches, retries, and approval outcomes explicit so that operators can see why a run continued or stopped.
+
+If a workflow uses Sim's [Guardrails block](https://docs.sim.ai/workflows/blocks/guardrails), remember that Guardrails reports passed or failed; a downstream Condition must route on that result to stop or redirect execution. If a workflow uses [Human in the Loop](https://docs.sim.ai/workflows/blocks/human-in-the-loop), the block pauses the run and resumes with form fields; an approve-or-reject field requires a downstream Condition to enforce the selected outcome.
+
+### 6. Replace Evals with portable regression tests
+
+Preserve evaluation datasets and pass criteria independently of the retiring OpenAI Evals surface.
+
+At minimum, retain:
+
+- Input examples and expected properties
+- Structured-output validation
+- Required and forbidden tool calls
+- Groundedness or citation requirements
+- Safety and policy checks
+- Latency and cost thresholds
+- Human-reviewed examples for subjective quality
+
+Run the same suite against the original workflow while it is still available and the rebuilt workflow. Differences should be investigated rather than automatically accepted.
+
+For evaluation tooling options, see [Best AI Agent Evaluation Platforms in 2026: 6 Tools Compared](https://www.sim.ai/library/best-ai-agent-evaluation-platforms-2026).
+
+### 7. Choose an API, Chat, or MCP deployment
+
+Sim can [deploy workflows](https://docs.sim.ai/workflows/deployment) for API callers, Chat clients, or MCP tools, depending on how other users and systems need to invoke the replacement.
+
+Choose an API when an application or service owns the user experience. Choose Chat when users need a direct conversational interface. Choose an MCP tool when compatible AI clients or agents should invoke the workflow as a reusable capability.
+
+See [How to Turn a Workflow Into a Reusable MCP Tool](https://www.sim.ai/library/how-to-turn-a-workflow-into-a-reusable-mcp-tool) for the MCP deployment pattern.
+
+### 8. Run both versions before cutover
+
+Use parallel testing before traffic is moved away from OpenAI Agent Builder.
+
+Send representative inputs to both implementations, compare outputs and tool calls, and investigate material differences. For actions with side effects, use a sandbox or read-only mode so parallel testing does not create duplicate tickets, messages, charges, or records.
+
+### 9. Update consumers and monitor the launch
+
+Update every application, webhook, scheduled job, ChatKit backend, and internal integration that points to the old workflow.
+
+Monitor errors, latency, model usage, tool failures, schema violations, and human escalations after launch. Keep a rollback path until the replacement has passed the team's production acceptance window.
+
+## How do you validate the replacement before the shutdown?
+
+Replace OpenAI Agent Builder only after the rebuilt workflow passes behavioral, integration, security, and operational checks against a documented baseline.
+
+Use this acceptance checklist:
+
+- The same representative inputs produce equivalent or intentionally improved outcomes.
+- Required structured outputs pass schema validation.
+- Tools receive the correct arguments and credentials.
+- Failed or unavailable tools follow a defined recovery path.
+- Unsafe or disallowed requests follow the intended policy path.
+- Human review pauses and resumes the workflow correctly.
+- External consumers accept the new request and response contract.
+- Streaming and non-streaming behavior match application expectations.
+- Evaluation datasets and graders are stored outside the retiring service.
+- Logs and traces contain enough information to diagnose failures.
+- Access controls and secrets have been reviewed.
+- Production owners know how to disable, roll back, and restore the workflow.
+
+A passing demo is not enough. The replacement should be tested with real edge cases, dependency failures, malformed tool responses, and the expected production concurrency.
+
+## What migration timeline should teams follow before November 30, 2026?
+
+OpenAI Agent Builder teams should complete their production cutover several days before November 30, 2026 rather than treat the shutdown date as the migration deadline.
+
+A compressed schedule can follow this sequence:
+
+| Time remaining | Recommended action |
+|---|---|
+| 10 or more days | Inventory workflows, dependencies, prompts, tools, schemas, evaluations, and owners |
+| 7–9 days | Select the target platform and rebuild the highest-risk workflow |
+| 4–6 days | Reconnect integrations, recreate tests, and run parallel comparisons |
+| 2–3 days | Complete security review, update consumers, and perform production cutover |
+| Final 24 hours | Monitor the replacement, preserve rollback artifacts, and confirm nothing still invokes Agent Builder |
+
+Teams with multiple workflows should migrate by business impact rather than visual complexity. A short workflow that triggers payments or customer messages deserves more validation than a larger internal summarization workflow.
+
+## Where can you compare OpenAI Agent Builder with other platforms?
+
+Use a focused comparison when you need to choose between OpenAI's code-first route, an integration-oriented tool, and a visual AI workspace.
+
+- Compare the three approaches in [Sim vs n8n vs OpenAI AgentKit: AI Agent Builder Comparison (2026)](https://www.sim.ai/library/openai-vs-n8n-vs-sim).
+- Review the focused [OpenAI AgentKit comparison](https://www.sim.ai/comparisons/openai-agentkit).
+- Compare the wider market in [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).

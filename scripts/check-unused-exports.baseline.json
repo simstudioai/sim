@@ -709,8 +709,6 @@
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils.ts#ActionContext",
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils.ts#FolderedItem",
   "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/hooks/index.ts#DropIndicator",
-  "apps/sim/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/text-diff-lines.ts#CONTEXT_LINES",
-  "apps/sim/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/text-diff-lines.ts#MIN_FOLD_LINES",
   "apps/sim/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/value-presentation.ts#StructuredValueRow",
   "apps/sim/app/workspace/[workspaceId]/w/components/workflow-diff/utils.ts#BlockMove",
   "apps/sim/app/workspace/[workspaceId]/w/components/workflow-diff/utils.ts#MembershipRow",

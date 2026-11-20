@@ -1,163 +1,134 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Button, Code, cn } from '@sim/emcn'
+import { parseDiffFromFile } from '@pierre/diffs'
+import { Button, cn } from '@sim/emcn'
 import { diffWordsWithSpace } from 'diff'
-import {
-  buildDiffRows,
-  type DiffLine,
-} from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/text-diff-lines'
+import { SimFileDiff } from '@/components/diff/sim-file-diff'
 
-/** Folds beyond this many in one field get a single "expand all" control. */
-const MANY_FOLDS = 3
+/**
+ * Line diffing is quadratic in the worst case; two bodies with more lines than this between
+ * them are summarized instead of diffed, so opening a comparison never hangs the tab.
+ */
+const MAX_DIFF_LINES = 2000
+/** Unchanged lines kept around each change; the rest fold behind Pierre's expanders. */
+const CONTEXT_LINES = 2
+/**
+ * A body that is entirely one side (a new block's code, a removed block's prompt) has no
+ * unchanged run to fold, so it shows this many lines and tucks the rest behind one expander.
+ */
+const ONE_SIDED_VISIBLE_LINES = 12
+/** Past this many changed regions, one control expands or collapses them all. */
+const MANY_REGIONS = 3
 
-const LINE_CLASS: Record<DiffLine['kind'], string> = {
-  added: 'bg-[var(--badge-success-bg)] text-[var(--text-primary)]',
-  removed: 'bg-[var(--badge-error-bg)] text-[var(--text-primary)]',
-  context: 'text-[var(--text-secondary)]',
+/**
+ * A field value as the lines it displays as: CRLF and bare CR become LF, and the text ends in
+ * a newline, so a missing final newline is never reported as a change of its own.
+ */
+function asLines(text: string): string {
+  const normalized = text.replace(/\r\n?/g, '\n')
+  return normalized === '' || normalized.endsWith('\n') ? normalized : `${normalized}\n`
 }
 
-const GUTTER_CLASS: Record<DiffLine['kind'], string> = {
-  added: 'text-[var(--badge-success-text)]',
-  removed: 'text-[var(--text-error)]',
-  context: 'text-[var(--text-muted)]',
+function lineCount(text: string): number {
+  return text === '' ? 0 : text.replace(/\n$/, '').split('\n').length
 }
 
-const GUTTER_SIGN: Record<DiffLine['kind'], string> = {
-  added: '+',
-  removed: '−',
-  context: ' ',
-}
-
-interface FoldRowProps {
-  count: number
-  /** What the hidden lines are: unchanged context, or the rest of a one-sided body */
-  kind: 'unchanged' | 'more'
-  onExpand: () => void
-}
-
-function FoldRow({ count, kind, onExpand }: FoldRowProps) {
-  return (
-    <Button
-      type='button'
-      variant='quiet'
-      size='sm'
-      onClick={onExpand}
-      className='w-full justify-start gap-2 text-left'
-    >
-      <span aria-hidden='true' className='w-3 text-center'>
-        …
-      </span>
-      <span>
-        {count} {kind === 'unchanged' ? 'unchanged ' : 'more '}
-        {count === 1 ? 'line' : 'lines'}
-      </span>
-    </Button>
-  )
+function firstLines(text: string, count: number): string {
+  return `${text.split('\n').slice(0, count).join('\n')}\n`
 }
 
 interface TextDiffProps {
   oldText: string
   newText: string
+  /** Syntax for highlighting, such as `javascript` or `json`; `text` for prose. */
+  language: string
 }
 
 /**
- * A unified line diff with a sign gutter. Unchanged runs fold to a count and
- * expand on click, so a long prompt shows only the hunks that moved.
+ * A unified line diff of two bodies of text, highlighted in the field's language. Unchanged
+ * runs fold to a count and expand in place, so a long prompt shows only the hunks that moved.
  */
-export function TextDiff({ oldText, newText }: TextDiffProps) {
-  const rows = useMemo(() => buildDiffRows(oldText, newText), [oldText, newText])
-  const [expanded, setExpanded] = useState<Set<number>>(() => new Set())
-  const [expandedAll, setExpandedAll] = useState(false)
-  // Fold indexes belong to one pair of bodies; a new comparison starts folded again.
-  const [foldsFor, setFoldsFor] = useState({ oldText, newText })
-  if (foldsFor.oldText !== oldText || foldsFor.newText !== newText) {
-    setFoldsFor({ oldText, newText })
-    setExpanded(new Set())
-    setExpandedAll(false)
+export function TextDiff({ oldText, newText, language }: TextDiffProps) {
+  const before = asLines(oldText)
+  const after = asLines(newText)
+  const oldLines = lineCount(before)
+  const newLines = lineCount(after)
+  const oneSidedLines = before === '' ? newLines : after === '' ? oldLines : 0
+  const [showRest, setShowRest] = useState(false)
+  const [expandAll, setExpandAll] = useState(false)
+  /* Expansion belongs to one pair of bodies; a new comparison starts folded again. */
+  const [expandedFor, setExpandedFor] = useState({ before, after })
+  if (expandedFor.before !== before || expandedFor.after !== after) {
+    setExpandedFor({ before, after })
+    setShowRest(false)
+    setExpandAll(false)
   }
-  const foldCount = rows.filter((row) => row.type === 'fold').length
+  const capped = oneSidedLines > ONE_SIDED_VISIBLE_LINES && !showRest
+  const oversized = oldLines + newLines > MAX_DIFF_LINES
+  const fileDiff = useMemo(() => {
+    if (oversized) return null
+    /* An empty side is absent, not one blank line, so a new or removed body is all one side. */
+    const side = (name: string, text: string) =>
+      text === ''
+        ? null
+        : {
+            name,
+            contents: capped ? firstLines(text, ONE_SIDED_VISIBLE_LINES) : text,
+            lang: language,
+          }
+    return parseDiffFromFile(side('before', before), side('after', after), {
+      context: CONTEXT_LINES,
+    })
+  }, [before, after, language, capped, oversized])
+
+  if (!fileDiff)
+    return (
+      <p className='text-[var(--text-tertiary)] text-caption'>
+        Too long to compare line by line: {oldLines} lines before, {newLines} lines after.
+      </p>
+    )
+
+  const regions = fileDiff.hunks.length
+  /* Normalizing endings can leave nothing to show for a value that did change. */
+  if (regions === 0)
+    return <p className='text-[var(--text-secondary)] text-small'>Only line endings changed</p>
 
   return (
-    <Code.Container className='min-h-0'>
-      {foldCount > MANY_FOLDS && (
+    <div className='overflow-hidden rounded-sm border border-[var(--border-1)]'>
+      {regions > MANY_REGIONS && (
         <Button
           type='button'
           variant='quiet'
           size='sm'
-          onClick={() => {
-            // One switch for every fold: collapsing must also close folds opened one by one.
-            setExpanded(new Set())
-            setExpandedAll((value) => !value)
-          }}
-          className='w-full justify-between text-left'
+          onClick={() => setExpandAll((value) => !value)}
+          className='w-full justify-between rounded-none border-[var(--border-1)] border-b text-left'
         >
-          <span>
-            {foldCount} changed {foldCount === 1 ? 'region' : 'regions'}
-          </span>
-          <span>{expandedAll ? 'Collapse unchanged' : 'Show all lines'}</span>
+          <span>{regions} changed regions</span>
+          <span>{expandAll ? 'Collapse unchanged' : 'Show all lines'}</span>
         </Button>
       )}
-      {rows.map((row, index) => {
-        if (row.type === 'oversized') {
-          return (
-            <div
-              key={index}
-              className='px-2 py-1 font-sans text-[var(--text-tertiary)] text-caption'
-            >
-              Too long to compare line by line: {row.oldLines} lines before, {row.newLines} lines
-              after.
-            </div>
-          )
-        }
-        if (row.type === 'fold' || row.type === 'tail') {
-          if (!expandedAll && !expanded.has(index)) {
-            return (
-              <FoldRow
-                key={index}
-                count={row.lines.length}
-                kind={row.type === 'fold' ? 'unchanged' : 'more'}
-                onExpand={() => setExpanded((prev) => new Set(prev).add(index))}
-              />
-            )
-          }
-          return row.lines.map((line, lineIndex) => (
-            <DiffLineRow key={`${index}-${lineIndex}`} line={line} />
-          ))
-        }
-        return <DiffLineRow key={index} line={row.line} />
-      })}
-    </Code.Container>
-  )
-}
-
-interface DiffLineRowProps {
-  line: DiffLine
-}
-
-function DiffLineRow({ line }: DiffLineRowProps) {
-  return (
-    <div className={cn('flex gap-2 px-2', LINE_CLASS[line.kind])}>
-      <span className={cn('w-3 shrink-0 select-none text-center', GUTTER_CLASS[line.kind])}>
-        {GUTTER_SIGN[line.kind]}
-      </span>
-      <span className='min-w-0 flex-1 whitespace-pre-wrap break-words'>
-        {line.parts
-          ? line.parts.map((part, index) => (
-              <span
-                key={index}
-                className={cn(
-                  part.changed &&
-                    (line.kind === 'added'
-                      ? 'rounded-xs bg-[var(--badge-success-bg)] underline'
-                      : 'rounded-xs bg-[var(--badge-error-bg)] underline')
-                )}
-              >
-                {part.value}
-              </span>
-            ))
-          : line.text || ' '}
-      </span>
+      <SimFileDiff
+        fileDiff={fileDiff}
+        options={{
+          disableFileHeader: true,
+          disableLineNumbers: true,
+          expandUnchanged: expandAll,
+          hunkSeparators: 'line-info',
+        }}
+      />
+      {capped && (
+        <Button
+          type='button'
+          variant='quiet'
+          size='sm'
+          onClick={() => setShowRest(true)}
+          className='w-full justify-start rounded-none border-[var(--border-1)] border-t text-left'
+        >
+          {oneSidedLines - ONE_SIDED_VISIBLE_LINES} more{' '}
+          {oneSidedLines - ONE_SIDED_VISIBLE_LINES === 1 ? 'line' : 'lines'}
+        </Button>
+      )}
     </div>
   )
 }
