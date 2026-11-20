@@ -1026,7 +1026,7 @@ tool IDs through `tools.access` and does not change any tool's shape.
 But if the same change also adds, edits **or removes** a tool, run `bun run generate:tool-metadata` and commit the result, or CI fails on stale artifacts. That matters here because a block's `outputs` are authored to match its tools' outputs, and the UI reads those from the generated metadata, not the executable registry — an unregenerated tool change makes the block's outputs disagree with what the panel renders. See `.agents/skills/tool-registry-boundary/SKILL.md`.
 
 A visible integration block does require the generated integration catalog and docs to be refreshed:
-`bun run generate:tool-metadata` (only when a tool changed), `bun run scripts/generate-docs.ts`,
+`bun run generate:tool-metadata` (only when a tool changed), `bun run generate:docs`,
 `bun run generate:deployment-config`, then `bun run check:audits`. Also run
 `bun run apps/sim/scripts/check-block-registry.ts origin/staging` (CI runs it outside `check:audits`). Commit the
 full generator output. For what each check verifies, see the `validate-integration` skill →
@@ -1051,7 +1051,7 @@ Regenerate Derived Artifacts.
 - [ ] Block + meta registered in registry-maps.ts (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
 - [ ] If `sunset.replacedBy` changed: regenerated and committed the block successor map; `bun run check:block-successors` passes
 - [ ] If any tool was added, changed or removed alongside the block: ran `bun run generate:tool-metadata` and committed the artifacts
-- [ ] Ran `bun run scripts/generate-docs.ts`, reviewed the generated diff, and committed the integration catalog changes
+- [ ] Ran `bun run generate:docs`, reviewed the generated diff, and committed the integration catalog changes
 - [ ] `bun run check:integration-catalog` passes
 - [ ] `bun run check:docs` passes (CI gate — fails on any stale generated docs page)
 - [ ] If icon missing: asked user to provide SVG

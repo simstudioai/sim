@@ -121,7 +121,7 @@ Global (installed by `vitest.setup.ts` — knobs only, no `vi.mock`):
 | `@/lib/auth` | `authMockFns.mockGetSession` (+ `auth.api.*`: `mockSignOut`, `mockSignInSSO`, `mockCreateUser`, …; `auth.$context.internalAdapter`: `mockCreateSession`, …) (`auth.mock`) |
 | `@/lib/auth/hybrid` | `hybridAuthMockFns` (`hybrid-auth.mock`) |
 | `@sim/db`, `drizzle-orm` | `dbChainMockFns.*`, `queueTableRows`, `resetDbChainMock`, `hasMockCondition`, `databaseMockFns.mockResolveDbUrl`; `@sim/db` re-exports every schema table; `sql` is a spy (`vi.mocked(sql).mock.calls`) (`database.mock`) |
-| `@sim/db/schema` | `schemaMock`, generated from `packages/db/schema.ts` (`bun run scripts/generate-schema-mock.ts`) (`schema.mock`) |
+| `@sim/db/schema` | `schemaMock`, generated from `packages/db/schema.ts` (`bun run generate:schema-mock`) (`schema.mock`) |
 | `@trigger.dev/sdk` | `triggerSdkMockFns` (`task()` returns its config, so call `.run`; `runs.*`, `tasks.*`, `idempotencyKeys`), `MockTriggerApiError` (`trigger-sdk.mock`) |
 | `@/components/icons` | stable stub per icon name — no knobs, never re-mock |
 | `@/lib/core/config/env` | `setEnv`, `resetEnvMock`, `envMockFns.getEnv` (`env.mock`) |

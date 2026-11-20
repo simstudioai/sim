@@ -1,6 +1,7 @@
 #!/bin/sh
 # Checks only what this push changes against its merge base with origin/staging (the PR base):
-# biome format + lint on the changed files, then type-check for the affected workspaces.
+# biome format + lint on the changed files, type-check for the affected workspaces, then
+# `bun run generate` so no committed generated artifact is left stale.
 # CI runs the full lint, type-check and audit gate on every PR, so it stays the backstop.
 set -e
 
@@ -42,3 +43,14 @@ if printf '%s\n' "$changed" | grep -qE '^scripts/'; then
   bun run type-check:scripts:esm
 fi
 TURBO_SCM_BASE="$base" bunx turbo run type-check --affected --output-logs=errors-only
+
+# A stale generated artifact would only fail CI's check:audits, so regenerate them all here. The
+# diff is compared before and after, so uncommitted work in the tree never trips this.
+before=$(git diff | git hash-object --stdin)
+bun run generate >/dev/null
+if [ "$(git diff | git hash-object --stdin)" != "$before" ]; then
+  echo "pre-push: generated artifacts were stale and have been regenerated:"
+  git diff --name-only
+  echo "pre-push: commit them and push again."
+  exit 1
+fi

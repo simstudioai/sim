@@ -50,7 +50,6 @@
     "format:check": "biome format .",
     "generate:pi-model-catalog": "bun run scripts/generate-pi-model-catalog.ts",
     "generate:disposable-email-domains": "bun run scripts/generate-disposable-email-domains.ts",
-    "generate-docs": "bun run ../../scripts/generate-docs.ts",
     "org:consolidate-users": "bun run scripts/consolidate-users-into-organization.ts",
     "verify:oracledb": "node scripts/oracledb-patch-self-test.cjs --worker lib/internal/oracledb/oracle-worker.cjs",
     "build:cli-runtime": "bun build ../../packages/sim-cli/src/runtime.ts --target=node --format=esm --packages=bundle --outfile=../../packages/sim-cli/dist/runtime.js",

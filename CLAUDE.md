@@ -69,6 +69,7 @@ Build order **Tools** → **Block** → **Icon** → optional **Trigger**, from 
 Before declaring a change done, run the local gate from the repo root; CI fails on any of them:
 
 ```bash
+bun run generate        # rewrites every committed generated artifact (docs, metadata, fixtures, …)
 bun run lint            # biome format + lint, autofixes (CI runs lint:check)
 bun run type-check      # every workspace
 bun run check:audits    # every check:* audit, generated-artifact checks included
@@ -76,5 +77,7 @@ bun run test            # script tests, then every workspace's Vitest suite
 git fetch origin staging  # the block-registry check diffs against it
 bun run apps/sim/scripts/check-block-registry.ts origin/staging
 ```
+
+A generated artifact gets a `generate:<x>` / `check:<x>` pair in the root package.json; `bun run generate` and `check:audits` pick it up from there (`check:generators`), so never regenerate one from a test.
 
 Author a `packages/db` schema change or migration with the `db-migrate` skill and run `bun run check:migrations` (not in `check:audits`). Ratchet baselines (`scripts/*baseline.json`) only shrink: regenerate one with `--update` after removing violations. The one exception is `check:tool-registry-boundary`, whose module-count baseline is re-recorded with `--update-baseline` when growth is deliberate (see the `tool-registry-boundary` skill).
