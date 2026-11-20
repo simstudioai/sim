@@ -58,7 +58,8 @@ describe('listGenerators', () => {
 
 describe('findRegeneratingTests', () => {
   it('flags a test that rewrites an artifact behind an UPDATE_ flag and ignores non-tests', () => {
-    const content = "if (process.env.UPDATE_SDK_FIXTURE_CATALOG === '1') writeFileSync(p, text)"
+    const flag = 'UPDATE_SDK_FIXTURE_CATALOG'
+    const content = `if (process.env.${flag} === '1') writeFileSync(p, text)`
     expect(
       findRegeneratingTests([
         { path: 'apps/sim/lib/catalog.test.ts', content },
