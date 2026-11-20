@@ -446,7 +446,10 @@ start line, and clamps bad input (NaN to 1, ±Infinity to a bound).
 ## Apply
 
 `applyWorkflowSource` and `createWorkflowFromSource` (`apps/sim/lib/workflows/application/`) share
-one pipeline. Create uses an empty graph as the stored draft, so every block is new and no
+one pipeline (`source-pipeline/`): `planSource` loads the target and evaluates, then a dry run
+previews the plan (`previewSource`) and a write commits it (`commitSource`). A workspace apply
+plans and commits each workflow through the same steps (`workflowSourceUpdate`,
+`workflowSourceCreate`), the commit refusing a plan made for another workflow or principal. Create uses an empty graph as the stored draft, so every block is new and no
 fingerprint is checked. Both are gated on the `workflow-code` flag (see Rollout) and change only the draft;
 deploy is separate.
 
@@ -457,7 +460,7 @@ deploy is separate.
                                                              with lines       the row lock
 ```
 
-**Evaluate** (`source-evaluate.ts`, writes nothing):
+**Evaluate** (`source-pipeline/evaluate/`, one file per phase, writes nothing):
 
 1. parse the lock; canonicalize the stored draft under it (what `stored()` reads and the diff
    compares against);

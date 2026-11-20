@@ -142,7 +142,7 @@ satisfy.
 4. If workflows name it by key: `WORKFLOW_RESOURCE_KINDS`, the live loader in
    `lib/workspaces/resource-keys.ts`, the manifest in `read-source-resources.ts` and
    `codegen/workspace.ts`, and `PENDABLE_REFERENCES` in
-   `lib/workflows/application/source-evaluate.ts`.
+   `lib/workflows/application/source-pipeline/evaluate/finalize.ts`.
 5. SDK: `packages/workflow-sdk/src/workspace/<kind>.d.ts` plus `index.d.ts`, a cookbook example
    under `cookbook/workspace/`, then regenerate the embedded text.
 6. CLI (`workspace-source-dir.ts`): `workspaceTsconfig` includes, the `AGENTS_GUIDE` section and

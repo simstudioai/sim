@@ -19,8 +19,7 @@ import type { SkillDecl } from '@sim/workspace-code/kinds/skills'
 import type { TableDecl } from '@sim/workspace-code/kinds/table'
 import type { ToolDecl } from '@sim/workspace-code/kinds/tools'
 import type { WorkflowDecl } from '@sim/workspace-code/kinds/workflow'
-import type { SourceRequestShare } from '@/lib/workflows/application/apply-workflow-source'
-import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
+import type { PendingResource, SourceLoads } from '@/lib/workflows/application/source-pipeline'
 import type { HashBudget } from '@/lib/workspace-source/application/hash-budget'
 import type { CredentialPlan } from '@/lib/workspace-source/application/kinds/credentials/adapter'
 import type { DeploymentPlan } from '@/lib/workspace-source/application/kinds/deployment/adapter'
@@ -46,7 +45,7 @@ export interface SourceContext {
   /** Workspace-wide admissions this request already ran, by key (see `admitOnce`). */
   admitted: Map<string, Promise<unknown>>
   /** What every workflow this request evaluates loads the same (its catalog gate, env names). */
-  shared: SourceRequestShare
+  loads: SourceLoads
   /**
    * Workspace-wide listings this request already started, reused by every kind and check that
    * needs one; spread copies of the context share it.

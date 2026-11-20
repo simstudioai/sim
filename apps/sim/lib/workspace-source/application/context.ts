@@ -22,7 +22,7 @@ export function sourceContext(
     createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
     hashBudget: newHashBudget(),
     admitted: new Map(),
-    shared: {},
+    loads: {},
     listings: {},
   }
 }

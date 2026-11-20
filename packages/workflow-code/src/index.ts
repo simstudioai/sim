@@ -110,6 +110,7 @@ export type {
   ResourceKind,
   Value,
 } from './model'
+export { isResourceKind } from './model'
 export { assignIdentifiers, printWorkflow } from './print'
 export { hasSuspiciousCharacter, printKey, quoteString } from './print/strings'
 export { getOwn, invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
