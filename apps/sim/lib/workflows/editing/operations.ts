@@ -83,9 +83,10 @@ function renameBlock(blocks: Record<string, BlockState>, blockId: string, name: 
 }
 
 /**
- * A loop's `iterations` or a parallel's `count` as stored: a number as given, a numeric string as
- * its number (the way a slider input coerces), and anything else refused as an input validation
- * error, keeping `current`, since the loader would otherwise reset a non-number to its default.
+ * A loop's `iterations` or a parallel's `count` as stored: a whole number of at least 1, given as
+ * a number or as a string of digits (the way a number input coerces), the bound source compile
+ * holds a count to. Anything else (`0`, `-1`, `2.5`, `"1e3"`, `"0x10"`) is refused as an input
+ * validation error, keeping `current`, since the loader would otherwise reset it to its default.
  */
 function containerCount(
   block: BlockState,
@@ -94,15 +95,19 @@ function containerCount(
   validationErrors: ValidationError[],
   current?: unknown
 ): unknown {
-  if (typeof value === 'number') return value
-  const parsed = typeof value === 'string' && value.trim() !== '' ? Number(value) : Number.NaN
-  if (Number.isFinite(parsed)) return parsed
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && /^\s*\d+\s*$/.test(value)
+        ? Number(value)
+        : Number.NaN
+  if (Number.isSafeInteger(parsed) && parsed >= 1) return parsed
   validationErrors.push({
     blockId: block.id,
     blockType: block.type,
     field,
     value,
-    error: `Invalid ${field} "${String(value)}" for ${block.type} "${block.name}" - must be a number`,
+    error: `Invalid ${field} "${String(value)}" for ${block.type} "${block.name}" - must be a whole number of at least 1`,
   })
   return current
 }

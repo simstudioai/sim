@@ -196,4 +196,28 @@ describe('a loop or parallel count given as a string', () => {
     })
     expect(Object.keys((await stored(workflowId)).loops)).toEqual([])
   })
+
+  it.each(['1e3', '0x10', '2.5', '-1', '0', 2.5, -1])(
+    'refuses %j, which is no whole number of at least 1',
+    async (iterations) => {
+      const workflowId = await seedWorkflow([block(generateId(), 'starter', 'Start')])
+
+      await expect(
+        apply(
+          workflowId,
+          [
+            {
+              operation_type: 'add',
+              block_id: generateId(),
+              params: { type: 'loop', name: 'Repeat', inputs: { loopType: 'for', iterations } },
+            },
+          ],
+          true
+        )
+      ).rejects.toMatchObject({
+        droppedInputs: [expect.objectContaining({ field: 'iterations', value: iterations })],
+      })
+      expect(Object.keys((await stored(workflowId)).loops)).toEqual([])
+    }
+  )
 })
