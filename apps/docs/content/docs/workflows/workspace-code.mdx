@@ -93,12 +93,13 @@ sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --dry
 sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --yes
 ```
 
-Each resource binds by key to the target's own. One the target holds under the same key is updated in place, so a workflow keeps its id and its webhook URLs. A key the target lacks is created. Secrets and credentials bind by name to the target's own, and no value is copied. Resources only the target holds are kept unless you pass `--allow-delete`. The directory stays bound to the workspace it was read from. Without `--to`, `check`, `status`, `diff` and `apply` act on the workspace the directory was read from, whatever your default workspace; a `--workspace` naming another one is refused.
+Each resource binds by key to the target's own. One the target holds under the same key is updated in place, so a workflow keeps its id and its webhook URLs. A key the target lacks is created. Secrets and credentials bind by name to the target's own, and no value is copied. Resources only the target holds are kept unless you pass `--allow-delete`, which deletes every one of them: the plan names each with a `W_PROMOTE_DELETES_TARGET_ONLY` warning. The directory stays bound to the workspace it was read from. Without `--to`, `check`, `status`, `diff` and `apply` act on the workspace the directory was read from, whatever your default workspace; a `--workspace` naming another one is refused.
 
 Each promotion records what it left in the target in `.sim/targets/<workspaceId>.json`, and the next promotion compares with that record:
 
 - A resource changed in the target since the last promotion, such as a hotfix made in Sim, is kept when the directory left it alone.
 - When the directory changed it too, the promotion is refused as stale and exits `5`. Carry the target's change into the source workspace, or undo it in the target, then promote again.
+- A resource deleted in the target since the last promotion stays deleted, with a `W_PROMOTE_TARGET_DELETED` warning. Remove its entry from the record to create it again.
 - The first promotion, and any resource the record does not hold (one created in the target since), updates the target to match the directory. Review the dry run first.
 
 Commit the record with the rest of the directory, so a promotion from CI or another clone compares with it. Deleting it makes the next promotion take the target as it stands.

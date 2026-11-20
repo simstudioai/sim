@@ -263,6 +263,16 @@ const PLAN_CODES = [
   'W_UNDECLARED',
   /** The directory's base was read from another workspace: every resource is created anew. */
   'W_BASE_OTHER_WORKSPACE',
+  /**
+   * A promotion (`apply --to`) keeps deleted a resource the directory declares that the target
+   * deleted since the last promotion: the target no longer holds it.
+   */
+  'W_PROMOTE_TARGET_DELETED',
+  /**
+   * A promotion with `--allow-delete` deletes a resource only the target holds (the directory does
+   * not declare it).
+   */
+  'W_PROMOTE_DELETES_TARGET_ONLY',
   /** The server changed a resource the directory leaves as it was; the next get shows it. */
   'I_SERVER_CHANGED',
   /** The server deleted a resource the directory leaves as it was; it is not created again. */

@@ -38,6 +38,11 @@ export interface PromotionSubmission {
   files: Record<string, string>
   /** The target's base, narrowed to what the directory declares unless deletes are allowed. */
   base: WorkspaceBaseV1
+  /**
+   * The resources (by address) the last promotion left in the target that the target deleted
+   * since and the directory still declares: the apply keeps them deleted, so the promotion warns.
+   */
+  deletedInTarget: string[]
 }
 
 export interface PromotionInput {
@@ -205,6 +210,7 @@ export function parsePromotionRecord(
  */
 export function promotionSubmission(input: PromotionInput): PromotionSubmission {
   const files: Record<string, string> = {}
+  const deletedInTarget: string[] = []
   for (const [path, text] of Object.entries(input.files)) {
     if (!isWorkflowRecord(path)) files[path] = text
   }
@@ -229,6 +235,7 @@ export function promotionSubmission(input: PromotionInput): PromotionSubmission 
         }
       }
       files[basePath] = recordedFolderBase(promoted, input.target.base.workspaceId)
+      deletedInTarget.push(resourceAddress('workflow', key))
       continue
     }
     if (targetBase === undefined || !live || promoted?.workflowId !== live.workflowId) {
@@ -266,9 +273,16 @@ export function promotionSubmission(input: PromotionInput): PromotionSubmission 
   for (const [address, recorded] of Object.entries(input.record?.resources ?? {})) {
     if (Object.hasOwn(input.target.base.resources, address)) continue
     const parsed = parseResourceAddress(address)
-    if (parsed && declared.get(parsed.kind)?.has(parsed.key)) resources[address] = recorded
+    if (parsed && declared.get(parsed.kind)?.has(parsed.key)) {
+      resources[address] = recorded
+      if (parsed.kind !== 'workflow') deletedInTarget.push(address)
+    }
   }
-  return { files, base: { ...input.target.base, resources } }
+  return {
+    files,
+    base: { ...input.target.base, resources },
+    deletedInTarget: [...new Set(deletedInTarget)].sort(compareStrings),
+  }
 }
 
 /**
@@ -285,7 +299,7 @@ export function promotionRecord(input: {
   kinds: readonly WorkspaceKind[]
   /** The directory's text files, as {@link PromotionInput} took them. */
   files: Readonly<Record<string, string>>
-  submission: PromotionSubmission
+  submission: Pick<PromotionSubmission, 'files' | 'base'>
   applied: {
     base: WorkspaceBaseV1
     files: Readonly<Record<string, string>>

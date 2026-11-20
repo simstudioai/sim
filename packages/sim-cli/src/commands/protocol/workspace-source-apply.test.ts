@@ -436,6 +436,87 @@ describe('workspaces source apply', () => {
     })
   })
 
+  it('a --to dry run warns of what the target deleted since the last promotion, gives stale findings a promotion hint, and names each target-only delete', async () => {
+    const leads = { id: 'tbl_prod', fingerprint: `rf1:${'a'.repeat(64)}` }
+    write(
+      '.sim/targets/ws_prod.json',
+      JSON.stringify({
+        version: 1,
+        workspaceId: 'ws_prod',
+        resources: {
+          'table:leads': leads,
+          'table:gone': { id: 'tbl_gone', fingerprint: `rf1:${'c'.repeat(64)}` },
+        },
+        workflows: {},
+      })
+    )
+    write('tables/gone.ts', LEADS.replace("'leads'", "'gone'"))
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table'],
+            files: { 'tables/leads.ts': LEADS, 'tables/prod-only.ts': LEADS },
+            blobs: [],
+            base: {
+              version: 1,
+              workspaceId: 'ws_prod',
+              resources: { 'table:leads': leads, 'table:prod-only': { id: 'tbl_only' } },
+            },
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      return answer({
+        workspaceId: 'ws_prod',
+        dryRun: true,
+        plan: [
+          { kind: 'table', key: 'gone', action: 'noop' },
+          { kind: 'table', key: 'leads', action: 'noop' },
+          { kind: 'table', key: 'prod-only', action: 'delete' },
+        ],
+        diagnostics: [
+          {
+            code: 'I_SERVER_DELETED',
+            severity: 'info',
+            message: 'tables/gone was deleted on the server; the next get shows that.',
+            kind: 'table',
+            key: 'gone',
+          },
+          {
+            code: 'E_APPLY_STALE',
+            severity: 'error',
+            message: 'tables/leads changed on the server since this directory was read.',
+            hint: 'Run `sim workspaces source get` into a fresh directory, reapply your edit there, and apply again.',
+            kind: 'table',
+            key: 'leads',
+          },
+        ],
+      })
+    })
+
+    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--dry-run')
+
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    const byCode = (code: string) =>
+      summary.diagnostics.filter((finding: { code: string }) => finding.code === code)
+    expect(byCode('W_PROMOTE_TARGET_DELETED')).toEqual([
+      expect.objectContaining({ kind: 'table', key: 'gone' }),
+    ])
+    expect(byCode('I_SERVER_DELETED')).toEqual([])
+    expect(byCode('W_PROMOTE_DELETES_TARGET_ONLY')).toEqual([
+      expect.objectContaining({ kind: 'table', key: 'prod-only' }),
+    ])
+    const [stale] = byCode('E_APPLY_STALE')
+    expect(stale.hint).toContain('.sim/targets/ws_prod.json')
+    expect(stale.hint).not.toContain('fresh directory')
+    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain(
+      'deletes 1 resource(s) that only workspace ws_prod holds'
+    )
+  })
+
   it('refuses --to naming the workspace the directory was read from', async () => {
     await expect(apply('--to', 'ws_local', '--yes')).rejects.toThrow(/apply it without --to/)
     expect(request).not.toHaveBeenCalled()

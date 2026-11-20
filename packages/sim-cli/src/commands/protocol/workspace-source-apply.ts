@@ -215,6 +215,19 @@ function printPlan(plan: Change[], outcome?: PlanOutcome): void {
   }
 }
 
+/**
+ * Says loudly, below a promotion's plan, how many resources `--allow-delete` deletes that only the
+ * target holds: a promotion deletes everything the directory does not declare.
+ */
+function printTargetOnlyDeletes(promotion: Promotion | null, plan: readonly Change[]): void {
+  if (!promotion) return
+  const deletes = plan.filter((change) => change.action === 'delete')
+  if (deletes.length === 0) return
+  printError(
+    `--allow-delete with --to: this promotion deletes ${deletes.length} resource(s) that only workspace ${promotion.target} holds: ${deletes.map((change) => resourceWhere(change.kind, change.key)).join(', ')}.`
+  )
+}
+
 /** The changes that delete something (a resource, rows, documents, columns, a deployment). */
 export function destructiveChanges(changes: readonly Change[]): number {
   return changes.filter((change) => change.action === 'delete' || change.destructive !== undefined)
@@ -405,6 +418,10 @@ interface Promotion {
   files: Record<string, string>
   /** The record the last promotion to this target left, if any. */
   record: PromotionRecord | undefined
+  /** The target workspace. */
+  target: string
+  /** What the target deleted since the last promotion that the directory declares (addresses). */
+  deletedInTarget: string[]
 }
 
 /**
@@ -452,6 +469,8 @@ async function promoted(
     submission: { ...submission, files: composed.files, base: composed.base },
     files: submission.files,
     record,
+    target,
+    deletedInTarget: composed.deletedInTarget,
   }
 }
 
@@ -480,6 +499,92 @@ async function savePromotion(
     applied: { base, files: data.files, plan: data.plan },
   })
   await updateSourceDir(dir, { write: [[path, `${JSON.stringify(record, null, 2)}\n`]] })
+}
+
+type Finding = ApplyData['diagnostics'][number]
+
+/** `tables/leads`, or `secrets.ts KEY` for a root file's entry: how a promotion finding names one. */
+function resourceWhere(kind: WorkspaceKind, key: string): string {
+  return isFileKind(kind) ? `${KIND_DIRS[kind]} ${key}` : `${KIND_DIRS[kind]}/${key}`
+}
+
+/**
+ * The hint a promotion to `target` gives a refusal the server words for an apply to the
+ * directory's own workspace ("get it into a fresh directory"), which a promotion cannot follow.
+ */
+function promotionHint(code: string, target: string): string | undefined {
+  const record = promotionRecordPath(target) ?? '.sim/targets/<workspaceId>.json'
+  if (code === 'E_APPLY_STALE') {
+    return `Workspace ${target} changed this resource since the last promotion from this directory. Carry that change into the directory, or undo it in ${target}, then promote again; to take ${target} as it stands now, delete ${record} first.`
+  }
+  if (code === 'E_APPLY_NO_BASE') {
+    return `Workspace ${target} holds this resource, but no promotion from this directory recorded it. Rename the declaration, or rename or delete the resource in ${target}, then promote again.`
+  }
+  return undefined
+}
+
+/**
+ * The server's findings as a promotion reports them: refusals carry the promotion's hint, and the
+ * server's `I_SERVER_DELETED` for a resource the promotion warns about itself
+ * (`W_PROMOTE_TARGET_DELETED`) is left out.
+ */
+function promotionDiagnostics(diagnostics: readonly Finding[], promotion: Promotion): Finding[] {
+  const warned = new Set(promotion.deletedInTarget)
+  return diagnostics.flatMap((finding) => {
+    if (finding.code === 'I_SERVER_DELETED' && warned.has(`${finding.kind}:${finding.key}`)) {
+      return []
+    }
+    const hint = promotionHint(finding.code, promotion.target)
+    return [hint === undefined ? finding : { ...finding, hint }]
+  })
+}
+
+/**
+ * The warnings only a promotion knows to give: each declared resource the target deleted since the
+ * last promotion (kept deleted), and each resource only the target holds that `--allow-delete`
+ * deletes there.
+ */
+function promotionWarnings(promotion: Promotion, plan: readonly Change[]): Finding[] {
+  const { target } = promotion
+  const deleted = promotion.deletedInTarget.flatMap((address): Finding[] => {
+    const parsed = parseResourceAddress(address)
+    if (!parsed) return []
+    return [
+      {
+        code: 'W_PROMOTE_TARGET_DELETED',
+        severity: 'warning',
+        message: `${resourceWhere(parsed.kind, parsed.key)} was deleted in workspace ${target} since the last promotion; this promotion keeps it deleted there.`,
+        hint: `To create it in ${target} again, remove its entry from ${promotionRecordPath(target) ?? 'the promotion record'}, then promote again.`,
+        kind: parsed.kind,
+        key: parsed.key,
+      },
+    ]
+  })
+  const targetOnly = plan
+    .filter((change) => change.action === 'delete')
+    .map(
+      (change): Finding => ({
+        code: 'W_PROMOTE_DELETES_TARGET_ONLY',
+        severity: 'warning',
+        message: `${resourceWhere(change.kind, change.key)} is only in workspace ${target}, not in this directory, so --allow-delete deletes it there.`,
+        hint: 'Promote without --allow-delete to keep it, or declare it in this directory.',
+        kind: change.kind,
+        key: change.key,
+      })
+    )
+  return [...deleted, ...targetOnly]
+}
+
+/** A refusal's findings as a promotion reports them (see {@link promotionDiagnostics}). */
+function rehintRefusal(refusal: unknown, promotion: Promotion): void {
+  if (!(refusal instanceof SimApiError) || !isRecordLike(refusal.details)) return
+  const { diagnostics } = refusal.details
+  if (!Array.isArray(diagnostics)) return
+  refusal.details.diagnostics = diagnostics.map((finding) => {
+    if (!isRecordLike(finding) || typeof finding.code !== 'string') return finding
+    const hint = promotionHint(finding.code, promotion.target)
+    return hint === undefined ? finding : { ...finding, hint }
+  })
 }
 
 /**
@@ -572,6 +677,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
        * Sends the directory. A commit the server refuses only for blobs that are not staged (the
        * CLI's guess from the base missed one) stages those and is sent once more.
        */
+      let promotion: Promotion | null = null
       const send = async (submission: WorkspaceSubmission, dryRun: boolean): Promise<ApplyData> => {
         let refusal: unknown
         try {
@@ -588,6 +694,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
             refusal = error
           }
         }
+        if (promotion) rehintRefusal(refusal, promotion)
         return printRefusal(refusal, profile.output, {
           ...(dryRun ? {} : { ifAnswerLost: answerLostHint(options.dir) }),
           verbose: options.verbose === true,
@@ -605,10 +712,21 @@ export function attachWorkspaceSourceApply(source: Command): void {
             await assertWorkspaceDir(options.dir)
           }
           assertBlobsFetched(options.dir, read, written.digests)
-          const promotion = options.to
+          promotion = options.to
             ? await promoted(client, options.dir, read, options.to, options.allowDelete === true)
             : null
           const submission = promotion?.submission ?? read
+          /** `data` as this apply reports it: a promotion's own wording and warnings added. */
+          const reported = (data: ApplyData): ApplyData =>
+            promotion
+              ? {
+                  ...data,
+                  diagnostics: [
+                    ...promotionWarnings(promotion, data.plan),
+                    ...promotionDiagnostics(data.diagnostics, promotion),
+                  ],
+                }
+              : data
           // The apply repeats findings the preview already showed: each is printed once.
           const findings = findingsOutput(profile.output, options.verbose)
           const notSent = notSentFindings(submission.ignored)
@@ -625,8 +743,9 @@ export function attachWorkspaceSourceApply(source: Command): void {
           }
           let preview: ApplyData | null = null
           if (mode !== 'write') {
-            preview = await send(submission, true)
+            preview = reported(await send(submission, true))
             printPlan(preview.plan)
+            printTargetOnlyDeletes(promotion, preview.plan)
             findings.print(preview.diagnostics)
             const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
             if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
@@ -648,12 +767,12 @@ export function attachWorkspaceSourceApply(source: Command): void {
           await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
           const data = await deferInterrupts(
             async () => {
-              const answer = await send(submission, false)
+              const answer = reported(await send(submission, false))
               findings.print(answer.diagnostics)
               // A promotion leaves the directory bound to the workspace it was read from, and
               // records what it left in the target for the next promotion to compare with.
-              if (promotion && options.to) {
-                await savePromotion(options.dir, options.to, promotion, answer)
+              if (promotion) {
+                await savePromotion(options.dir, promotion.target, promotion, answer)
               } else {
                 const workspaceCatalog = cachedCatalog(workspaceId)
                 const { records, unrecorded } = workspaceCatalog
