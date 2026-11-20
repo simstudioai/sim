@@ -511,6 +511,9 @@ function reportScriptRefSyntax(
   }
 }
 
+/** The name inside a `{{NAME}}` env token a run substitutes; other `{{…}}` text is left alone. */
+const ENV_TOKEN_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
+
 /**
  * The `<key.path>` references a code file writes as text, found by the runtime's own scanner (a
  * JavaScript string, a Python or shell line): the run resolves each one, so compile checks them as
@@ -519,6 +522,13 @@ function reportScriptRefSyntax(
 function referenceTags(text: string): CodeFileRef[] {
   const tags: CodeFileRef[] = []
   for (const token of findWorkflowReferenceTokens(text)) {
+    if (token.kind === 'environment') {
+      const name = token.value.slice(2, -2).trim()
+      if (ENV_TOKEN_NAME.test(name)) {
+        tags.push({ kind: 'env', name, start: token.start, end: token.end })
+      }
+      continue
+    }
     if (token.kind !== 'workflow') continue
     const segments = parseStoredPath(token.value.slice(1, -1))
     if (!segments || segments.length < 2) continue

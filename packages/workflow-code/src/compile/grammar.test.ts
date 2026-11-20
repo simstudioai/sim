@@ -1515,6 +1515,27 @@ describe('env names the workspace does not hold', () => {
       }),
     ])
   })
+  it('warns on a {{NAME}} env token in a Python code file at the file location', () => {
+    const result = compileWorkflow({
+      entry: {
+        path: ENTRY,
+        text: source(
+          "const f = fn('F', { language: 'python', code: codeFile('./functions/f.py') })"
+        ),
+      },
+      files: new Map([['workflows/functions/f.py', 'url = "{{API_URL}}" + "{{MISSING_KEY}}"']]),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      envNames: new Set(['API_URL']),
+    })
+    const unknown = result.diagnostics.filter((d) => d.code === 'W_ENV_UNKNOWN')
+    expect(unknown).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining('MISSING_KEY'),
+        span: expect.objectContaining({ file: 'workflows/functions/f.py', line: 1, column: 24 }),
+      }),
+    ])
+  })
 })
 
 describe('numbers JSON cannot carry as written', () => {
