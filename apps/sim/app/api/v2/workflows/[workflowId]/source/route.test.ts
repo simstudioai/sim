@@ -402,6 +402,43 @@ describe('source write rate limit', () => {
     expect((await GET(request(), context)).status).toBe(200)
   })
 
+  it('answers 429 with Retry-After to a dry run past the applies this server runs at once', async () => {
+    const finish: Array<() => void> = []
+    mocks.apply.mockImplementation(
+      () => new Promise((resolve) => finish.push(() => resolve({ ...applied, dryRun: true })))
+    )
+    const dryRun = () => POST(applyRequest(applyBody, '?dryRun=true'), context)
+    const running = Array.from({ length: 4 }, () => dryRun())
+    await vi.waitFor(() => expect(finish).toHaveLength(4))
+
+    const refused = await dryRun()
+    expect(refused.status).toBe(429)
+    expect(refused.headers.get('Retry-After')).toBe('5')
+
+    for (const done of finish) done()
+    expect((await Promise.all(running)).map((response) => response.status)).toEqual([
+      200, 200, 200, 200,
+    ])
+  })
+
+  it('answers 429 with Retry-After to a get past the gets this server runs at once', async () => {
+    const finish: Array<() => void> = []
+    mocks.read.mockImplementation(
+      () => new Promise((resolve) => finish.push(() => resolve(source)))
+    )
+    const running = Array.from({ length: 4 }, () => GET(request(), context))
+    await vi.waitFor(() => expect(finish).toHaveLength(4))
+
+    const refused = await GET(request(), context)
+    expect(refused.status).toBe(429)
+    expect(refused.headers.get('Retry-After')).toBe('5')
+
+    for (const done of finish) done()
+    expect((await Promise.all(running)).map((response) => response.status)).toEqual([
+      200, 200, 200, 200,
+    ])
+  })
+
   it('charges an apply and a create from source to one budget', async () => {
     await writesUntilLimited(() => POST(applyRequest(applyBody), context))
 

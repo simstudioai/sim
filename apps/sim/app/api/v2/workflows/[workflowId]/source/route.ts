@@ -4,7 +4,7 @@ import {
   v2GetWorkflowSourceContract,
 } from '@/lib/api/contracts/v2/workflow-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { v2WorkflowErrorPolicies, withSourceSlot } from '@/lib/workflows/api'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
@@ -15,7 +15,8 @@ export const revalidate = 0
 /**
  * GET /api/v2/workflows/[workflowId]/source — the draft as TypeScript source with its identity
  * lock and freshness fingerprint. Unaudited, like `GET .../state`, which it projects. Answers 403
- * while the `workflow-code` flag is off.
+ * while the `workflow-code` flag is off, and 429 with `Retry-After` while this server already
+ * runs as many source gets as it allows.
  *
  * `headSafe: false` because the first read that references a resource with no key allocates one
  * (`workspace_resource_key`), so a `HEAD` probe must not run it.
@@ -26,12 +27,12 @@ export const GET = defineV2JsonRoute({
   headSafe: false,
   operation: workflowOperations.readSource,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
+  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowSourceRead,
   mapInput: ({ params, query }) => ({
     workflowId: params.workflowId,
     ...(query.functionCode ? { functionCode: query.functionCode } : {}),
   }),
-  useCase: readWorkflowSource,
+  useCase: withSourceSlot(readWorkflowSource, 'read'),
   present: (source) => ({ data: source }),
 })
 
@@ -41,7 +42,8 @@ export const GET = defineV2JsonRoute({
  * stale fingerprint 409, a locked workflow 423; a dry run answers 200 with its diagnostics in the
  * body. Answers 403 while the `workflow-code` flag is off. Analytics are recorded by the use case.
  * Applies and dry runs draw on the source-write budget (`v2RateLimits.sourceWrite`), not the
- * generic one: each compiles and diffs a body of up to `SOURCE_REQUEST_MAX_BYTES`.
+ * generic one: each compiles and diffs a body of up to `SOURCE_REQUEST_MAX_BYTES`, so a server
+ * already running as many source applies as it allows answers 429 with `Retry-After`.
  */
 export const POST = defineV2JsonRoute({
   contract: v2ApplyWorkflowSourceContract,
@@ -59,6 +61,6 @@ export const POST = defineV2JsonRoute({
     ...(query.dryRun !== undefined ? { dryRun: query.dryRun } : {}),
     ...(query.allowDelete !== undefined ? { allowDelete: query.allowDelete } : {}),
   }),
-  useCase: applyWorkflowSource,
+  useCase: withSourceSlot(applyWorkflowSource, 'apply'),
   present: (result) => ({ data: result }),
 })
