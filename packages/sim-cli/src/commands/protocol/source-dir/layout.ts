@@ -11,7 +11,7 @@ import {
   SOURCE_CODE_DIR as SOURCE_FUNCTIONS_DIR,
 } from '@sim/workflow-code/limits'
 import { printError } from '#sim-cli/output/io'
-import { SimApiError } from '../../../http/client'
+import { SourceDirError } from '../local-errors'
 
 /** Generated SDK declarations: the blocks the source uses (every block's are cached), plus `workspace.d.ts`. */
 export const SOURCE_SDK_DIR = '.sim/sdk'
@@ -71,7 +71,7 @@ function refusedSourcePaths(files: Record<string, string>): string[] {
 export function assertPrintedSourcePaths(files: Record<string, string>): void {
   const [refused] = refusedSourcePaths(files)
   if (refused !== undefined) {
-    throw new SimApiError(`The workflow source named an unsafe file path: ${refused}`, 0)
+    throw new SourceDirError(`The workflow source named an unsafe file path: ${refused}`)
   }
 }
 
@@ -83,10 +83,9 @@ export function assertPrintedSourcePaths(files: Record<string, string>): void {
 export function assertSendableCodeFiles(files: Record<string, string>): void {
   const refused = refusedSourcePaths(files)
   if (refused.length === 0) return
-  throw new SimApiError(
+  throw new SourceDirError(
     `${refused.join(', ')} ${refused.length === 1 ? 'is not a code file path' : 'are not code file paths'} a workflow directory holds, so nothing was sent. Move the code to ${SOURCE_FUNCTIONS_DIR}/<name>.js (or .py, .sh: letters, digits, _, $, - and dots, not starting with a dot) and update its codeFile().`,
-    0,
-    'E_CODE_FILE_PATH'
+    { code: 'E_CODE_FILE_PATH' }
   )
 }
 

@@ -31,8 +31,8 @@ import type {
   PlanWorkspaceSourceBody,
   PlanWorkspaceSourceResponse,
 } from '../../generated/v2-api'
-import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
+import { SourceDirError } from './local-errors'
 import {
   absoluteDirOption,
   digest,
@@ -136,10 +136,9 @@ async function assertWrittenReadable(dir: string): Promise<void> {
     record = JSON.parse(text)
   } catch {}
   if (isRecordLike(record) && isRecordLike(record.files)) return
-  throw new SimApiError(
+  throw new SourceDirError(
     `${SOURCE_WRITTEN_FILE} in ${dir} is not a record the CLI wrote (a merge conflict?), so local changes cannot be told from what the last get or apply wrote. Restore it from version control, or run \`${PREFIX} get --dir ${dir}\`: it rewrites it, and refuses to replace a file that differs from the server.`,
-    0,
-    'SOURCE_WRITTEN_INVALID'
+    { code: 'SOURCE_WRITTEN_INVALID' }
   )
 }
 

@@ -10,8 +10,8 @@ import { join } from 'node:path'
 import { toRecord } from '@sim/utils/object'
 import { embedStore } from '../../../embed-context'
 import { SOURCE_BUSY_EXIT_CODE } from '../../../exit-codes'
-import { SimApiError } from '../../../http/client'
 import { removeStagingOnSignal } from '../files-get'
+import { SourceDirError } from '../local-errors'
 import { workspaceFolderOf } from './dir-kind'
 import { checkedPath, errorCode, isMissing } from './files'
 
@@ -150,19 +150,15 @@ export async function withSourceDirLock<T>(
     // Nothing can rewrite a directory no one may write, so a command that only reads it needs
     // no lock; one that writes it is refused with the reason instead of a stack trace.
     if (options.readOnly) return run()
-    throw new SimApiError(
+    throw new SourceDirError(
       `${dir} cannot be written (${errorCode(error)}), and this command writes it; nothing was read or written. Make it writable, or run the command on a writable copy.`,
-      0,
-      'SOURCE_DIR_UNWRITABLE'
+      { code: 'SOURCE_DIR_UNWRITABLE' }
     )
   }
   if (!held) {
-    throw new SimApiError(
+    throw new SourceDirError(
       `Another sim command is using ${dir}; nothing was read or written. Run this one again once it finished. If none is running, remove ${join(dir, SOURCE_DIR_LOCK)}.`,
-      0,
-      'SOURCE_DIR_BUSY',
-      undefined,
-      SOURCE_BUSY_EXIT_CODE
+      { code: 'SOURCE_DIR_BUSY', exitCode: SOURCE_BUSY_EXIT_CODE }
     )
   }
   const owner: LockOwner = { pid: process.pid, host: hostname() }

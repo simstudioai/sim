@@ -39,6 +39,7 @@ import type { GetSourceResourcesResponse, GetWorkflowSourceResponse } from '../.
 import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
 import { cliVersion } from '../../version'
+import { SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import {
   FILE_CONCURRENCY,
@@ -145,7 +146,7 @@ export async function cachedSourceCatalog(dir: string): Promise<BlockCatalog | n
 /** The catalog a `getSourceCatalog` answer carries. */
 function catalogFrom(response: { data: unknown }): BlockCatalog {
   if (!isBlockCatalog(response.data)) {
-    throw new SimApiError('The block catalog response was not in the expected shape.', 0)
+    throw new SourceDirError('The block catalog response was not in the expected shape.')
   }
   return response.data
 }
@@ -433,12 +434,11 @@ export async function refreshWorkflowWorkspaceTypes(
  */
 export function assertSdkMajor(catalog: BlockCatalog): void {
   if (catalog.sdkMajor === SDK_MAJOR) return
-  throw new SimApiError(
+  throw new SourceDirError(
     catalog.sdkMajor > SDK_MAJOR
       ? `This workspace uses workflow SDK ${catalog.sdkMajor}, but this CLI writes SDK ${SDK_MAJOR} declarations. Upgrade the CLI (npm install -g sim@latest) and run the command again.`
       : `This workspace uses workflow SDK ${catalog.sdkMajor}, but this CLI writes SDK ${SDK_MAJOR} declarations. Install a CLI release for SDK ${catalog.sdkMajor} to work with this server.`,
-    0,
-    'SDK_MAJOR_MISMATCH'
+    { code: 'SDK_MAJOR_MISMATCH' }
   )
 }
 

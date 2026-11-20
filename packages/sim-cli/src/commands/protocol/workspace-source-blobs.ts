@@ -42,6 +42,7 @@ import type {
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
+import { SourceDirError } from './local-errors'
 import {
   checkedPath,
   FILE_CONCURRENCY,
@@ -181,16 +182,15 @@ export function editedBlobs(
 export function assertListedBlobs(blobs: readonly ListedBlob[]): void {
   for (const blob of blobs) {
     if (!isWorkspaceSourcePath(blob.path) || !isBlobPath(blob.path)) {
-      throw new SimApiError(`The workspace source named an unsafe file path: ${blob.path}`, 0)
+      throw new SourceDirError(`The workspace source named an unsafe file path: ${blob.path}`)
     }
     if (blob.size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
-      throw new SimApiError(
-        `${blob.path} is ${blob.size} bytes, over the ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes}-byte limit a directory holds.`,
-        0
+      throw new SourceDirError(
+        `${blob.path} is ${blob.size} bytes, over the ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes}-byte limit a directory holds.`
       )
     }
     if (!blob.href.startsWith('/') || !downloadOf(blob.href)) {
-      throw new SimApiError(`${blob.path} names a download this CLI cannot fetch: ${blob.href}`, 0)
+      throw new SourceDirError(`${blob.path} names a download this CLI cannot fetch: ${blob.href}`)
     }
   }
 }
@@ -207,7 +207,7 @@ async function downloadBlob(
 ): Promise<string> {
   const download = downloadOf(blob.href)
   if (!download) {
-    throw new SimApiError(`${blob.path} names a download this CLI cannot fetch: ${blob.href}`, 0)
+    throw new SourceDirError(`${blob.path} names a download this CLI cannot fetch: ${blob.href}`)
   }
   const response =
     download.operation === 'downloadFile'
@@ -219,14 +219,13 @@ async function downloadBlob(
           params: download.params,
           query: download.query,
         })
-  if (!response.body) throw new SimApiError(`The download of ${blob.path} had no body.`, 0)
+  if (!response.body) throw new SourceDirError(`The download of ${blob.path} had no body.`)
   const hash = createHash('sha256')
   let size = 0
   const mismatch = () =>
-    new SimApiError(
+    new SourceDirError(
       `The download of ${blob.path} does not match the workspace source (expected ${blob.size} bytes${blob.sha256 ? `, SHA-256 ${blob.sha256}` : ''}); nothing was written.`,
-      0,
-      'SOURCE_BLOB_MISMATCH'
+      { code: 'SOURCE_BLOB_MISMATCH' }
     )
   const check = new Transform({
     transform(chunk: Buffer, _encoding, done) {
@@ -455,10 +454,9 @@ export function assertBlobsFetched(
   )
   if (missing.length === 0) return
   const shown = missing.slice(0, 5).join(', ')
-  throw new SimApiError(
+  throw new SourceDirError(
     `${dir} never downloaded ${missing.length} binary file(s) its base records (${shown}${missing.length > 5 ? ', …' : ''}), so applying it would delete them. Run \`sim workspaces source get --dir ${dir}\` to download them, then apply again.`,
-    0,
-    'SOURCE_BLOBS_NOT_FETCHED'
+    { code: 'SOURCE_BLOBS_NOT_FETCHED' }
   )
 }
 
@@ -512,10 +510,9 @@ export async function stageBlobs(
         content.byteLength !== blob.size ||
         createHash('sha256').update(content).digest('hex') !== blob.sha256
       ) {
-        throw new SimApiError(
+        throw new SourceDirError(
           `${blob.path} changed while the apply read it; nothing was applied. Apply again.`,
-          0,
-          'SOURCE_BLOB_CHANGED'
+          { code: 'SOURCE_BLOB_CHANGED' }
         )
       }
       form.append(blob.sha256, new Blob([new Uint8Array(content)]), blob.sha256)

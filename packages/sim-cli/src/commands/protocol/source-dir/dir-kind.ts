@@ -10,7 +10,7 @@ import { KIND_DIRS } from '@sim/workspace-code'
 import type { Command } from 'commander'
 import type { ResolvedProfile } from '../../../config/index'
 import { embedStore } from '../../../embed-context'
-import { SimApiError } from '../../../http/client'
+import { SourceDirError } from '../local-errors'
 import { readSourceJson, readSourceText } from './files'
 import { SOURCE_STARTER_FILE } from './layout'
 
@@ -46,10 +46,9 @@ export function directoryWorkspace(
   if (profile.sources.workspaceId !== 'flag' || named === null || named === readFrom) {
     return readFrom
   }
-  throw new SimApiError(
+  throw new SourceDirError(
     `${dir} was read from workspace ${readFrom}, but --workspace names ${named}. ${next(readFrom, named)}`,
-    0,
-    'SOURCE_OTHER_WORKSPACE'
+    { code: 'SOURCE_OTHER_WORKSPACE' }
   )
 }
 
@@ -90,7 +89,7 @@ export async function assertSourceDirKind(dir: string, kind: SourceDirKind): Pro
     held.kind === 'workspace'
       ? `${dir} is a workspace source directory${held.readFrom ? ` (workspace ${held.readFrom})` : ''}, so a \`sim workflows source\` command would replace its base. Edit a workflow of it in ${dir}/${KIND_DIRS.workflow}/<key> with \`sim workspaces source\` (check, status, apply) --dir ${dir}, or get the workflow into another directory.`
       : `${dir} is a workflow source directory${held.readFrom ? ` (workflow ${held.readFrom})` : ''}, so a \`sim workspaces source\` command would replace its base. Use \`sim workflows source\` (get, check, status, apply) --dir ${dir}, or get the workspace into another directory.`
-  throw new SimApiError(message, 0, 'SOURCE_DIR_KIND_MISMATCH')
+  throw new SourceDirError(message, { code: 'SOURCE_DIR_KIND_MISMATCH' })
 }
 
 /** The workspace {@link SOURCE_STARTER_FILE} names, or `null` when the directory holds no starter. */

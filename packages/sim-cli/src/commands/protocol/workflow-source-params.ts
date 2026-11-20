@@ -5,7 +5,7 @@ import { lookupBuilder, renderBuilderReference } from '@sim/workflow-sdk/codegen
 import type { Command } from 'commander'
 import { printLine } from '#sim-cli/output/io'
 import { profileFrom } from '../../context'
-import { SimApiError } from '../../http/client'
+import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import { readSourceJson, workspaceFolderOf } from './source-dir'
 import { cachedCatalog, cachedSourceCatalog } from './source-tree'
@@ -36,12 +36,11 @@ async function lookupCatalog(dir: string, profileWorkspace: string | null): Prom
       : ((await workspaceFolderOf(dir))?.workspaceId ?? profileWorkspace)
   const cached = workspaceId ? cachedCatalog(workspaceId) : null
   if (cached) return cached
-  throw new SimApiError(
+  throw new SourceDirError(
     workspaceId
       ? `No block catalog is cached for workspace ${workspaceId}. Run \`sim workflows source get <workflowId> --dir <dir>\` (or \`sim workspaces source get --dir <dir>\`) once, then look it up again.`
       : `${dir} is not a source directory and no workspace is selected: pass --dir <source dir> or --workspace <workspaceId>.`,
-    0,
-    'CATALOG_NOT_CACHED'
+    { code: 'CATALOG_NOT_CACHED' }
   )
 }
 
@@ -80,10 +79,9 @@ export function attachWorkflowSourceParams(source: Command): void {
           else printLine(`${found.name} is declared in .sim/sdk/core.d.ts:\n\n${found.declaration}`)
           return
         case 'missing':
-          throw new SimApiError(
+          throw new CliUsageError(
             `No builder or namespace is named ${query}.${found.hint ? ` ${found.hint}` : ''}`,
-            0,
-            'BUILDER_UNKNOWN'
+            { code: 'BUILDER_UNKNOWN' }
           )
       }
     })

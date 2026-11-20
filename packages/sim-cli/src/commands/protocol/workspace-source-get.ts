@@ -12,6 +12,7 @@ import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
 import { removeStagingOnSignal } from './files-get'
+import { SourceDirError } from './local-errors'
 import {
   absoluteDirOption,
   assertSourceDirKind,
@@ -173,10 +174,9 @@ async function writeWorkspaceSource(
       ...editedBlobs(touchedBlobs, digests, written.digests),
     ]
     if (edited.length > 0) {
-      throw new SimApiError(
+      throw new SourceDirError(
         `${dir} has edits no apply has saved (${edited.join(', ')}). Apply them, get into another directory, or pass --force to discard them.`,
-        0,
-        'SOURCE_LOCAL_EDITS'
+        { code: 'SOURCE_LOCAL_EDITS' }
       )
     }
   }

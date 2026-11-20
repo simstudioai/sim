@@ -30,7 +30,7 @@ import { KIND_DIRS } from '@sim/workspace-code'
 import { KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import type { Command } from 'commander'
 import { setSoftExitCode } from '../../embed-context'
-import { SimApiError } from '../../http/client'
+import { SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import { digest, readFolderWritten, readSourceJson, readSourceText } from './source-dir'
 import {
@@ -608,10 +608,9 @@ export function cachedOrRefuse(
   get: string
 ): BlockCatalog {
   if (catalog) return catalog
-  throw new SimApiError(
+  throw new SourceDirError(
     `No block catalog is cached for workspace ${workspaceId}. Run ${get} once, then check again.`,
-    0,
-    'CATALOG_NOT_CACHED'
+    { code: 'CATALOG_NOT_CACHED' }
   )
 }
 

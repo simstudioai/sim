@@ -34,6 +34,7 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
 import { gitProvenance } from './git-provenance'
+import { SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
@@ -449,11 +450,9 @@ async function promoted(
   allowDelete: boolean
 ): Promise<Promotion> {
   if (baseWorkspaceOf(submission.base) === target) {
-    throw new SimApiError(
-      `${dir} was read from workspace ${target}; apply it without --to.`,
-      0,
-      'SOURCE_PROMOTE_SAME_WORKSPACE'
-    )
+    throw new SourceDirError(`${dir} was read from workspace ${target}; apply it without --to.`, {
+      code: 'SOURCE_PROMOTE_SAME_WORKSPACE',
+    })
   }
   const recordPath = promotionRecordPath(target)
   const record = recordPath
@@ -465,7 +464,7 @@ async function promoted(
   })
   const targetBase = parseWorkspaceBase(data.base).base
   if (!targetBase) {
-    throw new SimApiError(`Workspace ${target} answered with a base this CLI cannot read.`, 0)
+    throw new SourceDirError(`Workspace ${target} answered with a base this CLI cannot read.`)
   }
   const composed = promotionSubmission({
     files: submission.files,
@@ -797,7 +796,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               return
             }
             if (!(await confirm(`Apply these changes to workspace ${workspaceId}?`))) {
-              throw new SimApiError('Nothing was applied.', 0, 'CANCELLED')
+              throw new SourceDirError('Nothing was applied.', { code: 'CANCELLED' })
             }
           }
 

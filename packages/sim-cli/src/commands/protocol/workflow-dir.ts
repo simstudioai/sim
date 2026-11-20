@@ -20,8 +20,8 @@ import {
   typecheckCommand,
 } from '@sim/workflow-sdk/codegen'
 import type { ApplyWorkflowSourceBody, GetWorkflowSourceResponse } from '../../generated/v2-api'
-import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
+import { SourceDirError } from './local-errors'
 import {
   assertSourceDirKind,
   FILE_CONCURRENCY,
@@ -66,13 +66,12 @@ async function requireText(directory: string, path: string, hint: string): Promi
   const text = await readSourceText(directory, path)
   if (text !== null) return text
   const starterWorkspace = await readStarterWorkspace(directory)
-  throw new SimApiError(
+  throw new SourceDirError(
     `${directory} has no ${path}. ${
       starterWorkspace === null
         ? hint
         : `It holds a starter no workflow was created from yet: run \`${createCommand(directory, starterWorkspace)} --dry-run\`, then the same with --yes.`
-    }`,
-    0
+    }`
   )
 }
 
@@ -81,7 +80,7 @@ async function readJson(directory: string, path: string, hint: string): Promise<
   try {
     return JSON.parse(text)
   } catch {
-    throw new SimApiError(`${path} in ${directory} is not valid JSON. ${hint}`, 0)
+    throw new SourceDirError(`${path} in ${directory} is not valid JSON. ${hint}`)
   }
 }
 
@@ -116,17 +115,15 @@ export async function readBase(
   await assertSourceDirKind(directory, 'workflow')
   const parsed = parseSourceBase(await readJson(directory, SOURCE_BASE_FILE, GET_HINT))
   if ('problem' in parsed) {
-    throw new SimApiError(
-      `${SOURCE_BASE_FILE} in ${directory} is not a base: ${parsed.problem} ${GET_HINT}`,
-      0
+    throw new SourceDirError(
+      `${SOURCE_BASE_FILE} in ${directory} is not a base: ${parsed.problem} ${GET_HINT}`
     )
   }
   const { base } = parsed
   if (workflowId !== undefined && base.workflowId !== workflowId) {
-    throw new SimApiError(
+    throw new SourceDirError(
       `${directory} holds the source of workflow ${base.workflowId}, not ${workflowId}. Apply it to ${base.workflowId}, or write this workflow's source with \`sim workflows source get ${workflowId} --dir <dir>\`.`,
-      0,
-      'SOURCE_WORKFLOW_MISMATCH'
+      { code: 'SOURCE_WORKFLOW_MISMATCH' }
     )
   }
   return base
@@ -139,9 +136,8 @@ export async function readLock(directory: string): Promise<WorkflowLockV1> {
   const problems = parsed.diagnostics.map(
     (finding) => `${finding.path === '' ? '' : `${finding.path}: `}${finding.message}`
   )
-  throw new SimApiError(
-    `${SOURCE_LOCK_FILE} in ${directory} is not a valid lock: ${problems.join('; ')}`,
-    0
+  throw new SourceDirError(
+    `${SOURCE_LOCK_FILE} in ${directory} is not a valid lock: ${problems.join('; ')}`
   )
 }
 

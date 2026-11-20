@@ -2,7 +2,7 @@ import { toRecord } from '@sim/utils/object'
 import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import { profileFrom } from '../../context'
-import { SimApiError } from '../../http/client'
+import { CliUsageError } from './local-errors'
 import {
   cachedOrRefuse,
   checkWorkflowDir,
@@ -85,9 +85,8 @@ export function attachWorkflowSourceCheck(source: Command): void {
           (from) => `Run it without --workspace to check it against the catalog of ${from}.`
         )
         if (!workspaceId) {
-          throw new SimApiError(
-            `${options.dir} has no ${SOURCE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`,
-            0
+          throw new CliUsageError(
+            `${options.dir} has no ${SOURCE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`
           )
         }
         const catalog = cachedOrRefuse(

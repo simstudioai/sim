@@ -14,6 +14,7 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
 import { gitProvenance } from './git-provenance'
+import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
@@ -207,7 +208,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       return
     }
     if (!(await confirm(args.question))) {
-      throw new SimApiError('Nothing was applied.', 0, 'CANCELLED')
+      throw new SourceDirError('Nothing was applied.', { code: 'CANCELLED' })
     }
   }
 
@@ -320,9 +321,8 @@ function deployFailure(
 /** Refuses `--deploy` beside `--dry-run`: a dry run stores nothing to deploy. */
 function assertDeployable(options: SourceWriteOptions): void {
   if (options.deploy && options.dryRun) {
-    throw new SimApiError(
-      '--deploy deploys what the write saves, and --dry-run saves nothing: drop one of them.',
-      0
+    throw new CliUsageError(
+      '--deploy deploys what the write saves, and --dry-run saves nothing: drop one of them.'
     )
   }
 }
@@ -456,9 +456,8 @@ export function attachWorkflowSourceCreate(source: Command): void {
         await assertSourceDirKind(options.dir, 'workflow')
         if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
           if (options.dryRun || options.yes) {
-            throw new SimApiError(
-              `${options.dir} has no ${ENTRY_FILE}, so there is nothing to ${options.dryRun ? 'check' : 'create'}. Write ${ENTRY_FILE} there, or run \`sim workflows source create --dir ${options.dir}\` without --dry-run and --yes to write a starter.`,
-              0
+            throw new SourceDirError(
+              `${options.dir} has no ${ENTRY_FILE}, so there is nothing to ${options.dryRun ? 'check' : 'create'}. Write ${ENTRY_FILE} there, or run \`sim workflows source create --dir ${options.dir}\` without --dry-run and --yes to write a starter.`
             )
           }
           const { client, profile } = connectCreate()

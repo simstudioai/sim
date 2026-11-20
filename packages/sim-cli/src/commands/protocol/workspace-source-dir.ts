@@ -46,7 +46,7 @@ import {
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { SOURCE_TOO_LARGE_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkspaceSourceBody } from '../../generated/v2-api'
-import { SimApiError } from '../../http/client'
+import { CliUsageError, SourceDirError } from './local-errors'
 import {
   assertSourceDirKind,
   checkedPath,
@@ -475,7 +475,7 @@ function declaredColumns(decl: TableDecl): ReadonlyMap<string, DeclaredColumn> {
 export function assertWorkspacePaths(paths: Iterable<string>): void {
   for (const path of paths) {
     if (!isWorkspaceSourcePath(path)) {
-      throw new SimApiError(`The workspace source named an unsafe file path: ${path}`, 0)
+      throw new SourceDirError(`The workspace source named an unsafe file path: ${path}`)
     }
   }
 }
@@ -523,9 +523,8 @@ export async function assertWorkspaceDir(dir: string): Promise<void> {
   await assertSourceDirKind(dir, 'workspace')
   const { present } = await kindFolders(dir, APPLY_ORDER)
   if (present.length > 0) return
-  throw new SimApiError(
-    `${dir} holds no workspace source (no kind folder such as ${KIND_DIRS.workflow}/ or ${KIND_DIRS.table}/). Point --dir at a directory \`sim workspaces source get\` wrote, or write one with \`sim workspaces source get --dir ${dir}\`.`,
-    0
+  throw new SourceDirError(
+    `${dir} holds no workspace source (no kind folder such as ${KIND_DIRS.workflow}/ or ${KIND_DIRS.table}/). Point --dir at a directory \`sim workspaces source get\` wrote, or write one with \`sim workspaces source get --dir ${dir}\`.`
   )
 }
 
@@ -626,12 +625,9 @@ export async function readWorkspaceDir(
   )
   const blobPaths = paths.filter(isBlobPath)
   if (blobPaths.length > maxBlobs) {
-    throw new SimApiError(
+    throw new SourceDirError(
       `The directory lists ${blobPaths.length} binary files (files/ and knowledge documents), over the ${maxBlobs}-file limit; nothing was sent.`,
-      0,
-      'SOURCE_TOO_LARGE',
-      undefined,
-      SOURCE_TOO_LARGE_EXIT_CODE
+      { code: 'SOURCE_TOO_LARGE', exitCode: SOURCE_TOO_LARGE_EXIT_CODE }
     )
   }
   const textPaths = paths.filter((path) => !isBlobPath(path))
@@ -655,13 +651,10 @@ export async function readWorkspaceDir(
       const current = await stat(file)
       const { size } = current
       if (size > maxBlobBytes) {
-        throw new SimApiError(
-          `${path} is ${size} bytes, over the ${maxBlobBytes}-byte limit.`,
-          0,
-          'SOURCE_TOO_LARGE',
-          undefined,
-          SOURCE_TOO_LARGE_EXIT_CODE
-        )
+        throw new SourceDirError(`${path} is ${size} bytes, over the ${maxBlobBytes}-byte limit.`, {
+          code: 'SOURCE_TOO_LARGE',
+          exitCode: SOURCE_TOO_LARGE_EXIT_CODE,
+        })
       }
       const digested = await statDigest(file, path, current, written)
       hashed.set(path, digested)
@@ -674,10 +667,9 @@ export async function readWorkspaceDir(
     try {
       base = JSON.parse(baseText)
     } catch {
-      throw new SimApiError(
+      throw new SourceDirError(
         `${WORKSPACE_BASE_FILE} in ${dir} is not valid JSON (a merge conflict?). Restore it from version control, or get the workspace into a fresh directory with \`sim workspaces source get --dir <fresh dir>\` and carry your edits over.`,
-        0,
-        'SOURCE_BASE_INVALID'
+        { code: 'SOURCE_BASE_INVALID' }
       )
     }
   }
@@ -700,17 +692,15 @@ export function parseKinds(value: string | undefined): WorkspaceKind[] | undefin
     .map((name) => name.trim())
     .filter((name) => name.length > 0)
   if (names.length === 0) {
-    throw new SimApiError(
-      `--only names no kind; name a folder (${[...KIND_BY_DIR.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`,
-      0
+    throw new CliUsageError(
+      `--only names no kind; name a folder (${[...KIND_BY_DIR.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`
     )
   }
   const kinds = names.map((name) => (isWorkspaceKind(name) ? name : KIND_BY_DIR.get(name)))
   const unknown = names.filter((_, index) => kinds[index] === undefined)
   if (unknown.length > 0) {
-    throw new SimApiError(
-      `Unknown kind ${unknown.join(', ')}; name a folder (${[...KIND_BY_DIR.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`,
-      0
+    throw new CliUsageError(
+      `Unknown kind ${unknown.join(', ')}; name a folder (${[...KIND_BY_DIR.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`
     )
   }
   return [...new Set(kinds.filter((kind) => kind !== undefined))]

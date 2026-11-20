@@ -22,6 +22,7 @@ import { noAnswer, SimApiError } from '../../http/client'
 import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
+import { CliUsageError } from './local-errors'
 import { type Diagnostic, findingsOutput } from './source-ui'
 
 /** One change of a workspace apply's plan. */
@@ -386,10 +387,9 @@ export function pathFilter(
         }
         if (unmatched.size === 0) return
       }
-      throw new SimApiError(
+      throw new CliUsageError(
         `${[...unmatched].map((filter) => `"${sanitize(filter)}"`).join(', ')} selects no file in ${sanitize(dir)}; name a file or folder relative to --dir, or a path from the current directory inside it.`,
-        0,
-        'SOURCE_PATH_UNMATCHED'
+        { code: 'SOURCE_PATH_UNMATCHED' }
       )
     },
   }

@@ -29,9 +29,9 @@ import {
   SOURCE_LOCK_FILE,
 } from '@sim/workflow-code/limits'
 import { embedStore } from '../../../embed-context'
-import { SimApiError } from '../../../http/client'
 import { embeddedFileContent } from '../../../transfer/local-file'
 import { removeStagingOnSignal, saveToFile } from '../files-get'
+import { SourceDirError } from '../local-errors'
 import {
   SOURCE_STAGING_PREFIX,
   SOURCE_STORED_EDGES_FILE,
@@ -108,10 +108,9 @@ export async function checkedPath(
       throw error
     }
     if (stats.isSymbolicLink()) {
-      throw new SimApiError(
+      throw new SourceDirError(
         `Refusing ${segments.slice(0, index + 1).join('/')}: it is a symbolic link, and the source directory only holds plain files.`,
-        0,
-        'SOURCE_SYMLINK'
+        { code: 'SOURCE_SYMLINK' }
       )
     }
     if (index < segments.length - 1) verified.add(current)
@@ -159,7 +158,7 @@ export async function readSourceText(dir: string, path: string): Promise<string 
       text = await readFile(target, 'utf8')
     } catch (error) {
       if (isMissing(error)) return null
-      throw new SimApiError(`Cannot read ${join(dir, path)}: ${(error as Error).message}`, 0)
+      throw new SourceDirError(`Cannot read ${join(dir, path)}: ${(error as Error).message}`)
     }
   }
   return normalizeSourceText(text)
@@ -204,7 +203,7 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
   const writes = [...change.write.map(([path]) => path), ...fetches.map(([path]) => path)]
   for (const path of [...writes, ...(change.remove ?? [])]) {
     if (sourceRelativePath(path) !== path) {
-      throw new SimApiError(`Refusing to write ${path} outside ${dir}`, 0)
+      throw new SourceDirError(`Refusing to write ${path} outside ${dir}`)
     }
   }
   if (embedStore.getStore()) {
@@ -286,7 +285,7 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
  */
 export async function listSourceFiles(dir: string, folder: string): Promise<string[]> {
   if (embedStore.getStore()) {
-    throw new SimApiError('Workspace source directories need a local disk.', 0)
+    throw new SourceDirError('Workspace source directories need a local disk.')
   }
   const root = await realRoot(dir)
   if (root === null) return []
@@ -303,10 +302,9 @@ export async function listSourceFiles(dir: string, folder: string): Promise<stri
     for (const entry of entries) {
       const path = `${relative}/${entry.name}`
       if (entry.isSymbolicLink()) {
-        throw new SimApiError(
+        throw new SourceDirError(
           `Refusing ${path}: it is a symbolic link, and the source directory only holds plain files.`,
-          0,
-          'SOURCE_SYMLINK'
+          { code: 'SOURCE_SYMLINK' }
         )
       }
       if (entry.isDirectory()) await walk(join(absolute, entry.name), path)

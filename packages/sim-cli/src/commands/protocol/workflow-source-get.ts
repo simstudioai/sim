@@ -2,9 +2,9 @@ import { toRecord } from '@sim/utils/object'
 import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import type { GetWorkflowSourceResponse } from '../../generated/v2-api'
-import { SimApiError } from '../../http/client'
 import { callsOperations } from '../../runtime/called-operations'
 import { buildRequest } from '../../runtime/request'
+import { SourceDirError } from './local-errors'
 import {
   absoluteDirOption,
   assertPrintedSourcePaths,
@@ -35,10 +35,9 @@ async function heldWorkflowId(dir: string): Promise<string | null> {
 async function assertSameWorkflow(dir: string, workflowId: string): Promise<void> {
   const held = await heldWorkflowId(dir)
   if (held === null || held === workflowId) return
-  throw new SimApiError(
+  throw new SourceDirError(
     `${dir} holds the source of workflow ${held}, not ${workflowId}. Get it into another directory, or pass --force to replace it.`,
-    0,
-    'SOURCE_WORKFLOW_MISMATCH'
+    { code: 'SOURCE_WORKFLOW_MISMATCH' }
   )
 }
 
@@ -49,10 +48,9 @@ async function assertSameWorkflow(dir: string, workflowId: string): Promise<void
 async function assertNoLocalEdits(dir: string, source: PrintedSource): Promise<void> {
   const edited = await locallyEditedFiles(dir, source, await readPreviousLock(dir))
   if (edited.length === 0) return
-  throw new SimApiError(
+  throw new SourceDirError(
     `${dir} has edits no apply has saved (${edited.join(', ')}). Apply them, get into another directory, or pass --force to discard them.`,
-    0,
-    'SOURCE_LOCAL_EDITS'
+    { code: 'SOURCE_LOCAL_EDITS' }
   )
 }
 
