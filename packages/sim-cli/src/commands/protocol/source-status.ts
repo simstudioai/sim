@@ -27,8 +27,9 @@ import { type Diagnostic, findingsOutput } from './source-ui'
 export type ServerCheck = 'checked' | 'unreachable' | 'offline'
 
 /**
- * The dry run's findings a status's plan counts: its errors and warnings, less those `listed`
- * says the status reports as a change of its own (a stale base is drift or a conflict).
+ * The dry run's findings a status's plan shows: its errors and warnings, less those `listed`
+ * says the status reports as a change of its own (a stale base is drift or a conflict), and the
+ * info `I_FINDINGS_TRUNCATED` that says the list is incomplete (counted as neither).
  */
 export function planFindings(
   diagnostics: readonly Diagnostic[],
@@ -36,7 +37,10 @@ export function planFindings(
 ): Diagnostic[] {
   return diagnostics.filter(
     (finding) =>
-      (finding.severity === 'error' || finding.severity === 'warning') && !listed(finding.code)
+      (finding.severity === 'error' ||
+        finding.severity === 'warning' ||
+        finding.code === 'I_FINDINGS_TRUNCATED') &&
+      !listed(finding.code)
   )
 }
 

@@ -190,6 +190,28 @@ describe('workflows source status', () => {
     expect(stderr).not.toContain('E_APPLY_STALE')
   })
 
+  it('keeps the marker that its listed findings were truncated, counting it as neither', async () => {
+    const warning = {
+      code: 'W_UNRESOLVED_REF',
+      severity: 'warning',
+      message: '$ref.nosuch.x names no block, so it does not resolve at run time.',
+      file: 'functions/score.js',
+    }
+    const truncated = {
+      code: 'I_FINDINGS_TRUNCATED',
+      severity: 'info',
+      message: '40 more findings were left out.',
+    }
+    mockRequest.mockResolvedValue(dryRun([warning, truncated]))
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({
+      plan: { errors: 0, warnings: 1 },
+      diagnostics: [warning, truncated],
+    })
+  })
+
   it('reports an edit, a deleted function file and a new one, exit 11', async () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
     unlinkSync(join(root, 'functions/score.js'))
