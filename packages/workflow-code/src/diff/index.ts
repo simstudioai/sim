@@ -3,6 +3,7 @@
  * Like every CWM comparison it ignores `annotations`, key order and edge order.
  */
 
+import { compareStrings } from '@sim/utils/string'
 import { edgeTupleKey, portKey } from '../anchors'
 import type { LockIdentity } from '../lock'
 import type {
@@ -150,7 +151,10 @@ export function diffCanonical(
   const baseKeyOf = (targetKey: BlockKey) => pairs.get(targetKey) ?? `${UNPAIRED}${targetKey}`
 
   const added = Object.keys(target.blocks).filter((key) => !pairs.has(key))
-  const removed = Object.keys(base.blocks).filter((key) => !claimedBase.has(key))
+  // By key: the base's block order is the order its rows loaded in, which says nothing.
+  const removed = Object.keys(base.blocks)
+    .filter((key) => !claimedBase.has(key))
+    .sort(compareStrings)
   const renamed: CanonicalDiff['blocks']['renamed'] = []
   const modified: CanonicalBlockDiff[] = []
   for (const [targetKey, baseKey] of pairs) {

@@ -92,6 +92,17 @@ describe('diffCanonical', () => {
     ])
   })
 
+  it('lists removed blocks by key, whatever order the stored blocks loaded in', () => {
+    const reordered = draftOf(base.workflow)
+    reordered.blocks = Object.fromEntries(Object.entries(reordered.blocks).reverse())
+    const target = edit((draft) => {
+      draft.blocks = omit(draft.blocks, ['fetch', 'report'])
+      draft.edges = []
+    })
+
+    expect(diffCanonical(reordered, target).blocks.removed).toEqual(['fetch', 'report'])
+  })
+
   it('reports added and removed blocks, edges and variables', () => {
     const target = edit((draft) => {
       draft.blocks = omit(draft.blocks, ['report'])
