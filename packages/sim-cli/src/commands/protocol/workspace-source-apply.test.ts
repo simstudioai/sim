@@ -580,7 +580,15 @@ describe('workspaces source apply', () => {
       })
     })
 
-    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--dry-run')
+    await apply(
+      '--to',
+      'ws_prod',
+      '--only',
+      'tables',
+      '--allow-delete',
+      '--delete-target-only',
+      '--dry-run'
+    )
 
     const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     const byCode = (code: string) =>
@@ -603,6 +611,93 @@ describe('workspaces source apply', () => {
     expect(stderr).toContain('  ! gone (deleted on the server; kept as the server has it)')
     expect(stderr).toContain('  ! leads (changed on the server; your edit is refused as stale)')
     expect(stderr).not.toContain('resource(s) that only workspace ws_prod holds')
+  })
+
+  it('a --to with --allow-delete keeps what only the target holds, naming it, and points at --delete-target-only', async () => {
+    const leads = { id: 'tbl_prod', fingerprint: `rf1:${'a'.repeat(64)}` }
+    write(
+      '.sim/targets/ws_prod.json',
+      JSON.stringify({
+        version: 1,
+        workspaceId: 'ws_prod',
+        resources: { 'table:leads': leads, 'table:dropped': { id: 'tbl_dropped' } },
+        workflows: {},
+      })
+    )
+    const sent: unknown[] = []
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table'],
+            files: {
+              'tables/leads.ts': LEADS,
+              'tables/dropped.ts': LEADS,
+              'tables/audit.ts': LEADS,
+            },
+            blobs: [],
+            base: {
+              version: 1,
+              workspaceId: 'ws_prod',
+              resources: {
+                'table:leads': leads,
+                'table:dropped': { id: 'tbl_dropped' },
+                'table:audit': { id: 'tbl_audit' },
+              },
+            },
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      sent.push(options.body)
+      return answer({
+        workspaceId: 'ws_prod',
+        dryRun: true,
+        plan: [
+          { kind: 'table', key: 'leads', action: 'noop' },
+          { kind: 'table', key: 'dropped', action: 'delete' },
+          { kind: 'table', key: 'audit', action: 'noop' },
+        ],
+        diagnostics: [
+          {
+            code: 'W_UNDECLARED',
+            severity: 'warning',
+            message:
+              '"audit" (table audit) is on the server but not in this directory; it is kept.',
+            kind: 'table',
+            key: 'audit',
+          },
+        ],
+      })
+    })
+
+    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--dry-run')
+
+    const [body] = sent as Array<{ base: { resources: Record<string, unknown> } }>
+    expect(Object.keys(body.base.resources).sort()).toEqual(['table:dropped', 'table:leads'])
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    const [kept] = summary.diagnostics.filter(
+      (finding: { code: string }) => finding.code === 'W_UNDECLARED'
+    )
+    expect(kept).toMatchObject({ key: 'audit' })
+    expect(kept.hint).toContain('--delete-target-only')
+    expect(
+      summary.diagnostics.filter(
+        (finding: { code: string }) => finding.code === 'W_PROMOTE_DELETES_TARGET_ONLY'
+      )
+    ).toEqual([])
+  })
+
+  it('refuses --delete-target-only without --to or without --allow-delete', async () => {
+    await expect(apply('--to', 'ws_prod', '--delete-target-only', '--yes')).rejects.toThrow(
+      /needs --allow-delete/
+    )
+    await expect(apply('--allow-delete', '--delete-target-only', '--yes')).rejects.toThrow(
+      /needs --to/
+    )
+    expect(request).not.toHaveBeenCalled()
   })
 
   it('names only the target-only deletes a promotion that stopped part-way wrote', async () => {
@@ -637,7 +732,15 @@ describe('workspaces source apply', () => {
       })
     })
 
-    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--yes')
+    await apply(
+      '--to',
+      'ws_prod',
+      '--only',
+      'tables',
+      '--allow-delete',
+      '--delete-target-only',
+      '--yes'
+    )
 
     const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     expect(

@@ -335,8 +335,13 @@ each folder's `.sim/lock.json` and `.sim/base.json` replaced by the target's fol
 (or dropped, so the key is created), and the target's root base. A base entry the directory does
 not declare stays in it when the promotion record holds it for the same id (the directory deleted
 it since, so the apply refuses it without `--allow-delete` as it would at home); one only the target
-ever held (`targetOnly`) leaves it unless `--allow-delete`, and the CLI names each such delete
-`W_PROMOTE_DELETES_TARGET_ONLY`. The server sees an ordinary apply against its own base,
+ever held (`targetOnly`) leaves it, so the apply keeps it (`W_UNDECLARED`) whether or not it allows
+deletes. Deleting those takes `--delete-target-only` beside `--allow-delete` (the CLI refuses it
+alone): `--allow-delete` is consent to the directory's own deletes, and must not also reach the
+target's prod-only tables, their rows, or skills made there. The CLI names each such delete
+`W_PROMOTE_DELETES_TARGET_ONLY`, and `promotionRecord` never records a target-only entry (a held
+delete keeps its submitted base entry, which would otherwise read as the directory's delete on
+the next promotion). The server sees an ordinary apply against its own base,
 so every rule holds unchanged: a resource bound under the key is updated in place (a workflow keeps
 its id and block ids through the target's lock), an unbound one of the same name is adopted, a
 missing one created, and secrets and credentials bind by name and key to the target's own. The

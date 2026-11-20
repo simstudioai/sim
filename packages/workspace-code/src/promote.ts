@@ -37,8 +37,8 @@ export interface PromotionSubmission {
   /** The directory's text files, each workflow folder whole, with the target's record files. */
   files: Record<string, string>
   /**
-   * The target's base, without what only the target holds unless deletes are allowed (see
-   * {@link PromotionInput.allowDelete}).
+   * The target's base, without what only the target holds unless its deletion is asked for (see
+   * {@link PromotionInput.deleteTargetOnly}).
    */
   base: WorkspaceBaseV1
   /**
@@ -48,8 +48,8 @@ export interface PromotionSubmission {
   deletedInTarget: string[]
   /**
    * The resources (by address) the target holds that the directory does not declare and no
-   * promotion from it left there: only the target ever held them, so `--allow-delete` deleting one
-   * deletes something the directory never had.
+   * promotion from it left there: only the target ever held them. They are kept, and the server
+   * names each (`W_UNDECLARED`), unless {@link PromotionInput.deleteTargetOnly}.
    */
   targetOnly: string[]
 }
@@ -66,13 +66,13 @@ export interface PromotionInput {
   /** What the last promotion from this directory left in the target, when one is recorded. */
   record?: PromotionRecord
   /**
-   * Whether the promotion may delete what only the target holds. Without it, those resources leave
-   * the base, so the apply keeps them with a warning instead of refusing for want of
-   * `--allow-delete`. A resource the last promotion left that the directory no longer declares
-   * stays in the base either way: the directory deleted it, which needs `--allow-delete` as an
-   * apply to its own workspace does.
+   * Whether the promotion deletes what only the target holds (`--delete-target-only`, which the
+   * apply's `--allow-delete` must accompany). Without it, those resources leave the base, so the
+   * apply keeps them with a warning whether or not it allows deletes. A resource the last
+   * promotion left that the directory no longer declares stays in the base either way: the
+   * directory deleted it, which needs `--allow-delete` as an apply to its own workspace does.
    */
-  allowDelete: boolean
+  deleteTargetOnly: boolean
 }
 
 /** A workflow folder's record files: what binds it to one workspace's workflow and block ids. */
@@ -212,7 +212,7 @@ export function parsePromotionRecord(
  * The submission that promotes a directory to the target its get answer describes: the
  * directory's source with every workflow folder's lock and base replaced by the target's folder
  * of the same key (or dropped, so a key the target lacks creates a workflow), and the target's
- * base, without what only the target holds unless deletes are allowed. With a
+ * base, without what only the target holds unless its deletion is asked for. With a
  * {@link PromotionRecord}, each entry the record holds for the same id stands in for the target's
  * own, and a workflow folder records the fingerprint the last promotion left: sent as its base
  * alone (a no-op) when the directory has not changed it since, else whole, so a target edit since
@@ -279,7 +279,7 @@ export function promotionSubmission(input: PromotionInput): PromotionSubmission 
       const promoted = recorded?.id === live.id ? recorded : undefined
       if (!keys.has(parsed.key) && !promoted) {
         targetOnly.push(resourceAddress(parsed.kind, parsed.key))
-        if (!input.allowDelete) return []
+        if (!input.deleteTargetOnly) return []
       }
       return [[address, promoted ?? live] as const]
     })
@@ -309,7 +309,9 @@ export function promotionSubmission(input: PromotionInput): PromotionSubmission 
  * plan). A resource's entry is the answer's base entry; a workflow folder's is what the apply
  * wrote, or what was sent whole and planned as a no-op, else the `previous` entry (a folder sent
  * as its base alone, or held back, or never reached). The record of a kind the promotion did not
- * manage is kept.
+ * manage is kept. A resource only the target held (`targetOnly`) is never recorded: a delete of it
+ * the apply held back keeps its submitted base entry, and recording that would make the next
+ * promotion read it as one the directory deleted.
  */
 export function promotionRecord(input: {
   workspaceId: string
@@ -317,7 +319,7 @@ export function promotionRecord(input: {
   kinds: readonly WorkspaceKind[]
   /** The directory's text files, as {@link PromotionInput} took them. */
   files: Readonly<Record<string, string>>
-  submission: Pick<PromotionSubmission, 'files' | 'base'>
+  submission: Pick<PromotionSubmission, 'files' | 'base' | 'targetOnly'>
   applied: {
     base: WorkspaceBaseV1
     files: Readonly<Record<string, string>>
@@ -332,7 +334,13 @@ export function promotionRecord(input: {
       resources[resourceAddress(parsed.kind, parsed.key)] = entry
     }
   }
-  Object.assign(resources, input.applied.base.resources)
+  const targetOnly = new Set(input.submission.targetOnly)
+  for (const [address, entry] of Object.entries(input.applied.base.resources)) {
+    const parsed = parseResourceAddress(address)
+    if (parsed && !targetOnly.has(address)) {
+      resources[resourceAddress(parsed.kind, parsed.key)] = entry
+    }
+  }
   const workflows: Record<string, PromotedWorkflow> = {}
   if (!managed.has('workflow')) {
     Object.assign(workflows, input.previous?.workflows)
