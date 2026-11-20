@@ -697,6 +697,7 @@ export const CLI_CONTRACT: CliContract = {
   revertWorkflowVersion: {
     confirm: 'This overwrites the draft graph with the selected version and cannot be undone.',
   },
+  deployWorkflow: { acceptsYes: true },
   // A rollback is the deployed counterpart of that revert, and the more
   // consequential of the two: a revert only rewrites the draft, while this
   // changes which version production serves. Gating the draft write and not the

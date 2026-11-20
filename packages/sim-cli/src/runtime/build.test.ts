@@ -201,6 +201,18 @@ describe('commands parsed through commander', () => {
     })
   })
 
+  it.each(['--yes', '-y'])(
+    'accepts %s on a deploy, which needs no confirmation, as other writes do',
+    async (flag) => {
+      const [path, options] = await run(['workflows', 'deploy', 'wf-1', flag], {
+        data: { isDeployed: true },
+      })
+      expect(path).toBe('/api/v2/workflows/wf-1/deploy')
+      expect(options.method).toBe('POST')
+      expect(options.body ?? {}).not.toHaveProperty('yes')
+    }
+  )
+
   it('carries a multi-word flag all the way to the request', async () => {
     // The regression: commander stores this as `minDurationMs`, so a lookup by
     // `min-duration-ms` found nothing and the filter never reached the API.
