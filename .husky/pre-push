@@ -4,6 +4,21 @@
 # CI runs the full lint, type-check and audit gate on every PR, so it stays the backstop.
 set -e
 
+# git passes one "<local ref> <local sha> <remote ref> <remote sha>" line per pushed ref.
+zero=0000000000000000000000000000000000000000
+head=$(git rev-parse HEAD)
+pushes_head=false
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  if [ "$local_sha" != "$head" ]; then
+    # These checks read the working tree, which holds HEAD, not this commit.
+    echo "pre-push: $local_sha is not the checked-out commit; leaving it to CI"
+    continue
+  fi
+  pushes_head=true
+done
+[ "$pushes_head" = true ] || exit 0
+
 base=$(git merge-base HEAD origin/staging 2>/dev/null || true)
 if [ -z "$base" ]; then
   echo "pre-push: origin/staging not found, running the full lint and type-check"
@@ -12,11 +27,16 @@ if [ -z "$base" ]; then
   exit 0
 fi
 
-changed=$(git diff --name-only --diff-filter=ACMR "$base" HEAD)
+# Deletions still decide the type-check (an import of a deleted module breaks); biome only
+# reads files that exist.
+changed=$(git diff --name-only "$base" HEAD)
 [ -z "$changed" ] && exit 0
+existing=$(git diff --name-only --diff-filter=ACMR "$base" HEAD)
 
-# Word-splitting the list is deliberate; no path biome checks contains a space.
-bunx biome check --no-errors-on-unmatched --files-ignore-unknown=true $changed
+if [ -n "$existing" ]; then
+  # Word-splitting the list is deliberate; no path biome checks contains a space.
+  bunx biome check --no-errors-on-unmatched --files-ignore-unknown=true $existing
+fi
 
 if printf '%s\n' "$changed" | grep -qE '^scripts/'; then
   bun run type-check:scripts:esm
