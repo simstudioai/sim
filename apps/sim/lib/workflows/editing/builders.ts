@@ -1055,6 +1055,10 @@ export function normalizeBlockIdsInOperations(operations: EditWorkflowOperation[
         normalized.params.subflowId = replaceId(normalized.params.subflowId)
       }
 
+      if (typeof normalized.params.parentId === 'string') {
+        normalized.params.parentId = replaceId(normalized.params.parentId)
+      }
+
       // Update connection references
       if (normalized.params.connections) {
         const normalizedConnections: Record<string, any> = {}

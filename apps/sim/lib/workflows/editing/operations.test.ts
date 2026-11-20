@@ -1775,6 +1775,23 @@ describe('moving an existing block with edit params.parentId', () => {
       }),
     ])
   })
+
+  it('moves a block into a loop the same batch adds, through its normalized id', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflowWithLoop(), [
+      {
+        operation_type: 'add',
+        block_id: 'new-loop',
+        params: { type: 'loop', name: 'New Loop', inputs: { loopType: 'for', iterations: 2 } },
+      },
+      { operation_type: 'edit', block_id: 'fn-1', params: { parentId: 'new-loop' } },
+    ])
+
+    expect(skippedItems).toEqual([])
+    const newLoopId = Object.keys(state.blocks).find((id) => state.blocks[id].name === 'New Loop')
+    expect(newLoopId).toBeDefined()
+    expect(newLoopId).not.toBe('new-loop')
+    expect(state.blocks['fn-1'].data?.parentId).toBe(newLoopId)
+  })
 })
 
 describe('edge cycles', () => {
