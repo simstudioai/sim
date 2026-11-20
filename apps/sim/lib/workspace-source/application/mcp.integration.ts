@@ -139,6 +139,21 @@ function apply(workspaceId: string, files: Record<string, string>, options: Appl
   return runner.apply(workspaceId, { files, ...options })
 }
 
+/** What an apply of `files` would do, as `principal` reads it with the read-role plan. */
+function planAs(
+  principal: Principal,
+  workspaceId: string,
+  files: Record<string, string>,
+  base: ApplyOptions['base']
+) {
+  return withPermissionGroupScope(() =>
+    readWorkspaceSourcePlan.execute({
+      principal,
+      input: { workspaceId, kinds: ['mcp-server', 'workflow'], files, ...(base ? { base } : {}) },
+    })
+  )
+}
+
 function findings(
   diagnostics: ReadonlyArray<{ code: string; severity: string; kind?: string; key?: string }>,
   severity: string
@@ -548,6 +563,27 @@ describe('MCP servers as workspace source', () => {
     }
   )
 
+  check('checks a changed server URL only for a caller who may write the server', async () => {
+    const workspaceId = await newWorkspace()
+    const unresolvable = 'http://mcp-gone.invalid/mcp'
+    await db.insert(mcpServers).values({
+      id: generateMcpServerId(workspaceId, unresolvable),
+      workspaceId,
+      name: 'Gone',
+      transport: 'streamable-http',
+      url: unresolvable,
+    })
+    const read = await runner.get(workspaceId, reader)
+    const [path] = Object.keys(read.files)
+    const requery = { [path]: read.files[path].replace(unresolvable, `${unresolvable}?v=2`) }
+
+    const plan = await planAs(reader, workspaceId, requery, read.base)
+    expect(findings(plan.diagnostics, 'error')).toEqual([
+      `E_APPLY_FORBIDDEN mcp-server:${path.slice(4, -3)}`,
+    ])
+    expect(JSON.stringify(plan.diagnostics)).not.toContain('resolve')
+  })
+
   check(
     'a re-run that adopts a stopped replace carrying stored() headers still needs an admin',
     async () => {
@@ -769,17 +805,8 @@ describe('MCP servers as workspace source', () => {
       expect(read.files[path]).toContain("'X-Tenant': stored()")
 
       const planWith = async (guess: string) => {
-        const plan = await withPermissionGroupScope(() =>
-          readWorkspaceSourcePlan.execute({
-            principal: reader,
-            input: {
-              workspaceId,
-              kinds: ['mcp-server', 'workflow'],
-              files: { [path]: read.files[path].replace('stored()', `'${guess}'`) },
-              base: read.base,
-            },
-          })
-        )
+        const files = { [path]: read.files[path].replace('stored()', `'${guess}'`) }
+        const plan = await planAs(reader, workspaceId, files, read.base)
         return { plan: plan.plan, diagnostics: plan.diagnostics }
       }
       const right = await planWith('acme')
@@ -790,17 +817,7 @@ describe('MCP servers as workspace source', () => {
         `E_APPLY_FORBIDDEN mcp-server:${path.slice(4, -3)}`,
       ])
       // Keeping the value it cannot see stays a no-op.
-      const kept = await withPermissionGroupScope(() =>
-        readWorkspaceSourcePlan.execute({
-          principal: reader,
-          input: {
-            workspaceId,
-            kinds: ['mcp-server', 'workflow'],
-            files: read.files,
-            base: read.base,
-          },
-        })
-      )
+      const kept = await planAs(reader, workspaceId, read.files, read.base)
       expect(kept.plan.map((change) => change.action)).toEqual(['noop'])
     }
   )

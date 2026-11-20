@@ -548,23 +548,23 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
         input: { workspaceId, name: decl.name, url: decl.url },
       })
     }
-    // The URL is checked as the write checks it (allowlist, egress policy, DNS), so a URL the
-    // write would refuse refuses the plan, not the apply after other resources were written.
-    if (decl && (createsServer || change.detail?.changed.includes('url'))) {
-      await assertMcpServerUrlAccepted(decl.url)
-    }
     await authorizeCarriedHeaders(change, ctx)
-    if (!change.storedId) return
-    if (change.action === 'delete' || change.detail?.replace) {
+    if (change.storedId && (change.action === 'delete' || change.detail?.replace)) {
       await deleteMcpServerUseCase.authorize({
         principal,
         input: { workspaceId, serverId: change.storedId },
       })
-    } else if (change.action !== 'create') {
+    } else if (change.storedId && change.action !== 'create') {
       await updateUseCaseOf(change.detail?.changed ?? []).authorize({
         principal,
         input: { workspaceId, serverId: change.storedId },
       })
+    }
+    // The URL is checked as the write checks it (allowlist, egress policy, DNS), so a URL the
+    // write would refuse refuses the plan, not the apply after other resources were written. It
+    // runs last, so only a caller who may write the server learns how its URL fares.
+    if (decl && (createsServer || change.detail?.changed.includes('url'))) {
+      await assertMcpServerUrlAccepted(decl.url)
     }
   },
 
