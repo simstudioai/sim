@@ -50,6 +50,20 @@ describe('gitProvenance', () => {
     expect(await gitProvenance(root)).toEqual({ repo: 'git@github.com:acme/flows.git' })
   })
 
+  it('sends no remote the server would refuse as carrying credentials', async () => {
+    git('init', '-q')
+    git('remote', 'add', 'origin', 'git@github.com:acme/flows.git')
+    for (const remote of [
+      'https:/ghp_x@github.com/acme/flows.git',
+      'deploy:secret@github.com:acme/flows.git',
+      'git@github.com:acme/flows.git#ghp_x',
+    ]) {
+      git('remote', 'set-url', 'origin', remote)
+
+      expect(await gitProvenance(root)).toEqual({})
+    }
+  })
+
   it('sends nothing for a directory outside any repository', async () => {
     expect(await gitProvenance(root)).toEqual({})
   })

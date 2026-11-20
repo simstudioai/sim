@@ -266,6 +266,10 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
       'https://u:pa/ss@github.com/a/b.git',
       'ssh://git:secret@github.com/a/b.git',
       'user:secret@github.com:a/b.git',
+      'https:/ghp_x@github.com/a/b.git',
+      'https:ghp_x@github.com/a/b.git',
+      'https://github.com/a/b.git#ghp_x',
+      'git@github.com:a/b.git#ghp_x',
     ]
     for (const repo of credentialed) {
       const response = await POST(

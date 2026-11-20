@@ -68,21 +68,29 @@ const sourceFilesSchema = z
 
 /**
  * Whether a repository address carries credentials, judged by parsing it rather than matching
- * one shape: a URL (`scheme://…`) that does not parse, holds a query, a password, or any user
- * on an HTTP(S) transport (`git+https://token@…` included); or an scp-style address
- * (`user@host:path`) whose user holds a password. Whitespace and control characters are refused
- * outright, so no padding hides the address from the parser.
+ * one shape: a URL (`scheme://…`) that does not parse, holds a query, a fragment, a password, or
+ * any user on an HTTP(S) transport (`git+https://token@…` included); or any other address holding
+ * a query or fragment, a `scheme:` or `scheme:/` form with a user (`https:/token@host`, which a
+ * URL parser reads as `https://token@host`), or an scp-style address (`user@host:path`) whose
+ * user holds a password. Whitespace and control characters are refused outright, so no padding
+ * hides the address from the parser.
  */
 function carriesCredentials(repo: string): boolean {
   if (/[\s\p{Cc}]/u.test(repo)) return true
-  if (!repo.includes('://')) return repo.includes('?') || /^[^@/]*:[^@/]*@/.test(repo)
+  if (!repo.includes('://')) {
+    return (
+      /[?#]/.test(repo) ||
+      /^[a-z][a-z0-9+.-]*:\/*[^/@]*@/i.test(repo) ||
+      /^[^@/]*:[^@/]*@/.test(repo)
+    )
+  }
   let url: URL
   try {
     url = new URL(repo)
   } catch {
     return true
   }
-  if (url.password !== '' || url.search !== '') return true
+  if (url.password !== '' || url.search !== '' || url.hash !== '') return true
   return url.username !== '' && /(^|\+)https?:$/i.test(url.protocol)
 }
 
