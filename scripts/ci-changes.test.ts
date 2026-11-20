@@ -595,10 +595,10 @@ describe('CI task attribution through real Turborepo', () => {
     expect(plan.fallback).toBeTruthy()
     expect(Object.values(plan.flags).every(Boolean)).toBe(true)
   })
-  it('keeps the implicit CLI embed dependency in HTTP acceptance', () => {
+  it('keeps the implicit CLI embed dependency in every acceptance group that runs the CLI', () => {
     const plan = classifyFiles(['packages/sim-cli/src/embed.ts'])
     expect(plan.fallback).toBeUndefined()
-    expect(groups(plan)).toEqual(['cli'])
+    expect(groups(plan)).toEqual(['cli', 'search-permissions'])
     expect(plan.testPackages).toEqual(['sim'])
     expect(plan.flags).toMatchObject({ e2e_build: true, integration: false, desktop_live: false })
   })
