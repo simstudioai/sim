@@ -56,6 +56,15 @@ import AppKit
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", id: "r1", priority: 3)) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", id: "r1", clearDue: true, due: "2027-05-04")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", completed: true)) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_event", id: "e1")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_event", id: "e1", title: " ")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "find_events", from: "2027-06-01")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "find_events", from: "2027-06-01", to: "2027-08-01")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "find_events", from: "2027-06-09T10:00", to: "2027-06-09T09:00")) }
+        expectError("invalid_arguments") { _ = try checkEventSpan(Date(timeIntervalSince1970: 100), Date(timeIntervalSince1970: 100), allDay: false) }
+        try checkEventSpan(Date(timeIntervalSince1970: 100), Date(timeIntervalSince1970: 100), allDay: true)
+        let timedStart = try eventDate("2027-06-09T07:15", "Start", allDay: false), dayStart = try eventDate("2027-06-09", "Start", allDay: true)
+        precondition(localText(timedStart, allDay: false) == "2027-06-09T07:15:00" && localText(dayStart, allDay: true) == "2027-06-09")
         precondition(dueText(DateComponents(year: 2027, month: 5, day: 4)) == "2027-05-04")
         let padded = String(repeating: "a", count: 7999)
         precondition(bounded(padded + "😀", 8000) == padded && bounded("👍🏽ok", 4) == "👍🏽")
