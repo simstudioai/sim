@@ -2805,7 +2805,7 @@ describe('Function execution request', () => {
 
       const data = await response.json()
       expect(data.output.result).toBe(
-        'Execution memory limit exceeded: a value is 28.0 MB, more than the 16.0 MB limit. Reference a smaller field, or have the blocks that produce it output less.'
+        'Execution memory limit exceeded: the data is 28.0 MB, more than the 16.0 MB limit. Pass a smaller field or file, or have the blocks that produce it output less.'
       )
     })
   })

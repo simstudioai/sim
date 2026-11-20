@@ -21,16 +21,19 @@ const GENERIC_LIMIT_MESSAGE = 'Execution memory limit exceeded. Reduce payload s
 /**
  * A payload refusal names the value's size and the limit, so whoever fixes the workflow
  * (a person or Chat) can see it is a structural problem rather than retrying it. A Redis
- * budget's byte counts describe a write chunk, which means nothing to a user, and a
- * payload size that is only known to exceed the limit (`limit + 1`) is left unstated.
+ * budget's byte counts describe a write chunk, which means nothing to a user. A size
+ * that reads the same as the limit (only known to exceed it, or just over) is left unstated.
  */
 function getResourceLimitMessage(details: ExecutionResourceLimitDetails): string {
   if (details.resource !== 'execution_payload_bytes') return GENERIC_LIMIT_MESSAGE
-  const limit = formatLargeValueSize(details.limitBytes)
-  if (details.attemptedBytes <= details.limitBytes + 1) {
-    return `Execution memory limit exceeded: a value is larger than the ${limit} limit. Reference a smaller field, or have the blocks that produce it output less.`
-  }
-  return `Execution memory limit exceeded: a value is ${formatLargeValueSize(details.attemptedBytes)}, more than the ${limit} limit. Reference a smaller field, or have the blocks that produce it output less.`
+  const limit = formatSize(details.limitBytes)
+  const attempted = formatSize(details.attemptedBytes)
+  const size = attempted === limit ? 'is larger than' : `is ${attempted}, more than`
+  return `Execution memory limit exceeded: the data ${size} the ${limit} limit. Pass a smaller field or file, or have the blocks that produce it output less.`
+}
+
+function formatSize(bytes: number): string {
+  return bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : formatLargeValueSize(bytes)
 }
 
 export class ExecutionResourceLimitError extends Error {
