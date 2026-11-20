@@ -1,6 +1,6 @@
 ---
 description: "Workflows and workspaces as code (workflow source, workspace source, the workflow SDK, the Code tab)"
-globs: ["packages/workflow-code/**","packages/workspace-code/**","packages/workflow-sdk/**","packages/sim-cli/src/commands/protocol/*source*","apps/sim/lib/workflows/code/**","apps/sim/lib/workflows/application/*source*","apps/sim/lib/workspace-source/**","apps/sim/blocks/sdk-names/**","apps/sim/app/workspace/**/panel/components/code/**","apps/sim/app/api/v2/**/source/**","apps/sim/lib/api/contracts/v2/*source*","apps/sim/app/api/cron/cleanup-source-staging/**"]
+globs: ["packages/workflow-code/**","packages/workspace-code/**","packages/workflow-sdk/**","packages/table-cells/**","packages/workflow-persistence/src/save.ts","packages/sim-cli/src/commands/protocol/*source*","packages/sim-cli/src/commands/protocol/source-dir/**","packages/sim-cli/src/commands/protocol/workflow-dir.ts","packages/sim-cli/src/commands/protocol/stored-edges.ts","packages/sim-cli/src/commands/protocol/local-errors.ts","apps/sim/lib/workflows/code/**","apps/sim/lib/workflows/application/*source*","apps/sim/lib/workflows/application/source-pipeline/**","apps/sim/lib/workflows/api/source-*","apps/sim/lib/workspace-source/**","apps/sim/blocks/sdk-names/**","apps/sim/app/workspace/**/panel/components/code/**","apps/sim/app/api/workflows/*/source/**","apps/sim/app/api/v2/**/source/**","apps/sim/lib/api/contracts/workflow-source.ts","apps/sim/lib/api/contracts/v2/*source*","apps/sim/app/api/cron/cleanup-source-staging/**"]
 ---
 
 <!-- Generated from .claude/rules/sim-workflow-code.md by `bun run skills:sync`. Edit the source, not this file. -->
@@ -23,7 +23,7 @@ workspace directory).
 | `packages/workflow-sdk` | Authoring declarations (`src/core.d.ts`, `src/workspace/*.d.ts`), type codegen from the catalog (`src/codegen/`), the cookbook |
 | `packages/sim-cli/src/commands/protocol/` | `workflow-source-*` and `workspace-source-*` commands, which never import each other's command modules; `source-dir/`, `workflow-dir.ts`, `source-check.ts`, `source-write.ts`, `source-tree.ts`, `source-ui.ts` and `workspace-source-dir.ts` (the workspace directory reader a workflow check also reads declarations through) are shared |
 | `apps/sim/lib/workflows/code/` | Server glue: catalog projection from the registry (`catalog/`), source-apply gates (`apply/`), stored canonical form, the feature flag, the proof corpus (`corpus/`) |
-| `apps/sim/lib/workflows/application/*source*` | Workflow source use cases: read, apply, create, catalog, resources |
+| `apps/sim/lib/workflows/application/*source*` | Workflow source use cases: read, apply, create, catalog, resources; `source-pipeline/` holds the one plan → preview/commit flow an apply and a create share |
 | `apps/sim/lib/workspace-source/` | Workspace source use cases (`application/`), one adapter per kind (`application/kinds/<kind>/`), route policies (`api/`) |
 | `apps/sim/blocks/sdk-names/<type>.json` | Frozen SDK builder names, one file per block type |
 | `apps/sim/app/workspace/**/panel/components/code/` | The read-only Code tab |
