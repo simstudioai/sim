@@ -90,7 +90,7 @@ sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --dry
 sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --yes
 ```
 
-Each resource binds by key to the target's own. One the target holds under the same key is updated in place, so a workflow keeps its id and its webhook URLs. A key the target lacks is created. Secrets and credentials bind by name to the target's own, and no value is copied. Resources only the target holds are kept unless you pass `--allow-delete`. The directory is not changed and stays bound to the workspace it was read from. Without `--to`, an apply refuses a directory read from another workspace.
+Each resource binds by key to the target's own. One the target holds under the same key is updated in place, so a workflow keeps its id and its webhook URLs. A key the target lacks is created. Secrets and credentials bind by name to the target's own, and no value is copied. Resources only the target holds are kept unless you pass `--allow-delete`. The directory is not changed and stays bound to the workspace it was read from. Without `--to`, `check`, `status`, `diff` and `apply` act on the workspace the directory was read from, whatever your default workspace; a `--workspace` naming another one is refused.
 
 ## Git and CI
 

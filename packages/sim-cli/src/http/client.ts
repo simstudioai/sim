@@ -799,7 +799,7 @@ export class SimClient {
       const error =
         response.status === 401
           ? new SimApiError(
-              `${refused.message} — run: sim login --profile ${this.profile.authProfile}`,
+              `${refused.message} — ${this.credentialRemedy()}`,
               refused.status,
               refused.code ?? AUTH_REQUIRED_CODE,
               refused.details,
@@ -809,7 +809,7 @@ export class SimClient {
           : refused
       error.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), 300_000)
       if (namesKeyScopeRefusal(error)) {
-        error.message = `${error.message} — this operation does not support workspace API keys; use an OAuth login or personal API key: sim login --profile ${this.profile.authProfile}`
+        error.message = `${error.message} — this operation does not support workspace API keys; use an OAuth login or personal API key: ${this.credentialRemedy()}`
       }
       if (response.status === 429) throw rateLimitedError(error, rateLimitResends)
       throw error
@@ -826,6 +826,20 @@ export class SimClient {
    * endpoint. A `Location` that is missing or unparseable still has to produce a
    * sentence — the redirect is the finding either way.
    */
+  /**
+   * What to do about a credential the server refused, by where it came from: `sim login` replaces
+   * a stored login, but a key from `SIM_API_KEY` or `--api-key` overrides any login, so logging in
+   * again would change nothing.
+   */
+  private credentialRemedy(): string {
+    const login = `sim login --profile ${this.profile.authProfile}`
+    if (this.profile.sources.credential === 'env') {
+      return `the key comes from SIM_API_KEY, which overrides any login: fix it, or unset it and run ${login}`
+    }
+    if (this.profile.sources.credential === 'flag') return 'pass a valid key with --api-key'
+    return `run: ${login}`
+  }
+
   private toRedirectError(url: string, path: string, response: Response): SimApiError {
     const requestId = responseRequestId(response)
     const location = response.headers.get('location')?.trim()

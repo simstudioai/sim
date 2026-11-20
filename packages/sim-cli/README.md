@@ -322,8 +322,11 @@ Success exits 0 and most failures exit 1. Two failures any command can hit have 
 `401` (run `sim login`), and 9 when the API answered `429`. Every `GET`, and the source applies,
 creates and dry runs, are resent up to 6 times first, each wait the longer of `Retry-After` (up to
 60 seconds) and a backoff of about 1 to 30 seconds; any other write exits 9 at once. Before this
-release both exited 1. Command-specific codes:
-[Exit codes](https://docs.sim.ai/cli/scripting#exit-codes).
+release both exited 1. Ctrl-C exits 130; a source apply or create already sent is finished and
+saved into its directory first. The `workflows source` and `workspaces source` commands also use
+5 (stale), 6 (a locked workflow or folder; a locked block exits 1), 7 (too large), 8 (a workspace
+apply stopped part-way), 10 (busy), 11 (status: local changes) and 12 (status: the server
+changed). Command-specific codes: [Exit codes](https://docs.sim.ai/cli/scripting#exit-codes).
 
 ## Workflows and workspaces as code
 
@@ -342,8 +345,8 @@ sim workflows source apply --dir ./support-triage --yes        # save the draft 
 
 `sim workspaces source get|check|status|diff|apply --dir <dir>` does the same for
 tables, knowledge bases, files, custom tools, skills, MCP servers, workflows and
-deployments in one directory. `sim workflows source create --dir <dir>` starts a
-new workflow.
+deployments in one directory. `sim workflows source create --dir <dir> --workspace <id>`
+starts a new workflow in that workspace.
 
 Coding agents (Claude Code, Cursor, Codex) start at `.sim/AGENTS.md`, which `get`
 writes into the directory. The loop is get, edit `workflow.ts`, check, status,

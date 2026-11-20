@@ -3,16 +3,18 @@
  * findings (each with its location, frame and hint), the confirmation prompt, the refusal of a
  * write nobody confirmed, and an API refusal re-thrown with the exit status a script branches on.
  */
-import { createInterface } from 'node:readline/promises'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { type FlatDiagnostic, type RefusalClass, refusalClass } from '@sim/workspace-code'
+import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
+import { askLine } from '#sim-cli/terminal/line-input'
 import type { OutputFormat } from '../../config/index'
-import { embedStore } from '../../embed-context'
+import { embedStore, setSoftExitCode } from '../../embed-context'
 import {
   SOURCE_BUSY_EXIT_CODE,
   SOURCE_LOCKED_EXIT_CODE,
+  SOURCE_PLANNED_EXIT_CODE,
   SOURCE_STALE_EXIT_CODE,
   SOURCE_TOO_LARGE_EXIT_CODE,
 } from '../../exit-codes'
@@ -26,7 +28,7 @@ import { noAnswer, REQUEST_CANCELLED, SimApiError } from '../../http/client'
 type WorkflowDiagnostic = ApplyWorkflowSourceResponse['data']['diagnostics'][number]
 
 /** A workflow finding, or a workspace one: the same fields, over both code vocabularies. */
-type Diagnostic = Omit<WorkflowDiagnostic, 'code'> & {
+export type Diagnostic = Omit<WorkflowDiagnostic, 'code'> & {
   code:
     | WorkflowDiagnostic['code']
     | ApplyWorkspaceSourceResponse['data']['diagnostics'][number]['code']
@@ -74,28 +76,49 @@ function formatDiagnostic(diagnostic: Diagnostic): string {
   return lines.join('\n')
 }
 
+/** How many other locations a collapsed line lists before counting the rest. */
+const COLLAPSED_LOCATIONS = 8
+
+/** Where a finding sits, as its printed line starts with: `file:line:column`, or empty. */
+function locationOf(diagnostic: Diagnostic): string {
+  return formatDiagnostic({ ...diagnostic, frame: undefined, hint: undefined })
+    .split(` ${diagnostic.severity} `)[0]
+    .trim()
+}
+
 /**
- * Prints a write's findings: every error and warning with its location, frame and hint, and each
- * info code folded into one line (a new workflow places every block by autolayout, which is no
- * reason to print a frame per block and bury the warnings).
+ * Prints a write's findings on stderr for a person: every error with its location, frame and
+ * hint; the first warning of each code the same way, and the rest of that code on one line
+ * listing where they are (one fix usually serves them all, and twenty frames of the same warning
+ * buried the errors); each info code folded into one line.
  */
-function printDiagnostics(diagnostics: Diagnostic[]): void {
-  const infos = new Map<string, Diagnostic[]>()
+function printDiagnostics(diagnostics: readonly Diagnostic[]): void {
+  const groups = new Map<string, Diagnostic[]>()
   for (const diagnostic of diagnostics) {
-    if (diagnostic.severity !== 'info') {
+    if (diagnostic.severity === 'error') {
       printError(formatDiagnostic(diagnostic))
       continue
     }
-    const group = infos.get(diagnostic.code)
+    const key = `${diagnostic.severity}:${diagnostic.code}`
+    const group = groups.get(key)
     if (group) group.push(diagnostic)
-    else infos.set(diagnostic.code, [diagnostic])
+    else groups.set(key, [diagnostic])
   }
-  for (const [code, group] of infos) {
-    const [first] = group
+  for (const [first, ...rest] of groups.values()) {
+    if (first.severity === 'info') {
+      printError(
+        rest.length === 0
+          ? formatDiagnostic({ ...first, frame: undefined })
+          : `info ${first.code} on ${rest.length + 1} blocks: ${first.message} (and ${rest.length} more like it)`
+      )
+      continue
+    }
+    printError(formatDiagnostic(first))
+    if (rest.length === 0) continue
+    const listed = rest.slice(0, COLLAPSED_LOCATIONS).map(locationOf).filter(Boolean)
+    const unlisted = rest.length - listed.length
     printError(
-      group.length === 1
-        ? formatDiagnostic({ ...first, frame: undefined })
-        : `info ${code} on ${group.length} blocks: ${first.message} (and ${group.length - 1} more like it)`
+      `  ${rest.length} more ${first.code} like it${listed.length > 0 ? `: ${listed.join(', ')}` : ''}${unlisted > 0 && listed.length > 0 ? `, and ${unlisted} more` : ''}`
     )
   }
 }
@@ -103,16 +126,28 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
 /** A finding in a source command's `--output json` (or `yaml`) result: the frame stays human-only. */
 type ResultDiagnostic = Omit<FlatDiagnostic, 'frame' | 'code'> & { code: Diagnostic['code'] }
 
+/** Whether `format` prints one machine document on stdout rather than lines for a person. */
+function isMachine(format: OutputFormat): boolean {
+  return format === 'json' || format === 'yaml'
+}
+
 /**
  * The `diagnostics` a source command's result carries in a machine format, so the one document on
- * stdout holds every finding; a display format prints them on stderr only.
+ * stdout holds every finding: errors and warnings, and info only with `verbose` (a new workflow
+ * places every block by autolayout, which is no finding to act on). A display format prints them
+ * on stderr only.
  */
-export function resultDiagnostics(
+function resultDiagnostics(
   format: OutputFormat,
-  diagnostics: readonly Diagnostic[]
+  diagnostics: readonly Diagnostic[],
+  verbose = false
 ): { diagnostics?: ResultDiagnostic[] } {
-  if (format !== 'json' && format !== 'yaml') return {}
-  return { diagnostics: diagnostics.map(({ frame: _frame, ...finding }) => finding) }
+  if (!isMachine(format)) return {}
+  return {
+    diagnostics: diagnostics
+      .filter((finding) => verbose || finding.severity !== 'info')
+      .map(({ frame: _frame, ...finding }) => finding),
+  }
 }
 
 function findingKey(diagnostic: Diagnostic): string {
@@ -128,11 +163,64 @@ export function fresh(printed: Set<string>, key: string): boolean {
 }
 
 /**
- * Prints the findings `printed` does not hold yet and records them, so a finding the preview
- * showed is not shown again by the write that follows it.
+ * Where a source command's findings go, chosen once by its output format, so each is shown once:
+ * a display format prints them on stderr as frames (and never in the result), a machine format
+ * only in the one document on stdout (and never as frames, which an agent reading both streams
+ * read twice).
  */
-export function printNewDiagnostics(diagnostics: Diagnostic[], printed: Set<string>): void {
-  printDiagnostics(diagnostics.filter((diagnostic) => fresh(printed, findingKey(diagnostic))))
+export interface FindingsOutput {
+  /** Whether the result is one machine document on stdout. */
+  machine: boolean
+  /**
+   * Prints the findings not printed yet on stderr in a display format, so a finding the preview
+   * showed is not shown again by the write that follows it; nothing in a machine format.
+   */
+  print(diagnostics: readonly Diagnostic[]): void
+  /** The result's `diagnostics` field: see {@link resultDiagnostics}. */
+  result(diagnostics: readonly Diagnostic[]): { diagnostics?: ResultDiagnostic[] }
+}
+
+/** The {@link FindingsOutput} of `format`; `verbose` keeps info findings in a machine result. */
+export function findingsOutput(format: OutputFormat, verbose = false): FindingsOutput {
+  const printed = new Set<string>()
+  const machine = isMachine(format)
+  return {
+    machine,
+    print(diagnostics) {
+      const unseen = diagnostics.filter((diagnostic) => fresh(printed, findingKey(diagnostic)))
+      if (!machine) printDiagnostics(unseen)
+    },
+    result: (diagnostics) => resultDiagnostics(format, diagnostics, verbose),
+  }
+}
+
+/** A resource a source write created, as its result lists it; `id` once it is written. */
+export interface CreatedResource {
+  kind: string
+  key?: string
+  id?: string
+}
+
+/** How many created resources the display line names before counting the rest. */
+const NAMED_CREATED = 5
+
+/** The created resources as one line for a person: `workflow (abc), block start (b-1), …`. */
+export function createdText(created: readonly CreatedResource[]): string {
+  if (created.length === 0) return 'none'
+  const named = created.slice(0, NAMED_CREATED).map(({ kind, key, id }) => {
+    const label = [kind, key].filter((part) => part !== undefined).join(' ')
+    return id === undefined ? label : `${label} (${id})`
+  })
+  const more = created.length - named.length
+  return `${named.join(', ')}${more > 0 ? `, and ${more} more` : ''}`
+}
+
+/** Adds `--verbose` to a source command whose result can carry info findings. */
+export function verboseFlag(command: Command): Command {
+  return command.option(
+    '--verbose',
+    'With --output json, also list info findings (such as blocks placed by autolayout)'
+  )
 }
 
 function isDiagnosticList(value: unknown): value is Diagnostic[] {
@@ -146,13 +234,8 @@ function canPrompt(): boolean {
 
 /** Asks `question` on the terminal; anything but `y` or `yes` is no. */
 export async function confirm(question: string): Promise<boolean> {
-  const prompt = createInterface({ input: process.stdin, output: process.stderr })
-  try {
-    const answer = (await prompt.question(`${question} (y/N) `)).trim().toLowerCase()
-    return answer === 'y' || answer === 'yes'
-  } finally {
-    prompt.close()
-  }
+  const answer = (await askLine(`${question} (y/N) `))?.trim().toLowerCase()
+  return answer === 'y' || answer === 'yes'
 }
 
 /** The exit status of each `409` the server tells apart by `details.code`; any other exits 1. */
@@ -186,6 +269,12 @@ function answerLost(error: SimApiError): boolean {
 }
 
 /**
+ * The server's pointer to the findings in the error document (`See details.diagnostics.`): a
+ * display format prints them instead, so the sentence names a JSON field the reader never sees.
+ */
+const DETAILS_REFERENCE = / See details\.diagnostics\.$/
+
+/**
  * Re-throws an API refusal after printing its diagnostics, so each shows its source line, with
  * the exit status a script branches on. In a machine `format` the error document keeps the
  * refusal's details with each finding as a success result carries it ({@link resultDiagnostics});
@@ -197,7 +286,11 @@ export function printRefusal(error: unknown, format: OutputFormat, ifAnswerLost?
   const details = toRecord(error.details)
   const diagnostics = details.diagnostics
   const printed = isDiagnosticList(diagnostics)
-  if (printed) printDiagnostics(diagnostics)
+  const machine = isMachine(format)
+  if (printed && !machine) printDiagnostics(diagnostics)
+  const message = machine
+    ? error.message
+    : error.message.replace(DETAILS_REFERENCE, printed ? ' Each finding is printed above.' : '')
   const nameTaken = error.status === 409 && details.code === 'SOURCE_NAME_TAKEN'
   const hint = nameTaken
     ? 'Pass --name to create it under another name, or apply to that workflow.'
@@ -205,7 +298,7 @@ export function printRefusal(error: unknown, format: OutputFormat, ifAnswerLost?
       ? ifAnswerLost
       : null
   throw new SimApiError(
-    hint ? `${error.message} ${hint}` : error.message,
+    hint ? `${message} ${hint}` : message,
     error.status,
     error.code,
     printed ? refusalDetails(format, details, diagnostics) : error.details,
@@ -225,19 +318,34 @@ function refusalDetails(
 }
 
 /**
- * A write without `--yes` or `--dry-run` where no terminal can ask: the generic refusal, naming
- * what the write does (`writes the workflow draft`) and its verb (`apply`).
+ * How a source write proceeds: `dry-run` checks only; `write` writes at once (`--yes`); `ask`
+ * previews and asks on a terminal; `plan` (no `--yes` and no terminal to ask) previews, prints the
+ * plan and stops with {@link SOURCE_PLANNED_EXIT_CODE}, so an agent's edit loop sees the plan
+ * without a separate dry run and applies it with `--yes`.
  */
-export function requireConsent(
-  options: { dryRun?: boolean; yes?: boolean },
-  action: string,
-  verb: string
-): void {
-  if (!options.dryRun && !options.yes && !canPrompt()) {
-    throw new SimApiError(
-      `This ${action}. Re-run with --yes to ${verb} it, or with --dry-run to check it without writing.`,
-      0,
-      'CONFIRMATION_REQUIRED'
-    )
+export type WriteMode = 'dry-run' | 'write' | 'ask' | 'plan'
+
+/** The {@link WriteMode} of a write's `--dry-run` and `--yes` flags, here. */
+export function writeMode(options: { dryRun?: boolean; yes?: boolean }): WriteMode {
+  if (options.dryRun) return 'dry-run'
+  if (options.yes) return 'write'
+  return canPrompt() ? 'ask' : 'plan'
+}
+
+/** `value` as one shell word: as it is when it needs no quoting, else single-quoted. */
+export function shellWord(value: string): string {
+  return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`
+}
+
+/** The next step a `plan` run names: the same write with `--yes`. */
+export function planNext(command: string): { command: string; reason: string } {
+  return {
+    command: `${command} --yes`,
+    reason: 'Nothing was written: this is the plan. Run it with --yes to apply it.',
   }
+}
+
+/** Marks a `plan` run that found no errors: nothing was written, applying needs `--yes`. */
+export function stopAtPlan(): void {
+  setSoftExitCode(SOURCE_PLANNED_EXIT_CODE)
 }

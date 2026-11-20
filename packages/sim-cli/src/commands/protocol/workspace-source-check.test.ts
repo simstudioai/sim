@@ -5,7 +5,7 @@ import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { cacheCatalogText } from '../../test/catalog-cache'
-import { contextMockFns } from '../../test/context-mock'
+import { contextMockFns, mockedProfile } from '../../test/context-mock'
 import { attachWorkspaceSourceCheck } from './workspace-source-check'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -53,10 +53,18 @@ function stdoutJson(): Record<string, unknown> {
   return JSON.parse(calls[0].join(' '))
 }
 
-function stderr(): string {
-  return vi
-    .mocked(console.error)
-    .mock.calls.map((call) => call.join(' '))
+/**
+ * The findings of the JSON result on stdout as a person reads them on stderr in a display format
+ * (`file:line:column severity CODE: message`, then its hint): with `--output json` they are
+ * printed only there.
+ */
+function findingLines(): string {
+  const diagnostics = (result().diagnostics ?? []) as Array<Record<string, unknown>>
+  return diagnostics
+    .map(
+      ({ file, line, column, severity, code, message, hint }) =>
+        `${file === undefined ? '' : `${file}:${line}:${column} `}${severity} ${code}: ${message}${hint === undefined ? '' : `\n  hint: ${hint}`}`
+    )
     .join('\n')
 }
 
@@ -77,7 +85,11 @@ beforeEach(() => {
   )
   cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, readFileSync(FIXTURE_CATALOG, 'utf8'))
   vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
-  contextMockFns.mockProfileFrom.mockReturnValue({ workspaceId: 'ws_other', output: 'json' })
+  contextMockFns.mockProfileFrom.mockReturnValue({
+    ...mockedProfile(),
+    workspaceId: 'ws_other',
+    output: 'json',
+  })
   contextMockFns.mockRequest.mockReset()
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -109,10 +121,12 @@ describe('sim workspaces source check', () => {
     await check()
 
     expect(result()).toMatchObject({ errors: 2, workflows: 3 })
-    expect(stderr()).toMatch(
+    expect(findingLines()).toMatch(
       /workflows\/second\/workflow\.ts:5:\d+ error E_MAT_UNKNOWN_RESOURCE: No table "contact"/
     )
-    expect(stderr()).toMatch(/workflows\/third\/workflow\.ts:5:\d+ error W_TABLE_UNKNOWN_COLUMN/)
+    expect(findingLines()).toMatch(
+      /workflows\/third\/workflow\.ts:5:\d+ error W_TABLE_UNKNOWN_COLUMN/
+    )
     expect(process.exitCode).toBe(1)
   })
 
@@ -130,8 +144,8 @@ describe('sim workspaces source check', () => {
 
     await check()
 
-    expect(stderr()).toMatch(/W_TABLE_UNKNOWN_COLUMN: data writes emial/)
-    expect(stderr()).toMatch(/W_TABLE_UNKNOWN_COLUMN: data writes seen/)
+    expect(findingLines()).toMatch(/W_TABLE_UNKNOWN_COLUMN: data writes emial/)
+    expect(findingLines()).toMatch(/W_TABLE_UNKNOWN_COLUMN: data writes seen/)
     expect(process.exitCode).toBe(1)
   })
 

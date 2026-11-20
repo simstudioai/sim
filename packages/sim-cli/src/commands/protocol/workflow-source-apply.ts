@@ -10,34 +10,47 @@ import {
 } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
+import { DEFERRED_INTERRUPT_BOUND_MS, deferInterrupts } from '#sim-cli/terminal/interrupts'
 import { setSoftExitCode } from '../../embed-context'
 import type {
   ApplyWorkflowSourceBody,
   ApplyWorkflowSourceResponse,
   CreateWorkflowFromSourceBody,
+  DeployWorkflowResponse,
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
+  absoluteDirOption,
   FILE_CONCURRENCY,
   lockCodeFiles,
   readSourceText,
+  readStarterWorkspace,
   SOURCE_AGENTS_FILE,
+  SOURCE_STARTER_FILE,
   sourceRelativePath,
+  updateSourceDir,
   WORKSPACE_FOLDER_BUSY_HELP,
   withWorkspaceFolderLock,
   writeBack,
 } from './source-dir'
+import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
 import { cachedCatalogByHash } from './source-tree'
 import {
+  type CreatedResource,
   confirm,
+  createdText,
+  type FindingsOutput,
+  findingsOutput,
   fresh,
-  printNewDiagnostics,
+  planNext,
   printRefusal,
   refusedExitCode,
-  requireConsent,
-  resultDiagnostics,
+  shellWord,
+  stopAtPlan,
+  verboseFlag,
+  writeMode,
 } from './source-ui'
 import { storedEdgesWrite } from './stored-edges'
 import {
@@ -53,15 +66,20 @@ const APPLY_EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
 file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the
 directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry);
-6 the workflow or its folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after
-the CLI's retries, so nothing was written: wait a minute and run it again.`
+6 the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1,
+E_APPLY_LOCKED_BLOCK); 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's
+retries, so nothing was written: wait a minute and run it again; 14 without --yes and with no
+terminal to ask: the plan was printed with no errors and nothing was written (run the same
+command with --yes to apply it).`
 
 const CREATE_EXIT_CODES_HELP = `
 Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each
 printed as file:line:column with its frame and hint), the workflow name is taken
-(SOURCE_NAME_TAKEN: pass --name), or the command failed; 6 the folder is locked; 7 the source
-is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a
-minute and run it again.`
+(SOURCE_NAME_TAKEN: pass --name), or the command failed (a starter is created in the
+workspace its types were written for unless --workspace names another); 6 the folder is locked; 7 the
+source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created:
+wait a minute and run it again; 14 without --yes and with no terminal to ask: the plan was
+printed with no errors and nothing was created (run the same command with --yes).`
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 
@@ -72,13 +90,26 @@ interface SourceWriteOptions {
   dryRun?: boolean
   yes?: boolean
   allowDelete?: boolean
+  verbose?: boolean
+  deploy?: boolean
 }
 
-/** The text of a file the directory must hold, or a refusal that says how to write it. */
+/**
+ * The text of a file the directory must hold, or a refusal that says how to write it: `hint`, or
+ * for a starter no workflow was created from yet, the create that makes it one.
+ */
 async function requireText(directory: string, path: string, hint: string): Promise<string> {
   const text = await readSourceText(directory, path)
-  if (text === null) throw new SimApiError(`${directory} has no ${path}. ${hint}`, 0)
-  return text
+  if (text !== null) return text
+  const starterWorkspace = await readStarterWorkspace(directory)
+  throw new SimApiError(
+    `${directory} has no ${path}. ${
+      starterWorkspace === null
+        ? hint
+        : `It holds a starter no workflow was created from yet: run \`${createCommand(directory, starterWorkspace)} --dry-run\`, then the same with --yes.`
+    }`,
+    0
+  )
 }
 
 async function readJson(directory: string, path: string, hint: string): Promise<unknown> {
@@ -108,14 +139,15 @@ function codeFilePaths(entry: string, lock: WorkflowLockV1 | null): string[] {
 }
 
 /**
- * Prints a write's diagnostics and notes (such as a custom tool the save could not store),
- * skipping any already in `printed` and adding the rest: after a terminal preview, the
+ * Prints a write's diagnostics and, in a display format, its notes (such as a custom tool the
+ * save could not store; a machine result lists them), each once: after a terminal preview, the
  * write it confirmed prints only what the preview did not.
  */
-function printFindings(data: SourceApplyData, printed: Set<string>): void {
-  printNewDiagnostics(data.diagnostics, printed)
+function printFindings(data: SourceApplyData, findings: FindingsOutput, notes: Set<string>): void {
+  findings.print(data.diagnostics)
+  if (findings.machine) return
   for (const note of data.notes) {
-    if (fresh(printed, `note:${note}`)) printError(`note: ${note}`)
+    if (fresh(notes, note)) printError(`note: ${note}`)
   }
 }
 
@@ -179,6 +211,11 @@ export async function readLock(directory: string): Promise<WorkflowLockV1> {
   )
 }
 
+/** The directory's `workflow.ts`, or a refusal naming the command that writes one. */
+export function requireEntry(directory: string): Promise<string> {
+  return requireText(directory, ENTRY_FILE, GET_HINT)
+}
+
 /**
  * The files a write sends: the entry file and the code files it or the lock references. A
  * referenced file that is missing is left out, and the server reports it with its source line.
@@ -187,7 +224,7 @@ export async function readSourceFiles(
   directory: string,
   lock: WorkflowLockV1 | null
 ): Promise<Record<string, string>> {
-  const entry = await requireText(directory, ENTRY_FILE, GET_HINT)
+  const entry = await requireEntry(directory)
   const files: Record<string, string> = { [ENTRY_FILE]: entry }
   const paths = codeFilePaths(entry, lock)
   const texts = await mapWithConcurrency(paths, FILE_CONCURRENCY, (path) =>
@@ -205,13 +242,15 @@ type SourceWriteOperation = 'applyWorkflowSource' | 'createWorkflowFromSource'
 /**
  * The shared write flow of `apply` and `create`: refuse a write without consent when no terminal
  * can ask, preview and ask on a terminal, send, print the diagnostics, and after a successful
- * write save it into the directory with the caller's `save`.
+ * write save it into the directory with the caller's `save`. From the send through the save an
+ * interrupt waits for them ({@link deferInterrupts}), so Ctrl-C never strands a stored write the
+ * directory did not record.
  */
 async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   options: SourceWriteOptions
   creating: boolean
   question: string
-  client: OperationClient<Operation>
+  client: OperationClient<Operation | 'deployWorkflow'>
   operation: Operation
   params: Record<string, string>
   body: ApplyWorkflowSourceBody | CreateWorkflowFromSourceBody
@@ -220,6 +259,8 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   save: (data: SourceApplyData) => Promise<void>
   /** The next step when the write's answer never came back, so it may have been stored. */
   ifAnswerLost: string
+  /** This write as a command, without `--yes`: what a `plan` run names next with it. */
+  command: string
 }): Promise<void> {
   const { options, creating } = args
   /** Sends the write (or its dry run); a refusal prints its diagnostics and rethrows. */
@@ -240,35 +281,146 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       return printRefusal(error, args.output, dryRun ? undefined : args.ifAnswerLost)
     }
   }
-  const printed = new Set<string>()
-  if (!options.dryRun && !options.yes) {
+  const findings = findingsOutput(args.output, options.verbose)
+  const notes = new Set<string>()
+  const report = (data: SourceApplyData, deployment: DeployOutcome = {}) => {
+    const result = { ...summarize(data, creating, findings.machine), ...deployment }
+    printProtocolResult(
+      args.output,
+      { ...result, ...findings.result(data.diagnostics) },
+      {
+        ...(result.created ? { created: createdText(result.created) } : {}),
+        ...(deployment.next ? { next: deployment.next.command } : {}),
+        ...(deployment.deployed
+          ? { deployed: `version ${deployment.deployed.version ?? '?'}` }
+          : {}),
+      }
+    )
+  }
+  const mode = writeMode(options)
+  if (mode === 'ask' || mode === 'plan') {
     const preview = await send(true)
-    printFindings(preview, printed)
+    printFindings(preview, findings, notes)
     if (preview.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
       setSoftExitCode(refusedExitCode(preview.diagnostics))
-      printProtocolResult(args.output, {
-        ...summarize(preview, creating),
-        ...resultDiagnostics(args.output, preview.diagnostics),
-      })
+      report(preview)
       return
     }
     printError(diffSummary(preview))
+    if (mode === 'plan') {
+      stopAtPlan()
+      report(preview, { next: planNext(args.command) })
+      return
+    }
     if (!(await confirm(args.question))) {
       throw new SimApiError('Nothing was applied.', 0, 'CANCELLED')
     }
   }
 
-  const data = await send(options.dryRun === true)
-  printFindings(data, printed)
-  const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
-  if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
+  const verb = creating ? 'create' : 'apply'
+  let refused = false
+  const sendAndSave = async (): Promise<SourceApplyData> => {
+    const data = await send(options.dryRun === true)
+    printFindings(data, findings, notes)
+    refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+    if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
+    if (!data.dryRun && !refused && (data.applied || !creating)) await args.save(data)
+    return data
+  }
+  const data = options.dryRun
+    ? await sendAndSave()
+    : await deferInterrupts(sendAndSave, {
+        waiting: `Interrupted: the ${verb} was already sent. Waiting up to ${DEFERRED_INTERRUPT_BOUND_MS / 1000}s for its answer and saving it into ${options.dir}, so the directory matches the workflow; press Ctrl-C again to stop now.`,
+        abandoned: `Stopped before the ${verb} answered. ${args.ifAnswerLost}`,
+      })
 
-  if (!data.dryRun && !refused && (data.applied || !creating)) await args.save(data)
+  const stored = !data.dryRun && !refused && (data.applied || !creating)
+  if (mode === 'write' && stored) printError(diffSummary(data))
+  report(
+    data,
+    stored
+      ? await deployStep(args.client, data, { ...options, verb, machine: findings.machine })
+      : {}
+  )
+}
 
-  printProtocolResult(args.output, {
-    ...summarize(data, creating),
-    ...resultDiagnostics(args.output, data.diagnostics),
-  })
+/** What a write adds to its result about deploying: the deploy it ran, or the one to run. */
+interface DeployOutcome {
+  deployed?: { version?: number; isDeployed: boolean; warnings?: string[] }
+  needsRedeployment?: boolean
+  next?: { command: string; reason: string }
+}
+
+/**
+ * After a stored write: with `--deploy`, deploys the workflow through the same operation as
+ * `sim workflows deploy` (so the same permission check, on the server); without it, names that
+ * command as the next step when the workflow is deployed and its draft now differs. A failed
+ * deploy says the write itself was saved.
+ */
+async function deployStep(
+  client: OperationClient<'deployWorkflow'>,
+  data: SourceApplyData,
+  options: { deploy?: boolean; dir: string; verb: string; machine: boolean }
+): Promise<DeployOutcome> {
+  const deployCommand = `sim workflows deploy ${data.workflowId}`
+  if (!options.deploy) {
+    if (!data.needsRedeployment) return {}
+    return {
+      next: {
+        command: deployCommand,
+        reason: `The workflow is deployed and its draft now differs from the live version: deploy to make the change live (or ${options.verb} with --deploy).`,
+      },
+    }
+  }
+  const deployed = await client
+    .request<DeployWorkflowResponse>('deployWorkflow', {
+      params: { workflowId: data.workflowId },
+      body: {},
+    })
+    .then(
+      (response) => response.data,
+      (error: unknown) => {
+        throw deployFailure(error, options, deployCommand)
+      }
+    )
+  if (!options.machine) {
+    for (const warning of deployed.warnings) printError(`deploy warning: ${warning}`)
+  }
+  return {
+    deployed: {
+      ...(deployed.version !== undefined ? { version: deployed.version } : {}),
+      isDeployed: deployed.isDeployed,
+      ...(options.machine && deployed.warnings.length > 0 ? { warnings: deployed.warnings } : {}),
+    },
+    needsRedeployment: false,
+  }
+}
+
+/** A failed deploy after a saved write, saying the write itself stands and how to deploy it. */
+function deployFailure(
+  error: unknown,
+  options: { dir: string; verb: string },
+  deployCommand: string
+): unknown {
+  if (!(error instanceof SimApiError)) return error
+  return new SimApiError(
+    `The ${options.verb} was saved into ${options.dir}, but the deploy failed: ${error.message} Fix that, then run \`${deployCommand}\`.`,
+    error.status,
+    error.code,
+    error.details,
+    error.exitCode,
+    error.requestId
+  )
+}
+
+/** Refuses `--deploy` beside `--dry-run`: a dry run stores nothing to deploy. */
+function assertDeployable(options: SourceWriteOptions): void {
+  if (options.deploy && options.dryRun) {
+    throw new SimApiError(
+      '--deploy deploys what the write saves, and --dry-run saves nothing: drop one of them.',
+      0
+    )
+  }
 }
 
 const DIR_DESCRIPTION =
@@ -285,7 +437,12 @@ const DIR_DESCRIPTION =
  * needs `--yes`. `--dry-run` writes nothing, so it never asks.
  */
 export function attachWorkflowSourceApply(source: Command): void {
-  const [command, connectApply] = apiCommand(source, 'apply', ['applyWorkflowSource'])
+  const [command, connectApply] = apiCommand(source, 'apply', [
+    'applyWorkflowSource',
+    'deployWorkflow',
+  ])
+  absoluteDirOption(command)
+  verboseFlag(command)
   command
     .argument(
       '[workflowId]',
@@ -295,15 +452,22 @@ export function attachWorkflowSourceApply(source: Command): void {
     .option('--dry-run', 'Check the source and show the outcome without saving or writing files')
     .option('-y, --yes', 'Apply without asking for confirmation')
     .option(
+      '--deploy',
+      'After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does)'
+    )
+    .option(
       '--allow-delete',
       'Delete blocks the source no longer declares; without it, an apply that deletes a block is refused'
     )
     .allowExcessArguments(false)
     .description('Apply a workflow source directory to a workflow draft')
-    .addHelpText('after', `${APPLY_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}`)
+    .addHelpText(
+      'after',
+      `${APPLY_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}${SOURCE_WRITE_EXIT_CODES_HELP}`
+    )
     .action(async (named: string | undefined, options: SourceWriteOptions) =>
       withWorkspaceFolderLock(options.dir, async () => {
-        requireConsent(options, 'writes the workflow draft', 'apply')
+        assertDeployable(options)
         const { client, profile } = connectApply()
         const lock = await readLock(options.dir)
         const base = await readBase(options.dir, named)
@@ -313,6 +477,7 @@ export function attachWorkflowSourceApply(source: Command): void {
           options,
           creating: false,
           question: `Apply these changes to workflow ${workflowId}?`,
+          command: `sim workflows source apply --dir ${shellWord(options.dir)}${options.allowDelete ? ' --allow-delete' : ''}${options.deploy ? ' --deploy' : ''}`,
           output: profile.output,
           client,
           operation: 'applyWorkflowSource',
@@ -343,7 +508,10 @@ export function attachWorkflowSourceCreate(source: Command): void {
     'createWorkflowFromSource',
     'getSourceCatalog',
     'getSourceResources',
+    'deployWorkflow',
   ])
+  absoluteDirOption(command)
+  verboseFlag(command)
   command
     .requiredOption(
       '--dir <dir>',
@@ -353,9 +521,16 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .option('--name <name>', "The workflow name (default: the source's)")
     .option('--folder <path>', 'The folder to create it in (default: the root)')
     .option('-y, --yes', 'Create without asking for confirmation')
+    .option(
+      '--deploy',
+      'After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does)'
+    )
     .allowExcessArguments(false)
     .description('Create a workflow from a workflow source directory')
-    .addHelpText('after', `${CREATE_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}`)
+    .addHelpText(
+      'after',
+      `${CREATE_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}${SOURCE_WRITE_EXIT_CODES_HELP}`
+    )
     .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) =>
       withWorkspaceFolderLock(options.dir, async () => {
         if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
@@ -366,21 +541,27 @@ export function attachWorkflowSourceCreate(source: Command): void {
             )
           }
           const { client, profile } = connectCreate()
-          const tree = await writeSourceScaffold(client, options.dir, client.requireWorkspace())
+          const workspaceId = client.requireWorkspace()
+          const tree = await writeSourceScaffold(client, options.dir, workspaceId)
           printError(
-            `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, then run \`sim workflows source create --dir ${options.dir} --yes\`.`
+            `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, then run \`${createCommand(options.dir, workspaceId)} --yes\`.`
           )
           printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
           return
         }
-        requireConsent(options, 'creates a workflow', 'create')
+        assertDeployable(options)
         const { client, profile } = connectCreate()
-        const workspaceId = client.requireWorkspace()
+        // A starter is bound to the workspace its types were written for, as a get directory
+        // is to the one it was read from; --workspace still chooses another.
+        const starterWorkspace =
+          profile.sources.workspaceId === 'flag' ? null : await readStarterWorkspace(options.dir)
+        const workspaceId = client.requireWorkspace(starterWorkspace ?? undefined)
         const files = await readSourceFiles(options.dir, null)
         await runSourceWrite<'createWorkflowFromSource'>({
           options,
           creating: true,
           question: 'Create this workflow?',
+          command: `${createCommand(shellWord(options.dir), workspaceId)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${options.deploy ? ' --deploy' : ''}`,
           output: profile.output,
           client,
           operation: 'createWorkflowFromSource',
@@ -388,6 +569,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
           ifAnswerLost: `It may have been created. Run this command again: a SOURCE_NAME_TAKEN refusal means it was, so find its id with \`sim workflows list\` and run \`sim workflows source get <workflowId> --dir ${options.dir} --force\`.`,
           save: async (data) => {
             await writeSourceDirectory(client, options.dir, data, [])
+            await updateSourceDir(options.dir, { write: [], remove: [SOURCE_STARTER_FILE] })
           },
           body: {
             files,
@@ -400,14 +582,40 @@ export function attachWorkflowSourceCreate(source: Command): void {
     )
 }
 
-/** A create that did not apply stored nothing, so its provisional workflow id names no workflow. */
-function summarize(data: SourceApplyData, created: boolean) {
+/** The create command for `dir` in `workspaceId`, as the next step a starter prints. */
+function createCommand(dir: string, workspaceId: string): string {
+  return `sim workflows source create --dir ${dir} --workspace ${workspaceId}`
+}
+
+/**
+ * What a write created (on a dry run, would create; ids are only known once it is written): the
+ * workflow of a create, then each block added.
+ */
+function createdResources(data: SourceApplyData, creating: boolean): CreatedResource[] {
+  const written = !data.dryRun && data.applied
+  return [
+    ...(creating ? [{ kind: 'workflow', ...(written ? { id: data.workflowId } : {}) }] : []),
+    ...data.diff.blocks.added.map(({ key, id }) => ({
+      kind: 'block',
+      key,
+      ...(written ? { id } : {}),
+    })),
+  ]
+}
+
+/**
+ * The result of a write. A create that did not apply stored nothing, so its provisional workflow
+ * id names no workflow. Notes are listed in a `machine` result, and counted in a display one,
+ * which prints them on stderr.
+ */
+function summarize(data: SourceApplyData, creating: boolean, machine: boolean) {
+  const created = data.dryRun || data.applied ? createdResources(data, creating) : []
   return {
-    ...(created && !data.applied ? {} : { workflowId: data.workflowId }),
-    ...(created ? { created: data.applied } : {}),
+    ...(creating && !data.applied ? {} : { workflowId: data.workflowId }),
     applied: data.applied,
     dryRun: data.dryRun,
     noop: data.diff.noop,
+    ...(created.length > 0 ? { created } : {}),
     blocksAdded: data.diff.blocks.added.length,
     blocksRemoved: data.diff.blocks.removed.length,
     blocksModified: data.diff.blocks.modified.length,
@@ -418,9 +626,9 @@ function summarize(data: SourceApplyData, created: boolean) {
     edgesRemoved: data.diff.edges.removed,
     errors: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
     warnings: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
-    notes: data.notes.length,
+    notes: machine ? data.notes : data.notes.length,
     fingerprint: data.base.fingerprint,
     needsRedeployment: data.needsRedeployment,
-    ...(created && data.applied && !data.dryRun ? { guide: SOURCE_AGENTS_FILE } : {}),
+    ...(creating && data.applied && !data.dryRun ? { guide: SOURCE_AGENTS_FILE } : {}),
   }
 }

@@ -3,7 +3,7 @@ import type { BlockCatalog, CatalogBlock } from './catalog/types'
 import { compileWorkflow } from './compile'
 import { TEST_CATALOG } from './compile/catalog.test-helpers'
 import { refValueKind, valueTree } from './json-fields'
-import type { CanonicalBlock } from './model'
+import type { CanonicalBlock, CanonicalWorkflow } from './model'
 
 const IMPORTS = "import { agent, api, raw, table, trigger, workflow } from '@sim/workflow-sdk'"
 
@@ -140,5 +140,75 @@ describe('refValueKind for a block acting as a trigger', () => {
     const block = stored({ selectedTriggerId: { kind: 'value', value: 'service_a' } })
     expect(kind('<svc.payload>', block)).toBe('string')
     expect(kind('<svc.status>', block)).toBe('untyped')
+  })
+})
+
+describe('W_JSON_REF_UNTYPED on a Function block output', () => {
+  const FN_IMPORTS = "import { api, fn, trigger, workflow } from '@sim/workflow-sdk'"
+
+  /** Compiles a Function block with `code` whose result `field` a JSON body uses bare. */
+  function compile(code: string, field: string, stored?: CanonicalWorkflow) {
+    const text = `// @sim-sdk 1\n${FN_IMPORTS}\n\nexport default workflow('Test', {}, () => {
+  const start = trigger.start('Start')
+  const score = fn('Score', { code: ${JSON.stringify(code)} })
+  const next = api('Next', { url: 'https://x', body: { v: score.result.${field} } })
+  start.to(score)
+  score.to(next)
+})\n`
+    return compileWorkflow({
+      entry: { path: 'workflow.ts', text },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      ...(stored ? { stored } : {}),
+    })
+  }
+
+  function untyped(code: string, field: string, stored?: CanonicalWorkflow) {
+    return compile(code, field, stored).diagnostics.filter((d) => d.code === 'W_JSON_REF_UNTYPED')
+  }
+
+  it('stays quiet on a field the code returns as a number, boolean, array or object literal', () => {
+    const code = [
+      'const items = $ref.start.items || []',
+      'const tax = Math.round(items.length * 10) / 100',
+      'let score = $ref.start.total > 2000 ? 90 : 20',
+      "if ($ref.start.tier === 'new') score += 10",
+      'return { tax, score, ok: score >= 70, count: items.length, list: items.map((i) => i.sku), meta: {} }',
+    ].join('\n')
+    for (const field of ['tax', 'score', 'ok', 'count', 'list', 'meta']) {
+      expect(untyped(code, field), field).toEqual([])
+    }
+  })
+
+  it('keeps the warning on a field returned as text, which stored bare breaks the JSON', () => {
+    const code = "return { tier: 'gold', label: String(1) + 'x' }"
+    expect(untyped(code, 'tier')).toHaveLength(1)
+    expect(untyped(code, 'label')).toHaveLength(1)
+  })
+
+  it('keeps the warning when nothing certain says what the field holds', () => {
+    // A reference, a variable reassigned to text, a field only one return sets, a non-literal
+    // return, and a spread that may replace the field.
+    expect(untyped('return { v: $ref.start.v }', 'v')).toHaveLength(1)
+    expect(untyped("let v = 1\nif ($ref.start.x) v = 'one'\nreturn { v }", 'v')).toHaveLength(1)
+    expect(untyped('if ($ref.start.x) return { v: 1 }\nreturn { w: 2 }', 'v')).toHaveLength(1)
+    expect(untyped('if ($ref.start.x) return { v: 1 }\nreturn $ref.start.o', 'v')).toHaveLength(1)
+    expect(untyped('return { v: 1, ...$ref.start.o }', 'v')).toHaveLength(1)
+    expect(untyped('return { v: 1 ', 'v')).toHaveLength(1)
+  })
+
+  it('reads only the returns of the body, not those of a callback inside it', () => {
+    const code = "const f = (x) => { return { v: 'text' } }\nreturn { v: f(1).length }"
+    expect(untyped(code, 'v')).toEqual([])
+  })
+
+  it('on an apply, warns only on a JSON field the source changed from the stored workflow', () => {
+    const code = 'return { v: $ref.start.v, w: $ref.start.w }'
+    const printed = compile(code, 'v').workflow
+    if (!printed) throw new Error('the source did not compile')
+
+    expect(untyped(code, 'v', printed)).toEqual([])
+    expect(untyped(code, 'w', printed)).toHaveLength(1)
   })
 })

@@ -24,13 +24,14 @@ import type {
   PortKey,
   VarKey,
 } from '../model'
-import { setOwn } from '../records'
+import { getOwn, setOwn } from '../records'
 import { OLDEST_SDK_MAJOR, SDK_MODULE } from '../sdk'
 import { compileBlock } from './blocks'
 import { checkStorableLiterals, checkStorableText } from './characters'
 import { CommentCollector } from './comments'
 import { type CompileContext, rangeOf, recordSpan, type Scope, unsupported } from './context'
 import { EdgeCollector } from './edges'
+import { referencedResultKind } from './function-returns'
 import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
 import { ErrorLimitReached, Reporter } from './report'
@@ -416,6 +417,22 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
 const BYTE_ORDER_MARK = '\uFEFF'
 
 /**
+ * Whether the stored workflow holds `value` in `param` of block `key` already: a JSON field the
+ * source left as it was printed, whose untyped references the edit did not write, so
+ * `W_JSON_REF_UNTYPED` is not repeated on every apply of a workflow it was saved with.
+ */
+function storedHolds(
+  stored: CanonicalWorkflow | undefined,
+  key: BlockKey,
+  param: string,
+  value: string
+): boolean {
+  const held = stored && getOwn(stored.blocks, key)
+  const storedParam = held ? getOwn(held.params, param) : undefined
+  return storedParam?.kind === 'value' && storedParam.value === value
+}
+
+/**
  * Statically interprets a workflow source file into the canonical model. Pass 1 collects
  * imports and every block declaration, nested bodies included; pass 2 evaluates values,
  * references, branches and wiring against the catalog. Nothing in the file is executed: values are
@@ -624,9 +641,12 @@ function compileEntry(
   }
   const isString = (token: string) => refValueKind(token, refTypes) === 'string'
   for (const { params, id, tree, refs } of ctx.jsonFields) {
-    setOwn(params, id, { kind: 'value', value: jsonFieldText(tree, isString) })
+    const value = jsonFieldText(tree, isString)
+    setOwn(params, id, { kind: 'value', value })
     for (const ref of refs) {
       if (refValueKind(ref.token, refTypes) !== 'untyped') continue
+      if (referencedResultKind(ref.token, refTypes.block) === 'typed') continue
+      if (storedHolds(input.stored, ref.blockKey, id, value)) continue
       reporter.report(
         'W_JSON_REF_UNTYPED',
         `Nothing declares the type of ${ref.token}; it is stored bare, so a string value would break the JSON.`,

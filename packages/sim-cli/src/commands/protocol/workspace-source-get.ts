@@ -22,7 +22,9 @@ import { apiCommand } from '../../runtime/called-operations'
 import { removeStagingOnSignal } from './files-get'
 import { printProtocolResult } from './result'
 import {
+  absoluteDirOption,
   checkedPath,
+  directoryWorkspace,
   editedFiles,
   FILE_CONCURRENCY,
   readSourceJson,
@@ -342,29 +344,6 @@ async function keepDownloads(
 }
 
 /**
- * The workspace a get writes `dir` from. A directory whose base was read from a workspace stays
- * that workspace's: a get refreshes it, whatever the profile's default, so a refresh never
- * rewrites it into another workspace. A `--workspace` naming another one is refused (get into
- * another directory, or promote with `apply --to`). A directory without a base takes `profile`.
- */
-async function directoryWorkspace(
-  dir: string,
-  profile: string,
-  explicit: boolean
-): Promise<string> {
-  // Read as leniently as an apply reads it: a base the parser refuses still names its workspace.
-  const recorded = toRecord(await readSourceJson(dir, WORKSPACE_BASE_FILE)).workspaceId
-  const readFrom = typeof recorded === 'string' ? recorded : null
-  if (readFrom === null || readFrom === profile) return profile
-  if (!explicit) return readFrom
-  throw new SimApiError(
-    `${dir} was read from workspace ${readFrom}, but --workspace names ${profile}. Get ${profile} into another directory, or run the get without --workspace to refresh ${readFrom}; to apply this directory to ${profile}, use \`sim workspaces source apply --to ${profile}\`.`,
-    0,
-    'SOURCE_OTHER_WORKSPACE'
-  )
-}
-
-/**
  * `sim workspaces source get --dir <dir> [--only kinds]`: writes the workspace as a source
  * directory: `tables/`, `tools/`, `skills/`, `knowledge/`, `files/` and `workflows/<key>/` (each a
  * workflow source directory), the base, and the SDK declarations once at the root, so
@@ -378,6 +357,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
     'downloadFile',
     'downloadKnowledgeDocument',
   ])
+  absoluteDirOption(command)
   command
     .requiredOption('--dir <dir>', 'Directory to write the workspace source into')
     .option('--only <kinds>', `Read only these kinds (${ONLY_KINDS_HELP})`)
@@ -389,10 +369,18 @@ export function attachWorkspaceSourceGet(source: Command): void {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
       await withSourceDirLock(options.dir, async () => {
-        const workspaceId = await directoryWorkspace(
-          options.dir,
-          client.requireWorkspace(),
-          profile.sources.workspaceId === 'flag'
+        // Read as leniently as an apply reads it: a base the parser refuses still names its workspace.
+        const recorded = toRecord(
+          await readSourceJson(options.dir, WORKSPACE_BASE_FILE)
+        ).workspaceId
+        const workspaceId = client.requireWorkspace(
+          directoryWorkspace(
+            options.dir,
+            typeof recorded === 'string' ? recorded : null,
+            profile,
+            (readFrom, named) =>
+              `Get ${named} into another directory, or run the get without --workspace to refresh ${readFrom}; to apply this directory to ${named}, use \`sim workspaces source apply --to ${named}\`.`
+          ) ?? undefined
         )
         const { data } = await client
           .request<GetWorkspaceSourceResponse>('getWorkspaceSource', {

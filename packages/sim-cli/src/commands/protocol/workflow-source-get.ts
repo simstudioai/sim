@@ -13,17 +13,20 @@ import { callsOperations, type OperationClient } from '../../runtime/called-oper
 import { buildRequest } from '../../runtime/request'
 import { printProtocolResult } from './result'
 import {
+  absoluteDirOption,
   assertPrintedSourcePaths,
   locallyEditedFiles,
   readPreviousLock,
   readSourceJson,
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_EXAMPLES_DIR,
+  SOURCE_STARTER_FILE,
   updateSourceDir,
   WORKSPACE_FOLDER_BUSY_HELP,
   withWorkspaceFolderLock,
   writeBack,
 } from './source-dir'
+import { sourceExitCodesTable } from './source-exit-codes'
 import {
   assertSdkMajor,
   finishTree,
@@ -82,16 +85,16 @@ This directory is a Sim workflow written as TypeScript. The server compiles \`${
 
 1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`).
 2. \`sim workflows source check --dir .\`: compiles offline with the server's compiler, in milliseconds. It catches what \`tsc\` cannot (duplicate names, cycles, literal secrets), and fails (exit 1) on a missing required field, an unknown option or output path, a wrong value kind, an out-of-range value, an unwired condition or router branch or a literal secret in a block you added (\`--strict\`: in every block). It also adds the blocks the source now uses to \`tsconfig.json\`. Fix and rerun until it exits 0.
-3. \`${typecheckCommand()}\` type-checks with the TypeScript release the declarations are built for (the directory has no \`package.json\`; plain \`bunx tsc\` would run whatever version it finds). \`tsconfig.json\` includes only the blocks the source used at the last check, get or apply, which keeps it fast: a builder from another block fails with \`has no exported member\` until you run step 2 (or check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). The dry run is the authority: a printed line you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
+3. Run \`${typecheckCommand()}\` after every edit, before any dry run or apply, and fix what it reports: it takes about a second and catches what step 2 and the dry run do not (such as a reference to a start input the trigger does not declare). It type-checks with the TypeScript release the declarations are built for (the directory has no \`package.json\`; plain \`bunx tsc\` would run whatever version it finds). \`tsconfig.json\` includes only the blocks the source used at the last check, get or apply, which keeps it fast: a builder from another block fails with \`has no exported member\` until you run step 2 (or check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). The dry run is the authority: a printed line you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
 4. \`sim workflows source status --dir .\` before applying: the files you changed (\`sim workflows source diff --dir .\` shows the edits), whether the workflow changed on the server since the get, and the command to run next. Exit 0 nothing changed, 11 only your edits, 12 the server changed it since (\`--offline\`: skip the server). Then \`sim workflows source apply --dir . --dry-run\`: fix every error it prints, rerun until it exits 0.
-5. \`sim workflows source apply --dir . --yes\`: saves the draft (never deploys). It then rewrites \`${SOURCE_ENTRY_FILE}\` in canonical form (order, quoting, defaults left out), so read the file again before the next edit rather than editing from memory.
+5. \`sim workflows source apply --dir . --yes\`: saves the draft, refusing errors, block deletions without \`--allow-delete\` and a stale directory, so it needs no separate dry run (without \`--yes\` and a terminal it prints the plan and exits 14). \`--deploy\` also deploys it; without it, a deployed workflow's next \`sim workflows deploy <id>\` is printed. It then rewrites \`${SOURCE_ENTRY_FILE}\` in canonical form (order, quoting, defaults left out), so read the file again before the next edit rather than editing from memory.
 6. Exit 5 (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`. Exit 5 right after an apply that ended without an answer (a timeout, a dropped connection) means the draft changed, by that apply or by someone else: get into a fresh directory and compare it with this one. Only when it holds your edit, run \`sim workflows source get <workflowId> --dir . --force\`; otherwise reapply your edit in the fresh directory.
 
 An apply that deletes blocks (a declaration removed from \`${SOURCE_ENTRY_FILE}\`) is refused with \`E_APPLY_BLOCK_DELETE\` naming them; pass \`--allow-delete\` when the deletion is intended. Editing the \`workflow('…')\` name or description renames or redescribes the workflow; a name another workflow in its folder holds is refused with \`E_NAME_TAKEN\`.
 
 Lines starting \`note:\` explain something the write did differently than the source says; read them.
 
-A new workflow: \`sim workflows source create --dir <new dir>\` (without \`--dry-run\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, these types, \`tsconfig.json\` and this guide, and creates nothing. Until the workflow exists there is no \`${SOURCE_BASE_FILE}\`, so \`status\`, \`diff\` and \`apply\` refuse the directory: edit the starter, run step 2 and 3, then \`sim workflows source create --dir <dir> --dry-run\` and \`sim workflows source create --dir <dir> --yes\`: it prints the new workflow id and writes the lock files. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`. To fork a workflow, copy its directory, delete the copy's \`.sim/\` and run \`sim workflows source create --dir <copy> --name <new name> --yes\`.
+A new workflow: \`sim workflows source create --dir <new dir> --workspace <workspaceId>\` (without \`--dry-run\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, the types of that workspace, \`tsconfig.json\` and this guide, records the workspace in \`${SOURCE_STARTER_FILE}\`, and creates nothing. Until the workflow exists there is no \`${SOURCE_BASE_FILE}\`, so \`status\`, \`diff\` and \`apply\` refuse the directory: edit the starter, run step 2 and 3, then \`sim workflows source create --dir <dir> --workspace <workspaceId> --dry-run\` and the same with \`--yes\` (the starter prints both with its workspace filled in): it prints the new workflow id and writes the lock files. A create goes to the starter's workspace whatever the profile's default, unless \`--workspace\` names another. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`. To fork a workflow, copy its directory, delete the copy's \`.sim/\` and run \`sim workflows source create --dir <copy> --workspace <workspaceId> --name <new name> --yes\`.
 
 ## File shape
 
@@ -118,7 +121,9 @@ The \`// @sim-sdk 1\` header must be the first line, and the file has exactly on
 
 ## Diagnostics and exit codes
 
-Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. \`check\` prints the \`W_*\` codes step 2 lists as \`error\` on a block you added, since they fail it there; the apply still saves them as warnings. Exit 0 applied, 1 source errors (or a name another workflow holds), 5 stale, 6 workflow locked, 7 source too large (on a get too), 9 rate limited (HTTP 429) after the CLI's retries (up to 6, at most a minute apart): nothing was written, so wait a minute and run the same command again; 13 not logged in (\`AUTH_REQUIRED\`): run \`sim login\`, then the command again.
+Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. \`check\` prints the \`W_*\` codes step 2 lists as \`error\` on a block you added, since they fail it there; the apply still saves them as warnings. Exit codes of every \`workflows source\` command:
+
+${sourceExitCodesTable('sim workflows source')}
 
 ## Rules
 
@@ -187,7 +192,8 @@ export default workflow('New workflow', { description: 'Describe what this workf
 /**
  * Starts a new source directory: a starter `workflow.ts` plus the tree a get writes (the
  * declarations for the workspace catalog and its resources, `tsconfig.json`, the agent guide),
- * with no lock or base, since no workflow exists yet. Only for a directory with no `workflow.ts`.
+ * with no lock or base, since no workflow exists yet, and {@link SOURCE_STARTER_FILE} naming the
+ * workspace those declarations are for. Only for a directory with no `workflow.ts`.
  */
 export async function writeSourceScaffold(
   client: OperationClient<'getSourceCatalog' | 'getSourceResources'>,
@@ -202,7 +208,11 @@ export async function writeSourceScaffold(
   const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKFLOW_TREE, {
     sources: [STARTER_SOURCE],
   })
-  const write = [[SOURCE_ENTRY_FILE, STARTER_SOURCE] as const, ...tree.change.write]
+  const write = [
+    [SOURCE_ENTRY_FILE, STARTER_SOURCE] as const,
+    [SOURCE_STARTER_FILE, `${JSON.stringify({ workspaceId }, null, 2)}\n`] as const,
+    ...tree.change.write,
+  ]
   await updateSourceDir(dir, { ...tree.change, write })
   return finishTree(dir, write.length, workspaceTypes, tree.ownsTsconfig)
 }
@@ -316,6 +326,7 @@ export function attachWorkflowSourceGet(source: Command): void {
     `--${FORCE_FLAG}`,
     "With --dir: replace another workflow's source or edits no apply has saved"
   )
+  absoluteDirOption(get)
   get.addHelpText('after', `${GET_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}`)
   get.action(async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
     const flags = command.optsWithGlobals() as Record<string, unknown>

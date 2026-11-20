@@ -16,10 +16,23 @@ export const contextMockState: {
   workspaceSource: 'config',
 }
 
+/** The resolved profile `clientFrom` and `profileFrom` return, built from {@link contextMockState}. */
+export function mockedProfile() {
+  return {
+    workspaceId: contextMockState.workspaceId,
+    output: contextMockState.output,
+    name: 'default',
+    authProfile: 'default',
+    apiKey: 'k',
+    endpoint: 'https://sim.example',
+    sources: { workspaceId: contextMockState.workspaceSource },
+  }
+}
+
 /**
  * The `SimClient` methods protocol commands call, plus the context entry
  * points. Non-bare defaults: `mockRequireWorkspace` returns
- * `contextMockState.workspaceId`; `mockClientFrom` returns
+ * the workspace it is given, else `contextMockState.workspaceId`; `mockClientFrom` returns
  * `{ client: { request, requestRaw, requireWorkspace }, profile }` with the
  * profile built from {@link contextMockState} (name `default`, api key `k`,
  * endpoint `https://sim.example`).
@@ -27,24 +40,16 @@ export const contextMockState: {
 export const contextMockFns = {
   mockRequest: vi.fn(),
   mockRequestRaw: vi.fn(),
-  mockRequireWorkspace: vi.fn(() => contextMockState.workspaceId),
+  mockRequireWorkspace: vi.fn((explicit?: string) => explicit ?? contextMockState.workspaceId),
   mockGlobalsOf: vi.fn(),
-  mockProfileFrom: vi.fn(),
+  mockProfileFrom: vi.fn(mockedProfile),
   mockClientFrom: vi.fn(() => ({
     client: {
       request: contextMockFns.mockRequest,
       requestRaw: contextMockFns.mockRequestRaw,
       requireWorkspace: contextMockFns.mockRequireWorkspace,
     },
-    profile: {
-      workspaceId: contextMockState.workspaceId,
-      output: contextMockState.output,
-      name: 'default',
-      authProfile: 'default',
-      apiKey: 'k',
-      endpoint: 'https://sim.example',
-      sources: { workspaceId: contextMockState.workspaceSource },
-    },
+    profile: mockedProfile(),
   })),
 }
 

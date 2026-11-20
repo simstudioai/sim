@@ -23,7 +23,14 @@ import { profileFrom } from '../../context'
 import { setSoftExitCode } from '../../embed-context'
 import { SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
-import { readSourceJson, readSourceText, workspaceFolderOf } from './source-dir'
+import {
+  absoluteDirOption,
+  directoryWorkspace,
+  readSourceJson,
+  readSourceText,
+  readStarterWorkspace,
+  workspaceFolderOf,
+} from './source-dir'
 import {
   cachedCatalog,
   cachedSourceCatalog,
@@ -31,9 +38,9 @@ import {
   refreshTsconfigs,
   refreshWorkspaceTypes,
 } from './source-tree'
-import { printNewDiagnostics, resultDiagnostics } from './source-ui'
+import { type Diagnostic, findingsOutput, verboseFlag } from './source-ui'
 import { readStoredEdges } from './stored-edges'
-import { readSourceFiles } from './workflow-source-apply'
+import { readSourceFiles, requireEntry } from './workflow-source-apply'
 import { WORKFLOW_TREE } from './workflow-source-get'
 import {
   kindFolders,
@@ -73,6 +80,14 @@ const STRICT_CODES: ReadonlySet<string> = new Set([
 const STORED_EXEMPT_CODES: ReadonlySet<string> = new Set(['W_BRANCH_UNWIRED'])
 
 /**
+ * Warnings a check reports only on a block the lock does not bind (one added since the get), and
+ * on every block with `--strict`: printed source holds them on blocks nobody edited, and the
+ * server, which compares with the stored workflow, already reports them only for an edited field.
+ * `W_JSON_REF_UNTYPED`: a bare reference nothing types, in a JSON field.
+ */
+const EDIT_SCOPED_CODES: ReadonlySet<string> = new Set(['W_JSON_REF_UNTYPED'])
+
+/**
  * Which {@link STRICT_CODES} warnings fail a check: `new` those on a block the lock does not bind
  * (one added since the get, or every block of a workflow that has no lock yet), `all` every one,
  * `off` none. Printed source can hold such a warning on a block nobody edited (a field left empty
@@ -87,7 +102,7 @@ type StrictMode = 'new' | 'all' | 'off'
 const KEPT_AS_WRITTEN = /[;,] (?:it|the value|the text) is kept as written\.$/
 
 /** One finding of a check, as the write commands print theirs. */
-export type CheckFinding = Parameters<typeof printNewDiagnostics>[0][number]
+export type CheckFinding = Diagnostic
 
 /** The `--strict` / `--no-strict` pair: absent selects the default, {@link StrictMode} `new`. */
 export interface StrictOptions {
@@ -110,7 +125,8 @@ does not bind (a block added since the get, or every block of a new workflow):
 ${[...STRICT_CODES].map((code) => `  ${code}`).join(',\n')}.
 --strict fails on them in every block, except ${[...STORED_EXEMPT_CODES].join(', ')} on a block the
 lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict never
-fails on a warning.`
+fails on a warning. ${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not
+bind, and with --strict on every block.`
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
 export function strictFlags(command: Command): Command {
@@ -467,8 +483,11 @@ export async function checkWorkflowDir(
     !(STORED_EXEMPT_CODES.has(code) && bound(blockKey)) &&
     (options.strict === 'all' || (options.strict === 'new' && !bound(blockKey)))
   const prefix = options.prefix ?? ''
+  const reported = (code: string, blockKey: string | undefined) =>
+    !SERVER_ONLY_CODES.has(code) &&
+    !(EDIT_SCOPED_CODES.has(code) && options.strict !== 'all' && bound(blockKey))
   const findings = [
-    ...compiled.diagnostics.filter((diagnostic) => !SERVER_ONLY_CODES.has(diagnostic.code)),
+    ...compiled.diagnostics.filter((diagnostic) => reported(diagnostic.code, diagnostic.blockKey)),
     ...declared,
   ].map(({ code, severity, message, hint, frame, span, blockKey }): CheckFinding => {
     const raised = severity === 'warning' && fails(code, blockKey)
@@ -484,13 +503,18 @@ export async function checkWorkflowDir(
   return { findings, entry: entryText }
 }
 
-/** Prints a check's findings and result, and exits 1 on any error. */
+/**
+ * Prints a check's findings and result, and exits 1 on any error. `verbose` keeps info findings in
+ * a machine result.
+ */
 export function reportCheck(
   output: Parameters<typeof printProtocolResult>[0],
   findings: CheckFinding[],
-  result: Record<string, unknown>
+  result: Record<string, unknown>,
+  verbose = false
 ): void {
-  printNewDiagnostics(findings, new Set())
+  const shown = findingsOutput(output, verbose)
+  shown.print(findings)
   const errors = findings.filter((finding) => finding.severity === 'error').length
   if (errors > 0) setSoftExitCode(1)
   printProtocolResult(output, {
@@ -498,7 +522,7 @@ export function reportCheck(
     errors,
     warnings: findings.filter((finding) => finding.severity === 'warning').length,
     ...result,
-    ...resultDiagnostics(output, findings),
+    ...shown.result(findings),
   })
 }
 
@@ -527,70 +551,86 @@ export function requireCachedCatalog(workspaceId: string, get: string): BlockCat
  * milliseconds and without the network. The dry run stays the authority.
  */
 export function attachWorkflowSourceCheck(source: Command): void {
-  strictFlags(
-    source
-      .command('check')
-      .option('--dir <dir>', 'Source directory: workflow.ts, functions/* and .sim/', '.')
+  verboseFlag(
+    strictFlags(
+      absoluteDirOption(source.command('check')).option(
+        '--dir <dir>',
+        'Source directory: workflow.ts, functions/* and .sim/',
+        '.'
+      )
+    )
   )
     .allowExcessArguments(false)
     .description('Compile a workflow source directory locally, without the server')
     .addHelpText('after', CHECK_HELP)
-    .action(async (options: { dir: string } & StrictOptions, command: Command) => {
-      const profile = profileFrom(command)
-      const base = toRecord(await readSourceJson(options.dir, SOURCE_BASE_FILE))
-      if (
-        typeof base.workspaceId === 'string' &&
-        base.workflowId === undefined &&
-        (await readSourceText(options.dir, SOURCE_ENTRY_FILE)) === null
-      ) {
-        throw new SimApiError(
-          `${options.dir} is a workspace source directory: check it with \`sim workspaces source check --dir ${options.dir}\`.`,
-          0
-        )
-      }
-      const workspace = await workspaceFolderOf(options.dir)
-      const workspaceId =
-        typeof base.workspaceId === 'string'
-          ? base.workspaceId
-          : (workspace?.workspaceId ?? profile.workspaceId)
-      if (!workspaceId) {
-        throw new SimApiError(
-          `${options.dir} has no ${SOURCE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`,
-          0
-        )
-      }
-      const catalog = cachedOrRefuse(
-        (await cachedSourceCatalog(options.dir)) ?? cachedCatalog(workspaceId),
-        workspaceId,
-        workspace
-          ? `\`sim workspaces source get --dir ${workspace.root}\``
-          : `\`sim workflows source get <workflowId> --dir ${options.dir}\` (or \`create\`)`
-      )
-      const declarations = workspace
-        ? {
-            ...(await readWorkspaceDeclarations(workspace.root)),
-            workflowInputs: await workspaceWorkflowInputs(workspace.root, catalog),
-          }
-        : undefined
-      const { findings, entry } = await checkWorkflowDir(options.dir, catalog, {
-        strict: strictMode(options),
-        ...(declarations ? { declarations } : {}),
-      })
-      if (workspace && declarations) {
-        await refreshWorkspaceTypes(
-          workspace.root,
-          withWorkflowInputs(declarations.local, declarations.workflowInputs)
-        )
-        await refreshWorkspaceTsconfigs(workspace.root, workspaceId)
-      } else {
-        await refreshTsconfigs(
+    .action(
+      async (options: { dir: string; verbose?: boolean } & StrictOptions, command: Command) => {
+        const profile = profileFrom(command)
+        const base = toRecord(await readSourceJson(options.dir, SOURCE_BASE_FILE))
+        if (
+          typeof base.workspaceId === 'string' &&
+          base.workflowId === undefined &&
+          (await readSourceText(options.dir, SOURCE_ENTRY_FILE)) === null
+        ) {
+          throw new SimApiError(
+            `${options.dir} is a workspace source directory: check it with \`sim workspaces source check --dir ${options.dir}\`.`,
+            0
+          )
+        }
+        await requireEntry(options.dir)
+        const workspace = await workspaceFolderOf(options.dir)
+        const recorded =
+          typeof base.workspaceId === 'string'
+            ? base.workspaceId
+            : (workspace?.workspaceId ??
+              (profile.sources.workspaceId === 'flag'
+                ? null
+                : await readStarterWorkspace(options.dir)))
+        const workspaceId = directoryWorkspace(
           options.dir,
-          workspaceId,
-          WORKFLOW_TREE,
-          { sources: [entry] },
-          { incremental: true }
+          recorded,
+          profile,
+          (from) => `Run it without --workspace to check it against the catalog of ${from}.`
         )
+        if (!workspaceId) {
+          throw new SimApiError(
+            `${options.dir} has no ${SOURCE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`,
+            0
+          )
+        }
+        const catalog = cachedOrRefuse(
+          (await cachedSourceCatalog(options.dir)) ?? cachedCatalog(workspaceId),
+          workspaceId,
+          workspace
+            ? `\`sim workspaces source get --dir ${workspace.root}\``
+            : `\`sim workflows source get <workflowId> --dir ${options.dir}\` (or \`create\`)`
+        )
+        const declarations = workspace
+          ? {
+              ...(await readWorkspaceDeclarations(workspace.root)),
+              workflowInputs: await workspaceWorkflowInputs(workspace.root, catalog),
+            }
+          : undefined
+        const { findings, entry } = await checkWorkflowDir(options.dir, catalog, {
+          strict: strictMode(options),
+          ...(declarations ? { declarations } : {}),
+        })
+        if (workspace && declarations) {
+          await refreshWorkspaceTypes(
+            workspace.root,
+            withWorkflowInputs(declarations.local, declarations.workflowInputs)
+          )
+          await refreshWorkspaceTsconfigs(workspace.root, workspaceId)
+        } else {
+          await refreshTsconfigs(
+            options.dir,
+            workspaceId,
+            WORKFLOW_TREE,
+            { sources: [entry] },
+            { incremental: true }
+          )
+        }
+        reportCheck(profile.output, findings, { catalogHash: catalog.hash }, options.verbose)
       }
-      reportCheck(profile.output, findings, { catalogHash: catalog.hash })
-    })
+    )
 }

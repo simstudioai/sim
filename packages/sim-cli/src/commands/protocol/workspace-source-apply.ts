@@ -15,6 +15,7 @@ import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { promotionSubmission } from '@sim/workspace-code/promote'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
+import { DEFERRED_INTERRUPT_BOUND_MS, deferInterrupts } from '#sim-cli/terminal/interrupts'
 import { setSoftExitCode } from '../../embed-context'
 import { SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
 import type {
@@ -26,6 +27,8 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
+  absoluteDirOption,
+  directoryWorkspace,
   isMissing,
   orphanedCodeFiles,
   readSourceJson,
@@ -38,14 +41,19 @@ import {
   writtenFile,
   writtenRecord,
 } from './source-dir'
+import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
 import { cachedCatalog } from './source-tree'
 import {
   confirm,
-  printNewDiagnostics,
+  createdText,
+  findingsOutput,
+  planNext,
   printRefusal,
   refusedExitCode,
-  requireConsent,
-  resultDiagnostics,
+  shellWord,
+  stopAtPlan,
+  verboseFlag,
+  writeMode,
 } from './source-ui'
 import { removedWorkflowRecords, workflowFolderRecords } from './stored-edges'
 import {
@@ -68,6 +76,7 @@ type Change = ApplyData['plan'][number]
 
 interface ApplyOptions {
   dir: string
+  verbose?: boolean
   dryRun?: boolean
   yes?: boolean
   allowDelete?: boolean
@@ -80,18 +89,21 @@ Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printe
 file:line:column with its frame and hint), or changes were held back because they use a declared
 secret the workspace has no value for or a declared credential key nothing binds to (the rest was
 applied: set the secret or connect the credential, then apply again), the directory was read from
-another workspace than the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose, or --to
-to promote it), its
+another workspace than the one --workspace names (SOURCE_OTHER_WORKSPACE: drop --workspace, or
+promote it with --to; without --workspace an apply targets the workspace the directory was read
+from), its
 base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the
 command failed; 5 a resource changed or was deleted on the server since the directory was read
-(SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is
-locked; 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was
+(SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource (a
+workflow or its folder, a table) is locked (a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was
 written is saved into the directory, and applying again continues. An apply a resource refused
 part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6
 or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a
 minute and apply again (binary files already uploaded are not sent again); 10 another apply is
 writing the workspace (SOURCE_BUSY), or another command is using the directory
-(SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished.`
+(SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished; 14
+without --yes and with no terminal to ask: the plan was printed with no errors and nothing was
+written (run the same command with --yes to apply it).`
 
 const SYMBOLS: Record<Change['action'], string> = {
   create: '+',
@@ -334,26 +346,6 @@ async function saveApplied(
   })
 }
 
-/**
- * Refuses a directory read from another workspace than the one targeted, unless `--workspace`
- * names the target: applying it would create every resource anew there, so the choice is the
- * caller's to make explicitly.
- */
-function assertBaseWorkspace(
-  dir: string,
-  base: unknown,
-  workspaceId: string,
-  explicit: boolean
-): void {
-  const readFrom = baseWorkspaceOf(base)
-  if (readFrom === null || readFrom === workspaceId || explicit) return
-  throw new SimApiError(
-    `${dir} was read from workspace ${readFrom}, but this profile targets ${workspaceId}. Pass --workspace ${readFrom} to apply it there, or --to ${workspaceId} to promote it: its resources bind by key to that workspace's own, and the directory stays bound to ${readFrom}.`,
-    0,
-    'SOURCE_OTHER_WORKSPACE'
-  )
-}
-
 /** The workflow a directory's base belongs to (a workflow source directory), or `null`. */
 function baseWorkflowOf(base: unknown): string | null {
   return isRecordLike(base) && typeof base.workflowId === 'string' ? base.workflowId : null
@@ -417,6 +409,8 @@ export function attachWorkspaceSourceApply(source: Command): void {
     'getWorkspaceSource',
     'getSourceCatalog',
   ])
+  absoluteDirOption(command)
+  verboseFlag(command)
   command
     .requiredOption('--dir <dir>', 'Workspace source directory written by `workspaces source get`')
     .option('--dry-run', 'Plan and check without writing anything')
@@ -429,12 +423,23 @@ export function attachWorkspaceSourceApply(source: Command): void {
     )
     .allowExcessArguments(false)
     .description('Apply a workspace source directory')
-    .addHelpText('after', EXIT_CODES_HELP)
+    .addHelpText('after', `${EXIT_CODES_HELP}${SOURCE_WRITE_EXIT_CODES_HELP}`)
     .action(async (options: ApplyOptions) => {
-      requireConsent(options, 'writes the workspace', 'apply')
+      const mode = writeMode(options)
       const only = parseKinds(options.only)
       const { client, profile } = connect()
-      const workspaceId = options.to ?? client.requireWorkspace()
+      const readFrom = baseWorkspaceOf(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
+      const workspaceId =
+        options.to ??
+        client.requireWorkspace(
+          directoryWorkspace(
+            options.dir,
+            readFrom,
+            profile,
+            (from, named) =>
+              `Run it without --workspace to apply it to ${from}, or promote it with --to ${named}: its resources bind by key to that workspace's own, and the directory stays bound to ${from}.`
+          ) ?? undefined
+        )
       const post = async (submission: WorkspaceSubmission, dryRun: boolean) => {
         const body: ApplyWorkspaceSourceBody = {
           files: submission.files,
@@ -497,8 +502,6 @@ export function attachWorkspaceSourceApply(source: Command): void {
         )
       }
 
-      // Set while the apply write is in flight, so an interrupt names what it may have done.
-      let writing = false
       await withSourceDirLock(
         options.dir,
         async () => {
@@ -509,14 +512,6 @@ export function attachWorkspaceSourceApply(source: Command): void {
           if (read.kinds.length === 0 || baseWorkflowOf(read.base) !== null) {
             await assertWorkspaceDir(options.dir)
           }
-          if (!options.to) {
-            assertBaseWorkspace(
-              options.dir,
-              read.base,
-              workspaceId,
-              profile.sources.workspaceId === 'flag'
-            )
-          }
           assertBlobsFetched(options.dir, read, written.digests)
           const submission = options.to
             ? await promoted(client, options.dir, read, options.to, options.allowDelete === true)
@@ -526,44 +521,59 @@ export function attachWorkspaceSourceApply(source: Command): void {
               `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
             )
           }
-          // The apply repeats findings the preview already showed.
-          const printed = new Set<string>()
+          // The apply repeats findings the preview already showed: each is printed once.
+          const findings = findingsOutput(profile.output, options.verbose)
+          const report = (data: ApplyData, next?: { command: string; reason: string }) => {
+            const result = { ...summarize(data), ...(next ? { next } : {}) }
+            printProtocolResult(
+              profile.output,
+              { ...result, ...findings.result(data.diagnostics) },
+              { created: createdText(result.created), ...(next ? { next: next.command } : {}) }
+            )
+          }
           let preview: ApplyData | null = null
-          if (options.dryRun || !options.yes) {
+          if (mode !== 'write') {
             preview = await send(submission, true)
             printPlan(preview.plan)
-            printNewDiagnostics(preview.diagnostics, printed)
+            findings.print(preview.diagnostics)
             const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
             if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
-            if (options.dryRun || refusesApply(preview)) {
-              printProtocolResult(profile.output, {
-                ...summarize(preview),
-                ...resultDiagnostics(profile.output, preview.diagnostics),
-              })
+            if (mode === 'dry-run' || refusesApply(preview)) {
+              report(preview)
               return
             }
-            if (
-              !options.yes &&
-              !(await confirm(`Apply these changes to workspace ${workspaceId}?`))
-            ) {
+            if (mode === 'plan') {
+              stopAtPlan()
+              report(preview, planNext(applyCommand(options)))
+              return
+            }
+            if (!(await confirm(`Apply these changes to workspace ${workspaceId}?`))) {
               throw new SimApiError('Nothing was applied.', 0, 'CANCELLED')
             }
           }
 
           // Without a preview, stage the blobs the base does not hold as they are.
           await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
-          writing = true
-          const data = await send(submission, false)
-          writing = false
-          printNewDiagnostics(data.diagnostics, printed)
-          // A promotion leaves the directory bound to the workspace it was read from.
-          if (!options.to) {
-            const workspaceCatalog = cachedCatalog(workspaceId)
-            const records = workspaceCatalog
-              ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, data.files)
-              : []
-            await saveApplied(options.dir, data, submission, written, records)
-          }
+          const data = await deferInterrupts(
+            async () => {
+              const answer = await send(submission, false)
+              findings.print(answer.diagnostics)
+              // A promotion leaves the directory bound to the workspace it was read from.
+              if (!options.to) {
+                const workspaceCatalog = cachedCatalog(workspaceId)
+                const records = workspaceCatalog
+                  ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, answer.files)
+                  : []
+                await saveApplied(options.dir, answer, submission, written, records)
+              }
+              return answer
+            },
+            {
+              waiting: `Interrupted: the apply was already sent. Waiting up to ${DEFERRED_INTERRUPT_BOUND_MS / 1000}s for its answer and saving it into ${options.dir}, so the directory matches the workspace; press Ctrl-C again to stop now.`,
+              abandoned: `Stopped before the apply answered. ${answerLostHint(options.dir)}`,
+            }
+          )
+          if (mode === 'write') printPlan(data.plan)
           const held = data.plan.filter((change) => change.held)
           if (held.length > 0) {
             printError(
@@ -575,20 +585,21 @@ export function attachWorkspaceSourceApply(source: Command): void {
             printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
             setSoftExitCode(failedExitCode(data.failed))
           }
-          printProtocolResult(profile.output, {
-            ...summarize(data),
-            ...resultDiagnostics(profile.output, data.diagnostics),
-          })
+          report(data)
         },
-        {
-          readOnly: options.dryRun === true,
-          interruptNote: () =>
-            writing
-              ? `Interrupted while the apply was being sent. ${answerLostHint(options.dir)}`
-              : null,
-        }
+        { readOnly: mode === 'dry-run' || mode === 'plan' }
       )
     })
+}
+
+/** This apply as a command, without `--yes` or `--dry-run`: what a plan run names next. */
+function applyCommand(options: ApplyOptions): string {
+  return [
+    `sim workspaces source apply --dir ${shellWord(options.dir)}`,
+    ...(options.only ? [`--only ${shellWord(options.only)}`] : []),
+    ...(options.to ? [`--to ${shellWord(options.to)}`] : []),
+    ...(options.allowDelete ? ['--allow-delete'] : []),
+  ].join(' ')
 }
 
 /**
@@ -599,7 +610,10 @@ function answerLostHint(dir: string): string {
   return `It may have been written. Run \`sim workspaces source apply --dir ${dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it may have been, or someone else changed those resources. Run \`sim workspaces source get --dir <fresh dir>\` and compare it with ${dir}: if it holds your edits, \`sim workspaces source get --dir ${dir} --force\` brings this directory up to date; if not, reapply your edits in the fresh directory. Any other outcome means it was not written: apply again.`
 }
 
-/** The result line: what a dry run would write, or what an apply wrote (not what it planned). */
+/**
+ * The result line: what a dry run would write, or what an apply wrote (not what it planned).
+ * `created` lists each resource created, with its id once written.
+ */
 function summarize(data: ApplyData) {
   const changes = data.dryRun ? data.plan : data.applied
   const count = (action: Change['action']) =>
@@ -608,7 +622,9 @@ function summarize(data: ApplyData) {
     workspaceId: data.workspaceId,
     dryRun: data.dryRun,
     applied: data.applied.length,
-    created: count('create'),
+    created: changes
+      .filter((change) => change.action === 'create' && !change.held)
+      .map(({ kind, key, id }) => ({ kind, key, ...(id !== undefined ? { id } : {}) })),
     updated: count('update') + count('adopt'),
     deleted: count('delete'),
     destructive: destructiveChanges(changes),

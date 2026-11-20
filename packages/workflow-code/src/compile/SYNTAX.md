@@ -215,7 +215,9 @@ A JSON code field (subBlock type `code`: `responseFormat`, table row `data`, a r
 written as an object or array literal compiles to `JSON.stringify(value, null, 2)` text. Each bare
 reference is stored by its output type: quoted (`"<a.b>"`) when the catalog or the workflow types it
 `string`, bare (`<a.b>`) otherwise, because the executor splices a string raw and any other value as
-JSON. A reference nothing types is stored bare with `W_JSON_REF_UNTYPED`. A template is a JSON
+JSON. A reference nothing types is stored bare with `W_JSON_REF_UNTYPED`, which is not raised for a
+Function `result` field its JavaScript returns as a non-string literal (`return { total: a + b }`),
+nor, against a stored workflow, for a field the source left as stored. A template is a JSON
 string, which is how a value becomes text on purpose. A resource (`table('x')`, `credential()`,
 `file()`) or `raw(node)` is not data, so inside the literal it is `E_UNSUPPORTED_SYNTAX`. The printer writes a field's text back as the
 literal only when serializing that literal gives the same bytes; otherwise the text prints as a
