@@ -379,7 +379,7 @@ describe('hostile sources produce diagnostics only', () => {
       expect(errorCodes(result)).toEqual(['E_INVALID_CHARACTER'])
     })
 
-    it('caps the total bytes of distinct code files', () => {
+    it('caps the total bytes of distinct code files with one diagnostic, on the file that crosses it', () => {
       const files = Object.fromEntries(
         Array.from({ length: 4 }, (_, i) => [
           `workflows/functions/f${i}.js`,
@@ -391,7 +391,8 @@ describe('hostile sources produce diagnostics only', () => {
         { maxTotalBytes: 2_000 },
         files
       )
-      expect(codes(result)).toContain('E_LIMIT_EXCEEDED')
+      const limits = result.diagnostics.filter((d) => d.code === 'E_LIMIT_EXCEEDED')
+      expect(limits.map((d) => d.blockKey)).toEqual(['f2'])
       expect(result.workflow).toBeNull()
     })
 
