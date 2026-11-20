@@ -738,13 +738,26 @@ describe('workspaces source apply', () => {
     expect(Object.keys(bodies()[1].files)).not.toContain('tools/lookup.js')
   })
 
-  it('removes the function files an applied workflow no longer uses, keeping files no lock named', async () => {
+  it('removes the function files an applied workflow no longer uses, keeping files the CLI never wrote', async () => {
     const lock = (codeFiles: string[]) =>
       `${JSON.stringify({ version: 1, blocks: Object.fromEntries(codeFiles.map((file, index) => [`b${index}`, { id: `blk_${index}`, codeFile: file }])), variables: {} })}\n`
-    write('workflows/ingest/.sim/lock.json', lock(['functions/score.js', 'functions/old.js']))
+    // A hand-edited lock names mine.js too; the CLI never wrote it, so it is never pruned.
+    write(
+      'workflows/ingest/.sim/lock.json',
+      lock(['functions/score.js', 'functions/old.js', 'functions/mine.js'])
+    )
     write('workflows/ingest/functions/score.js', 'return 1\n')
     write('workflows/ingest/functions/old.js', 'return 2\n')
     write('workflows/ingest/functions/mine.js', 'return 3\n')
+    write(
+      '.sim/written.json',
+      JSON.stringify({
+        files: {
+          'workflows/ingest/functions/score.js': digest('return 1\n'),
+          'workflows/ingest/functions/old.js': digest('return 2\n'),
+        },
+      })
+    )
     request.mockResolvedValue(
       answer({
         applied: [{ kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' }],

@@ -617,6 +617,24 @@ describe('pruning function files', () => {
     expect(stderr.join('\n')).not.toContain('functions/score.js is no longer named')
   })
 
+  it('never prunes a file of the author a hand-edited lock gives to a block', async () => {
+    await get()
+    writeFileSync(join(dir, 'functions/mine.js'), 'mine')
+    const handEdited = JSON.parse(read('.sim/lock.json'))
+    handEdited.blocks.start = {
+      id: 'b-start',
+      parent: null,
+      ident: 'start',
+      order: 9,
+      codeFile: 'functions/mine.js',
+    }
+    writeFileSync(join(dir, '.sim/lock.json'), JSON.stringify(handEdited))
+
+    await apply()
+
+    expect(read('functions/mine.js')).toBe('mine')
+  })
+
   it('prunes, on a fresh get, a function file the previous get wrote', async () => {
     server.source = () => json(sourceResponse(twoFiles, twoLock))
     await get()

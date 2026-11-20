@@ -270,7 +270,11 @@ const WORKFLOW_LOCK_PATH = new RegExp(
  * a folder whose new lock does not read as one: without it nothing tells a dropped file from a
  * kept one.
  */
-async function orphanedWorkflowFiles(dir: string, files: Record<string, string>) {
+async function orphanedWorkflowFiles(
+  dir: string,
+  files: Record<string, string>,
+  recorded: Written['digests']
+) {
   const filesByFolder = new Map<string, string[]>()
   for (const path of Object.keys(files)) {
     if (!path.startsWith(`${KIND_DIRS.workflow}/`)) continue
@@ -292,7 +296,14 @@ async function orphanedWorkflowFiles(dir: string, files: Record<string, string>)
     } catch {}
     if (!isRecordLike(next) || !isRecordLike(next.blocks)) continue
     const previous = await readSourceJson(dir, path)
-    orphaned.push(...orphanedCodeFiles(previous, next, written).map((file) => `${folder}/${file}`))
+    const inFolder = Object.fromEntries(
+      Object.entries(recorded).flatMap(([recordedPath, sha]) =>
+        recordedPath.startsWith(`${folder}/`) ? [[recordedPath.slice(folder.length + 1), sha]] : []
+      )
+    )
+    orphaned.push(
+      ...orphanedCodeFiles(previous, next, written, inFolder).map((file) => `${folder}/${file}`)
+    )
   }
   return orphaned
 }
@@ -385,7 +396,7 @@ async function saveApplied(
 ): Promise<void> {
   assertWorkspacePaths(Object.keys(data.files))
   const orphaned = [
-    ...(await orphanedWorkflowFiles(dir, data.files)),
+    ...(await orphanedWorkflowFiles(dir, data.files, written.digests)),
     ...droppedResourceFiles(submission.files, data.files),
   ]
   const kept = { ...written.digests, ...appliedBlobDigests(submission, data.base) }
