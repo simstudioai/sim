@@ -40,6 +40,10 @@ interface SourceExitCodeRow {
   help: Partial<Record<SourceHelpCommand, string>>
 }
 
+/** A get's exit 13, which a write names in its shared section instead. */
+const GET_AUTH_REQUIRED =
+  'not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was read or written, run `sim login` and the get again'
+
 /** The busy clause of a single-workflow command, which locks --dir or its workspace directory. */
 const WORKFLOW_DIR_BUSY =
   '(busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished'
@@ -178,7 +182,10 @@ function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRow[] {
       meaning:
         'Not logged in, the login expired, or the server refused the credential (`AUTH_REQUIRED`); nothing was sent',
       next: '`sim login`, or fix or unset `SIM_API_KEY` when the key comes from it; then the same command again',
-      help: {},
+      help: {
+        'workflows source get': GET_AUTH_REQUIRED,
+        'workspaces source get': GET_AUTH_REQUIRED,
+      },
     },
     {
       code: SOURCE_PLANNED_EXIT_CODE,
