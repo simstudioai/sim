@@ -258,6 +258,22 @@ jobs:
         with:
           provider: github
 
+      # Browser groups download Playwright's browsers in the background while the app boots, and
+      # the suite waits on that download (up to two minutes for full Chromium). Push validation on
+      # the base branch seeds this cache for pull requests.
+      - &resolve-playwright
+        name: Resolve the Playwright version
+        id: playwright
+        if: &browser-group contains(fromJSON('["assistant-actions","organization-search","markdown-viewer","workflow-code-ui","mobile"]'), matrix.group) || startsWith(matrix.group, 'browser-extension-')
+        run: echo "version=$(bunx --no-install playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - &cache-playwright
+        name: Cache Playwright browsers
+        if: *browser-group
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}-${{ matrix.browser || matrix.group }}
+
       # Migrations create their own extensions, as on a fresh self-hosted install.
       - name: Provision the database through migrations
         if: matrix.group != 'project-files'
@@ -369,6 +385,9 @@ jobs:
         uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
+
+      - *resolve-playwright
+      - *cache-playwright
 
       - name: Provision the database through migrations
         working-directory: packages/db

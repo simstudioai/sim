@@ -97,6 +97,7 @@ wait_for_browsers() {
     exit 1
   fi
   browsers_pid=''
+  tail -n 1 "$browsers_log"
 }
 
 # start_app <name> <port> <label> [record-http-status]
