@@ -69,6 +69,7 @@ import {
   concealHeaderValues,
   declOf,
   headersToWrite,
+  hiddenHeadersWritten,
   holdsDeclaration,
   keepsStoredHeaders,
   resolveStoredHeaders,
@@ -166,7 +167,20 @@ async function planServer(
 
   const bound = stored.bound.get(key)
   const adoptable = stored.unbound.find((record) => record.id === id)
-  const { decl, missing } = resolveStoredHeaders(declared, (bound ?? adoptable)?.state)
+  const target = bound ?? adoptable
+  // A caller who cannot see a header's stored value may only keep it: comparing text they wrote
+  // with the hidden value would tell them whether they guessed it.
+  if (target && (await revealsHeaderValues(ctx)) !== true) {
+    for (const header of hiddenHeadersWritten(declared, target.state)) {
+      finding(
+        'E_APPLY_FORBIDDEN',
+        `Header "${header}" holds a value you cannot see, so it can only be kept as \`stored()\`.`,
+        'Writing a header value the MCP server hides needs permission to update the server.'
+      )
+    }
+    if (change.diagnostics.length > 0) return change
+  }
+  const { decl, missing } = resolveStoredHeaders(declared, target?.state)
   change.decl = decl
   // A server the base records that the server deleted since: its `stored()` headers have nothing
   // to keep, and the declaration cannot be compared with the base, so it stays deleted.

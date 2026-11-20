@@ -85,6 +85,20 @@ function isEnvReferenceOnly(value: string): boolean {
 }
 
 /**
+ * The headers `decl` writes as literal text where `row` stores a value {@link concealHeaderValues}
+ * hides: a reader who cannot see that value may keep it (`stored()`) or replace it with env
+ * references, never compare text of their own with it.
+ */
+export function hiddenHeadersWritten(decl: McpServerDecl, row: McpServerRow): string[] {
+  const stored = storedHeaders(row)
+  return Object.entries(decl.headers ?? {}).flatMap(([name, header]) => {
+    const value = stored[name]
+    const hidden = value !== undefined && !isEnvReferenceOnly(value)
+    return hidden && !isStoredHeader(header) && !isEnvReferenceOnly(header) ? [name] : []
+  })
+}
+
+/**
  * `decl` (as {@link declOf} printed `row`) for a reader who may not see header values, as the MCP
  * server list withholds them from anyone who cannot rewrite them: every header holding literal
  * text prints as `stored()`, and only one made of env references prints as written.

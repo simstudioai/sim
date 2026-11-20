@@ -29,9 +29,13 @@ import {
   updateMcpServerUseCase,
 } from '@/lib/mcp/application/use-cases'
 import { generateMcpServerId } from '@/lib/mcp/utils'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { readSourceResources } from '@/lib/workflows/application/read-source-resources'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
+import {
+  type ApplyWorkspaceSourceInput,
+  readWorkspaceSourcePlan,
+} from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   failKeyClaims,
   refusal,
@@ -743,6 +747,61 @@ describe('MCP servers as workspace source', () => {
       expect((await liveServers(workspaceId)).map((server) => server.headers)).toEqual([
         { 'X-Tenant': tenant, Authorization: 'Digest {{GH_TOKEN}}' },
       ])
+    }
+  )
+
+  check(
+    'never tells a read-only member whether a header value they wrote matches the one hidden from them',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'Tenant',
+          url,
+          headers: { 'X-Tenant': 'acme' },
+          authType: 'headers',
+        },
+      })
+      const read = await runner.get(workspaceId, reader)
+      const [path] = Object.keys(read.files)
+      expect(read.files[path]).toContain("'X-Tenant': stored()")
+
+      const planWith = async (guess: string) => {
+        const plan = await withPermissionGroupScope(() =>
+          readWorkspaceSourcePlan.execute({
+            principal: reader,
+            input: {
+              workspaceId,
+              kinds: ['mcp-server', 'workflow'],
+              files: { [path]: read.files[path].replace('stored()', `'${guess}'`) },
+              base: read.base,
+            },
+          })
+        )
+        return { plan: plan.plan, diagnostics: plan.diagnostics }
+      }
+      const right = await planWith('acme')
+      const wrong = await planWith('other')
+
+      expect(right).toEqual(wrong)
+      expect(findings(right.diagnostics, 'error')).toEqual([
+        `E_APPLY_FORBIDDEN mcp-server:${path.slice(4, -3)}`,
+      ])
+      // Keeping the value it cannot see stays a no-op.
+      const kept = await withPermissionGroupScope(() =>
+        readWorkspaceSourcePlan.execute({
+          principal: reader,
+          input: {
+            workspaceId,
+            kinds: ['mcp-server', 'workflow'],
+            files: read.files,
+            base: read.base,
+          },
+        })
+      )
+      expect(kept.plan.map((change) => change.action)).toEqual(['noop'])
     }
   )
 
