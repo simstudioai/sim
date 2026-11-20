@@ -2,15 +2,18 @@
  * Turns off crash durability on a CI job's throwaway Postgres service. No suite survives a crash of
  * its database, and flushing each commit to the runner's disk is most of a bulk write's cost.
  * Visibility, locking and isolation are unchanged, so every suite checks the same behavior.
+ * `synchronous_commit` stays on: asynchronous commits delay hint bits and VACUUM's all-visible
+ * marking until the WAL flush, which turns the index-only plans the plan tests assert into heap
+ * fetches. With `fsync` off that flush costs nothing anyway.
  *
  * Service containers take no `-c` flags; each setting reloads without a restart. Exits non-zero
  * unless a fresh session reports all of them applied.
  *
- * Usage: DATABASE_URL=... bun scripts/tune-ci-postgres.ts
+ * Usage (from packages/db): DATABASE_URL=... bun scripts/tune-ci-postgres.ts
  */
 import postgres from 'postgres'
 
-const SETTINGS = { fsync: 'off', full_page_writes: 'off', synchronous_commit: 'off' } as const
+const SETTINGS = { fsync: 'off', full_page_writes: 'off' } as const
 
 const url = process.env.DATABASE_URL
 if (!url) throw new Error('DATABASE_URL is required')

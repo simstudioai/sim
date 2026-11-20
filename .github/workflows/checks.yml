@@ -145,10 +145,6 @@ jobs:
         with:
           provider: ${{ vars.CI_PROVIDER }}
 
-      # No suite survives a database crash; see the script for what this does and does not change.
-      - name: Turn off Postgres crash durability
-        run: bun scripts/tune-ci-postgres.ts
-
       - name: Provision a fresh database through the supported command
         working-directory: packages/db
         run: |
@@ -271,6 +267,7 @@ jobs:
 
       # No suite survives a database crash; see the script for what this does and does not change.
       - name: Turn off Postgres crash durability
+        working-directory: packages/db
         run: bun scripts/tune-ci-postgres.ts
 
       # Migrations create their own extensions, as on a fresh self-hosted install.
@@ -396,6 +393,7 @@ jobs:
 
       # No suite survives a database crash; see the script for what this does and does not change.
       - name: Turn off Postgres crash durability
+        working-directory: packages/db
         run: bun scripts/tune-ci-postgres.ts
 
       - name: Provision the database through migrations
@@ -519,6 +517,7 @@ jobs:
 
       # No suite survives a database crash; see the script for what this does and does not change.
       - name: Turn off Postgres crash durability
+        working-directory: packages/db
         run: bun scripts/tune-ci-postgres.ts
 
       - name: Provision the database through migrations
