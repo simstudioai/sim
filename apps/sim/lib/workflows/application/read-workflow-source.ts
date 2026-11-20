@@ -1,4 +1,4 @@
-import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { compareStrings } from '@sim/utils/string'
@@ -36,7 +36,6 @@ import {
 import { recordSourceRead } from '@/lib/workflows/application/source-analytics'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
   type PrintedSource,
   printStoredSource,
@@ -222,11 +221,7 @@ async function printLoadedSource(
  */
 export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
-  resolveContext: async (args: { principal: Principal; input: GetWorkflowSourceInput }) => {
-    const context = await resolvePrincipalWorkflowContext(args)
-    await requireWorkflowCodeEnabled(args.principal, context)
-    return context
-  },
+  resolveContext: resolvePrincipalWorkflowContext<GetWorkflowSourceInput>,
   async execute({ principal, input, context }): Promise<ReadWorkflowSourceResult> {
     const [stored, gate, sourceMeta, prefetched] = await Promise.all([
       loadStoredSource(context),
@@ -270,17 +265,8 @@ export type WorkflowSourceRead =
  */
 export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
-  resolveContext: async ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: ReadWorkflowSourcesInput
-  }) => {
-    const context = await resolveActiveWorkspaceApplicationContext(input.workspaceId)
-    await requireWorkflowCodeEnabled(principal, context)
-    return context
-  },
+  resolveContext: ({ input }: { input: ReadWorkflowSourcesInput }) =>
+    resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ principal, input, context }): Promise<Map<string, WorkflowSourceRead>> {
     const { workspaceId } = context
     const createdBy = resolvePrincipalSubjectUserId(principal) ?? null

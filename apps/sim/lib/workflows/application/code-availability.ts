@@ -1,5 +1,9 @@
-import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
-import { isWorkflowCodeEnabledFor } from '@/lib/workflows/code/feature-flag'
+import {
+  defineAuthorizedWorkspaceUseCase,
+  defineWorkspaceOperation,
+  isOperationFeatureEnabled,
+} from '@/lib/core/application'
+import { WORKFLOW_CODE_FEATURE } from '@/lib/workflows/application/operations'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 /** permission-group-exempt: reports rollout availability only; source operations enforce their own policies. */
@@ -30,5 +34,6 @@ export const readWorkflowCodeAvailability = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: { workspaceId: string } }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: { delegation: { audience: 'sim:workspaces', isWithinScope: () => true } },
-  execute: ({ principal, context }) => isWorkflowCodeEnabledFor(principal, context),
+  execute: ({ principal, context }) =>
+    isOperationFeatureEnabled(WORKFLOW_CODE_FEATURE, principal, context),
 })

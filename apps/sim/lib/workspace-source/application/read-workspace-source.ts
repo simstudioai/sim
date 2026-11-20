@@ -11,7 +11,6 @@ import {
 } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { sourceContext } from '@/lib/workspace-source/application/context'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import { kindLimitFinding, overKindLimit } from '@/lib/workspace-source/application/findings'
@@ -132,7 +131,6 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ReadWorkspaceSourceResult> {
-    await requireWorkflowCodeEnabled(principal, context)
     const ctx = sourceContext(principal, context)
     const requested = new Set(input.kinds ?? APPLY_ORDER)
     const kinds = APPLY_ORDER.filter((kind) => requested.has(kind))

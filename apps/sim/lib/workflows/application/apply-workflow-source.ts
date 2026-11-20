@@ -61,7 +61,6 @@ import {
   type SourceReference,
 } from '@/lib/workflows/application/source-evaluate'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
   type PrintedSource,
   printStoredSource,
@@ -253,7 +252,6 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.applySource,
   resolveContext: resolvePrincipalWorkflowContext<ApplyWorkflowSourceInput>,
   async execute({ principal, input, context }): Promise<ApplyWorkflowSourceResult> {
-    await requireWorkflowCodeEnabled(principal, context)
     const facts = analyticsFacts(principal, input, 'apply', context.workspaceId)
     try {
       await requireMutableWorkflow(context.workflowId)
@@ -309,7 +307,6 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
   resolveContext: ({ input }: { input: CreateWorkflowFromSourceInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ principal, input, context }): Promise<ApplyWorkflowSourceResult> {
-    await requireWorkflowCodeEnabled(principal, context)
     const { folderId } = await resolveWorkflowFolderPath(
       context.workspaceId,
       input.folderPath ?? '/'

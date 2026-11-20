@@ -1,4 +1,14 @@
+import type { OperationFeature } from '@/lib/core/application/feature-availability'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
+
+/**
+ * Workflows and workspaces as code (the source catalog and resources, workflow and workspace
+ * source read and apply) ship behind the `workflow-code` flag; every source operation declares it.
+ */
+export const WORKFLOW_CODE_FEATURE = {
+  flag: 'workflow-code',
+  unavailableMessage: 'Workflows as code is in preview and not enabled for this workspace',
+} as const satisfies OperationFeature
 
 const ALL_WORKFLOW_PRINCIPAL_POLICY = {
   principalKinds: [
@@ -77,6 +87,7 @@ export const workflowOperations = {
   // permission-group-exempt: workflow source is the workflow definition in another form, governed by workspace role like `read`
   readSource: defineWorkspaceOperation({
     id: 'workflows.source.read',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -92,6 +103,7 @@ export const workflowOperations = {
   // permission-group-exempt: the source catalog is the block catalog in another shape; withholding it hides the product rather than restricting it
   readSourceCatalog: defineWorkspaceOperation({
     id: 'workflows.source.catalog.read',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -112,6 +124,7 @@ export const workflowOperations = {
   // permission-group-exempt: the manifest as a whole stays readable to every member; each section is omitted in the use case when its capability is withheld (see visibleSections)
   readSourceResources: defineWorkspaceOperation({
     id: 'workflows.source.resources.read',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
@@ -231,6 +244,7 @@ export const workflowOperations = {
    */
   applySource: defineWorkspaceOperation({
     id: 'workflows.source.apply',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
@@ -242,6 +256,7 @@ export const workflowOperations = {
   // permission-group-exempt: creating a workflow from source is governed by workspace role and the same block gates as apply
   createFromSource: defineWorkspaceOperation({
     id: 'workflows.source.create',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',

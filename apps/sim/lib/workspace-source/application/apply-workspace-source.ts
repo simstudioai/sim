@@ -11,7 +11,6 @@ import {
 } from '@sim/workspace-code'
 import { isResourceKeyed } from '@sim/workspace-code/kinds/registry'
 import { defineAuthorizedWorkspaceUseCase, principalAuditSource } from '@/lib/core/application'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { recordWorkspaceSourceApplied } from '@/lib/workspace-source/application/analytics'
 import { sourceContext } from '@/lib/workspace-source/application/context'
 import {
@@ -246,7 +245,6 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ApplyWorkspaceSourceResult> {
-    await requireWorkflowCodeEnabled(principal, context)
     const ctx: ApplyContext = {
       ...sourceContext(principal, context),
       ...(input.provenance ? { provenance: input.provenance } : {}),
