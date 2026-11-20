@@ -202,16 +202,31 @@ export async function finalizePlan(
     pending,
     keyOf: keyOfId,
   })
+  // A field the compile already refused (with its span and options) needs no second refusal from
+  // the value gate.
+  const refusedFields = new Set(
+    compileDiagnostics.flatMap((finding) =>
+      finding.code === 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        ? [`${finding.blockKey}\u0000${finding.param}`]
+        : []
+    )
+  )
+  const refusedAgain = (finding: { code: string; blockId?: string; param?: string }) =>
+    finding.code === 'E_APPLY_INVALID_SUBBLOCK_FIELD' &&
+    finding.blockId !== undefined &&
+    refusedFields.has(`${keyOfId(finding.blockId)}\u0000${finding.param}`)
   const diagnostics = [
     ...compileDiagnostics,
-    ...resolved.keptDiagnostics,
-    ...resolved.materializeDiagnostics,
-    ...refusals.sourceRefusals,
-    ...refusals.renameWarnings,
-    ...gated.gateFindings,
-    ...normalized.diagnostics,
-    ...foreignIds,
-    ...lintDiagnostics(compiledLint, changedIds, keyOfId),
+    ...[
+      ...resolved.keptDiagnostics,
+      ...resolved.materializeDiagnostics,
+      ...refusals.sourceRefusals,
+      ...refusals.renameWarnings,
+      ...gated.gateFindings,
+      ...normalized.diagnostics,
+      ...foreignIds,
+      ...lintDiagnostics(compiledLint, changedIds, keyOfId),
+    ].filter((finding) => !refusedAgain(finding)),
   ].map(locate)
   if (hasErrors(diagnostics)) {
     return {

@@ -1542,11 +1542,30 @@ describe('source apply edge cases', () => {
       'E_APPLY_INVALID_SUBBLOCK_FIELD'
     )
 
-    expect(
-      error.diagnostics.find((d) => d.code === 'E_APPLY_INVALID_SUBBLOCK_FIELD')
-    ).toMatchObject({ blockId: score.id, param: 'language' })
+    const refusals = error.diagnostics.filter((d) => d.code === 'E_APPLY_INVALID_SUBBLOCK_FIELD')
+    expect(refusals).toHaveLength(1)
+    expect(refusals[0]).toMatchObject({ blockId: score.id, param: 'language' })
+    expect(error.diagnostics.map((d) => d.code)).not.toContain('W_UNKNOWN_OPTION')
     expect(await snapshot(workflowId)).toEqual(before)
   })
+
+  check(
+    'an edited block keeps a value outside its options the stored block already holds',
+    async () => {
+      const start = seedBlock('start_trigger', 'Start')
+      const score = seedBlock('function', 'Score', {
+        code: ['code', 'return 1'],
+        language: ['dropdown', 'cobol'],
+      })
+      const workflowId = await seedGraph([start, score])
+      const source = await getInlineSource(workflowId)
+
+      const result = await apply(source, edit(source.files, 'return 1', 'return 2'))
+
+      expect(source.files['workflow.ts']).toContain("language: raw('cobol')")
+      expect(result.applied).toBe(true)
+    }
+  )
 
   check(
     'a value the field normalizes is stored normalized, and untouched blocks keep their bytes',

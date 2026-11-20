@@ -65,6 +65,7 @@ export type EditRefusalCode =
   | 'E_APPLY_UNRESOLVED_REF'
   | 'E_APPLY_REF_OUT_OF_SCOPE'
   | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+  | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
 
 /** What an edit changed, as the caller can tell it. */
 export interface EditedBlocks {
@@ -84,6 +85,17 @@ export interface EditedBlocks {
  */
 const CHANGED_BLOCK_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_REF_OUT_OF_SCOPE', 'E_APPLY_REF_OUT_OF_SCOPE'],
+])
+
+/**
+ * In `workflow.ts` on a block the edit changed: a dropdown value none of its options names, which
+ * the server's field gate refuses. A value the stored block already holds outside its options
+ * prints as `raw()`, which the compile does not check, so only a value the author wrote is
+ * refused. `operation` is left out: an unknown one is already an error, and its warning means the
+ * stored block holds a retired operation, which the gate keeps.
+ */
+const PARAM_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
+  ['W_UNKNOWN_OPTION', 'E_APPLY_INVALID_SUBBLOCK_FIELD'],
 ])
 
 /** In `workflow.ts` on a block the edit changed: a path no output of the block has. */
@@ -108,6 +120,7 @@ const CODE_FILE_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
  * refusal.
  */
 export const REFUSABLE_WARNING_CODES: ReadonlySet<CompileDiagnosticCode> = new Set([
+  'W_UNKNOWN_OPTION',
   'W_REF_OUT_OF_SCOPE',
   'W_UNKNOWN_OUTPUT_PATH',
   'W_UNRESOLVED_REF',
@@ -124,6 +137,11 @@ export const EDIT_REFUSALS: ReadonlyArray<{
     warning,
     refusal,
     where: 'changed block' as const,
+  })),
+  ...[...PARAM_REFUSALS].map(([warning, refusal]) => ({
+    warning,
+    refusal,
+    where: 'workflow.ts' as const,
   })),
   ...[...ENTRY_REFUSALS].map(([warning, refusal]) => ({
     warning,
@@ -157,6 +175,11 @@ function refusalOf(finding: LocatedDiagnostic, edit: EditedBlocks): EditRefusalC
   if (onChanged) {
     const edited = edit.changed(blockKey) || (!inEntryFile && edit.codeEdited(blockKey, span.file))
     return edited ? onChanged : undefined
+  }
+  const onParam = PARAM_REFUSALS.get(finding.code)
+  if (onParam) {
+    if (!inEntryFile || finding.param === 'operation') return undefined
+    return edit.changed(blockKey) ? onParam : undefined
   }
   if (inEntryFile) {
     const inEntry = ENTRY_REFUSALS.get(finding.code)

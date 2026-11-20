@@ -481,7 +481,10 @@ describe('sim workflows source check', () => {
     writeFileSync(join(dir, 'workflow.ts'), UNKNOWN_METHOD)
 
     await check()
-    expect(findingLines()).toMatch(/error W_UNKNOWN_OPTION/)
+    expect(findingLines()).toMatch(
+      /error E_APPLY_INVALID_SUBBLOCK_FIELD: method has no option FETCH\./
+    )
+    expect(findingLines()).not.toContain('kept as written')
     expect(process.exitCode).toBe(1)
 
     process.exitCode = undefined
@@ -974,10 +977,23 @@ export default workflow('W', {}, () => {
     expect(process.exitCode).toBe(1)
 
     process.exitCode = undefined
-    writeLock([])
     await checkIn(dir, '--no-strict')
     expect(result()).toMatchObject({ errors: 0, warnings: 1 })
     expect(process.exitCode).toBeUndefined()
+  })
+
+  it('fails with --no-strict on a dropdown value a new block sets, as the server refuses it', async () => {
+    cacheCatalog()
+    writeFileSync(join(dir, 'workflow.ts'), UNKNOWN_METHOD)
+    writeLock([])
+
+    await checkIn(dir, '--no-strict')
+
+    expect(result()).toMatchObject({ errors: 1, warnings: 0 })
+    expect(findingLines()).toMatch(
+      /error E_APPLY_INVALID_SUBBLOCK_FIELD: method has no option FETCH\./
+    )
+    expect(process.exitCode).toBe(1)
   })
 
   it('passes what a get prints from stored state the server keeps: a loop error edge, a cycle, an unwired branch', async () => {
