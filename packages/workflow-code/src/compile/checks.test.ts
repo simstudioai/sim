@@ -191,6 +191,40 @@ describe("a field hidden under the block's values", () => {
     )
     expect(written('claude-sonnet-4-5')).toEqual([])
   })
+
+  it('names the clause an opaque condition still asks for the operation, before the model', () => {
+    const slackBlock = TEST_CATALOG.blocks.slack as CatalogBlock
+    const gated: BlockCatalog = {
+      ...TEST_CATALOG,
+      blocks: {
+        ...TEST_CATALOG.blocks,
+        slack: {
+          ...slackBlock,
+          subBlocks: slackBlock.subBlocks.map((sub) =>
+            sub.id === 'limit'
+              ? {
+                  ...sub,
+                  condition: { opaque: true },
+                  visibleFor: { send: true, list_channels: true },
+                  visibleWhen: { send: { field: 'authMethod', value: 'bot_token' } },
+                }
+              : sub
+          ),
+        },
+      },
+    }
+    const [hidden] = findings(
+      run(
+        "const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x', limit: 3 })",
+        undefined,
+        gated
+      ),
+      'W_FIELD_NOT_APPLICABLE'
+    )
+    expect(hidden?.message).toBe(
+      `limit is hidden (it shows only when authMethod is bot_token), ${DROPPED}`
+    )
+  })
 })
 
 describe('references into an agent responseFormat', () => {

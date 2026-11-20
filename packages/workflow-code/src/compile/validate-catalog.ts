@@ -1,7 +1,13 @@
-import { type ConditionLookup, evaluateClause, evaluateCondition } from '../catalog/conditions'
+import {
+  type ConditionClause,
+  type ConditionLookup,
+  evaluateClause,
+  evaluateCondition,
+} from '../catalog/conditions'
 import type { CatalogField, FieldIndex } from '../catalog/surface'
 import type { CatalogSubBlock } from '../catalog/types'
 import { isPlainRecord, type SubBlockId, type Value } from '../model'
+import { getOwn } from '../records'
 
 /** The field a written param name targets: its written name or, when aliased, its own name. */
 export function fieldFor(index: FieldIndex, key: string): CatalogField | undefined {
@@ -30,35 +36,41 @@ export function hiddenReason(
   sub: CatalogSubBlock,
   values: ReadonlyMap<string, Value>
 ): string | null {
-  const { condition, visibleFor, visibleForModel } = sub
+  const { condition, visibleFor, visibleWhen, visibleForModel } = sub
   const rejected = (field: string) => {
     const value = values.get(field)
     return `${field} ${value === undefined || value === null ? 'unset' : String(value)} does not use it`
   }
   if (!condition) return null
-  if ('opaque' in condition) {
-    const operation = values.get('operation')
-    if (typeof operation === 'string' && visibleFor?.[operation] === false) {
-      return rejected('operation')
-    }
-    const model = values.get('model')
-    if (typeof model === 'string' && visibleForModel?.[model] === false) return rejected('model')
-    return null
-  }
   const lookup = paramLookup(values)
-  const failing = [condition, condition.and].find(
-    (part): part is NonNullable<typeof part> =>
-      part !== undefined &&
-      evaluateClause({ field: part.field, value: part.value, not: part.not }, lookup) === false
-  )
-  if (!failing) return null
-  if (Array.isArray(failing.value) && failing.value.length > LISTED_VALUES) {
-    return rejected(failing.field)
+  /** The part of `clause` that hides the field, described; `null` when none does. */
+  const failingPart = (clause: ConditionClause): string | null => {
+    const failing = [clause, clause.and].find(
+      (part): part is NonNullable<typeof part> =>
+        part !== undefined &&
+        evaluateClause({ field: part.field, value: part.value, not: part.not }, lookup) === false
+    )
+    if (!failing) return null
+    if (Array.isArray(failing.value) && failing.value.length > LISTED_VALUES) {
+      return rejected(failing.field)
+    }
+    const wanted = Array.isArray(failing.value)
+      ? failing.value.map(String).join(' or ')
+      : String(failing.value)
+    return `it shows only when ${failing.field} is ${failing.not ? 'not ' : ''}${wanted}`
   }
-  const wanted = Array.isArray(failing.value)
-    ? failing.value.map(String).join(' or ')
-    : String(failing.value)
-  return `it shows only when ${failing.field} is ${failing.not ? 'not ' : ''}${wanted}`
+  if (!('opaque' in condition)) return failingPart(condition)
+  // The order `evaluateCondition` decides an opaque condition in: the operation, then the clause
+  // `visibleWhen` still asks for it, and the model only for an operation `visibleFor` omits.
+  const operation = values.get('operation')
+  if (typeof operation === 'string' && visibleFor && Object.hasOwn(visibleFor, operation)) {
+    if (!visibleFor[operation]) return rejected('operation')
+    const asked = visibleWhen && getOwn(visibleWhen, operation)
+    return asked ? failingPart(asked) : null
+  }
+  const model = values.get('model')
+  if (typeof model === 'string' && visibleForModel?.[model] === false) return rejected('model')
+  return null
 }
 
 /**
