@@ -6,11 +6,9 @@ import type { ProviderConfig, ProviderResponse } from '@/providers/types'
 vi.mock('openai', () => openaiMock)
 
 vi.mock('groq-sdk', () => ({
-  Groq: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: openaiMockFns.mockChatCompletionsCreate } }
-    }
-  ),
+  Groq: class {
+    chat = { completions: { create: openaiMockFns.mockChatCompletionsCreate } }
+  },
 }))
 
 vi.mock('@/providers', () => providersMock)
