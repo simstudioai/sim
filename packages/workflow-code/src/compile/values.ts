@@ -953,7 +953,10 @@ export function checkCodeFileRefs(
       }
       const [head, ...rest] = ref.segments
       if (head?.kind !== 'name') continue
-      const written = formatMemberPath(REF_ROOT, ref.segments)
+      /** The reference as the file writes it: a `$ref` chain, or a `<key.path>` tag. */
+      const spell = (segments: RefSegment[]) =>
+        ref.tag ? `<${formatStoredPath(segments)}>` : formatMemberPath(REF_ROOT, segments)
+      const written = spell(ref.segments)
       if (head.name === 'variable') {
         const name = rest[0]?.kind === 'name' ? rest[0].name : null
         if (name !== null && !ctx.variables.has(name)) {
@@ -963,7 +966,9 @@ export function checkCodeFileRefs(
             at,
             {
               hint: () =>
-                didYouMean(name, ctx.variables.keys(), (key) => `${REF_ROOT}.variable.${key}`),
+                didYouMean(name, ctx.variables.keys(), (key) =>
+                  spell([head, { kind: 'name', name: key }])
+                ),
               blockKey,
             }
           )
@@ -985,18 +990,20 @@ export function checkCodeFileRefs(
       const byIdent = ctx.declsByIdent.get(head.name)?.[0]
       const byName = ctx.declsByKey.get(normalizeWorkflowBlockName(head.name))
       const suggested = byIdent ?? byName
-      const rewritten = (key: BlockKey) =>
-        formatMemberPath(REF_ROOT, [{ kind: 'name', name: key }, ...rest])
+      const rewritten = (key: BlockKey) => spell([{ kind: 'name', name: key }, ...rest])
       ctx.reporter.report(
         'W_UNRESOLVED_REF',
         `${written} names no block, so it does not resolve at run time.`,
         at,
         {
           hint: suggested
-            ? `${REF_ROOT} names a block by its key: write ${rewritten(suggested.key)}.`
+            ? `${ref.tag ? 'A tag' : REF_ROOT} names a block by its key: write ${rewritten(suggested.key)}.`
             : ctx.knownKeys.has(head.name)
-              ? formerBlockHint(ctx, head.name, renamed, rewritten)
-              : () => didYouMean(head.name, ctx.declsByKey.keys(), (key) => `${REF_ROOT}.${key}`),
+              ? formerBlockHint(ctx, head.name, renamed, rewritten, spell)
+              : () =>
+                  didYouMean(head.name, ctx.declsByKey.keys(), (key) =>
+                    spell([{ kind: 'name', name: key }])
+                  ),
           blockKey,
         }
       )
@@ -1005,27 +1012,30 @@ export function checkCodeFileRefs(
 }
 
 /**
- * The hint for a code file `$ref` head that is the key of a block the workflow had (the lock or
- * the stored workflow binds it) and source no longer declares: most often a block renamed in both
- * name and const, whose references an apply rewrites only when it ties the block to the stored
- * one. Names the one declared block nothing binds, when there is exactly one, as the probable new
- * key (`rewritten` writes the reference with it).
+ * The hint for a code file reference whose head is the key of a block the workflow had (the lock
+ * or the stored workflow binds it) and source no longer declares: most often a block renamed in
+ * both name and const, whose references an apply rewrites only when it ties the block to the
+ * stored one. Names the one declared block nothing binds, when there is exactly one, as the
+ * probable new key (`rewritten` writes the reference with it; `spell` writes a reference path as
+ * the file does).
  */
 function formerBlockHint(
   ctx: CompileContext,
   formerKey: BlockKey,
   renamed: ReadonlyMap<BlockKey, BlockKey>,
-  rewritten: (key: BlockKey) => string
+  rewritten: (key: BlockKey) => string,
+  spell: (segments: RefSegment[]) => string
 ): string {
   const renamedTo = new Set(renamed.values())
   const unbound = [...ctx.declsByKey.values()].filter(
     (decl) => !ctx.knownKeys.has(decl.key) && !renamedTo.has(decl.key)
   )
-  const lead = `${REF_ROOT}.${formerKey} is a block this workflow had that ${SOURCE_ENTRY_FILE} no longer declares under that key`
+  const lead = `${spell([{ kind: 'name', name: formerKey }])} is a block this workflow had that ${SOURCE_ENTRY_FILE} no longer declares under that key`
   const [only] = unbound
+  const placeholder = spell([{ kind: 'name', name: 'NEWKEY' }]).replace('NEWKEY', '<its new key>')
   return unbound.length === 1 && only
     ? `${lead}: if ${only.name} is it renamed, write ${rewritten(only.key)}.`
-    : `${lead}: if you renamed it, write ${REF_ROOT}.<its new key>, the display name lowercased with whitespace and dots removed.`
+    : `${lead}: if you renamed it, write ${placeholder}, the display name lowercased with whitespace and dots removed.`
 }
 
 function subflowScopeRef(

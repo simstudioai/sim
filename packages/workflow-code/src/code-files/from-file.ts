@@ -17,10 +17,11 @@ interface CodeFileSyntaxError {
 
 /**
  * One `$ref` chain (`segments`) or `$env` name (`env`) read from the file, at its UTF-16 offsets
- * in the file text.
+ * in the file text. `tag` marks a reference the file writes as stored text (`<key.path>`), which
+ * the file keeps as written and the run resolves as it does a rewritten `$ref`.
  */
 export type CodeFileRef = { start: number; end: number } & (
-  | { kind: 'ref'; segments: RefSegment[] }
+  | { kind: 'ref'; segments: RefSegment[]; tag?: true }
   | { kind: 'env'; name: string }
 )
 

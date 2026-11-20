@@ -1757,3 +1757,58 @@ describe('iteration references outside their container', () => {
     expect(codes(result)).toEqual([])
   })
 })
+
+describe('reference tags written in a code file', () => {
+  const unresolved = (result: CompileResult) =>
+    result.diagnostics
+      .filter((d) => d.code === 'W_UNRESOLVED_REF')
+      .map((d) => ({ message: d.message, file: d.span.file, line: d.span.line }))
+
+  it('checks tags in JavaScript strings as it checks $ref chains', () => {
+    const result = run(
+      source(
+        [START, "const f = fn('F', { code: codeFile('./fns/f.js') })", 'start.to(f)'].join('\n')
+      ),
+      {
+        'workflows/fns/f.js': [
+          "const a = '<nosuchblock.x>'",
+          'const b = `<variable.ghost>`',
+          "const html = '<b>' + a + '</b>'",
+          "return [a, b, html, '<start.q>', $ref.start.q]",
+        ].join('\n'),
+      }
+    )
+    expect(unresolved(result)).toEqual([
+      {
+        message: '<nosuchblock.x> names no block, so it does not resolve at run time.',
+        file: 'workflows/fns/f.js',
+        line: 1,
+      },
+      {
+        message: '<variable.ghost>: no workflow variable is keyed ghost.',
+        file: 'workflows/fns/f.js',
+        line: 2,
+      },
+    ])
+  })
+
+  it('checks tags in a Python file', () => {
+    const result = run(
+      source(
+        [
+          START,
+          "const f = fn('F', { language: 'python', code: codeFile('./fns/f.py') })",
+          'start.to(f)',
+        ].join('\n')
+      ),
+      { 'workflows/fns/f.py': 'q = <start.q>\nr = <gone.value>\nreturn [q, r]' }
+    )
+    expect(unresolved(result)).toEqual([
+      {
+        message: '<gone.value> names no block, so it does not resolve at run time.',
+        file: 'workflows/fns/f.py',
+        line: 2,
+      },
+    ])
+  })
+})

@@ -32,8 +32,13 @@ import {
 } from '../catalog/surface'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { catalogBuildersOfType } from '../catalog/view'
-import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
-import { isIdentifierName } from '../code-files/ref-path'
+import {
+  type CodeFileLanguage,
+  type CodeFileRef,
+  codeFileLanguage,
+  fromCodeFile,
+} from '../code-files'
+import { isIdentifierName, parseStoredPath } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { type ConfigField, type ContainerForm, loopForm, parallelForm } from '../forms/subflow'
@@ -426,10 +431,25 @@ function parseCodeFile(
     }
     return null
   }
-  if (back.refs.length > 0) {
-    ctx.codeFiles.chains.push({ path, blockKey: decl.key, refs: back.refs })
-  }
+  const refs = [...back.refs, ...referenceTags(text)].sort((a, b) => a.start - b.start)
+  if (refs.length > 0) ctx.codeFiles.chains.push({ path, blockKey: decl.key, refs })
   return back.code
+}
+
+/**
+ * The `<key.path>` references a code file writes as text, found by the runtime's own scanner (a
+ * JavaScript string, a Python or shell line): the run resolves each one, so compile checks them as
+ * it checks a `$ref` chain. A token with no path (`<b>` in HTML text) is no reference.
+ */
+function referenceTags(text: string): CodeFileRef[] {
+  const tags: CodeFileRef[] = []
+  for (const token of findWorkflowReferenceTokens(text)) {
+    if (token.kind !== 'workflow') continue
+    const segments = parseStoredPath(token.value.slice(1, -1))
+    if (!segments || segments.length < 2) continue
+    tags.push({ kind: 'ref', segments, start: token.start, end: token.end, tag: true })
+  }
+  return tags
 }
 
 interface WrittenParam {
