@@ -352,6 +352,24 @@ describe('sim workflows source apply', () => {
     )
   })
 
+  it('neither reads nor rewrites the workspace types on a plan', async () => {
+    setTerminal(false)
+    mkdirSync(join(dir, '.sim/sdk'), { recursive: true })
+    writeFileSync(join(dir, WORKSPACE_TYPES_FILE), '// types the last get wrote\n')
+    writeFileSync(join(dir, '.sim/sdk/workspace.manifest.json'), '{}\n')
+    request.mockResolvedValue(outcome({ dryRun: true }))
+
+    await apply(WORKFLOW_ID, '--dir', dir)
+
+    expect(dryRunFlags()).toEqual([true])
+    expect(request.mock.calls.map((call) => call[0])).not.toContainEqual(
+      expect.stringContaining('/source/resources')
+    )
+    expect(readFileSync(join(dir, WORKSPACE_TYPES_FILE), 'utf8')).toBe(
+      '// types the last get wrote\n'
+    )
+  })
+
   it('at a terminal, shows the dry run and applies once the person confirms', async () => {
     setTerminal(true)
     request.mockImplementation(async (_path: string, options: { query?: { dryRun?: boolean } }) =>
@@ -1325,6 +1343,22 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
       .map((call) => call[0] as string)
       .filter((path) => path.endsWith('/workflows/source'))
   }
+
+  it('plans a starter without reading or rewriting its workspace types', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const empty = join(dir, 'new')
+    answerStarterAndCreate()
+    await create('--dir', empty)
+    request.mockClear()
+
+    await create('--dir', empty)
+
+    expect(createCalls()).toHaveLength(1)
+    expect(request.mock.calls.map((call) => call[0])).not.toContainEqual(
+      expect.stringContaining('/source/resources')
+    )
+  })
 
   it('records the workspace the starter was typed for and names it in the next step', async () => {
     setTerminal(false)

@@ -354,7 +354,7 @@ export function attachWorkflowSourceApply(source: Command): void {
           const base = await readBase(options.dir, named)
           const workflowId = base.workflowId
           const files = await readSourceFiles(options.dir, lock)
-          if (!options.dryRun) {
+          if (!isReadOnly(mode)) {
             await refreshWorkflowWorkspaceTypes(client, options.dir, base.workspaceId)
           }
           await writeWorkflowSource<'applyWorkflowSource'>({
@@ -458,7 +458,9 @@ export function attachWorkflowSourceCreate(source: Command): void {
             profile.sources.workspaceId === 'flag' ? null : await readStarterWorkspace(options.dir)
           const workspaceId = client.requireWorkspace(starterWorkspace ?? undefined)
           const files = await readSourceFiles(options.dir, null)
-          if (!options.dryRun) await refreshWorkflowWorkspaceTypes(client, options.dir, workspaceId)
+          if (!isReadOnly(mode)) {
+            await refreshWorkflowWorkspaceTypes(client, options.dir, workspaceId)
+          }
           await writeWorkflowSource<'createWorkflowFromSource'>({
             options,
             mode,
