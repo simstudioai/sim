@@ -1683,6 +1683,73 @@ describe('connection shape validation', () => {
   })
 })
 
+describe('moving an existing block with edit params.parentId', () => {
+  function workflowWithLoop() {
+    const block = (id: string, type: string, data: Record<string, unknown> = {}) => ({
+      id,
+      type,
+      name: id,
+      position: { x: 400, y: 200 },
+      enabled: true,
+      subBlocks: {},
+      outputs: {},
+      data,
+    })
+    return {
+      blocks: {
+        'loop-1': {
+          ...block('loop-1', 'loop', { loopType: 'for', count: 2 }),
+          position: { x: 50, y: 60 },
+        },
+        'fn-1': block('fn-1', 'function'),
+        'fn-2': {
+          ...block('fn-2', 'function', { parentId: 'loop-1', extent: 'parent' }),
+          position: { x: 10, y: 20 },
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+  }
+
+  it('moves a top-level block into a loop, keeping its id', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflowWithLoop(), [
+      { operation_type: 'edit', block_id: 'fn-1', params: { parentId: 'loop-1' } },
+    ])
+
+    expect(skippedItems).toEqual([])
+    expect(state.blocks['fn-1'].data).toMatchObject({ parentId: 'loop-1', extent: 'parent' })
+    expect(state.blocks['fn-1'].position).toEqual({ x: 0, y: 0 })
+  })
+
+  it('moves a block out of its loop with a null parentId, where it sat on the canvas', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflowWithLoop(), [
+      { operation_type: 'edit', block_id: 'fn-2', params: { parentId: null } },
+    ])
+
+    expect(skippedItems).toEqual([])
+    expect(state.blocks['fn-2'].data?.parentId).toBeUndefined()
+    expect(state.blocks['fn-2'].position).toEqual({ x: 60, y: 80 })
+  })
+
+  it('declines a parentId that names no loop or parallel, saying so', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflowWithLoop(), [
+      { operation_type: 'edit', block_id: 'fn-1', params: { parentId: 'fn-2' } },
+    ])
+
+    expect(state.blocks['fn-1'].data?.parentId).toBeUndefined()
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'invalid_subflow_parent',
+        operationType: 'edit',
+        blockId: 'fn-1',
+        reason: expect.stringContaining('not a loop or parallel container'),
+      }),
+    ])
+  })
+})
+
 describe('edge cycles', () => {
   const BLOCK_A = '5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a'
   const BLOCK_B = '6b6b6b6b-6b6b-4b6b-8b6b-6b6b6b6b6b6b'
