@@ -198,7 +198,8 @@ type WorkflowTraceSpan = TraceSpan & {
 function childReadError(error: unknown, workflowId: string): unknown {
   if (!(error instanceof DelegatedWorkspaceAuthorizationError)) return error
   return new Error(
-    `Child workflow ${workflowId} is not in this workspace, or this run may no longer read it: a workflow block runs only workflows of its own workspace.`
+    `Child workflow ${workflowId} is not in this workspace, or this run may no longer read it: a workflow block runs only workflows of its own workspace.`,
+    { cause: error }
   )
 }
 
