@@ -844,6 +844,8 @@ export type ApplyWorkflowSourceResponse = {
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
         | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'W_CODE_FILE_REF_SYNTAX'
         | 'E_EDGE_SCOPE'
         | 'E_EDGE_NOTE'
         | 'E_TARGET_TRIGGER'
@@ -954,10 +956,13 @@ export type ApplyWorkflowSourceResponse = {
         | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
@@ -1297,6 +1302,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_WORKFLOW_FOLDER_COPIED'
         | 'W_UNDECLARED'
         | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
         | 'W_SERVER_CHANGED'
         | 'W_SERVER_DELETED'
         | 'W_SERVER_MOVED'
@@ -1335,6 +1342,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
         | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'W_CODE_FILE_REF_SYNTAX'
         | 'E_EDGE_SCOPE'
         | 'E_EDGE_NOTE'
         | 'E_TARGET_TRIGGER'
@@ -1444,10 +1453,13 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
       message: string
     }
@@ -1581,6 +1593,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_WORKFLOW_FOLDER_COPIED'
         | 'W_UNDECLARED'
         | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
         | 'W_SERVER_CHANGED'
         | 'W_SERVER_DELETED'
         | 'W_SERVER_MOVED'
@@ -1619,6 +1633,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
         | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'W_CODE_FILE_REF_SYNTAX'
         | 'E_EDGE_SCOPE'
         | 'E_EDGE_NOTE'
         | 'E_TARGET_TRIGGER'
@@ -1728,10 +1744,13 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
@@ -5280,6 +5299,8 @@ export type CreateWorkflowFromSourceResponse = {
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
         | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'W_CODE_FILE_REF_SYNTAX'
         | 'E_EDGE_SCOPE'
         | 'E_EDGE_NOTE'
         | 'E_TARGET_TRIGGER'
@@ -5390,10 +5411,13 @@ export type CreateWorkflowFromSourceResponse = {
         | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
@@ -10377,6 +10401,8 @@ export type GetWorkflowSourceResponse = {
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
         | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'W_CODE_FILE_REF_SYNTAX'
         | 'E_EDGE_SCOPE'
         | 'E_EDGE_NOTE'
         | 'E_TARGET_TRIGGER'
@@ -10487,10 +10513,13 @@ export type GetWorkflowSourceResponse = {
         | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
@@ -11024,6 +11053,8 @@ export type GetWorkspaceSourceResponse = {
         | 'E_WORKFLOW_FOLDER_COPIED'
         | 'W_UNDECLARED'
         | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
         | 'W_SERVER_CHANGED'
         | 'W_SERVER_DELETED'
         | 'W_SERVER_MOVED'
@@ -11062,6 +11093,8 @@ export type GetWorkspaceSourceResponse = {
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
         | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'W_CODE_FILE_REF_SYNTAX'
         | 'E_EDGE_SCOPE'
         | 'E_EDGE_NOTE'
         | 'E_TARGET_TRIGGER'
@@ -11171,10 +11204,13 @@ export type GetWorkspaceSourceResponse = {
         | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
@@ -14246,6 +14282,1018 @@ type MoveWorkflowsResponseRef0 = {
 
 export type MoveWorkflowsResponse = {
   data: MoveWorkflowsResponseRef0
+}
+
+/** `POST /api/v2/workflows/[workflowId]/source/plan` */
+export type PlanWorkflowSourceParams = {
+  workflowId: string
+}
+
+export type PlanWorkflowSourceQuery = {
+  allowDelete?: boolean
+}
+
+export type PlanWorkflowSourceBody = {
+  files: Record<string, string>
+  lock: {
+    version: 1
+    blocks: Record<
+      string,
+      {
+        id: string
+        parent: string | null
+        branches?: Record<string, string>
+        items?: Record<
+          string,
+          Array<{
+            name: string
+            id: string
+          }>
+        >
+        ident: string
+        order: number
+        layout?: {
+          x: number
+          y: number
+          w?: number
+          h?: number
+          height?: number
+          horizontalHandles?: boolean
+          [key: string]: unknown
+        }
+        codeFile?: string
+        [key: string]: unknown
+      }
+    >
+    variables: Record<string, string>
+    [key: string]: unknown
+  }
+  base: {
+    version?: 1
+    workflowId: string
+    workspaceId: string
+    fingerprint: string
+    catalogHash: string
+    [key: string]: unknown
+  }
+}
+
+export type PlanWorkflowSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    dryRun: boolean
+    applied: boolean
+    diff: {
+      noop: boolean
+      meta?: Array<'name' | 'description'>
+      blocks: {
+        added: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        removed: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        renamed: Array<{
+          id: string
+          from: string
+          to: string
+        }>
+        modified: Array<{
+          id: string
+          key: string
+          fields: Array<string>
+          reparented?: boolean
+        }>
+      }
+      edges: {
+        added: number
+        removed: number
+      }
+      variables: {
+        added: Array<string>
+        removed: Array<string>
+        modified: Array<string>
+      }
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'W_TOO_MANY_WARNINGS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_JSON_REF_UNTYPED'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_STALE'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      blockKey?: string
+      param?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      blockId?: string
+      path?: string
+    }>
+    files: Record<string, string>
+    lock: {
+      version: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          ident: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+            [key: string]: unknown
+          }
+          codeFile?: string
+          [key: string]: unknown
+        }
+      >
+      variables: Record<string, string>
+      [key: string]: unknown
+    }
+    base: {
+      version: 1
+      workflowId: string
+      workspaceId: string
+      fingerprint: string
+      catalogHash: string
+      [key: string]: unknown
+    }
+    mintedIds: Record<string, string>
+    notes: Array<string>
+    needsRedeployment: boolean
+  }
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/source/plan` */
+export type PlanWorkspaceSourceParams = {
+  workspaceId: string
+}
+
+export type PlanWorkspaceSourceQuery = Record<string, never>
+
+export type PlanWorkspaceSourceBody = {
+  files: Record<string, string>
+  blobs?: Array<{
+    path: string
+    sha256: string
+    size: number
+  }>
+  base?: {
+    version: 1
+    workspaceId: string
+    resources: Record<
+      string,
+      {
+        id: string
+        fingerprint?: string
+        columns?: Record<
+          string,
+          {
+            id: string
+            options?: Record<string, string>
+          }
+        >
+        blobs?: Record<
+          string,
+          {
+            id: string
+            rev: number | string
+            sha256: string
+          }
+        >
+        rows?: {
+          fingerprint: string
+          version: number
+          [key: string]: unknown
+        }
+        [key: string]: unknown
+      }
+    >
+    [key: string]: unknown
+  }
+  kinds: Array<
+    | 'secret'
+    | 'credential'
+    | 'custom-tool'
+    | 'skill'
+    | 'mcp-server'
+    | 'table'
+    | 'knowledge-base'
+    | 'file'
+    | 'workflow'
+    | 'deployment'
+  >
+  options?: {
+    allowDelete?: boolean
+    only?: Array<
+      | 'secret'
+      | 'credential'
+      | 'custom-tool'
+      | 'skill'
+      | 'mcp-server'
+      | 'table'
+      | 'knowledge-base'
+      | 'file'
+      | 'workflow'
+      | 'deployment'
+    >
+  }
+}
+
+export type PlanWorkspaceSourceResponse = {
+  data: {
+    workspaceId: string
+    dryRun: boolean
+    plan: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+      held?: true
+    }>
+    applied: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+      held?: true
+    }>
+    failed?: {
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_STALE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'W_TOO_MANY_WARNINGS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_JSON_REF_UNTYPED'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+      message: string
+    }
+    needBlobs: Array<string>
+    applyId?: string
+    files: Record<string, string>
+    base: {
+      version: 1
+      workspaceId: string
+      resources: Record<
+        string,
+        {
+          id: string
+          fingerprint?: string
+          columns?: Record<
+            string,
+            {
+              id: string
+              options?: Record<string, string>
+            }
+          >
+          blobs?: Record<
+            string,
+            {
+              id: string
+              rev: number | string
+              sha256: string
+            }
+          >
+          rows?: {
+            fingerprint: string
+            version: number
+            [key: string]: unknown
+          }
+          [key: string]: unknown
+        }
+      >
+      [key: string]: unknown
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_STALE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'W_TOO_MANY_WARNINGS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_JSON_REF_UNTYPED'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      path?: string
+      kind?: string
+      key?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
 }
 
 /** `POST /api/v2/organizations/[organizationId]/search/sources/prepare` */
@@ -19571,7 +20619,7 @@ export const V2_OPERATIONS = {
       allowDelete: {
         kind: 'boolean',
         describe:
-          'Allow the apply to delete blocks the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE` naming them. Ignored when creating a workflow.',
+          'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.',
       },
     },
     body: {
@@ -21228,7 +22276,7 @@ export const V2_OPERATIONS = {
       allowDelete: {
         kind: 'boolean',
         describe:
-          'Allow the apply to delete blocks the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE` naming them. Ignored when creating a workflow.',
+          'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.',
       },
     },
     body: {
@@ -26494,6 +27542,75 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Destination folder path; `/` moves the workflows to the workspace root.',
       },
+    },
+  },
+  planWorkflowSource: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/source/plan',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Plan workflow source',
+    workspaceKeyUnsupported: true,
+    query: {
+      allowDelete: {
+        kind: 'boolean',
+        describe:
+          'Plan the deletes of blocks the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE`.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files and 4000000 bytes together, for a workflow of at most 2000 blocks.',
+      },
+      lock: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.',
+      },
+      base: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Where and when the source was read (`.sim/base.json`). A draft that no longer matches `base.fingerprint` is reported as `E_APPLY_STALE` in `diagnostics`.',
+      },
+    },
+  },
+  planWorkspaceSource: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source/plan',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Plan workspace source',
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Directory path → text for every managed kind: declarations (`tables/leads.ts`) and workflow folders (`workflows/ingest/workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`). A workflow folder sent with only its `.sim/base.json` is unchanged.',
+      },
+      blobs: {
+        kind: 'array',
+        describe:
+          'Binary files by path, with the SHA-256 and size of their bytes. Their bytes must be staged first: `sim workspaces source apply` stages them, or upload them to `POST /api/v2/workspaces/{workspaceId}/source/blobs` (not available over MCP). An apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.',
+      },
+      base: {
+        kind: 'object',
+        describe:
+          '`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change.',
+      },
+      kinds: {
+        kind: 'array',
+        required: true,
+        describe:
+          'The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent.',
+      },
+      options: { kind: 'object', describe: 'How far the apply may go.' },
     },
   },
   prepareSearchSources: {
