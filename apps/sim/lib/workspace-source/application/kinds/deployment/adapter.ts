@@ -54,6 +54,7 @@ import {
   deployWorkflow,
   readWorkflowDeploymentStatus,
   undeployWorkflow,
+  WorkflowDraftChangedError,
 } from '@/lib/workflows/application/deployments'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -115,8 +116,9 @@ export interface DeploymentPlan {
   /** Publish the draft: a first deploy, or `live: 'draft'` with a draft that differs. */
   deploy: boolean
   /**
-   * The draft a deploy publishes: the one this apply's workflow write stores (`written`, its
-   * fingerprint known once written), or the draft with the `sf1:` fingerprint the plan vouched for.
+   * The draft a deploy, or a chat write that redeploys, may publish: the one this apply's workflow
+   * write stores (`written`, its fingerprint known once written), or the draft with the `sf1:`
+   * fingerprint the plan vouched for (for a chat write without a deploy, the draft it saw).
    */
   draft?: { written: true } | { fingerprint: string }
   /** The public API flag to set: on a first deploy (an undeploy keeps the old one), or a change. */
@@ -588,6 +590,15 @@ async function planDeployment(
     }
   }
   const writesChat = detail.chat === 'replace'
+  // A chat write redeploys a draft that differs from the live version: it may publish only the
+  // draft the plan vouched for, or else the one it saw, never one edited since.
+  if (writesChat && !detail.draft && workflowId) {
+    const seen = await readWorkflowSource.execute({
+      principal: ctx.principal,
+      input: { workflowId },
+    })
+    detail.draft = { fingerprint: seen.base.fingerprint }
+  }
   // A chat the apply keeps goes live with the edited draft all the same.
   const publishesEditedDraft = detail.deploy && draftEdited
   if (decl.chat && (writesChat || publishesEditedDraft)) {
@@ -612,6 +623,29 @@ function idempotencyKey(decl: DeploymentDecl, workflowId: string, live: string |
  * Deploys the draft unless it already is the live version: a re-run after a deploy that
  * succeeded finds nothing to publish, and one after a deploy that failed replays the same key.
  */
+/**
+ * The `sf1:` fingerprint of the draft change `change` may publish on workflow `workflowId`, or
+ * `undefined` when its plan vouched for none (a chat write on a workflow this apply creates).
+ */
+function expectedDraftOf(
+  change: DeploymentChange,
+  workflowId: string,
+  ctx: ApplyContext
+): string | undefined {
+  const draft = change.detail?.draft
+  return draft && 'written' in draft ? ctx.writtenDrafts.get(workflowId) : draft?.fingerprint
+}
+
+/** Runs a publish, refusing as stale a draft that moved since the plan vouched for it. */
+async function publishing(change: DeploymentChange, publish: () => Promise<unknown>) {
+  try {
+    await publish()
+  } catch (error) {
+    if (!(error instanceof WorkflowDraftChangedError)) throw error
+    throw new ResourceChangedError({ kind: 'workflow', key: change.key })
+  }
+}
+
 async function deployDraft(
   change: DeploymentChange,
   decl: DeploymentDecl,
@@ -619,14 +653,12 @@ async function deployDraft(
   ctx: ApplyContext
 ) {
   const { principal } = ctx
-  const draft = change.detail?.draft
-  const expectedDraftFingerprint =
-    draft && 'written' in draft ? ctx.writtenDrafts.get(workflowId) : draft?.fingerprint
+  const expectedDraftFingerprint = expectedDraftOf(change, workflowId, ctx)
   if (!expectedDraftFingerprint) throw new Error('A deploy needs the draft it publishes')
   const status = await readWorkflowDeploymentStatus.execute({ principal, input: { workflowId } })
   if (status.isDeployed && !status.needsRedeployment) return
-  try {
-    await deployWorkflow.execute({
+  await publishing(change, () =>
+    deployWorkflow.execute({
       principal,
       input: {
         workflowId,
@@ -639,11 +671,7 @@ async function deployDraft(
         ),
       },
     })
-  } catch (error) {
-    // The draft moved since the plan vouched for it (or since this apply wrote it): it is stale.
-    if (!(error instanceof OrchestrationError) || error.code !== 'conflict') throw error
-    throw new ResourceChangedError({ kind: 'workflow', key: change.key })
-  }
+  )
 }
 
 /** The block ids a chat's outputs name, refusing a block the workflow does not have. */
@@ -922,7 +950,18 @@ export const deploymentAdapter: KindAdapter<'deployment', StoredDeployment> = {
       })
     }
     if (detail.deploy) await deployDraft(change, decl, workflowId, ctx)
-    if (chatInput) await replaceWorkflowChatDeployment.execute({ principal, input: chatInput })
+    if (chatInput) {
+      const expectedDraftFingerprint = expectedDraftOf(change, workflowId, ctx)
+      await publishing(change, () =>
+        replaceWorkflowChatDeployment.execute({
+          principal,
+          input: {
+            ...chatInput,
+            ...(expectedDraftFingerprint ? { expectedDraftFingerprint } : {}),
+          },
+        })
+      )
+    }
     if (detail.chat === 'delete') {
       await deleteWorkflowChatDeployment.execute({ principal, input: { workflowId } })
     }

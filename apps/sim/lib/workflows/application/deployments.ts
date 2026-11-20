@@ -153,19 +153,43 @@ async function lintDeployedVersion(
   }
 }
 
+/** A publish refused because the draft no longer has the fingerprint its caller expected. */
+export class WorkflowDraftChangedError extends OrchestrationError {
+  constructor() {
+    super(
+      'conflict',
+      'The workflow draft changed since it was applied, so it was not deployed. Read it again to review the change, then deploy.'
+    )
+    this.name = 'WorkflowDraftChangedError'
+  }
+}
+
 /**
- * A deploy's draft check: the snapshot it publishes must print with `expected`, the fingerprint of
- * the draft the caller reviewed or wrote.
+ * A publish's draft check: the snapshot it publishes must print with `expected`, the fingerprint
+ * of the draft the caller reviewed or wrote. Every path that may publish a draft for a caller
+ * holding such a fingerprint (a deploy, a chat write that redeploys) admits its snapshot through
+ * `admitDraft`; after a failed publish, `assertAdmitted` throws {@link WorkflowDraftChangedError}
+ * when this check is what refused it.
  */
-function expectedDraft(
+export function expectedDraft(
   principal: Principal,
   context: ActiveWorkflowApplicationContext,
   expected: string
-): (draft: WorkflowState) => Promise<string | null> {
-  return async (draft) =>
-    (await draftSourceFingerprint(principal, context, draft)) === expected
-      ? null
-      : 'The workflow draft changed since it was applied, so it was not deployed. Read it again to review the change, then deploy.'
+): {
+  admitDraft: (draft: WorkflowState) => Promise<string | null>
+  assertAdmitted: () => void
+} {
+  let refused = false
+  return {
+    async admitDraft(draft) {
+      if ((await draftSourceFingerprint(principal, context, draft)) === expected) return null
+      refused = true
+      return new WorkflowDraftChangedError().message
+    },
+    assertAdmitted() {
+      if (refused) throw new WorkflowDraftChangedError()
+    },
+  }
 }
 
 export const deployWorkflow = defineAuthorizedWorkflowUseCase({
@@ -176,6 +200,10 @@ export const deployWorkflow = defineAuthorizedWorkflowUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
+    const draftCheck =
+      input.expectedDraftFingerprint !== undefined
+        ? expectedDraft(principal, context, input.expectedDraftFingerprint)
+        : undefined
     const result = await performFullDeploy({
       workflowId: context.workflowId,
       userId: attribution.attributedUserId,
@@ -186,10 +214,9 @@ export const deployWorkflow = defineAuthorizedWorkflowUseCase({
       versionDescription: input.description,
       requestId: input.requestId,
       idempotencyKey: input.idempotencyKey,
-      ...(input.expectedDraftFingerprint !== undefined
-        ? { admitDraft: expectedDraft(principal, context, input.expectedDraftFingerprint) }
-        : {}),
+      ...(draftCheck ? { admitDraft: draftCheck.admitDraft } : {}),
     })
+    draftCheck?.assertAdmitted()
     if (!result.success) throwDeploymentFailure(result, 'Failed to deploy workflow')
     const lint =
       input.lintDeployedVersion && result.deploymentVersionId

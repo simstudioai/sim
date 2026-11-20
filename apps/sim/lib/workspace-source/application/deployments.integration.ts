@@ -1254,4 +1254,34 @@ describe('workspace source: deployments', () => {
       }
     }
   )
+
+  check(
+    'a chat write refuses a draft edited between the plan and the write, publishing nothing',
+    async () => {
+      const { workspaceId, id, files, base } = await deployedWorkspace()
+      const check = deploymentAdapter.storedFingerprintNow
+      if (!check) throw new Error('The deployment adapter checks fingerprints before writing')
+      // A teammate edits the draft just before the chat write, which would redeploy it.
+      const racing = vi
+        .spyOn(deploymentAdapter, 'storedFingerprintNow')
+        .mockImplementation(async (change, ctx) => {
+          await editDraftOutOfBand(id, 'Edited meanwhile: ')
+          return check.call(deploymentAdapter, change, ctx)
+        })
+      try {
+        const result = await apply(
+          workspaceId,
+          { ...asSent(files, workspaceId), [DEPLOYMENT]: answerChat('racing-chat') },
+          { base }
+        )
+        expect(racing).toHaveBeenCalledOnce()
+        expect([result.failed?.key, result.failed?.code]).toEqual(['nightly', 'E_APPLY_STALE'])
+        const after = await deployState(id)
+        expect(after.versions).toBe(1)
+        expect(after.chat).toBeUndefined()
+      } finally {
+        racing.mockRestore()
+      }
+    }
+  )
 })
