@@ -11,9 +11,13 @@ import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { collectTableBlockFieldIssues } from '@/lib/workflows/editing/lint'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowFromNormalizedTables,
+  NoActiveDeploymentError,
+} from '@/lib/workflows/persistence/utils'
 import { finding, where } from '@/lib/workspace-source/application/findings'
-import { workflowsUsing } from '@/lib/workspace-source/application/in-use'
+import { liveVersionsReplaced, workflowsUsing } from '@/lib/workspace-source/application/in-use'
 import type { TablePlan } from '@/lib/workspace-source/application/kinds/table/adapter'
 import type { PlanContext, PlannedChange } from '@/lib/workspace-source/application/types'
 
@@ -67,10 +71,22 @@ function locateWrite(
   return { line: declaration + 1, column: 1 }
 }
 
+/** The live version of `workflowId`'s deployment, or `null` when it has none. */
+async function liveBlocks(workflowId: string) {
+  try {
+    return (await loadDeployedWorkflowState(workflowId)).blocks
+  } catch (error) {
+    if (error instanceof NoActiveDeploymentError) return null
+    throw error
+  }
+}
+
 /**
  * Warns `W_TABLE_COLUMN_RENAMED_IN_USE` on each table change that renames a column some stored
  * workflow's Table block still writes, filters or sorts by the old name: one finding per block,
- * naming the workflow and the block, pinned to the declared workflow's file and line.
+ * naming the workflow and the block, pinned to the declared workflow's file and line. A deployed
+ * workflow's live version runs apart from its draft, so it is checked too (an evaluated draft
+ * included), unless the apply publishes the draft or undeploys it.
  */
 export async function checkColumnRenamesInUse(
   changes: readonly PlannedChange[],
@@ -89,45 +105,74 @@ export async function checkColumnRenamesInUse(
     if (change.kind !== 'workflow' || change.storedId === undefined) continue
     declared.set(change.storedId, { key: change.key, evaluated: change.refs !== undefined })
   }
+  const replacedLive = liveVersionsReplaced(changes)
   for (const table of tables) {
+    const columns = new Map([
+      [table.tableId, { name: table.tableName, columnNames: table.columnNames }],
+    ])
     for (const workflow of using.get(table.tableId) ?? []) {
-      if (!workflow.draft) continue
       const folder = declared.get(workflow.id)
       if (
-        folder?.evaluated ||
         changes.some(
           (c) => c.kind === 'workflow' && c.storedId === workflow.id && c.action === 'delete'
         )
-      )
+      ) {
         continue
-      const loaded = await loadWorkflowFromNormalizedTables(workflow.id)
-      if (!loaded) continue
-      const issues = collectTableBlockFieldIssues(
-        loaded.blocks,
-        new Map([[table.tableId, { name: table.tableName, columnNames: table.columnNames }]])
-      ).filter((issue) => table.renamed.has(issue.field))
-      if (issues.length === 0) continue
-      const text = folder
-        ? (
-            await readWorkflowSource.execute({
-              principal: ctx.principal,
-              input: { workflowId: workflow.id },
-            })
-          ).files[SOURCE_ENTRY_FILE]
-        : undefined
-      for (const issue of issues) {
+      }
+      /** `blockId:field` of each finding already made from the draft. */
+      const reported = new Set<string>()
+      if (workflow.draft && !folder?.evaluated) {
+        const loaded = await loadWorkflowFromNormalizedTables(workflow.id)
+        const issues = loaded
+          ? collectTableBlockFieldIssues(loaded.blocks, columns).filter((issue) =>
+              table.renamed.has(issue.field)
+            )
+          : []
+        const text =
+          folder && issues.length > 0
+            ? (
+                await readWorkflowSource.execute({
+                  principal: ctx.principal,
+                  input: { workflowId: workflow.id },
+                })
+              ).files[SOURCE_ENTRY_FILE]
+            : undefined
+        for (const issue of issues) {
+          reported.add(`${issue.blockId}:${issue.field}`)
+          const renamedTo = table.renamed.get(issue.field)
+          const blockName = issue.blockName ?? issue.blockId
+          const at = text !== undefined ? locateWrite(text, blockName, issue.field) : undefined
+          table.change.diagnostics.push(
+            finding(
+              'W_TABLE_COLUMN_RENAMED_IN_USE',
+              `${where('table', table.change.key)} renames column "${issue.field}" to "${renamedTo}", but block "${blockName}" of workflow "${workflow.name}" still ${issue.rowWrite ? 'writes' : 'reads'} "${issue.field}"; the run drops it.`,
+              {
+                hint: `Write "${renamedTo}" in that block${folder ? ` (${workflowFolder(folder.key)}/${SOURCE_ENTRY_FILE})` : ''}, in this apply or right after it.`,
+                ...(folder
+                  ? { file: `${workflowFolder(folder.key)}/${SOURCE_ENTRY_FILE}`, ...(at ?? {}) }
+                  : {}),
+                kind: 'table',
+                key: table.change.key,
+              }
+            )
+          )
+        }
+      }
+      if (!workflow.live || replacedLive.has(workflow.id)) continue
+      const live = await liveBlocks(workflow.id)
+      if (!live) continue
+      for (const issue of collectTableBlockFieldIssues(live, columns)) {
+        if (!table.renamed.has(issue.field) || reported.has(`${issue.blockId}:${issue.field}`)) {
+          continue
+        }
         const renamedTo = table.renamed.get(issue.field)
         const blockName = issue.blockName ?? issue.blockId
-        const at = text !== undefined ? locateWrite(text, blockName, issue.field) : undefined
         table.change.diagnostics.push(
           finding(
             'W_TABLE_COLUMN_RENAMED_IN_USE',
-            `${where('table', table.change.key)} renames column "${issue.field}" to "${renamedTo}", but block "${blockName}" of workflow "${workflow.name}" still ${issue.rowWrite ? 'writes' : 'reads'} "${issue.field}"; the run drops it.`,
+            `${where('table', table.change.key)} renames column "${issue.field}" to "${renamedTo}", but block "${blockName}" of workflow "${workflow.name}" (live version) still ${issue.rowWrite ? 'writes' : 'reads'} "${issue.field}"; its runs drop it until the workflow is deployed again.`,
             {
-              hint: `Write "${renamedTo}" in that block${folder ? ` (${workflowFolder(folder.key)}/${SOURCE_ENTRY_FILE})` : ''}, in this apply or right after it.`,
-              ...(folder
-                ? { file: `${workflowFolder(folder.key)}/${SOURCE_ENTRY_FILE}`, ...(at ?? {}) }
-                : {}),
+              hint: `Write "${renamedTo}" in that block and deploy the workflow (\`deployments/<key>.ts\` with live: 'draft'), in this apply or right after it.`,
               kind: 'table',
               key: table.change.key,
             }
