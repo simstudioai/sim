@@ -9,16 +9,16 @@ Sim stores block outputs larger than 8 MiB with the run and loads them only when
 
 | Limit | Size |
 | --- | --- |
-| One block output | 64 MiB |
-| One value loaded into Function code at once | 16 MiB |
+| One stored value | 64 MiB |
+| One stored value loaded by a block at once | 16 MiB |
 | One file read by Function code | 64 MiB |
 | One `sim.files` read or chunk | 10 MiB |
 
-These are hard limits. A block that exceeds one fails with an `Execution memory limit exceeded` error that names the size and the limit.
+Sim stores large fields and array chunks as separate values, so a whole block output can exceed 64 MiB when no single piece does. A block that exceeds a limit fails with an `Execution memory limit exceeded` error that names the size and the limit.
 
 ## Reference fields, not whole outputs
 
-Use `<api.data.items[0].id>` instead of `<api.data>`. Sim loads a large output only as far as the path requires, so a small field inside a large output stays cheap to read.
+Use `<api.data.items[0].id>` instead of `<api.data>`. Sim stores large arrays in chunks, so an indexed path loads only the chunk it reads. A field inside a large object still loads that whole object, so the object must fit the 16 MiB limit; when it does not, have the block that produces it return less.
 
 Only JavaScript Function code without imports can receive a whole large value; Sim loads it when the code runs, up to 16 MiB. Agent, API, and other block inputs, Python and Shell code, and JavaScript with imports must reference a smaller field. A reference to an object that contains a large value fails with `contains nested large values`; reference the nested field instead.
 
