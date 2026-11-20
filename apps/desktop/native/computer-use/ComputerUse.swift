@@ -44,10 +44,15 @@ struct Parameters: Decodable {
     var command: AppCommand?
 }
 /// One allowlisted app command. Commands go through EventKit and Contacts, never Apple Events or
-/// scripts, so they cannot reach a shell; each is a typed create or a list read, with no update,
-/// delete or search.
+/// scripts, so they cannot reach a shell; each is a typed create, a bounded read, or a reminder
+/// update by id. Nothing is ever deleted.
 struct AppCommand: Decodable {
     var name: String
+    var id: String?
+    var titleContains: String?
+    var includeCompleted: Bool?
+    var completed: Bool?
+    var clearDue: Bool?
     var title: String?
     var notes: String?
     var due: String?
@@ -171,8 +176,82 @@ func eventDate(_ text: String?, _ field: String, allDay: Bool) throws -> Date {
     guard let date = isoDateTime(text) else { throw invalidCommand("\(field) must be a real ISO 8601 date-time.") }
     return date
 }
+/// Reminders matching a predicate; EventKit only offers the asynchronous fetch.
+func fetchReminders(_ store: EKEventStore, _ predicate: NSPredicate) async -> [EKReminder] {
+    await withCheckedContinuation { continuation in
+        store.fetchReminders(matching: predicate) { continuation.resume(returning: $0 ?? []) }
+    }
+}
+/// A reminder as reads and confirmations report it.
+func reminderItem(_ reminder: EKReminder) -> [String: Any] {
+    var item: [String: Any] = [
+        "id": reminder.calendarItemIdentifier, "title": String((reminder.title ?? "").prefix(1024)),
+        "list": String(reminder.calendar.title.prefix(1024)), "priority": reminder.priority, "completed": reminder.isCompleted,
+    ]
+    if let notes = reminder.notes, !notes.isEmpty { item["notes"] = String(notes.prefix(8000)) }
+    if let due = reminder.dueDateComponents { item["due"] = dueText(due) }
+    return item
+}
+/// Due components written back the way commands take them: `YYYY-MM-DD`, or this Mac's local `YYYY-MM-DDTHH:MM:SS`.
+func dueText(_ due: DateComponents) -> String {
+    let day = String(format: "%04d-%02d-%02d", due.year ?? 0, due.month ?? 0, due.day ?? 0)
+    guard due.hour != nil else { return day }
+    var source = Calendar(identifier: .gregorian); source.timeZone = due.timeZone ?? .current
+    guard let date = source.date(from: due) else { return day }
+    let local = localGregorian().dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+    return String(format: "%04d-%02d-%02dT%02d:%02d:%02d", local.year ?? 0, local.month ?? 0, local.day ?? 0, local.hour ?? 0, local.minute ?? 0, local.second ?? 0)
+}
+/// Up to 50 reminders, incomplete unless asked otherwise, optionally in one list and matching part of a
+/// title; or the one reminder with `id`, which an update reads to show its current values.
+func findReminders(_ command: AppCommand) async throws -> [String: Any] {
+    let contains = try optionalText(command.titleContains, "titleContains", max: 256)
+    let store = try remindersStore()
+    if let id = command.id {
+        let found = (store.calendarItem(withIdentifier: id) as? EKReminder).map { [reminderItem($0)] } ?? []
+        return ["kind": "command", "command": command.name, "reminders": found, "truncated": false]
+    }
+    var lists: [EKCalendar]?
+    if let listId = command.listId {
+        guard let found = store.calendar(withIdentifier: listId), found.allowedEntityTypes.contains(.reminder) else {
+            throw ComputerError("list_unavailable", "No reminder list has this id; call list_reminder_lists.", dispatchState: "not_started")
+        }
+        lists = [found]
+    }
+    let predicate = command.includeCompleted == true
+        ? store.predicateForReminders(in: lists)
+        : store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: lists)
+    var matches = await fetchReminders(store, predicate)
+    if let contains { matches = matches.filter { ($0.title ?? "").localizedCaseInsensitiveContains(contains) } }
+    return ["kind": "command", "command": command.name, "reminders": matches.prefix(50).map(reminderItem), "truncated": matches.count > 50]
+}
 func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
     switch command.name {
+    case "update_reminder":
+        let id = try commandText(command.id, "id", max: 256)
+        let title = try command.title.map { try commandText($0, "Title") }
+        // An empty string clears the notes, as deleting them in the app would.
+        if let notes = command.notes, notes.count > 8000 { throw invalidCommand("Notes are limited to 8000 characters.") }
+        if let priority = command.priority, ![0, 1, 5, 9].contains(priority) { throw invalidCommand("Priority must be 0 (none), 1 (high), 5 (medium) or 9 (low).") }
+        if command.due != nil && command.clearDue == true { throw invalidCommand("Pass due or clearDue, not both.") }
+        let due = try command.due.map { try dueComponents($0) }
+        guard title != nil || command.notes != nil || command.priority != nil || due != nil || command.clearDue == true || command.completed != nil else {
+            throw invalidCommand("An update needs at least one field to change.")
+        }
+        let store = try remindersStore()
+        guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else {
+            throw ComputerError("not_found", "No reminder has this id; call find_reminders.", dispatchState: "not_started")
+        }
+        guard reminder.calendar.allowsContentModifications else { throw ComputerError("list_read_only", "This reminder list is read-only.", dispatchState: "not_started") }
+        if let title { reminder.title = title }
+        if let notes = command.notes { reminder.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes }
+        if let priority = command.priority { reminder.priority = priority }
+        if let due { reminder.dueDateComponents = due }
+        if command.clearDue == true { reminder.dueDateComponents = nil }
+        if let completed = command.completed { reminder.isCompleted = completed }
+        try checkCancellation()
+        inputDispatched = true
+        try store.save(reminder, commit: true)
+        return ["kind": "command", "command": command.name, "updated": ["id": reminder.calendarItemIdentifier, "title": String((reminder.title ?? "").prefix(1024)), "list": String(reminder.calendar.title.prefix(1024))]]
     case "list_reminder_lists":
         let allLists = try remindersStore().calendars(for: .reminder)
         let lists = allLists.prefix(200).map { list -> [String: Any] in
@@ -1064,7 +1143,10 @@ final class Driver {
         case "list_apps": return ["kind": "apps", "apps": try discoverApps()]
         case "app_command":
             inputDispatched = false
-            return try runAppCommand(required(p.command, "command"))
+            let command = try required(p.command, "command")
+            // EventKit only fetches reminders asynchronously.
+            if command.name == "find_reminders" { return try await findReminders(command) }
+            return try runAppCommand(command)
         case "activate_app":
             try requireAccessibility()
             let app = try await appFor(p.bundleId, launch: true)

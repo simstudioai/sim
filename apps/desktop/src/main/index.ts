@@ -237,13 +237,16 @@ function main(): void {
       })
       return result.response === 0 ? 'once' : result.response === 1 ? 'always' : 'deny'
     },
-    confirmAppCommand: async ({ appName, summary }, signal) => {
+    confirmAppCommand: async ({ appName, summary, change }, signal) => {
       const result = await dialog.showMessageBox({
         type: 'question',
         title: 'Computer Use',
-        message: `Let Mothership add this to ${appName}?`,
+        message:
+          change === 'update'
+            ? `Let Mothership change this in ${appName}?`
+            : `Let Mothership add this to ${appName}?`,
         detail: summary,
-        buttons: ['Add', 'Cancel'],
+        buttons: [change === 'update' ? 'Change' : 'Add', 'Cancel'],
         defaultId: 1,
         cancelId: 1,
         noLink: true,

@@ -56,7 +56,9 @@ function setup(enabled = true, askForApps = true) {
   )
   const native = { request, stop: vi.fn() }
   const approveApp = vi.fn(async (): Promise<'always' | 'deny' | 'once'> => 'always')
-  const confirmAppCommand = vi.fn(async (_request: { appName: string; summary: string }) => true)
+  const confirmAppCommand = vi.fn(
+    async (_request: { appName: string; summary: string; change: 'add' | 'update' }) => true
+  )
   const onActivity = vi.fn()
   const openPermissionSettings = vi.fn(async () => {})
   const setStopShortcutActive = vi.fn((active: boolean) => active)
@@ -229,6 +231,76 @@ describe('native computer use authority and lifecycle', () => {
       details: { code: 'user_declined' },
     })
     expect(confirmAppCommand.mock.lastCall?.[0].summary).toContain('List: deleted-list')
+  })
+
+  it('confirms a reminder update against its current values, and refuses an unknown id first', async () => {
+    const { service, native, confirmAppCommand } = setup()
+    native.request.mockImplementation(async (method, params): Promise<ComputerUseResult> => {
+      if (method !== 'app_command') return { kind: 'apps', apps: [] }
+      const command = params?.command as { name: string; id: string }
+      if (command.name === 'find_reminders')
+        return {
+          kind: 'command',
+          command: 'find_reminders',
+          reminders:
+            command.id === 'r1'
+              ? [
+                  {
+                    id: 'r1',
+                    title: 'Pay rent',
+                    list: 'Home',
+                    due: '2027-05-04',
+                    priority: 0,
+                    completed: false,
+                  },
+                ]
+              : [],
+          truncated: false,
+        }
+      return {
+        kind: 'command',
+        command: 'update_reminder',
+        updated: { id: 'r1', title: 'Pay rent', list: 'Home' },
+      }
+    })
+    const sent = () =>
+      native.request.mock.calls.filter(
+        ([method, params]) =>
+          method === 'app_command' &&
+          (params?.command as { name: string }).name === 'update_reminder'
+      ).length
+
+    await expect(
+      service.execute('missing', 'chat', {
+        action: 'app_command',
+        command: { name: 'update_reminder', id: 'gone', completed: true },
+      })
+    ).rejects.toMatchObject({ details: { code: 'not_found', dispatchState: 'not_started' } })
+    expect(confirmAppCommand).not.toHaveBeenCalled()
+
+    confirmAppCommand.mockResolvedValueOnce(false)
+    const update = {
+      action: 'app_command',
+      command: {
+        name: 'update_reminder',
+        id: 'r1',
+        due: '2027-05-11',
+        priority: 1,
+        completed: true,
+      },
+    }
+    await expect(service.execute('declined', 'chat', update)).rejects.toMatchObject({
+      details: { code: 'user_declined' },
+    })
+    expect(sent()).toBe(0)
+    expect(confirmAppCommand.mock.calls[0]?.[0]).toMatchObject({
+      change: 'update',
+      summary:
+        'Reminder: Pay rent\nList: Home\nDue: 2027-05-04 → 2027-05-11\nPriority: None → High\nStatus: Open → Completed',
+    })
+
+    await service.execute('accepted', 'chat', update)
+    expect(sent()).toBe(1)
   })
 
   it('refuses an app command when the user denies the app, before asking to confirm', async () => {

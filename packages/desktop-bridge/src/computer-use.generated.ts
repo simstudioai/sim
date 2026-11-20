@@ -255,7 +255,7 @@ const EventBoundary = DateOrDateTime.describe(
   "ISO 8601 date-time, or YYYY-MM-DD when allDay is true. Without an offset it is this Mac's local time, as typing it into Calendar would be.",
 );
 
-/** Typed app commands: one allowlisted create or list read through the OS's own data frameworks, never a script. */
+/** Typed app commands through the OS's own data frameworks, never a script: allowlisted creates, bounded reads and reminder updates by id. Nothing is deleted. */
 export const AppCommandSchema = z.discriminatedUnion("name", [
   z.strictObject({ name: z.literal("list_reminder_lists") }),
   z.strictObject({
@@ -276,6 +276,44 @@ export const AppCommandSchema = z.discriminatedUnion("name", [
       .optional()
       .describe("0 none, 1 high, 5 medium, 9 low."),
   }),
+  z.strictObject({
+    name: z.literal("find_reminders"),
+    id: z.string().min(1).max(256).optional().describe("Read just this reminder."),
+    listId: z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe("An id from list_reminder_lists; omit for every list."),
+    titleContains: z.string().min(1).max(256).optional().describe("Case-insensitive part of the title."),
+    includeCompleted: z.boolean().optional().describe("Completed reminders are left out unless true."),
+  }),
+  z
+    .strictObject({
+      name: z.literal("update_reminder"),
+      id: z.string().min(1).max(256).describe("An id from find_reminders or create_reminder."),
+      title: CommandTitle.optional(),
+      notes: CommandNotes.describe("Replaces the notes; an empty string clears them."),
+      due: DateOrDateTime.optional().describe(
+        "YYYY-MM-DD for a date-only reminder, or an ISO 8601 date-time (this Mac's local time without an offset).",
+      ),
+      clearDue: z.literal(true).optional().describe("Removes the due date."),
+      priority: z
+        .union([z.literal(0), z.literal(1), z.literal(5), z.literal(9)])
+        .optional()
+        .describe("0 none, 1 high, 5 medium, 9 low."),
+      completed: z.boolean().optional().describe("true marks it done; false reopens it."),
+    })
+    .refine((update) => !(update.due !== undefined && update.clearDue), {
+      message: "Pass due or clearDue, not both",
+    })
+    .refine(
+      (update) =>
+        [update.title, update.notes, update.due, update.clearDue, update.priority, update.completed].some(
+          (value) => value !== undefined,
+        ),
+      { message: "An update needs at least one field to change" },
+    ),
   z.strictObject({ name: z.literal("list_calendars") }),
   z.strictObject({
     name: z.literal("create_event"),
@@ -414,6 +452,22 @@ const CommandItem = z.strictObject({
   allowsModifications: z.boolean(),
 });
 
+const ReminderItem = z.strictObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(1024),
+  list: z.string().max(1024),
+  due: z.string().max(64).optional(),
+  priority: z.number().int().min(0).max(9),
+  completed: z.boolean(),
+  notes: z.string().max(8000).optional(),
+});
+
+const SavedItem = z.strictObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(1024),
+  list: z.string().max(1024),
+});
+
 /** A create must return the id it committed, so a lost reply is never retried as a second create. */
 export const ComputerUseCommandResultSchema = z
   .strictObject({
@@ -421,30 +475,32 @@ export const ComputerUseCommandResultSchema = z
     command: z.enum([
       "list_reminder_lists",
       "create_reminder",
+      "find_reminders",
+      "update_reminder",
       "list_calendars",
       "create_event",
       "list_contact_groups",
       "create_contact_group",
       "create_contact",
     ]),
-    created: z
-      .strictObject({
-        id: z.string().min(1).max(256),
-        title: z.string().max(1024),
-        list: z.string().max(1024),
-      })
-      .optional(),
+    created: SavedItem.optional(),
+    updated: SavedItem.optional(),
     items: z.array(CommandItem).max(200).optional(),
+    reminders: z.array(ReminderItem).max(50).optional(),
     truncated: z
       .boolean()
       .optional()
-      .describe("True when more than 200 items exist and only the first 200 are listed."),
+      .describe("True when more items exist than the read returns (200 for lists, 50 for reminders)."),
   })
   .refine(
-    (result) =>
-      result.command.startsWith("create_") ? result.created !== undefined : result.items !== undefined,
+    (result) => {
+      if (result.command.startsWith("create_")) return result.created !== undefined;
+      if (result.command.startsWith("update_")) return result.updated !== undefined;
+      if (result.command.startsWith("find_")) return result.reminders !== undefined;
+      return result.items !== undefined;
+    },
     {
-      message: "A create returns created; a list returns items",
+      message: "A create returns created, an update updated, a find reminders, and a list items",
     },
   );
 

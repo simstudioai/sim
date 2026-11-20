@@ -27,7 +27,7 @@ interface ComputerUseServiceDeps {
   ) => Promise<'once' | 'always' | 'deny'>
   /** Confirms one app-command write. It shows the exact fields, since nothing happens on screen. */
   confirmAppCommand: (
-    request: { appName: string; summary: string },
+    request: { appName: string; summary: string; change: 'add' | 'update' },
     signal: AbortSignal
   ) => Promise<boolean>
   onActivity: (activity: ComputerUseActivity | null) => void
@@ -53,6 +53,8 @@ interface SnapshotOwnership {
 const APP_COMMAND_APPS: Record<AppCommand['name'], string> = {
   list_reminder_lists: 'com.apple.reminders',
   create_reminder: 'com.apple.reminders',
+  find_reminders: 'com.apple.reminders',
+  update_reminder: 'com.apple.reminders',
   list_calendars: 'com.apple.iCal',
   create_event: 'com.apple.iCal',
   list_contact_groups: 'com.apple.AddressBook',
@@ -79,6 +81,39 @@ function chosenDestination(
   if (command.name === 'create_contact' && command.groupId)
     return { id: command.groupId, list: 'list_contact_groups' }
   return null
+}
+
+type ReminderUpdate = Extract<AppCommand, { name: 'update_reminder' }>
+type ReminderItem = NonNullable<
+  Extract<ComputerUseResult, { kind: 'command' }>['reminders']
+>[number]
+
+/**
+ * What an update changes, read against the reminder as it is now: the user sees which reminder
+ * and each field's current and new value, since nothing happens on screen.
+ */
+function updateSummary(command: ReminderUpdate, current: ReminderItem): string {
+  const priority = (value: number) => PRIORITY_NAMES[value] ?? 'None'
+  const changes: Array<[string, string | undefined, string]> = []
+  const title = command.title?.trim()
+  if (title !== undefined && title !== current.title) changes.push(['Title', current.title, title])
+  if (command.due !== undefined) changes.push(['Due', current.due, command.due])
+  if (command.clearDue) changes.push(['Due', current.due, 'none'])
+  if (command.priority !== undefined)
+    changes.push(['Priority', priority(current.priority), priority(command.priority)])
+  if (command.completed !== undefined)
+    changes.push([
+      'Status',
+      current.completed ? 'Completed' : 'Open',
+      command.completed ? 'Completed' : 'Open',
+    ])
+  if (command.notes !== undefined)
+    changes.push(['Notes', current.notes, command.notes.trim() || 'none'])
+  return [
+    `Reminder: ${current.title}`,
+    `List: ${current.list}`,
+    ...changes.map(([label, before, after]) => `${label}: ${before || 'none'} → ${after}`),
+  ].join('\n')
 }
 
 /**
@@ -453,17 +488,20 @@ export class ComputerUseService {
       this.activity = { ...this.activity, appName }
       this.deps.onActivity(this.activity)
     }
-    const summary = writeSummary(command, await this.destinationName(command, work))
+    const summary =
+      command.name === 'update_reminder'
+        ? updateSummary(command, await this.currentReminder(command.id, work))
+        : writeSummary(command, await this.destinationName(command, work))
     if (summary !== null) {
       const confirmed = await this.deps.confirmAppCommand(
-        { appName, summary },
+        { appName, summary, change: command.name === 'update_reminder' ? 'update' : 'add' },
         work.controller.signal
       )
       this.check(work)
       if (!confirmed)
         throw new ComputerUseError({
           code: 'user_declined',
-          message: 'The user declined to add this item. Do not retry it.',
+          message: 'The user declined this change. Do not retry it.',
           dispatchState: 'not_started',
         })
     }
@@ -479,6 +517,19 @@ export class ComputerUseService {
     if (result.kind !== 'command' || result.command !== command.name)
       throw new Error('Computer Use returned a result for a different command.')
     return result
+  }
+
+  /** The reminder an update names, read when it is confirmed; an unknown id is refused before the user is asked. */
+  private async currentReminder(id: string, work: ToolWork): Promise<ReminderItem> {
+    const found = await this.appCommand({ name: 'find_reminders', id })
+    this.check(work)
+    const reminder = found.reminders?.find((item) => item.id === id)
+    if (reminder) return reminder
+    throw new ComputerUseError({
+      code: 'not_found',
+      message: 'No reminder has this id; call find_reminders.',
+      dispatchState: 'not_started',
+    })
   }
 
   /**
