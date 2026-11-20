@@ -191,6 +191,23 @@ const checkNavigation = (name: string, run: () => Promise<void>) => check('navig
 const checkComposer = (name: string, run: () => Promise<void>) => check('composer', name, run)
 const checkAccess = (name: string, run: () => Promise<void>) => check('access', name, run)
 
+/**
+ * A screenshot taken once two consecutive captures match, so a pixel comparison between two
+ * renderings of an element is not decided by a frame captured mid-paint.
+ */
+async function settledScreenshot(
+  target: Locator,
+  options: Parameters<Locator['screenshot']>[0]
+): Promise<Buffer> {
+  let previous = await target.screenshot(options)
+  for (let capture = 0; capture < 10; capture++) {
+    const next = await target.screenshot(options)
+    if (next.equals(previous)) return next
+    previous = next
+  }
+  throw new Error('The element kept repainting across ten screenshots')
+}
+
 async function screenshot(name: string, target = panel) {
   if (!target) return
   for (const frame of target.frames()) {
@@ -1163,8 +1180,8 @@ try {
             .toBe(true)
           if (width === 320) {
             const chip = attachments().first()
-            const visible = await chip.screenshot({ animations: 'disabled' })
-            const withoutEdgeMask = await chip.screenshot({
+            const visible = await settledScreenshot(chip, { animations: 'disabled' })
+            const withoutEdgeMask = await settledScreenshot(chip, {
               animations: 'disabled',
               style:
                 'div:has(> div > [aria-label="Page attached to next message"]) { mask-image: none !important; }',
