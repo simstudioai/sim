@@ -344,12 +344,21 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
 
   const stored = !data.dryRun && !refused && (data.applied || !creating)
   if (mode === 'write' && stored) printError(diffSummary(data))
-  report(
-    data,
-    stored
-      ? await deployStep(args.client, data, { ...options, verb, machine: findings.machine })
-      : {}
-  )
+  let deployment: DeployOutcome = {}
+  if (stored) {
+    try {
+      deployment = await deployStep(args.client, data, {
+        ...options,
+        verb,
+        machine: findings.machine,
+      })
+    } catch (error) {
+      // The write stands: its result prints before the deploy's failure.
+      report(data)
+      throw error
+    }
+  }
+  report(data, deployment)
 }
 
 /** What a write adds to its result about deploying: the deploy it ran, or the one to run. */

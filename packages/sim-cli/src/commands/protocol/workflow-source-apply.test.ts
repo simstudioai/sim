@@ -870,6 +870,8 @@ describe('sim workflows source apply', () => {
       expect((error as Error).message).toContain(`The apply was saved into ${dir}`)
       expect((error as Error).message).toContain(`sim workflows deploy ${WORKFLOW_ID}`)
       expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
+      // The saved write's result still prints, before the deploy's failure.
+      expect(stdoutJson()).toMatchObject({ workflowId: WORKFLOW_ID, applied: true })
     })
   })
 
