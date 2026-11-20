@@ -497,6 +497,7 @@ describe('CI task attribution through real Turborepo', () => {
     ['test-desktop-inbox-e2e.ts', 'desktop-inbox'],
     ['test-assistant-actions-e2e.ts', 'assistant-actions'],
     ['test-organization-search-e2e.ts', 'organization-search'],
+    ['test-gitlab-csv-permissions-e2e.ts', 'search-permissions'],
   ])('selects the owning organization acceptance job for %s', (file, group) => {
     const plan = classifyFiles([`apps/sim/scripts/${file}`])
     expect(plan.fallback).toBeUndefined()
@@ -560,6 +561,7 @@ describe('CI task attribution through real Turborepo', () => {
       'organization-search',
       'project-files',
       'scim',
+      'search-permissions',
       'seo',
       'stop-after',
       'workflow-code-ui',

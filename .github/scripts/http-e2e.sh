@@ -3,7 +3,7 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|workflow-code-ui|mobile|seo>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|search-permissions|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|workflow-code-ui|mobile|seo>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|workflow-code-ui|mobile|seo>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|search-permissions|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|workflow-code-ui|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -276,17 +276,18 @@ case "$group" in
       bun run test:workflow-stop-after:e2e
     ;;
 
-  desktop-inbox|assistant-actions|organization-search)
+  desktop-inbox|assistant-actions|organization-search|search-permissions)
     export REDIS_URL=redis://127.0.0.1:6379
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export COPILOT_TOOL_PERMISSIONS_ENABLED=true
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
     export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
-    if [ "$group" != desktop-inbox ]; then start_browser_install "$group" --only-shell chromium; fi
+    case "$group" in assistant-actions|organization-search) needs_browser=true ;; *) needs_browser=false ;; esac
+    if [ "$needs_browser" = true ]; then start_browser_install "$group" --only-shell chromium; fi
     export INTERNAL_API_SECRET=desktop-inbox-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw
     start_app "$group" 3019 "$group" record-http-status
-    if [ "$group" != desktop-inbox ]; then wait_for_browsers; fi
+    if [ "$needs_browser" = true ]; then wait_for_browsers; fi
     case "$group" in
       desktop-inbox)
         DESKTOP_INBOX_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
@@ -303,11 +304,15 @@ case "$group" in
         ASSISTANT_ACTIONS_E2E_REPORT_PATH="$report_dir/assistant-actions-ui-report.json" \
           bun --no-env-file scripts/test-assistant-actions-e2e.ts
         ;;
-      organization-search)
+      # The 500,000-identity import uploads 700 parts in order, so it runs beside the browser
+      # suite rather than ahead of it.
+      search-permissions)
         GITLAB_CSV_E2E_BASE_URL="$local_app_url" \
         GITLAB_CSV_E2E_LARGE_IMPORT=1 \
         GITLAB_CSV_E2E_REPORT_PATH="$report_dir/gitlab-csv-permissions-http-report.json" \
           bun --no-env-file scripts/test-gitlab-csv-permissions-e2e.ts
+        ;;
+      organization-search)
         ORGANIZATION_SEARCH_E2E_BASE_URL="$local_app_url" \
         ORGANIZATION_SEARCH_E2E_DATABASE_URL="$DATABASE_URL" \
         ORGANIZATION_SEARCH_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
