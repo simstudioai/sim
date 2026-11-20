@@ -109,20 +109,25 @@ function oneLine(value: string): string {
   // C0/C1 controls (NEL breaks a line too), line and paragraph separators, and bidi controls,
   // which could reorder "current → new".
   return value
-    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]+/g, ' ')
+    .replace(
+      /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]+/g,
+      ' '
+    )
     .trim()
 }
 
 /**
- * A new date or time as the helper will save it: a time with an offset is shown in this Mac's
- * local time, the form the current value is shown in, so a same-time change doesn't read as a move.
+ * A new date or time as the helper will save it. A time with an offset keeps that offset, which names
+ * exactly one moment even in an hour a daylight-saving change repeats, and adds this Mac's local time,
+ * the form the current value is shown in.
  */
 function localTime(value: string): string {
   if (!/T.*(Z|[+-]\d{2}:\d{2})$/.test(value)) return value
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  const local = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  return `${value} (${local} here)`
 }
 
 /**

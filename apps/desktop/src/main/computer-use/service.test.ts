@@ -364,14 +364,14 @@ describe('native computer use authority and lifecycle', () => {
       },
     })
 
-    // The current start written with an offset is the same moment, so it must not read as a move.
+    // The current start written with an offset keeps the offset and shows the same local time.
     const sameMoment = new Date(2027, 5, 9, 7, 15).toISOString()
     await service.execute('same', 'chat', {
       action: 'app_command',
       command: { name: 'update_event', id: 'e1', start: sameMoment },
     })
     expect(confirmAppCommand.mock.lastCall?.[0].summary).toContain(
-      'Starts: 2027-06-09T07:15:00 → 2027-06-09T07:15:00'
+      `Starts: 2027-06-09T07:15:00 → ${sameMoment} (2027-06-09T07:15:00 here)`
     )
   })
 

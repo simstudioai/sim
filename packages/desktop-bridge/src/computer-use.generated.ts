@@ -252,7 +252,7 @@ const DateOrDateTime = z
   );
 const CommandNotes = z.string().max(8000).optional();
 const UpdatedEventBoundary = DateOrDateTime.describe(
-  "In the event's own form: YYYY-MM-DD for an all-day event, else an ISO 8601 date-time (this Mac's local time without an offset).",
+  "In the event's own form: YYYY-MM-DD for an all-day event, else an ISO 8601 date-time. Keep an offset the source states; without one it is this Mac's local time.",
 );
 const EventBoundary = DateOrDateTime.describe(
   "ISO 8601 date-time, or YYYY-MM-DD when allDay is true. Without an offset it is this Mac's local time, as typing it into Calendar would be.",

@@ -505,7 +505,7 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
         try checkCancellation()
         inputDispatched = true
         try store.save(reminder, commit: true)
-        return ["kind": "command", "command": command.name, "created": ["id": reminder.calendarItemIdentifier, "title": title, "list": bounded(list.title, 1024)]]
+        return ["kind": "command", "command": command.name, "created": ["id": reminder.calendarItemIdentifier, "title": bounded(title, 1024), "list": bounded(list.title, 1024)]]
     case "list_calendars":
         let allCalendars = try calendarStore().calendars(for: .event)
         let calendars = allCalendars.prefix(200).map { calendar -> [String: Any] in
@@ -540,7 +540,7 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
         try checkCancellation()
         inputDispatched = true
         try store.save(event, span: .thisEvent, commit: true)
-        return ["kind": "command", "command": command.name, "created": ["id": event.eventIdentifier ?? event.calendarItemIdentifier, "title": title, "list": bounded(calendar.title, 1024)]]
+        return ["kind": "command", "command": command.name, "created": ["id": event.eventIdentifier ?? event.calendarItemIdentifier, "title": bounded(title, 1024), "list": bounded(calendar.title, 1024)]]
     case "list_contact_groups":
         let allGroups = try contactStore().groups(matching: nil)
         let groups = allGroups.prefix(200).map { group -> [String: Any] in
