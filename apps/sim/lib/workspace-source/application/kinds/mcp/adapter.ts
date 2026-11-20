@@ -23,9 +23,14 @@ import { createLogger } from '@sim/logger'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { didYouMean, type Json } from '@sim/workflow-code'
+import { didYouMean, type Json, type SourceSpan } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
-import { type BaseResource, fingerprintOf, resourceAddress } from '@sim/workspace-code'
+import {
+  type BaseResource,
+  type FlatDiagnostic,
+  fingerprintOf,
+  resourceAddress,
+} from '@sim/workspace-code'
 import {
   MCP_DEFAULTS,
   type McpServerDecl,
@@ -50,6 +55,7 @@ import type { McpServerRow } from '@/lib/mcp/queries'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { admitOnce } from '@/lib/workspace-source/application/context'
 import {
+  finding,
   kindFinding,
   planUndeclared,
   serverGoneFinding,
@@ -427,8 +433,11 @@ async function listTools(
 /** Each change that calls tools of an MCP server, with the tools, by server key. */
 function toolUsers(
   changes: readonly PlannedChange[]
-): Map<string, Array<{ change: PlannedChange; tools: Set<string> }>> {
-  const byServer = new Map<string, Array<{ change: PlannedChange; tools: Set<string> }>>()
+): Map<string, Array<{ change: PlannedChange; tools: Map<string, SourceSpan | undefined> }>> {
+  const byServer = new Map<
+    string,
+    Array<{ change: PlannedChange; tools: Map<string, SourceSpan | undefined> }>
+  >()
   for (const change of changes) {
     if (change.action === 'delete') continue
     for (const ref of change.refs ?? []) {
@@ -436,21 +445,33 @@ function toolUsers(
       const users = byServer.get(ref.key) ?? []
       let user = users.find((entry) => entry.change === change)
       if (!user) {
-        user = { change, tools: new Set() }
+        user = { change, tools: new Map() }
         users.push(user)
       }
-      user.tools.add(ref.member)
+      if (!user.tools.has(ref.member)) user.tools.set(ref.member, ref.span)
       byServer.set(ref.key, users)
     }
   }
   return byServer
 }
 
-/** Where a finding about the tools a change calls points: its workflow file. */
-function fileOf(change: PlannedChange): { file?: string } {
-  return change.kind === 'workflow'
-    ? { file: `${workflowFolder(change.key)}/${SOURCE_ENTRY_FILE}` }
-    : {}
+/**
+ * Where a finding about the tools a change calls points: its workflow file, at the line that
+ * writes the tool when the workflow's compile located it.
+ */
+function fileOf(change: PlannedChange, span?: SourceSpan): Partial<FlatDiagnostic> {
+  if (change.kind !== 'workflow') return {}
+  return {
+    file: `${workflowFolder(change.key)}/${SOURCE_ENTRY_FILE}`,
+    ...(span
+      ? {
+          line: span.line,
+          column: span.column,
+          endLine: span.endLine,
+          endColumn: span.endColumn,
+        }
+      : {}),
+  }
 }
 
 export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
@@ -631,18 +652,18 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
       }
       const names = new Set(listed.names)
       for (const { change, tools } of callers) {
-        for (const tool of tools) {
+        for (const [tool, span] of tools) {
           if (names.has(tool)) continue
           const suggestion = didYouMean(tool, names, (name) => `"${name}"`)
           change.diagnostics.push(
-            kindFinding(
-              change.kind,
-              change.key,
+            finding(
               'E_MCP_TOOL_UNKNOWN',
               `${where(change.kind, change.key)} calls tool "${tool}" on MCP server "${key}", which does not list it.${suggestion ? ` ${suggestion}` : ''}`,
               {
                 hint: `The server lists: ${[...names].slice(0, 20).join(', ') || 'no tools'}.`,
-                ...fileOf(change),
+                ...fileOf(change, span),
+                kind: change.kind,
+                key: change.key,
               }
             )
           )

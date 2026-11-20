@@ -123,6 +123,10 @@ const blockRefSchema = z
   })
   .describe('A block by id and source key.')
 
+const typedBlockRefSchema = blockRefSchema
+  .extend({ type: z.string().describe('Block type.') })
+  .describe('An added or removed block by id, source key and type.')
+
 const sourceDiffSchema = z
   .object({
     noop: z.boolean().describe('True when the source matches the saved draft.'),
@@ -132,8 +136,8 @@ const sourceDiffSchema = z
       .describe('The workflow name and description fields the source changes.'),
     blocks: z
       .object({
-        added: z.array(blockRefSchema).describe('New blocks.'),
-        removed: z.array(blockRefSchema).describe('Deleted blocks.'),
+        added: z.array(typedBlockRefSchema).describe('New blocks.'),
+        removed: z.array(typedBlockRefSchema).describe('Deleted blocks.'),
         renamed: z
           .array(
             z

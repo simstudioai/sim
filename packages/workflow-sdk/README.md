@@ -62,7 +62,7 @@ refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
 | Path | Contents |
 |------|----------|
 | `workflow.ts`, `functions/*` | The source. Edit these. |
-| `.sim/lock.json` | Binds each block to its stored id. Renaming a const or a display name keeps the id. Do not edit. |
+| `.sim/lock.json` | Binds each block to its stored id. Renaming a display name keeps the id; renaming the const too keeps it only when settings, neighbours or references still tie the block. Do not edit. |
 | `.sim/base.json` | The workflow, workspace, fingerprint and catalog hash the source was read at. Do not edit. |
 | `.sim/written.json` | The CLI's record of each file as it last wrote it, so `status`, `diff` and a later `get` can tell your unapplied edits from files it may replace. Commit it with the lock and base. Do not edit. |
 | `.sim/sdk/core.d.ts` | This package: `workflow`, `t`, `env`, `credential`, `table`, `BlockMeta`, ... |

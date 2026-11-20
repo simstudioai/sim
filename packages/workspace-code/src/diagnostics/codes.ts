@@ -245,6 +245,11 @@ const PLAN_CODES = [
   'E_PLAN_REF_HELD',
   /** A resource this apply deletes is still used by stored workflows. */
   'W_RESOURCE_IN_USE',
+  /**
+   * A table column this apply renames is still written, filtered or sorted by its old name in a
+   * stored workflow's Table block, which the run then drops.
+   */
+  'W_TABLE_COLUMN_RENAMED_IN_USE',
   /** Another resource of the kind holds this name or key. */
   'E_NAME_TAKEN',
   /** A workflow folder sent without its files whose base names no workflow of this workspace. */

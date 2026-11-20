@@ -11,6 +11,7 @@ import type { CodeFileRef } from '../code-files'
 import type { RefSegment } from '../code-files/ref-path'
 import type { SourceSpan } from '../diagnostics/frame'
 import type { JsonTree } from '../json-fields'
+import type { WorkflowLockV1 } from '../lock'
 import type {
   Anchor,
   AnchorKey,
@@ -18,6 +19,7 @@ import type {
   CanonicalParam,
   CanonicalVariable,
   CanonicalWorkflow,
+  CanonicalWorkflowMeta,
   LoopType,
   ParallelType,
   SubBlockId,
@@ -143,10 +145,17 @@ export interface CompileContext {
   wiring: WiringStatement[]
   implied: ImpliedEdge[]
   spans: Map<AnchorKey, SourceSpan>
+  /** Where `workflow()` writes the name and the description: `CompileResult.metaSpans`. */
+  metaSpans: Partial<Record<keyof CanonicalWorkflowMeta, SourceSpan>>
   /** `CompileInput.knownKeys`: the only keys a `meta.key` override may name. */
   knownKeys: ReadonlySet<BlockKey>
   /** `CompileInput.stored`: the stored workflow `stored()` reads its values from. */
   stored: CanonicalWorkflow | undefined
+  /**
+   * `CompileInput.storedUnread` when `stored` is absent: the lock of a stored workflow an offline
+   * check continues without reading it.
+   */
+  storedUnread: WorkflowLockV1 | undefined
   /** `CompileInput.envNames`: the env names a run resolves, when known. */
   envNames: ReadonlySet<string> | undefined
   /** `CompileInput.envDeclaredIn`: the file the env names are declared in, when there is one. */
@@ -159,12 +168,13 @@ export interface CompileContext {
    */
   jsonFields: JsonFieldEntry[]
   /**
-   * References into blocks whose outputs come from a `responseFormat` param, checked once every
-   * block is compiled, since the format is JSON field text written last (`checkResponseFormatRefs`).
+   * References into blocks whose outputs a param declares (`responseFormat`, an input trigger's
+   * `inputFormat`), checked once every block is compiled, since the format is JSON field text
+   * written last (`checkDynamicOutputRefs`).
    */
-  responseFormatRefs: ResponseFormatRef[]
+  dynamicOutputRefs: DynamicOutputRef[]
   /** `x.error` references, checked once the edges are known (`checkErrorOutputRefs`). */
-  errorOutputRefs: Array<Omit<ResponseFormatRef, 'segments'>>
+  errorOutputRefs: Array<Omit<DynamicOutputRef, 'segments'>>
   /**
    * Branch keys already refused with an error, by block key. Wiring and branch meta that name one
    * stay quiet instead of adding `E_UNKNOWN_BRANCH` for the same mistake.
@@ -178,7 +188,7 @@ export interface CompileContext {
 }
 
 /** A reference path into a block whose outputs its `responseFormat` declares. */
-interface ResponseFormatRef {
+interface DynamicOutputRef {
   at: Range
   target: BlockDecl
   segments: RefSegment[]

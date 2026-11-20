@@ -5,8 +5,8 @@ import { catalogBlock } from '../catalog/view'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import { pointer, type WorkflowLockBlock, type WorkflowLockV1 } from '../lock'
-import type { BlockKey, CanonicalWorkflow } from '../model'
-import { getOwn } from '../records'
+import type { BlockKey, CanonicalBlock, CanonicalWorkflow } from '../model'
+import { deepEqual, getOwn } from '../records'
 import type { MaterializeHooks } from './context'
 
 /** How identity rule matched a compiled block to a stored one (rules 1–4). */
@@ -248,6 +248,12 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
       match,
       settled,
       diagnostics,
+      catalog,
+      lockedIds: new Set(
+        Object.entries(lock?.blocks ?? {}).flatMap(([key, entry]) =>
+          duplicates.has(key) ? [] : [entry.id]
+        )
+      ),
     })
   }
 
@@ -319,6 +325,12 @@ interface InferenceState {
   match: (key: BlockKey, prevId: string, via: IdentityMatchRule) => boolean
   settled: Map<BlockKey, SettledKey>
   diagnostics: IdentityInputs['diagnostics']
+  /**
+   * The ids the lock binds: blocks the author's source held. After rules 1–3 such a block is
+   * unmatched only when the source dropped both its key and its ident.
+   */
+  lockedIds: ReadonlySet<string>
+  catalog: BlockCatalog
 }
 
 /** `in:<id>` / `out:<id>` for every already-bound neighbour of a block. */
@@ -345,14 +357,79 @@ function sameSet(left: Set<string>, right: Set<string>): boolean {
   return left.size === right.size && [...left].every((item) => right.has(item))
 }
 
+/** A block's params with every `<from.` / `<from>` reference token rewritten to `to`. */
+function withKeyRenamed(params: CanonicalBlock['params'], from: BlockKey, to: BlockKey) {
+  const rewrite = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+      return value.split(`<${from}.`).join(`<${to}.`).split(`<${from}>`).join(`<${to}>`)
+    }
+    if (Array.isArray(value)) return value.map(rewrite)
+    if (value === null || typeof value !== 'object') return value
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, rewrite(item)]))
+  }
+  return rewrite(params)
+}
+
 /**
- * Identity rule 4, repeated until it binds nothing new so a renamed container lets its
- * renamed children pair next. A group is `(type, parent id)`; only a group with exactly one
- * unmatched block on each side pairs, and only when both blocks have the same already-bound
- * neighbours in the same directions. Each pairing is flagged with `W_MAT_INFERRED_RENAME`.
+ * Whether two blocks' settings are equal, references to the renamed block's old key read as its
+ * new one: equal on every param both hold, and holding at least one in common. A param only one
+ * side holds is a default compile filled in or canvas state, which says nothing about identity.
+ */
+function settingsAgree(
+  target: CanonicalBlock,
+  prev: CanonicalBlock,
+  key: BlockKey,
+  prevKey: BlockKey
+): boolean {
+  const left = target.params
+  const right = withKeyRenamed(prev.params, prevKey, key) as CanonicalBlock['params']
+  const shared = Object.keys(left).filter((id) => Object.hasOwn(right, id))
+  return shared.length > 0 && shared.every((id) => deepEqual(left[id], right[id]))
+}
+
+/** Whether `text` (a block's params, serialized) holds a reference token to `key`. */
+function referencesKey(params: CanonicalBlock['params'], key: BlockKey): boolean {
+  const text = JSON.stringify(params)
+  return text.includes(`<${key}.`) || text.includes(`<${key}>`)
+}
+
+/**
+ * The strong identity signal that ties a new block to a vacated stored one, if any: `settings`,
+ * equal settings (references to the old key read as the new); `connections`, most of their
+ * already-bound neighbours shared; `references`, every bound block that referenced the old key
+ * now references the new one (the author renamed the references).
+ */
+type InferenceBasis = 'connections' | 'settings' | 'references'
+
+const INFERENCE_REASON: Record<InferenceBasis, string> = {
+  connections: 'same type, parent and connections',
+  settings: 'same type, parent and settings',
+  references: 'same type and parent, and the references to it renamed with it',
+}
+
+/**
+ * Whether a block acts as a trigger: its id serves webhook paths, schedules and run history, so
+ * rule 4 binds one only on equal settings.
+ */
+function isTriggerLike(block: CanonicalBlock, catalog: BlockCatalog): boolean {
+  const declared = catalogBlock(catalog, block.type)
+  return (
+    block.triggerMode || declared?.category === 'triggers' || declared?.graph.canBeTarget === false
+  )
+}
+
+/**
+ * Identity rule 4, repeated until it binds nothing new so a renamed container lets its renamed
+ * children pair next. A group is `(type, parent id)`. A group with exactly one unmatched block on
+ * each side pairs when both have the same already-bound neighbours in the same directions; then,
+ * once no group pairs that way, a new block pairs with a stored block the lock binds (its key and
+ * ident both left the source) when exactly one such block of its group, and no other new block,
+ * shows a strong identity signal ({@link InferenceBasis}). A trigger pairs only on equal
+ * settings. Each pairing is flagged with `W_MAT_INFERRED_RENAME`; a delete and an add that show
+ * no signal stay a delete, which `--allow-delete` guards.
  */
 function inferRenames(state: InferenceState): void {
-  const { workflow, prev, resolved, claimed } = state
+  const { workflow, prev, resolved, claimed, lockedIds, catalog } = state
   const prevCanonical = prev.canonical.workflow
   const prevIdentity = prev.canonical.identity.blocks
   /** Prev blocks a settled key accounts for: a retype's own prev, else the prev under its key. */
@@ -368,9 +445,7 @@ function inferRenames(state: InferenceState): void {
     return id !== undefined && claimed.has(id) ? id : undefined
   }
 
-  let progressed = true
-  while (progressed) {
-    progressed = false
+  const groups = () => {
     const targetGroups = new Map<string, BlockKey[]>()
     for (const key of state.open()) {
       const block = workflow.blocks[key]
@@ -392,25 +467,90 @@ function inferRenames(state: InferenceState): void {
       if (keys) keys.push(key)
       else prevGroups.set(group, [key])
     }
-    for (const [group, targets] of targetGroups) {
+    return [...targetGroups].flatMap(([group, targets]) => {
       const prevKeys = prevGroups.get(group)
-      if (targets.length !== 1 || prevKeys?.length !== 1) continue
+      return prevKeys ? [{ targets, prevKeys }] : []
+    })
+  }
+
+  const pair = (key: BlockKey, prevKey: BlockKey, basis: InferenceBasis): boolean => {
+    if (!state.match(key, prevIdentity[prevKey].id, 'inferred')) return false
+    state.diagnostics.push({
+      code: 'W_MAT_INFERRED_RENAME',
+      severity: 'warning',
+      message: `Block "${key}" is taken as a rename of "${prevKey}" (${INFERENCE_REASON[basis]}), so it keeps that block's id and run history. To make it a new block instead, delete "${prevKey}" in one apply and add "${key}" in the next`,
+      blockKey: key,
+    })
+    return true
+  }
+
+  const neighbours = (key: BlockKey, prevKey: BlockKey) => ({
+    target: neighbourhood(workflow.edges, key, idOfTarget),
+    prev: neighbourhood(prevCanonical.edges, prevKey, idOfPrev),
+  })
+
+  const byConnections = (): boolean => {
+    let progressed = false
+    for (const { targets, prevKeys } of groups()) {
+      if (targets.length !== 1 || prevKeys.length !== 1) continue
       const [key] = targets
       const [prevKey] = prevKeys
-      const agree = sameSet(
-        neighbourhood(workflow.edges, key, idOfTarget),
-        neighbourhood(prevCanonical.edges, prevKey, idOfPrev)
-      )
-      if (!agree) continue
-      const prevId = prevIdentity[prevKey].id
-      if (!state.match(key, prevId, 'inferred')) continue
-      progressed = true
-      state.diagnostics.push({
-        code: 'W_MAT_INFERRED_RENAME',
-        severity: 'warning',
-        message: `Block "${key}" is taken as a rename of "${prevKey}" (same type, parent and connections), so it keeps that block's id and run history. To make it a new block instead, delete "${prevKey}" in one apply and add "${key}" in the next`,
-        blockKey: key,
-      })
+      const sides = neighbours(key, prevKey)
+      if (!sameSet(sides.target, sides.prev)) continue
+      const triggerHeld =
+        isTriggerLike(workflow.blocks[key], catalog) &&
+        !settingsAgree(workflow.blocks[key], prevCanonical.blocks[prevKey], key, prevKey)
+      if (!triggerHeld && pair(key, prevKey, 'connections')) progressed = true
     }
+    return progressed
   }
+
+  /** The strong signal tying new block `key` to vacated stored block `prevKey`, if any. */
+  const signal = (key: BlockKey, prevKey: BlockKey): InferenceBasis | null => {
+    const target = workflow.blocks[key]
+    if (settingsAgree(target, prevCanonical.blocks[prevKey], key, prevKey)) return 'settings'
+    if (isTriggerLike(target, catalog)) return null
+    const sides = neighbours(key, prevKey)
+    const shared = [...sides.target].filter((item) => sides.prev.has(item)).length
+    const union = new Set([...sides.target, ...sides.prev]).size
+    if (shared > 0 && shared * 2 > union) return 'connections'
+    const referrers = Object.keys(prevCanonical.blocks).filter(
+      (other) => other !== prevKey && referencesKey(prevCanonical.blocks[other].params, prevKey)
+    )
+    const renamedAtEverySite =
+      referrers.length > 0 &&
+      referrers.every((other) => {
+        const id = idOfPrev(other)
+        const now = id === undefined ? undefined : [...resolved].find(([, b]) => b.id === id)?.[0]
+        return now !== undefined && referencesKey(workflow.blocks[now].params, key)
+      })
+    return renamedAtEverySite ? 'references' : null
+  }
+
+  const byVacatedLock = (): boolean => {
+    let progressed = false
+    for (const { targets, prevKeys } of groups()) {
+      const vacated = prevKeys.filter((prevKey) => lockedIds.has(prevIdentity[prevKey].id))
+      if (vacated.length === 0) continue
+      const signals = new Map<BlockKey, Map<BlockKey, InferenceBasis>>()
+      for (const key of targets) {
+        const found = new Map<BlockKey, InferenceBasis>()
+        for (const prevKey of vacated) {
+          const basis = signal(key, prevKey)
+          if (basis) found.set(prevKey, basis)
+        }
+        signals.set(key, found)
+      }
+      for (const [key, found] of signals) {
+        if (found.size !== 1) continue
+        const [[prevKey, basis]] = [...found]
+        const rivals = [...signals.values()].filter((other) => other.has(prevKey)).length
+        if (rivals === 1 && pair(key, prevKey, basis)) progressed = true
+      }
+    }
+    return progressed
+  }
+
+  let progressed = true
+  while (progressed) progressed = byConnections() || byVacatedLock()
 }

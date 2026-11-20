@@ -104,6 +104,95 @@ describe('cycles', () => {
   })
 })
 
+describe("references into a start trigger's declared inputs", () => {
+  const START_WITH = (inputs: string) =>
+    `const start = trigger.start('Start', { inputFormat: ${inputs} })`
+  const unknown = (inputs: string, ref: string, extra = '') =>
+    findings(
+      run(
+        [
+          START_WITH(inputs),
+          `const next = api('Next', { url: t\`https://x/\${${ref}}\` }${extra})`,
+          'start.to(next)',
+        ].join('\n')
+      ),
+      'W_UNKNOWN_OUTPUT_PATH'
+    )
+
+  it('warns on an input the start does not declare, at the reference', () => {
+    const [finding] = unknown("{ label: 'string' }", 'start.nope')
+    expect(finding?.message).toBe('Start declares no input nope: its inputFormat declares label.')
+    expect(finding?.span).toMatchObject({ file: 'workflow.ts', line: 6 })
+  })
+
+  it('warns on an input that was removed while a reference still reads it', () => {
+    const [finding] = unknown('{}', 'start.label')
+    expect(finding?.message).toBe('Start declares no input label: its inputFormat declares none.')
+    expect(finding?.hint).toBe(
+      "Add label to start's inputFormat, or reference an input it declares."
+    )
+  })
+
+  it('suggests a declared input an unknown one is close to', () => {
+    expect(unknown("{ label: 'string' }", 'start.lable')[0]?.hint).toBe('Did you mean label?')
+  })
+
+  it.each([
+    ['a declared input', 'start.label'],
+    ['a path under a declared input', 'start.label.length'],
+    ['a static output', 'start.input'],
+  ])('accepts %s', (_label, ref) => {
+    expect(unknown("{ label: 'string' }", ref)).toEqual([])
+  })
+})
+
+describe("a field hidden under the block's values", () => {
+  const DROPPED =
+    'so it never runs: an apply does not save it over the stored value, and the source it writes back drops this line.'
+
+  it('says the value is dropped, and names the condition it shows under', () => {
+    const [hidden] = findings(
+      run("const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x', limit: 3 })"),
+      'W_FIELD_NOT_APPLICABLE'
+    )
+    expect(hidden?.message).toBe(
+      `limit is hidden (it shows only when operation is list_channels), ${DROPPED}`
+    )
+    expect(hidden?.hint).toBe('Remove limit, or change the values that hide it so it runs.')
+  })
+
+  it('names the model a model-gated field does not apply to', () => {
+    const agentBlock = TEST_CATALOG.blocks.agent as CatalogBlock
+    const gated: BlockCatalog = {
+      ...TEST_CATALOG,
+      blocks: {
+        ...TEST_CATALOG.blocks,
+        agent: {
+          ...agentBlock,
+          subBlocks: agentBlock.subBlocks.map((sub) =>
+            sub.id === 'temperature'
+              ? {
+                  ...sub,
+                  condition: { opaque: true },
+                  visibleForModel: { 'gpt-5': false, 'claude-sonnet-4-5': true },
+                }
+              : sub
+          ),
+        },
+      },
+    }
+    const written = (model: string) =>
+      findings(
+        run(`const a = agent('A', { model: '${model}', temperature: 0.5 })`, undefined, gated),
+        'W_FIELD_NOT_APPLICABLE'
+      )
+    expect(written('gpt-5')[0]?.message).toBe(
+      `temperature is hidden (model gpt-5 does not use it), ${DROPPED}`
+    )
+    expect(written('claude-sonnet-4-5')).toEqual([])
+  })
+})
+
 describe('references into an agent responseFormat', () => {
   const FORMAT =
     "responseFormat: { name: 'classify', schema: { type: 'object', properties: { priority: { type: 'string' }, score: { type: 'number' } } } }"
@@ -263,6 +352,24 @@ describe('legacy block types', () => {
     const stored = run(body, undefined, withLegacy).workflow
     if (!stored) throw new Error('expected a workflow')
     expect(findings(run(body, stored, withLegacy), 'W_LEGACY_BLOCK_TYPE')).toEqual([])
+  })
+
+  it('stays quiet offline for a legacy block the lock binds, as the server does', () => {
+    const offline = (lockKey: string, ident: string) =>
+      compileWorkflow({
+        entry: { path: 'workflow.ts', text: source("const s = block('slack_legacy', 'S', {})") },
+        files: new Map(),
+        catalog: withLegacy,
+        sdkMajor: 1,
+        storedUnread: {
+          version: 1,
+          blocks: { [lockKey]: { id: 'b-1', parent: null, ident, order: 0 } },
+          variables: {},
+        },
+      })
+    expect(findings(offline('s', 's'), 'W_LEGACY_BLOCK_TYPE')).toEqual([])
+    expect(findings(offline('old', 's'), 'W_LEGACY_BLOCK_TYPE')).toEqual([])
+    expect(findings(offline('other', 'other'), 'W_LEGACY_BLOCK_TYPE')).toHaveLength(1)
   })
 })
 

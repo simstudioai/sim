@@ -634,6 +634,41 @@ export default workflow('Answer', {}, () => {
   )
 
   check(
+    'renaming a table column an unchanged declared workflow writes warns at the line that writes it',
+    async () => {
+      const { workspaceId, dir, base } = await setUp()
+      const printed = (await get(workspaceId)).files['workflows/ingest/workflow.ts']
+      const lines = printed.split('\n')
+      const dataLine = lines.findIndex((line) => line.includes('email: start.email')) + 1
+      const files = {
+        ...dir.files,
+        'tables/leads.ts': dir.files['tables/leads.ts'].replace(
+          'column.string({ required: true })',
+          "column.string({ required: true, name: 'email_address' })"
+        ),
+      }
+      expect(files['tables/leads.ts']).toContain('email_address')
+
+      const planned = await apply(workspaceId, { ...dir, files }, { base, dryRun: true })
+
+      const renamed = planned.diagnostics.filter(
+        (finding) => finding.code === 'W_TABLE_COLUMN_RENAMED_IN_USE'
+      )
+      expect(renamed).toEqual([
+        expect.objectContaining({
+          severity: 'warning',
+          kind: 'table',
+          key: 'leads',
+          message:
+            'tables/leads renames column "email" to "email_address", but block "Save Lead" of workflow "Ingest" still writes "email"; the run drops it.',
+          file: 'workflows/ingest/workflow.ts',
+          line: dataLine,
+        }),
+      ])
+    }
+  )
+
+  check(
     'deleting a table a workflow outside the directory uses warns, naming that workflow',
     async () => {
       const { workspaceId, dir, base } = await setUp()

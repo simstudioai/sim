@@ -248,7 +248,10 @@ resolves keys an earlier kind creates), check references across kinds, authorize
 cap the plan. Any error refuses the whole apply before the first write, so the plan refuses what
 a write would refuse: a delete of a locked resource (`E_APPLY_LOCKED`), of one a stored workflow
 still uses (`E_PLAN_REF_DELETED` for a declared caller, `W_RESOURCE_IN_USE` for one outside the
-directory, workflows included), and a table change whose data breaks a new column rule. A plan
+directory, workflows included), and a table change whose data breaks a new column rule. A column
+rename warns `W_TABLE_COLUMN_RENAMED_IN_USE` on each Table block of a stored workflow that still writes,
+filters or sorts by the old name (the run drops it), at the line of the declared workflow's file; an
+edited workflow folder is checked by its own lint against the declared columns instead. A plan
 reports at most 1000 findings, errors first, then warnings, then infos, and an info counts the
 rest, so cutting findings never refuses a plan.
 

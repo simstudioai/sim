@@ -227,9 +227,11 @@ async function recheckAndWriteSourceMeta(
       canonicalize(current.state, { catalog, meta: current.meta, resources: plan.resources }),
       plan.resources
     )
-    if (fingerprint !== args.storedFingerprint) throw new WorkflowSourceStaleError(fingerprint)
+    if (fingerprint !== args.storedFingerprint) {
+      throw new WorkflowSourceStaleError(fingerprint, current.meta.name)
+    }
     if (options.layoutOnly && !isEqual(withoutBlockLayout(current), withoutBlockLayout(stored))) {
-      throw new WorkflowSourceStaleError(fingerprint)
+      throw new WorkflowSourceStaleError(fingerprint, current.meta.name)
     }
   }
   await writeWorkflowSourceMeta(

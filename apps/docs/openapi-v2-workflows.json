@@ -6343,7 +6343,8 @@
                             "added": [
                               {
                                 "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
-                                "key": "start"
+                                "key": "start",
+                                "type": "start_trigger"
                               }
                             ],
                             "removed": [],
@@ -18915,6 +18916,7 @@
                         "W_APPLY_TYPE_CHANGED",
                         "W_APPLY_TRIGGER_REMOVED",
                         "W_APPLY_CATALOG_MOVED",
+                        "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
@@ -19060,11 +19062,15 @@
                             "key": {
                               "type": "string",
                               "description": "Block key in the source."
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "Block type."
                             }
                           },
-                          "required": ["id", "key"],
+                          "required": ["id", "key", "type"],
                           "additionalProperties": false,
-                          "description": "A block by id and source key."
+                          "description": "An added or removed block by id, source key and type."
                         },
                         "description": "New blocks."
                       },
@@ -19080,11 +19086,15 @@
                             "key": {
                               "type": "string",
                               "description": "Block key in the source."
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "Block type."
                             }
                           },
-                          "required": ["id", "key"],
+                          "required": ["id", "key", "type"],
                           "additionalProperties": false,
-                          "description": "A block by id and source key."
+                          "description": "An added or removed block by id, source key and type."
                         },
                         "description": "Deleted blocks."
                       },
@@ -19350,6 +19360,7 @@
                         "W_APPLY_TYPE_CHANGED",
                         "W_APPLY_TRIGGER_REMOVED",
                         "W_APPLY_CATALOG_MOVED",
+                        "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
@@ -20012,11 +20023,15 @@
                             "key": {
                               "type": "string",
                               "description": "Block key in the source."
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "Block type."
                             }
                           },
-                          "required": ["id", "key"],
+                          "required": ["id", "key", "type"],
                           "additionalProperties": false,
-                          "description": "A block by id and source key."
+                          "description": "An added or removed block by id, source key and type."
                         },
                         "description": "New blocks."
                       },
@@ -20032,11 +20047,15 @@
                             "key": {
                               "type": "string",
                               "description": "Block key in the source."
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "Block type."
                             }
                           },
-                          "required": ["id", "key"],
+                          "required": ["id", "key", "type"],
                           "additionalProperties": false,
-                          "description": "A block by id and source key."
+                          "description": "An added or removed block by id, source key and type."
                         },
                         "description": "Deleted blocks."
                       },
@@ -20302,6 +20321,7 @@
                         "W_APPLY_TYPE_CHANGED",
                         "W_APPLY_TRIGGER_REMOVED",
                         "W_APPLY_CATALOG_MOVED",
+                        "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
@@ -20623,7 +20643,8 @@
                   "added": [
                     {
                       "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
-                      "key": "start"
+                      "key": "start",
+                      "type": "start_trigger"
                     }
                   ],
                   "removed": [],
@@ -25192,6 +25213,7 @@
                         "E_PLAN_REF_DELETED",
                         "E_PLAN_REF_HELD",
                         "W_RESOURCE_IN_USE",
+                        "W_TABLE_COLUMN_RENAMED_IN_USE",
                         "E_NAME_TAKEN",
                         "E_WORKFLOW_FILES_MISSING",
                         "E_WORKFLOW_FOLDER_COPIED",
@@ -25341,6 +25363,7 @@
                         "W_APPLY_TYPE_CHANGED",
                         "W_APPLY_TRIGGER_REMOVED",
                         "W_APPLY_CATALOG_MOVED",
+                        "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
@@ -25756,6 +25779,7 @@
                       "E_PLAN_REF_DELETED",
                       "E_PLAN_REF_HELD",
                       "W_RESOURCE_IN_USE",
+                      "W_TABLE_COLUMN_RENAMED_IN_USE",
                       "E_NAME_TAKEN",
                       "E_WORKFLOW_FILES_MISSING",
                       "E_WORKFLOW_FOLDER_COPIED",
@@ -25905,6 +25929,7 @@
                       "W_APPLY_TYPE_CHANGED",
                       "W_APPLY_TRIGGER_REMOVED",
                       "W_APPLY_CATALOG_MOVED",
+                      "W_APPLY_PROBABLE_RENAME",
                       "E_APPLY_LINT",
                       "W_APPLY_LINT",
                       "W_TABLE_UNKNOWN_COLUMN",
@@ -26163,6 +26188,7 @@
                         "E_PLAN_REF_DELETED",
                         "E_PLAN_REF_HELD",
                         "W_RESOURCE_IN_USE",
+                        "W_TABLE_COLUMN_RENAMED_IN_USE",
                         "E_NAME_TAKEN",
                         "E_WORKFLOW_FILES_MISSING",
                         "E_WORKFLOW_FOLDER_COPIED",
@@ -26312,6 +26338,7 @@
                         "W_APPLY_TYPE_CHANGED",
                         "W_APPLY_TRIGGER_REMOVED",
                         "W_APPLY_CATALOG_MOVED",
+                        "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",

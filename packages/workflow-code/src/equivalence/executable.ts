@@ -16,7 +16,7 @@
  */
 
 import { compareEdges } from '../canonicalize/edges'
-import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { SUBFLOW_DATA_KEYS, SUPERSEDED_CONTAINER_PARAMS } from '../canonicalize/subflows'
 import { executableInactiveParams } from '../catalog/activity'
 import { isCanonicalPair } from '../catalog/canonical-index'
 import { serializedCanonicalIndex } from '../catalog/surface'
@@ -89,7 +89,14 @@ function executableParams(
   declared: CatalogBlock | undefined,
   catalog: BlockCatalog
 ): Record<string, CanonicalParam> {
-  if (!declared) return { ...block.params }
+  if (!declared) {
+    if (!block.subflow) return { ...block.params }
+    const params: Record<string, CanonicalParam> = {}
+    for (const [id, param] of Object.entries(block.params)) {
+      if (!SUPERSEDED_CONTAINER_PARAMS.has(id)) setOwn(params, id, param)
+    }
+    return params
+  }
   const inactive = new Set(executableInactiveParams(block, catalog))
   const params: Record<string, CanonicalParam> = {}
   for (const [id, param] of Object.entries(block.params)) {

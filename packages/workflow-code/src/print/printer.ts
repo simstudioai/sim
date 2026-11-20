@@ -11,7 +11,7 @@ import {
   isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
-import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { SUBFLOW_DATA_KEYS, SUPERSEDED_CONTAINER_PARAMS } from '../canonicalize/subflows'
 import { builderPins } from '../catalog/surface'
 import { catalogBlock } from '../catalog/view'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
@@ -235,7 +235,7 @@ function containerCall(ctx: PrintContext, block: CanonicalBlock): Expr {
     ctx,
     block,
     catalogBlock(ctx.catalog, block.type),
-    new Set()
+    new Set(SUPERSEDED_CONTAINER_PARAMS)
   )
   const subflowData: Record<string, Json> = {}
   for (const [key, value] of Object.entries(block.extra ?? {})) {

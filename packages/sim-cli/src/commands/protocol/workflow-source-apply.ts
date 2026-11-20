@@ -161,12 +161,17 @@ function diffSummary(data: SourceApplyData): string {
     `${blocks.renamed.length} renamed`,
     `${blocks.modified.length} modified`,
   ]
-  const variableCount =
-    variables.added.length + variables.removed.length + variables.modified.length
+  const variableChanges = (['added', 'removed', 'modified'] as const).flatMap((change) =>
+    variables[change].length > 0 ? [`${change} ${variables[change].join(', ')}`] : []
+  )
   const modified = blocks.modified.map(({ key, fields }) => `${key} (${fields.join(', ')})`)
+  const typed = (list: ReadonlyArray<{ key: string; type: string }>) =>
+    list.map(({ key, type }) => `${key} (${type})`).join('; ')
   return `Blocks: ${parts.join(', ')}. Connections: +${edges.added} -${edges.removed}.${
-    variableCount > 0 ? ` Variables changed: ${variableCount}.` : ''
-  }${modified.length > 0 ? `\nModified: ${modified.join('; ')}` : ''}`
+    blocks.added.length > 0 ? `\nAdded: ${typed(blocks.added)}` : ''
+  }${blocks.removed.length > 0 ? `\nRemoved: ${typed(blocks.removed)}` : ''}${
+    modified.length > 0 ? `\nModified: ${modified.join('; ')}` : ''
+  }${variableChanges.length > 0 ? `\nVariables: ${variableChanges.join('; ')}` : ''}`
 }
 
 const GET_HINT = 'Write the directory with `sim workflows source get` first.'
@@ -582,6 +587,11 @@ export function attachWorkflowSourceCreate(source: Command): void {
     )
 }
 
+/** Whether a diff adds, removes or changes any workflow variable. */
+function variablesChanged(variables: SourceApplyData['diff']['variables']): boolean {
+  return variables.added.length > 0 || variables.removed.length > 0 || variables.modified.length > 0
+}
+
 /** The create command for `dir` in `workspaceId`, as the next step a starter prints. */
 function createCommand(dir: string, workspaceId: string): string {
   return `sim workflows source create --dir ${dir} --workspace ${workspaceId}`
@@ -617,13 +627,20 @@ function summarize(data: SourceApplyData, creating: boolean, machine: boolean) {
     noop: data.diff.noop,
     ...(created.length > 0 ? { created } : {}),
     blocksAdded: data.diff.blocks.added.length,
+    ...(data.diff.blocks.added.length > 0 && {
+      added: data.diff.blocks.added.map(({ key, type }) => ({ block: key, type })),
+    }),
     blocksRemoved: data.diff.blocks.removed.length,
+    ...(data.diff.blocks.removed.length > 0 && {
+      removed: data.diff.blocks.removed.map(({ key, type }) => ({ block: key, type })),
+    }),
     blocksModified: data.diff.blocks.modified.length,
     ...(data.diff.blocks.modified.length > 0 && {
       modified: data.diff.blocks.modified.map(({ key, fields }) => ({ block: key, fields })),
     }),
     edgesAdded: data.diff.edges.added,
     edgesRemoved: data.diff.edges.removed,
+    ...(variablesChanged(data.diff.variables) && { variables: data.diff.variables }),
     errors: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
     warnings: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
     notes: machine ? data.notes : data.notes.length,

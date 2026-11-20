@@ -66,6 +66,10 @@ export interface TableChanges {
   columns: ColumnChange[]
   /** Fields that change, for the plan display. */
   fields: string[]
+  /** Stored columns this update renames, old name → new name. */
+  renamedColumns: Array<{ from: string; to: string }>
+  /** Every column name the table holds after the update, in declaration order. */
+  columnNames: string[]
   /** Cells a drop empties, and cells a removed option takes a selection from. */
   lostCells: number
   /**
@@ -249,6 +253,10 @@ export async function diffTable(
     table: {},
     columns: [],
     fields: [],
+    renamedColumns: [],
+    columnNames: Object.entries(decl.columns).map(([columnKey, column]) =>
+      columnName(columnKey, column)
+    ),
     lostCells: 0,
     removedOptions: 0,
     diagnostics,
@@ -320,6 +328,7 @@ export async function diffTable(
     if (target.name !== current.name) {
       updates.name = target.name
       fields.push('name')
+      changes.renamedColumns.push({ from: current.name, to: target.name })
     }
     const retyped = target.type !== current.type
     const becomesUnique = Boolean(target.unique) && !current.unique

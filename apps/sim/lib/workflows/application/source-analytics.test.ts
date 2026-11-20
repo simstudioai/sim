@@ -35,7 +35,7 @@ describe('recordSourceRefused', () => {
   beforeEach(() => capture.mockClear())
 
   it.each([
-    ['stale', new WorkflowSourceStaleError('sf1:x')],
+    ['stale', new WorkflowSourceStaleError('sf1:x', 'Lead Scoring')],
     ['rejected', new WorkflowSourceRejectedError([])],
     ['locked', new OrchestrationError('locked', 'Workflow is locked')],
   ])('records a %s refusal as ok:false with its error_kind', (kind, error) => {
@@ -74,7 +74,7 @@ describe('recordSourceRefused', () => {
         principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'ws-1' }),
         workflowId: 'wf-1',
       },
-      new WorkflowSourceStaleError('sf1:x')
+      new WorkflowSourceStaleError('sf1:x', 'Lead Scoring')
     )
 
     expect(capture).not.toHaveBeenCalled()
@@ -86,7 +86,7 @@ describe('recordSourceWritten', () => {
 
   it('counts a create from source as a workflow creation, attributed to the Copilot subject', () => {
     const diff = emptyDiffSummary()
-    diff.blocks.added.push({ id: 'b-1', key: 'start' })
+    diff.blocks.added.push({ id: 'b-1', key: 'start', type: 'start_trigger' })
 
     recordSourceWritten(
       {
@@ -125,7 +125,7 @@ describe('recordSourceDryRun', () => {
 
   it('records a clean dry run as ok with the changes a commit would make', () => {
     const diff = emptyDiffSummary()
-    diff.blocks.added.push({ id: 'b-1', key: 'start' })
+    diff.blocks.added.push({ id: 'b-1', key: 'start', type: 'start_trigger' })
     diff.edges.added = 2
 
     recordSourceDryRun(

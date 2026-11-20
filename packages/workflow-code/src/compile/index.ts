@@ -21,6 +21,7 @@ import type {
   CanonicalBlock,
   CanonicalVariable,
   CanonicalWorkflow,
+  CanonicalWorkflowMeta,
   PortKey,
   VarKey,
 } from '../model'
@@ -38,8 +39,8 @@ import { ErrorLimitReached, Reporter } from './report'
 import { checkSuspiciousName, collectBody, collisionSuffix } from './scope'
 import {
   checkCodeFileRefs,
+  checkDynamicOutputRefs,
   checkErrorOutputRefs,
-  checkResponseFormatRefs,
   compileJsonLiteral,
   objectEntries,
 } from './values'
@@ -84,6 +85,13 @@ export interface CompileInput {
    */
   storedUnreadEdges?: ReadonlyArray<StoredEdgeRef>
   /**
+   * Stored block keys the source renamed, stored key → source key (`lockIdentRenames`, which the
+   * server computes against `stored`; with `storedUnread` the compile computes them itself). An
+   * apply rewrites every `<stored.path>` to the new key, so a code file's `$ref.<stored key>`
+   * still resolves and is checked against the renamed block instead of warning.
+   */
+  renamedKeys?: ReadonlyMap<BlockKey, BlockKey>
+  /**
    * The env variable names a run resolves (the workspace's plus the caller's personal ones).
    * `env.NAME` outside it compiles with `W_ENV_UNKNOWN`; absent, no name is checked.
    */
@@ -103,6 +111,11 @@ export interface CompileResult {
   diagnostics: LocatedDiagnostic<CompileDiagnosticCode>[]
   /** Where each anchor sits, to map later server findings back to lines. */
   spans: Partial<Record<AnchorKey, SourceSpan>>
+  /**
+   * Where `workflow()` writes the name and the description, so a server finding about the
+   * workflow itself (a name another workflow holds, a block delete) points there.
+   */
+  metaSpans: Partial<Record<keyof CanonicalWorkflowMeta, SourceSpan>>
   /** Idents as written, `order` as declaration index, and code files, for the lock. */
   hints: SourceHints
   /** The header's major, or `null` when the header is missing. */
@@ -306,6 +319,7 @@ function compileWorkflowCall(
       }
     )
   } else if (nameNode) {
+    ctx.metaSpans.name = ctx.reporter.span(rangeOf(ctx, nameNode))
     checkSuspiciousName(ctx, name, nameNode, 'workflow')
   }
   const optionsNode: Node | undefined = third ? second : undefined
@@ -323,6 +337,7 @@ function compileWorkflowCall(
     } else {
       for (const [key, property] of objectEntries(ctx, optionsNode)) {
         if (key === 'description') {
+          ctx.metaSpans.description = ctx.reporter.span(rangeOf(ctx, property.value))
           description = literalText(property.value)
           if (description === null)
             unsupported(
@@ -407,6 +422,7 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
     workflow: null,
     diagnostics: reporter.diagnostics,
     spans: {},
+    metaSpans: {},
     hints: { blocks: {} },
     sdkMajor,
     envReferences: [],
@@ -513,13 +529,15 @@ function compileEntry(
     wiring: [],
     implied: [],
     spans: new Map(),
+    metaSpans: {},
     knownKeys: input.knownKeys ?? new Set(),
     stored: input.stored,
+    storedUnread: input.stored === undefined ? input.storedUnread : undefined,
     envNames: input.envNames,
     envDeclaredIn: input.envDeclaredIn,
     envReferences: new Set(),
     jsonFields: [],
-    responseFormatRefs: [],
+    dynamicOutputRefs: [],
     errorOutputRefs: [],
     refusedBranches: new Map(),
     valueConsts: new Set(),
@@ -632,7 +650,11 @@ function compileEntry(
     })
   }
 
-  checkCodeFileRefs(ctx)
+  const unread = input.stored === undefined ? input.storedUnread : undefined
+  const unreadRenames = unread
+    ? lockIdentRenames(hints, unread, (key) => Object.hasOwn(unread.blocks, key))
+    : new Map<BlockKey, BlockKey>()
+  checkCodeFileRefs(ctx, new Map([...unreadRenames, ...(input.renamedKeys ?? [])]))
 
   const refTypes: RefTypeScope = {
     catalog: input.catalog,
@@ -659,18 +681,15 @@ function compileEntry(
     }
   }
 
-  checkResponseFormatRefs(ctx, (key) => compiled.get(key))
+  checkDynamicOutputRefs(ctx, (key) => compiled.get(key))
 
-  const unread = input.stored === undefined ? input.storedUnread : undefined
   const edges = new EdgeCollector(
     ctx,
     compiled,
     unread && {
       lockKeys: new Map([
         ...Object.keys(unread.blocks).map((key) => [key, key] as const),
-        ...[...lockIdentRenames(hints, unread, (key) => Object.hasOwn(unread.blocks, key))].map(
-          ([lockKey, key]) => [key, lockKey] as const
-        ),
+        ...[...unreadRenames].map(([lockKey, key]) => [key, lockKey] as const),
       ]),
       ...(input.storedUnreadEdges
         ? {
@@ -717,6 +736,7 @@ function compileEntry(
     workflow,
     diagnostics: reporter.diagnostics,
     spans,
+    metaSpans: ctx.metaSpans,
     hints,
     sdkMajor: parsed.sdkMajor,
     envReferences: [...ctx.envReferences].sort(compareStrings),
