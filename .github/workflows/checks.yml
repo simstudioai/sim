@@ -1033,7 +1033,9 @@ jobs:
         run: node ../../scripts/prune-turbopack-cache.mts --build
 
       - name: Build application
-        env: *e2e-build-env
+        env:
+          <<: *e2e-build-env
+          TURBO_FORCE: 'true'
         run: bunx turbo run build --filter=@sim/app
 
       - name: Bound compiler state before persistence
