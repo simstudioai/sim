@@ -10,6 +10,7 @@ import {
   v2ApplyWorkflowSourceContract,
   v2CreateWorkflowFromSourceContract,
   v2GetWorkflowSourceContract,
+  v2PlanWorkflowSourceContract,
 } from '@/lib/api/contracts/v2/workflow-source'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -115,6 +116,69 @@ export const workflowSourceOpenApiRoutes = [
               workflowId: WORKFLOW_SOURCE_EXAMPLE.workflowId,
               workspaceId: WORKFLOW_SOURCE_EXAMPLE.workspaceId,
               dryRun: false,
+              applied: false,
+              diff: {
+                noop: true,
+                blocks: { added: [], removed: [], renamed: [], modified: [] },
+                edges: { added: 0, removed: 0 },
+                variables: { added: [], removed: [], modified: [] },
+              },
+              diagnostics: [],
+              files: WORKFLOW_SOURCE_EXAMPLE.files,
+              lock: WORKFLOW_SOURCE_EXAMPLE.lock,
+              base: WORKFLOW_SOURCE_EXAMPLE.base,
+              mintedIds: {},
+              notes: [],
+              needsRedeployment: false,
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2PlanWorkflowSourceContract,
+    {
+      applicationOperation: workflowOperations.planSource,
+      operationId: 'planWorkflowSource',
+      summary: 'Plan workflow source',
+      description: `Report what Apply Workflow Source would do with this source, without writing: whether the draft changed since \`base\` (\`E_APPLY_STALE\`), the diff, and every finding, exactly as \`dryRun=true\` reports them, with \`200\`. A read: it needs only workspace read access, draws on the generic API budget rather than the source-write budget, and records no audit or analytics event, so \`sim workflows source status\` never spends what an apply needs. \`allowDelete=true\` plans block deletes instead of reporting \`E_APPLY_BLOCK_DELETE\`. Returns \`403\` while workflows as code is not enabled. ${WORKSPACE_API_KEY_DENIED}`,
+      tags: ['Workflows'],
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The evaluated source.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: v2PlanWorkflowSourceContract.params,
+      query: documentedSchema(
+        v2PlanWorkflowSourceContract.query,
+        'PlanWorkflowSourceQuery',
+        'Plan workflow source query',
+        'Whether to plan block deletes.'
+      ),
+      body: documentedSchema(
+        v2PlanWorkflowSourceContract.body,
+        'PlanWorkflowSourceBody',
+        'Plan workflow source body',
+        'Edited source files with the lock and base they were read with.',
+        [
+          {
+            files: WORKFLOW_SOURCE_EXAMPLE.files,
+            lock: WORKFLOW_SOURCE_EXAMPLE.lock,
+            base: WORKFLOW_SOURCE_EXAMPLE.base,
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2PlanWorkflowSourceContract.response.schema,
+        'PlanWorkflowSourceResponse',
+        'Plan workflow source response',
+        'What an apply would store, and every finding.',
+        [
+          {
+            data: {
+              workflowId: WORKFLOW_SOURCE_EXAMPLE.workflowId,
+              workspaceId: WORKFLOW_SOURCE_EXAMPLE.workspaceId,
+              dryRun: true,
               applied: false,
               diff: {
                 noop: true,

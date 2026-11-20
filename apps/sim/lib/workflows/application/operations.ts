@@ -252,6 +252,22 @@ export const workflowOperations = {
     contentDelivery: 'none',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  /**
+   * What an apply of submitted workflow source would do, without writing: the read behind
+   * `sim workflows source status`. The apply pipeline as a dry run, so a member who may read the
+   * source may ask it (`read`, `api:read`). Denied to workspace API keys like `applySource`: the
+   * source gates it reports take a human subject and would fail open without one.
+   */
+  // permission-group-exempt: a plan stores nothing; the block and value gates it reports are judged per block against the principal's human subject, as for applySource
+  planSource: defineWorkspaceOperation({
+    id: 'workflows.source.plan',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   /** Creating a workflow from source runs the apply pipeline with no stored draft: same policy. */
   // permission-group-exempt: creating a workflow from source is governed by workspace role and the same block gates as apply
   createFromSource: defineWorkspaceOperation({

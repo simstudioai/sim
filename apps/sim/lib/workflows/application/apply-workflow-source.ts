@@ -296,6 +296,41 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
   },
 })
 
+/** What {@link planWorkflowSource} reads: a submission as an apply sends it, without its knobs. */
+export interface PlanWorkflowSourceInput {
+  workflowId: string
+  assertedWorkspaceId?: string
+  files: Record<string, string>
+  lock: WorkflowLockV1
+  base: SourceBase
+  /** Plan block deletes as allowed, so the plan names them instead of refusing. */
+  allowDelete?: boolean
+}
+
+/**
+ * What an apply of this source would do, without writing: whether the draft moved since `base`
+ * (`E_APPLY_STALE`), the diff and every finding, exactly as a dry run reports them. A read, so
+ * `sim workflows source status` costs no write budget, needs only the `read` role, and records
+ * no dry-run analytics; it audits and notifies nothing, like a dry run.
+ */
+export const planWorkflowSource = defineAuthorizedWorkflowUseCase({
+  operation: workflowOperations.planSource,
+  resolveContext: resolvePrincipalWorkflowContext<PlanWorkflowSourceInput>,
+  async execute({ principal, input, context }): Promise<ApplyWorkflowSourceResult> {
+    await requireWorkflowCodeEnabled(principal, context)
+    return runSourceApply(
+      principal,
+      { files: input.files, lock: input.lock, dryRun: true },
+      {
+        kind: 'existing',
+        context,
+        base: input.base,
+        allowDelete: input.allowDelete === true,
+      }
+    )
+  },
+})
+
 /**
  * Creates a workflow from source: the same pipeline as {@link applyWorkflowSource} with an empty
  * graph as the stored draft, so every block is new, every id is minted and no fingerprint is

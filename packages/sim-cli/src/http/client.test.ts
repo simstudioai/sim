@@ -707,6 +707,9 @@ describe('destructive operations are gated', () => {
     /** Staging blob bytes for a workspace source apply writes nothing a user sees. */
     'findMissingWorkspaceSourceBlobs',
     'stageWorkspaceSourceBlobs',
+    /** A source plan is a read sent as a POST: it writes nothing. */
+    'planWorkflowSource',
+    'planWorkspaceSource',
     'completeProjectFileUpload',
     'copyFileItems',
     'createProjectFile',

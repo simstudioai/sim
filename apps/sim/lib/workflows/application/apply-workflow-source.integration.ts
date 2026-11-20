@@ -52,6 +52,7 @@ import {
   type ApplyWorkflowSourceInput,
   applyWorkflowSource,
   createWorkflowFromSource,
+  planWorkflowSource,
 } from '@/lib/workflows/application/apply-workflow-source'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
@@ -2028,6 +2029,34 @@ export default workflow('', {}, () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(await snapshot(seeded.workflowId)).toEqual(before)
   })
+
+  check(
+    'a plan is the dry run as a read: a reader gets it, it reports staleness, and it writes nothing',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const before = await snapshot(seeded.workflowId)
+      const files = edit(source.files, SCORE_CODE, 'return 71')
+      const plan = (base = source.base) =>
+        withPermissionGroupScope(() =>
+          planWorkflowSource.execute({
+            principal: reader,
+            input: { workflowId: seeded.workflowId, files, lock: source.lock, base },
+          })
+        )
+
+      const planned = await plan()
+      const dryRun = await apply(source, files, { dryRun: true })
+
+      expect(planned).toMatchObject({ dryRun: true, applied: false })
+      expect(planned.diff).toEqual(dryRun.diff)
+      expect(planned.diagnostics).toEqual(dryRun.diagnostics)
+      expect(planned.diff.blocks.modified.map((block) => block.id)).toEqual([seeded.scoreId])
+      const stale = await plan({ ...source.base, fingerprint: `sf1:${'0'.repeat(64)}` })
+      expect(stale.diagnostics.map((d) => d.code)).toContain('E_APPLY_STALE')
+      expect(await snapshot(seeded.workflowId)).toEqual(before)
+    }
+  )
 
   check(
     'a schedule edited in source changes only the draft and reports needsRedeployment',

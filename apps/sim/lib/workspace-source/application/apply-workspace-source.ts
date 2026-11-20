@@ -229,6 +229,26 @@ function planned(
   }
 }
 
+/** What {@link readWorkspaceSourcePlan} reads: a directory as an apply sends it, without its knobs. */
+export type PlanWorkspaceSourceInput = Omit<ApplyWorkspaceSourceInput, 'dryRun' | 'provenance'>
+
+/**
+ * What an apply of this directory would do, without writing: every planned change and finding,
+ * exactly as a dry run reports them. A read, so `sim workspaces source status` costs no write
+ * budget; like a dry run it takes no lease and records, audits and notifies nothing.
+ */
+export const readWorkspaceSourcePlan = defineAuthorizedWorkspaceUseCase({
+  operation: workspaceSourceOperations.plan,
+  resolveContext: ({ input }: { input: PlanWorkspaceSourceInput }) =>
+    resolveActiveWorkspaceApplicationContext(input.workspaceId),
+  authorizationOptions: {},
+  async execute({ principal, input, context }): Promise<ApplyWorkspaceSourceResult> {
+    await requireWorkflowCodeEnabled(principal, context)
+    const plan = await planWorkspaceSource(input, sourceContext(principal, context))
+    return planned(plan, context.workspaceId, true)
+  },
+})
+
 /**
  * Applies a workspace source directory: plans every managed kind, refuses the whole apply when
  * any change has an error (nothing written) apart from the changes held back for a reference the

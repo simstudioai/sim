@@ -339,6 +339,19 @@ export const v2ApplyWorkspaceSourceContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(applyDataSchema) },
 })
 
+/**
+ * `POST /api/v2/workspaces/{workspaceId}/source/plan`: what applying the directory would do, as a
+ * read. The body is an apply's without `provenance`; the response is an apply dry run's.
+ */
+export const v2PlanWorkspaceSourceContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workspaces/[workspaceId]/source/plan',
+  params: paramsSchema,
+  query: noInputSchema,
+  body: applyBodySchema.omit({ provenance: true }),
+  response: { mode: 'json', schema: v2DataResponse(applyDataSchema) },
+})
+
 const stagedBlobSchema = z
   .object({ sha256: sha256Schema, size: blobSchema.shape.size })
   .strict()

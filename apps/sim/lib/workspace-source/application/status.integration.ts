@@ -1,6 +1,7 @@
 /**
- * `status` against Postgres: a directory read by a get, edited on either side, dry-run the way
- * `sim workspaces source status` sends it (every workflow folder whole, deletes allowed), and read
+ * `status` against Postgres: a directory read by a get, edited on either side, planned the way
+ * `sim workspaces source status` sends it (the plan read, every workflow folder whole, deletes
+ * allowed), and read
  * through the status module the CLI prints. Proves that what the server's plan reports is the
  * drift and the conflicts a status names, a UI edit of a workflow included.
  */
@@ -24,6 +25,7 @@ import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.
 import * as tableUseCases from '@/lib/table/application/tables'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
+import { readWorkspaceSourcePlan } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   sourceChecks,
   sourceRunner,
@@ -111,12 +113,19 @@ async function statusOf(read: ReadDirectory, local: Record<string, string>, whol
             )
         )
       )
-  const plan = await runner.apply(read.workspaceId, {
-    files,
-    base: read.base,
-    dryRun: true,
-    allowDelete: true,
-  })
+  const plan = await withPermissionGroupScope(() =>
+    readWorkspaceSourcePlan.execute({
+      principal: owner,
+      input: {
+        workspaceId: read.workspaceId,
+        kinds: ['table', 'workflow'],
+        files,
+        base: read.base,
+        allowDelete: true,
+      },
+    })
+  )
+  expect(plan.dryRun).toBe(true)
   const changed = changedFiles(local, read.files, () => true)
   return {
     plan,

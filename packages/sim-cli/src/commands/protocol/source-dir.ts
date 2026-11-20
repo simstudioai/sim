@@ -245,7 +245,7 @@ export type SourceDirKind = 'workflow' | 'workspace'
  * workflow directory (a workspace directory keeps its workflows under `workflows/<key>/`). `null`
  * for a directory that holds neither, such as a new one.
  */
-export async function sourceDirKind(
+async function sourceDirKind(
   dir: string
 ): Promise<{ kind: SourceDirKind; readFrom: string | null } | null> {
   const base = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE))

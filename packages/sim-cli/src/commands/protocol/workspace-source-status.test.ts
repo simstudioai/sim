@@ -302,7 +302,7 @@ describe('workspaces source status', () => {
 
     await run('status')
 
-    expect(mockRequest.mock.calls[0][0]).toBe(`/api/v2/workspaces/${WORKSPACE_ID}/source`)
+    expect(mockRequest.mock.calls[0][0]).toBe(`/api/v2/workspaces/${WORKSPACE_ID}/source/plan`)
     expect(printed().next).toMatchObject({
       command: `sim workspaces source apply --dir ${dir} --yes`,
     })
@@ -390,16 +390,15 @@ describe('workspaces source status', () => {
     })
   })
 
-  it('sends every workflow folder whole, so the dry run compares it with the stored workflow', async () => {
+  it('sends every workflow folder whole to the plan read, so it compares each with the stored workflow', async () => {
     mockRequest.mockResolvedValue(dryRun())
 
     await run('status')
 
     expect(sentFiles()[0]['workflows/ingest/workflow.ts']).toBe(INGEST)
-    expect(mockRequest.mock.calls[0][1]).toMatchObject({
-      query: { dryRun: true },
-      body: { options: { allowDelete: true } },
-    })
+    expect(mockRequest.mock.calls[0][0]).toBe('/api/v2/workspaces/ws_local/source/plan')
+    expect(mockRequest.mock.calls[0][1]).toMatchObject({ body: { options: { allowDelete: true } } })
+    expect(mockRequest.mock.calls[0][1].query).toBeUndefined()
   })
 
   it('past one dry run, sends an unchanged workflow folder by its base and an edited one whole', async () => {

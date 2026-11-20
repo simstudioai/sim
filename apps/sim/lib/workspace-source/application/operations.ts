@@ -25,6 +25,20 @@ export const workspaceSourceOperations = {
     capability: 'none',
     ...SOURCE_OPERATION_POLICY,
   }),
+  /**
+   * What an apply of a submitted directory would do, without writing: the read behind
+   * `sim workspaces source status`. Each change is still checked by the use case that owns it, so a
+   * member who may not write a kind sees that change refused in the plan.
+   */
+  // permission-group-exempt: a plan stores nothing; each change is checked by the use case that owns it, which applies that kind's capability
+  plan: defineWorkspaceOperation({
+    id: 'workspaces.source.plan',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    ...SOURCE_PRINCIPAL_POLICY,
+  }),
   // permission-group-exempt: each change runs through the use case that owns it, which applies that kind's capability
   apply: defineWorkspaceOperation({
     id: 'workspaces.source.apply',

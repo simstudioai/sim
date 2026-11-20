@@ -313,6 +313,7 @@ import {
   v2ApplyWorkflowSourceContract,
   v2CreateWorkflowFromSourceContract,
   v2GetWorkflowSourceContract,
+  v2PlanWorkflowSourceContract,
 } from '@/lib/api/contracts/v2/workflow-source'
 import {
   v2ActivateWorkflowVersionContract,
@@ -383,6 +384,7 @@ import {
   v2ApplyWorkspaceSourceContract,
   v2FindMissingWorkspaceSourceBlobsContract,
   v2GetWorkspaceSourceContract,
+  v2PlanWorkspaceSourceContract,
 } from '@/lib/api/contracts/v2/workspace-source'
 import {
   v2GetWorkspaceContract,
@@ -2478,6 +2480,23 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Move up to 100 workflows to one folder with workspace write access. Each move succeeds or fails independently; missing, archived, or locked workflows appear in `failed`. Duplicate IDs are ignored. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/workflows/move/route').then((route) => route.POST),
+  },
+  planWorkflowSource: {
+    contract: v2PlanWorkflowSourceContract,
+    summary: 'Plan workflow source',
+    description:
+      'Report what Apply Workflow Source would do with this source, without writing: whether the draft changed since `base` (`E_APPLY_STALE`), the diff, and every finding, exactly as `dryRun=true` reports them, with `200`. A read: it needs only workspace read access, draws on the generic API budget rather than the source-write budget, and records no audit or analytics event, so `sim workflows source status` never spends what an apply needs. `allowDelete=true` plans block deletes instead of reporting `E_APPLY_BLOCK_DELETE`. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/source/plan/route').then((route) => route.POST),
+  },
+  planWorkspaceSource: {
+    contract: v2PlanWorkspaceSourceContract,
+    summary: 'Plan workspace source',
+    description:
+      'Report what Apply Workspace Source would do with this directory, without writing: every planned change and finding, exactly as `dryRun=true` reports them (a resource changed on the server since the directory was read included). A read: it needs only workspace read access, draws one unit of the source-read budget whatever the directory holds, takes no apply lease and records no audit event, so `sim workspaces source status` never spends the source-write budget. Each change is still checked by the operation that owns it, so a change the caller may not write is reported as refused. The body is an apply body without `provenance`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/source/plan/route').then((route) => route.POST),
   },
   prepareSearchSources: {
     contract: v2PrepareSearchSourcesContract,

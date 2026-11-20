@@ -2,8 +2,9 @@
  * `sim workflows source status` and `sim workflows source diff`: what changed in one workflow's
  * source directory since it was read, on either side, without applying anything. Local changes
  * come from the file digests `.sim/written.json` records (for a `workflows/<key>` folder, the
- * workspace directory's record: `readFolderWritten`); the server's from a dry run of the
- * directory, whose `E_APPLY_STALE` says the workflow changed since the base.
+ * workspace directory's record: `readFolderWritten`); the server's from the plan read
+ * (`planWorkflowSource`: a dry run on the read budget, never the source-write one), whose
+ * `E_APPLY_STALE` says the workflow changed since the base.
  */
 import { compareStrings } from '@sim/utils/string'
 import { SOURCE_CODE_DIR, SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
@@ -18,7 +19,7 @@ import {
 import type { Command } from 'commander'
 import { profileFrom } from '../../context'
 import { setSoftExitCode } from '../../embed-context'
-import type { ApplyWorkflowSourceResponse, GetWorkflowSourceResponse } from '../../generated/v2-api'
+import type { GetWorkflowSourceResponse, PlanWorkflowSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
 import {
@@ -40,6 +41,7 @@ import {
   planFindings,
   printDiffReport,
   printStatusReport,
+  readPlan,
   type ServerCheck,
   STATUS_EXIT_CODES_HELP,
   type StatusReport,
@@ -47,11 +49,11 @@ import {
   textDiff,
   unreachableReason,
 } from './source-status'
-import { withSourceExitCode } from './source-tree'
+import { refreshWorkflowWorkspaceTypes, withSourceExitCode } from './source-tree'
 import type { Diagnostic } from './source-ui'
 import { readBase, readLock, readSourceFiles } from './workflow-source-apply'
 
-type ApplyData = ApplyWorkflowSourceResponse['data']
+type ApplyData = PlanWorkflowSourceResponse['data']
 
 const PREFIX = 'sim workflows source'
 
@@ -140,7 +142,11 @@ interface StatusOptions {
  * the server since, from a dry run. Ends with the next command.
  */
 export function attachWorkflowSourceStatus(source: Command): void {
-  const [command, connect] = apiCommand(source, 'status', ['applyWorkflowSource'])
+  const [command, connect] = apiCommand(source, 'status', [
+    'planWorkflowSource',
+    'applyWorkflowSource',
+    'getSourceResources',
+  ])
   absoluteDirOption(command)
   command
     .option('--dir <dir>', 'Source directory: workflow.ts, functions/* and .sim/', '.')
@@ -174,16 +180,25 @@ export function attachWorkflowSourceStatus(source: Command): void {
         const lock = await readLock(options.dir)
         const files = await readSourceFiles(options.dir, lock)
         try {
-          const response = await client.request<ApplyWorkflowSourceResponse>(
-            'applyWorkflowSource',
-            {
-              params: { workflowId },
-              query: { dryRun: true, allowDelete: true },
-              body: { files, lock, base: local.base, provenance: { client: 'cli' } },
-              retryRateLimited: true,
-            }
+          const body = { files, lock, base: local.base }
+          const response = await readPlan(
+            () =>
+              client.request<PlanWorkflowSourceResponse>('planWorkflowSource', {
+                params: { workflowId },
+                query: { allowDelete: true },
+                body,
+                retryRateLimited: true,
+              }),
+            () =>
+              client.request<PlanWorkflowSourceResponse>('applyWorkflowSource', {
+                params: { workflowId },
+                query: { dryRun: true, allowDelete: true },
+                body: { ...body, provenance: { client: 'cli' } },
+                retryRateLimited: true,
+              })
           )
           data = response.data
+          await refreshWorkflowWorkspaceTypes(client, options.dir, local.base.workspaceId)
           if (data.diagnostics.some((finding) => finding.code === 'E_APPLY_STALE')) {
             serverChanges = [{ kind: 'workflow', key: workflowId, server: 'changed' }]
           }

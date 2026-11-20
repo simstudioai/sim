@@ -222,6 +222,39 @@ export const v2ApplyWorkflowSourceContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(applyWorkflowSourceDataSchema) },
 })
 
+const planWorkflowSourceQuerySchema = z
+  .object({
+    allowDelete: booleanQueryFlagSchema
+      .optional()
+      .describe(
+        'Plan the deletes of blocks the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE`.'
+      ),
+  })
+  .strict()
+
+const planWorkflowSourceBodySchema = z
+  .object({
+    files: sourceFilesSchema,
+    lock: workflowLockSchema,
+    base: sourceBaseSchema.describe(
+      'Where and when the source was read (`.sim/base.json`). A draft that no longer matches `base.fingerprint` is reported as `E_APPLY_STALE` in `diagnostics`.'
+    ),
+  })
+  .strict()
+
+/**
+ * `POST /api/v2/workflows/{workflowId}/source/plan`: what applying the source would do, as a read.
+ * The response is an apply dry run's.
+ */
+export const v2PlanWorkflowSourceContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/[workflowId]/source/plan',
+  params: v2WorkflowIdParamsSchema,
+  query: planWorkflowSourceQuerySchema,
+  body: planWorkflowSourceBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(applyWorkflowSourceDataSchema) },
+})
+
 const createWorkflowFromSourceParamsSchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace in which to create the workflow.'),

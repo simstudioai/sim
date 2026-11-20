@@ -153,10 +153,14 @@ describe('workflows source status', () => {
       },
       next: null,
     })
-    expect(mockRequest.mock.calls[0]).toMatchObject([
-      `/api/v2/workflows/${WORKFLOW_ID}/source`,
-      { query: { dryRun: true, allowDelete: true }, body: { files: GOT, lock: LOCK, base: BASE } },
-    ])
+    const [path, request] = mockRequest.mock.calls[0]
+    expect(path).toBe(`/api/v2/workflows/${WORKFLOW_ID}/source/plan`)
+    expect(request).toMatchObject({
+      query: { allowDelete: true },
+      body: { files: GOT, lock: LOCK, base: BASE },
+    })
+    expect(request.query).not.toHaveProperty('dryRun')
+    expect(request.body).not.toHaveProperty('provenance')
     expect(process.exitCode ?? 0).toBe(0)
   })
 
@@ -263,6 +267,21 @@ describe('workflows source status', () => {
       next: { command: `sim workflows source get ${WORKFLOW_ID} --dir <fresh dir>` },
     })
     expect(process.exitCode).toBe(12)
+  })
+
+  it('falls back to the apply dry run on a server without the plan read', async () => {
+    mockRequest
+      .mockRejectedValueOnce(new SimApiError('Not found', 404, 'NOT_FOUND'))
+      .mockResolvedValueOnce(dryRun())
+
+    await run(root, 'status')
+
+    expect(mockRequest.mock.calls.map(([path]) => path)).toEqual([
+      `/api/v2/workflows/${WORKFLOW_ID}/source/plan`,
+      `/api/v2/workflows/${WORKFLOW_ID}/source`,
+    ])
+    expect(mockRequest.mock.calls[1][1].query).toEqual({ dryRun: true, allowDelete: true })
+    expect(printed()).toMatchObject({ state: 'clean', server: 'checked' })
   })
 
   it('reports a workflow the server no longer has as deleted there', async () => {
