@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type {
   BlockCatalog,
@@ -131,6 +132,7 @@ export function printWritten(
  * `draftNeedsRedeployment`, the deployment check of the draft as it is, started beside the plan.
  */
 export async function previewSource(
+  principal: Principal,
   planned: PlannedSource,
   draftNeedsRedeployment: Promise<boolean>
 ): Promise<SourceOutcome> {
@@ -156,7 +158,7 @@ export async function previewSource(
     logger.info('Evaluated workflow source without persisting', {
       workflowId: planned.workflowId,
       workspaceId: loaded.scope.workspaceId,
-      principalKind: planned.boundTo.principalKind,
+      principalKind: principal.kind,
     })
     return shapeOutcome(frame, printWritten(planned, preview.state), {
       applied: false,

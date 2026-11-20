@@ -40,6 +40,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike, omit } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
 import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer/dimensions'
@@ -49,6 +50,7 @@ import { isEqual } from 'es-toolkit'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+import { createTableUseCase } from '@/lib/table/application/tables'
 import {
   type ApplyWorkflowSourceInput,
   applyWorkflowSource,
@@ -58,6 +60,8 @@ import {
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import {
+  type PendingResource,
+  PlanBindingError,
   type PlannedSource,
   workflowSourceUpdate,
 } from '@/lib/workflows/application/source-pipeline'
@@ -66,6 +70,7 @@ import {
   loadWorkflowDeploymentSnapshot,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
+import { claimResourceKey } from '@/lib/workspaces/resource-keys'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
@@ -1720,7 +1725,8 @@ export default workflow('', {}, () => {
   async function planned(
     source: ReadWorkflowSourceResult,
     files: Record<string, string>,
-    planner: Principal = principal
+    planner: Principal = principal,
+    pendingResources: PendingResource[] = []
   ) {
     const plan = await withPermissionGroupScope(() =>
       workflowSourceUpdate.plan.execute({
@@ -1731,7 +1737,7 @@ export default workflow('', {}, () => {
           lock: source.lock,
           base: source.base,
           allowDelete: false,
-          pendingResources: [],
+          pendingResources,
           loads: {},
         },
       })
@@ -1756,12 +1762,111 @@ export default workflow('', {}, () => {
       const plan = await planned(source, files)
       const before = await snapshot(seeded.workflowId)
 
-      await expect(
-        commit(plan, createSessionPrincipal({ userId: ownerId, sessionId: generateId() }))
-      ).rejects.toThrow()
+      expect(
+        await bindingRefusal(
+          commit(plan, createSessionPrincipal({ userId: ownerId, sessionId: generateId() }))
+        )
+      ).toBe('PLAN_PRINCIPAL_MISMATCH')
       expect(await snapshot(seeded.workflowId)).toEqual(before)
 
       expect((await commit(plan)).applied).toBe(true)
+    }
+  )
+
+  /** The binding code a commit refused with; fails the check on any other outcome. */
+  async function bindingRefusal(committed: Promise<unknown>): Promise<string> {
+    const error = await committed.then(
+      () => null,
+      (rejection: unknown) => rejection
+    )
+    expect(error).toBeInstanceOf(PlanBindingError)
+    return (error as PlanBindingError).code
+  }
+
+  /**
+   * `source` with an Insert Row block writing the table keyed `key`, and the stand-in an enclosing
+   * workspace apply hands its plan for that table before creating it.
+   */
+  function writingStandInTable(source: ReadWorkflowSourceResult, key: string) {
+    const withImport = Object.fromEntries(
+      Object.entries(source.files).map(([path, text]) => [
+        path,
+        text.replace(
+          /import \{ ([^}]*) \} from '@sim\/workflow-sdk'/,
+          (_, names: string) =>
+            `import { ${[...names.split(', '), 'table'].sort(compareStrings).join(', ')} } from '@sim/workflow-sdk'`
+        ),
+      ])
+    )
+    const files = edit(
+      withImport,
+      '  start.to(score)',
+      `  const save = table.insertRow('Save Order', { tableId: table('${key}'), data: { email: 'a@example.com' } })\n  start.to(score)\n  score.to(save)`
+    )
+    const standIn: PendingResource = {
+      kind: 'table',
+      key,
+      id: generateId(),
+      placeholder: true,
+      name: key,
+      columns: ['email'],
+    }
+    return { files, standIn }
+  }
+
+  /** Creates the table keyed `key`, as the enclosing apply does before the workflows. */
+  async function createKeyedTable(key: string) {
+    const created = await createTableUseCase.execute({
+      principal,
+      input: {
+        workspaceId,
+        name: key,
+        schema: { columns: [{ name: 'email', type: 'string' }] },
+      },
+    })
+    await claimResourceKey({
+      workspaceId,
+      kind: 'table',
+      key,
+      resourceId: created.table.id,
+      origin: 'adopted',
+      createdBy: ownerId,
+    })
+  }
+
+  check(
+    'a plan that resolved a stand-in id is refused, before it is planned again, when another session commits it',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const { files, standIn } = writingStandInTable(source, 'orders')
+      const plan = await planned(source, files, principal, [standIn])
+      expect(plan.replan).toBeDefined()
+      await createKeyedTable('orders')
+      const before = await snapshot(seeded.workflowId)
+
+      expect(
+        await bindingRefusal(
+          commit(plan, createSessionPrincipal({ userId: ownerId, sessionId: generateId() }))
+        )
+      ).toBe('PLAN_PRINCIPAL_MISMATCH')
+      expect(await snapshot(seeded.workflowId)).toEqual(before)
+
+      expect((await commit(plan)).applied).toBe(true)
+    }
+  )
+
+  check(
+    'a plan whose stand-in resource was never created is refused at commit, not written with the stand-in id',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const { files, standIn } = writingStandInTable(source, 'invoices')
+      const plan = await planned(source, files, principal, [standIn])
+      const before = await snapshot(seeded.workflowId)
+
+      await expect(commit(plan)).rejects.toBeInstanceOf(WorkflowSourceRejectedError)
+      expect(await snapshot(seeded.workflowId)).toEqual(before)
     }
   )
 

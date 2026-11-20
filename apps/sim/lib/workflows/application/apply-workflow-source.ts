@@ -99,7 +99,7 @@ async function writeSource(
   const planned = await planSource(principal, target, submission, { allocate: false })
   return planned.kind === 'refused'
     ? refusedOutcome(planned, target, submission, needsRedeployment)
-    : previewSource(planned, needsRedeployment)
+    : previewSource(principal, planned, needsRedeployment)
 }
 
 /**

@@ -11,6 +11,7 @@ export type { PendingResource, SourcePlan } from './evaluate'
 export { EMPTY_LOCK, type SourceLoads, type SourceTarget } from './load'
 export { previewSource, refusedOutcome, type SourceOutcome } from './outcome'
 export {
+  PlanBindingError,
   type PlannedSource,
   planSource,
   refusalError,

@@ -34,7 +34,7 @@ import { printPlanned } from '@/lib/workflows/application/source-pipeline/outcom
 import type { PrintedSource, StoredSource } from '@/lib/workflows/code/print-stored'
 
 /** What a source submission carries to a plan. */
-export interface SourceSubmission {
+interface SourceSubmission {
   /** Repo-relative path → text: `workflow.ts` plus any function-code files it references. */
   files: Record<string, string>
   /** The identity lock returned by `source get` (or a previous apply); empty for a create. */
@@ -47,8 +47,35 @@ export interface SourceSubmission {
  * The identity a plan is bound to: a commit refuses a plan made for another principal. The key is
  * the principal as it authenticated, so two sessions or keys of one user are two principals.
  */
-export function principalKey(principal: Principal): string {
+function principalKey(principal: Principal): string {
   return JSON.stringify(principal)
+}
+
+/** Why a commit refuses a plan: made for another workflow or write, or by another principal. */
+type PlanBindingCode = 'PLAN_WORKFLOW_MISMATCH' | 'PLAN_PRINCIPAL_MISMATCH'
+
+/**
+ * A commit was handed a plan it may not write: a bug in the caller, not something its user can
+ * fix, so it stays unclassified (a 500). `code` says which binding the plan broke.
+ */
+export class PlanBindingError extends Error {
+  constructor(
+    readonly code: PlanBindingCode,
+    message: string
+  ) {
+    super(message)
+    this.name = 'PlanBindingError'
+  }
+}
+
+/** Throws {@link PlanBindingError} unless `planned` was made by `principal`. */
+export function assertPlannedBy(principal: Principal, planned: PlannedSource): void {
+  if (planned.boundTo.principalKey !== principalKey(principal)) {
+    throw new PlanBindingError(
+      'PLAN_PRINCIPAL_MISMATCH',
+      'A planned source commits only as the principal it was planned by'
+    )
+  }
 }
 
 /**
@@ -60,7 +87,7 @@ export interface PlannedSource {
   kind: 'planned'
   /** The workflow the plan writes: the stored one, or the id a create takes. */
   workflowId: string
-  boundTo: { principalKey: string; principalKind: Principal['kind'] }
+  boundTo: { principalKey: string }
   /** The target the plan was evaluated against. */
   target: SourceTarget
   loaded: LoadedTarget
@@ -135,16 +162,20 @@ function resolvesPlaceholder(
 }
 
 /**
- * The plan a commit writes: `planned` itself, or (when it resolved a stand-in id) the submission
- * planned again onto `target` with every resource but the workflows the apply creates read as
- * stored, since the apply writes those first; a refusal of that plan throws. The workflows still
- * resolve from pending, as a create of one may not have run yet.
+ * The plan a commit writes, once `planned` is shown to be the committing principal's (a foreign
+ * plan throws {@link PlanBindingError} before any replan): `planned` itself, or (when it resolved a
+ * stand-in id) the submission planned again onto `target` with every resource but the workflows
+ * the apply creates read as stored, since the apply writes those first; a refusal of that plan
+ * throws. Pending falls back only where stored resolution fails, so dropping the stand-ins is what
+ * refuses a resource the apply never created instead of writing its stand-in id. The workflows
+ * still resolve from pending, as a create of one may not have run yet.
  */
 export async function planForCommit(
   principal: Principal,
   planned: PlannedSource,
   target: SourceTarget
 ): Promise<PlannedSource> {
+  assertPlannedBy(principal, planned)
   if (!planned.replan) return planned
   const { submission, loads } = planned.replan
   const replanned = await planSource(
@@ -259,7 +290,7 @@ export async function planSource(
     const planned: PlannedSource = {
       kind: 'planned',
       workflowId: scope.workflowId,
-      boundTo: { principalKey: principalKey(principal), principalKind: principal.kind },
+      boundTo: { principalKey: principalKey(principal) },
       target,
       loaded,
       plan,
