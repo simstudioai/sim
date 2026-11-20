@@ -8,6 +8,7 @@ import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { digest } from './source-dir'
+import { PRIMER_MAX_BYTES, sourcePrimer } from './source-primer'
 import { attachWorkflowSourceGet } from './workflow-source-get'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -143,6 +144,26 @@ describe('sim workflows source get --dir', () => {
     expect(workspaceTypes).toContain("interface WorkspaceCustomTools {\n    'lookup-order': true")
     expect(callsTo(CATALOG_PATH)).toHaveLength(1)
     expect(callsTo(CATALOG_PATH)[0][1].query).toBeUndefined()
+  })
+
+  it('prints the primer, which opens the guide, with a snippet for each builder the source calls and no other', async () => {
+    serve({
+      [SOURCE_PATH]: () =>
+        source({ 'workflow.ts': "// @sim-sdk 1\nconst mail = gmail.sendEmail('Mail', {})\n" }),
+    })
+
+    await get('--dir', outDir)
+
+    const { primer } = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(readFileSync(join(outDir, '.sim/AGENTS.md'), 'utf8').startsWith(primer)).toBe(true)
+    expect(primer).toContain('- `gmail.sendEmail` (Gmail: Send Email)')
+    expect(primer).not.toContain('`slack.sendMessage`')
+  })
+
+  it('keeps the primer without snippets within its byte budget for both directory kinds', () => {
+    for (const kind of ['workflow', 'workspace'] as const) {
+      expect(Buffer.byteLength(sourcePrimer(kind))).toBeLessThanOrEqual(PRIMER_MAX_BYTES)
+    }
   })
 
   it('writes the example workflows beside the guide, outside what the tsconfig files type-check', async () => {

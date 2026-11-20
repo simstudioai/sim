@@ -64,22 +64,35 @@ export function legacyOnlyBlockTypes(catalog: BlockCatalog): Set<string> {
 const CALL = /([A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*)\s*\(/g
 
 /**
- * The block types `sources` (workflow files) name through a builder: every dotted call whose path
- * is a catalog builder (`slack.sendMessage(`) or its tool form (`slack.tool.sendMessage(`). A
- * text scan, not a compile, so it reads any source, broken or not; a builder named in a comment
- * only adds a file to the type-check. `block('type', …)` has untyped params, so needs no file.
+ * The catalog builders `sources` (workflow files) call, sorted: every dotted call whose path is a
+ * catalog builder (`slack.sendMessage(`) or its tool form (`slack.tool.sendMessage(`, read as
+ * `slack.sendMessage`). A text scan, not a compile, so it reads any source, broken or not; a
+ * builder named in a comment counts too. `block('type', …)` names no builder.
  */
-export function referencedBlockTypes(catalog: BlockCatalog, sources: Iterable<string>): string[] {
-  const types = new Set<string>()
+export function referencedBuilders(catalog: BlockCatalog, sources: Iterable<string>): string[] {
+  const keys = new Set<string>()
   for (const text of sources) {
     for (const match of text.matchAll(CALL)) {
       const path = match[1].replace(/\s+/g, '').split('.')
       if (path.length > 1 && path[path.length - 2] === TOOL_NAMESPACE)
         path.splice(path.length - 2, 1)
       else if (path.length > 1 && path[path.length - 1] === TOOL_NAMESPACE) path.pop()
-      const builder = catalogBuilder(catalog, path.join('.'))
-      if (builder) types.add(builder.type)
+      const key = path.join('.')
+      if (catalogBuilder(catalog, key)) keys.add(key)
     }
+  }
+  return [...keys].sort(compareStrings)
+}
+
+/**
+ * The block types `sources` name through a builder ({@link referencedBuilders}): the blocks a
+ * directory's `tsconfig.json` type-checks.
+ */
+export function referencedBlockTypes(catalog: BlockCatalog, sources: Iterable<string>): string[] {
+  const types = new Set<string>()
+  for (const key of referencedBuilders(catalog, sources)) {
+    const builder = catalogBuilder(catalog, key)
+    if (builder) types.add(builder.type)
   }
   return [...types].sort(compareStrings)
 }

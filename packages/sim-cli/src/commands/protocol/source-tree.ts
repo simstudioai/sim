@@ -26,7 +26,8 @@ import {
   sdkIndexHeader,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
-import { printError } from '#sim-cli/output/io'
+import { printError, printLine } from '#sim-cli/output/io'
+import type { OutputFormat } from '../../config/index'
 import { readJsonFile, writeJsonFile } from '../../config/json-file'
 import { configDir } from '../../config/paths'
 import { embedStore } from '../../embed-context'
@@ -35,6 +36,7 @@ import type { GetSourceResourcesResponse, GetWorkflowSourceResponse } from '../.
 import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
 import { cliVersion } from '../../version'
+import { printProtocolResult } from './result'
 import {
   readSourceJson,
   readSourceText,
@@ -47,6 +49,7 @@ import {
   updateSourceDir,
   withMissingLines,
 } from './source-dir'
+import { type PrimerKind, primerFor } from './source-primer'
 
 const TSCONFIG_FILE = 'tsconfig.json'
 /** Type-checks the source against every current block, for a block the default one leaves out. */
@@ -434,6 +437,8 @@ export interface SourceTree {
   workspaceTypes: boolean
   /** The agent guide to read before editing. */
   guide: typeof SOURCE_AGENTS_FILE
+  /** The primer atop the guide (`source-primer.ts`), printed so an agent needs no other read. */
+  primer: string
 }
 
 /** Reports a `tsconfig.json` the CLI left alone and summarizes a tree write. */
@@ -441,20 +446,46 @@ export function finishTree(
   dir: string,
   written: number,
   workspaceTypes: WorkspaceTypes | null,
-  ownsTsconfig: boolean
+  tree: { ownsTsconfig: boolean; primer: string }
 ): SourceTree {
-  if (!ownsTsconfig) {
+  if (!tree.ownsTsconfig) {
     printError(
       `note: ${TSCONFIG_FILE} in ${dir} is not the CLI's, so it was left as it is. To type-check the source, map "@sim/workflow-sdk" to ["./${SDK_DIR}/core.d.ts"] in its compilerOptions.paths.`
     )
   }
-  return { files: written, workspaceTypes: workspaceTypes !== null, guide: SOURCE_AGENTS_FILE }
+  return {
+    files: written,
+    workspaceTypes: workspaceTypes !== null,
+    guide: SOURCE_AGENTS_FILE,
+    primer: tree.primer,
+  }
+}
+
+/**
+ * Prints a tree write's result: in JSON or YAML one document with the primer as its `primer`
+ * field, otherwise the fields and then the primer as text, so it reads as written.
+ */
+export function printTreeResult(
+  format: OutputFormat,
+  result: Record<string, unknown> & { primer: string }
+): void {
+  if (format === 'json' || format === 'yaml') {
+    printProtocolResult(format, result)
+    return
+  }
+  const { primer, ...fields } = result
+  printProtocolResult(format, fields)
+  printLine(`\n${primer}`)
 }
 
 /** What a directory's editable tree holds beside the printed source. */
 export interface SourceTreeProfile {
-  /** `.sim/AGENTS.md`. */
+  /** Which primer opens `.sim/AGENTS.md`. */
+  kind: PrimerKind
+  /** The reference in `.sim/AGENTS.md`, below the primer. */
   agents: string
+  /** More guides beside `.sim/AGENTS.md` (path → text), rewritten every time like it. */
+  guides?: ReadonlyArray<readonly [string, string]>
   /**
    * A `tsconfig.json` the CLI writes, starting with {@link TSCONFIG_MARKER}, that type-checks the
    * source with the SDK declarations `sdkFiles` (directory-relative paths).
@@ -584,8 +615,9 @@ export interface SourceTreeUse {
 }
 
 /**
- * Everything beside the printed source that makes a directory editable: the agent guide and the
- * example workflows (both rewritten every time and never in `.sim/written.json`), the
+ * Everything beside the printed source that makes a directory editable: the agent guide (the
+ * primer for the builders `use` calls, then the profile's reference) and the example workflows
+ * (both rewritten every time and never in `.sim/written.json`), the
  * declarations (regenerated only when the catalog or generator changed), `workspace.d.ts`, the
  * CLI's `tsconfig.json` and `tsconfig.full.json`, and the LF lines. `incremental` (a write that
  * leaves workflows on disk unread, such as a get of only some kinds) keeps the blocks
@@ -598,9 +630,12 @@ export async function sourceTreeChange(
   profile: SourceTreeProfile,
   use: SourceTreeUse,
   options: { incremental?: boolean } = {}
-): Promise<{ change: SourceDirChange; ownsTsconfig: boolean }> {
+): Promise<{ change: SourceDirChange; ownsTsconfig: boolean; primer: string }> {
+  const sources = [...use.sources]
+  const primer = primerFor(profile.kind, catalog, sources)
   const write: Array<readonly [string, string]> = [
-    [SOURCE_AGENTS_FILE, profile.agents],
+    [SOURCE_AGENTS_FILE, `${primer}\n${profile.agents}`],
+    ...(profile.guides ?? []),
     ...Object.entries(COOKBOOK_EXAMPLES).map(
       ([file, text]) => [`${SOURCE_EXAMPLES_DIR}/${file}`, text] as const
     ),
@@ -621,7 +656,7 @@ export async function sourceTreeChange(
     catalog,
     workspaceTypes !== null,
     profile,
-    { ...use, blockTypes: [...(use.blockTypes ?? []), ...kept] },
+    { sources, blockTypes: [...(use.blockTypes ?? []), ...kept] },
     { tsconfig, full: tsconfigFull }
   )
   write.push(...tsconfigs.write)
@@ -642,7 +677,7 @@ export async function sourceTreeChange(
   } else {
     remove.push(WORKSPACE_MANIFEST_FILE)
   }
-  return { change: { write, remove }, ownsTsconfig }
+  return { change: { write, remove }, ownsTsconfig, primer }
 }
 
 /** A read the server refused as over the source size limits exits 7, as a refused apply does. */

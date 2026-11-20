@@ -10,6 +10,7 @@ export {
   defaultBlockFiles,
   fullBlockFiles,
   referencedBlockTypes,
+  referencedBuilders,
   SDK_GUIDE_FILE,
   SDK_INDEX_FILE,
   SDK_MODELS_FILE,

@@ -13,12 +13,14 @@ Workflows as code is in preview. When it is [enabled on your Sim deployment](/pl
 
 ## For coding agents [#for-coding-agents]
 
-Claude Code, Cursor, Codex and other coding agents work from a directory that `get` writes. Point the agent at `.sim/AGENTS.md` in it, which walks through the loop:
+Claude Code, Cursor, Codex and other coding agents work from a directory that `get` writes. `get` prints a short primer (the edit loop, how block identity and references work, deletes, deploy, exit codes, and the params of each builder the workflow already uses; in JSON output, its `primer` field), and the same primer opens `.sim/AGENTS.md`, the full guide. The loop:
 
 1. `sim workflows source get <workflowId> --dir <dir>` writes the workflow and the guide.
 2. Edit `workflow.ts`.
 3. `sim workflows source check --dir <dir>` compiles it offline.
 4. `sim workflows source status --dir <dir>` shows what changed and what to run next.
+
+To write a block the workflow does not use yet, `sim workflows source params <builder>` (for example `table.upsertRow` or `trigger.schedule`) prints its params, required ones first with their options and defaults, and its outputs, from the cached block catalog without a request. A namespace such as `gmail` lists its builders.
 5. `sim workflows source apply --dir <dir> --dry-run`, then `--yes`, saves the draft.
 
 For a whole workspace, use `sim workspaces source` with the same steps; see [Workspace as code](/workflows/workspace-code).
@@ -37,7 +39,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
    sim workflows source get <workflowId> --dir ./support-triage
    ```
 
-   This writes `workflow.ts`, any function code under `functions/`, and type declarations for every block and for your workspace's tables, credentials, knowledge bases, and environment variable names, with `.sim/sdk/INDEX.md` listing every builder by block and operation. It also writes a `tsconfig.json` that resolves them and type-checks the blocks the workflow uses, and a `tsconfig.full.json` that type-checks every block, unless the directory already has files of those names, which are left as they are. For coding agents it writes `.sim/AGENTS.md`, a short guide, and example workflows under `.sim/examples/` with one correct example of each common block to copy from. The examples name placeholder resources, so the tsconfig files leave them out of the type-check.
+   This writes `workflow.ts`, any function code under `functions/`, and type declarations for every block and for your workspace's tables, credentials, knowledge bases, and environment variable names, with `.sim/sdk/INDEX.md` listing every builder by block and operation. It also writes a `tsconfig.json` that resolves them and type-checks the blocks the workflow uses, and a `tsconfig.full.json` that type-checks every block, unless the directory already has files of those names, which are left as they are. For coding agents it writes `.sim/AGENTS.md`, the primer `get` prints followed by a reference, and example workflows under `.sim/examples/` with one correct example of each common block to copy from. The examples name placeholder resources, so the tsconfig files leave them out of the type-check.
 
    `get` into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them.
 

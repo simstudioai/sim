@@ -71,7 +71,7 @@ refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
 | `.sim/sdk/workspace.d.ts` | This workspace's tables (with columns), knowledge bases, credentials, workflows (with inputs), skills, custom tools and env var names, so `table('tickets')`, `credential('support-slack')`, `skill('triage')` and `env.X` are checked. |
 | `tsconfig.json` | Resolves `@sim/workflow-sdk` to `.sim/sdk` and type-checks `workflow.ts` with the blocks it uses (from the source and the server's `blockTypes`) and the core builders' blocks: a few dozen files for `tsc` instead of every block. |
 | `tsconfig.full.json` | The same with every current block, plus any legacy-only block the workflow uses. |
-| `.sim/AGENTS.md` | The authoring guide for agents, linking [the docs](https://docs.sim.ai/workflows/code). A top-level `AGENTS.md` of your own is never touched. |
+| `.sim/AGENTS.md` | The authoring guide for agents: the primer `get` prints (edit loop, identity, references, deletes, deploy, exit codes, and a snippet for each builder the source calls), then a reference linking [the docs](https://docs.sim.ai/workflows/code). A top-level `AGENTS.md` of your own is never touched. |
 | `.sim/examples/*.ts` | Example workflows, together one correct example of each common block: `cookbook.ts` (agent, condition, function, table, knowledge, Slack, human in the loop, loop, response), `integrations.ts` (webhook, weekday cron, HTTP headers, table update by id, Gmail, `onError`), `agents.ts` (router, agent tools, child workflow, parallel). Read them before writing. They name example resources, so the tsconfig files leave them out. |
 | `.gitattributes` | `text eol=lf` for the source files, merged into any file already there. |
 
