@@ -93,7 +93,17 @@ function isCredentialName(name: string): boolean {
 const PLACEHOLDER =
   /^(?:x+|\*+|\.+|-+|_+|<[^>]*>|\[[^\]]*\]|your\w*|my\w*|example\w*|placeholder\w*|changeme|redacted|secret|password|token|null|undefined|none|true|false)$/i
 
-const AUTH_SCHEME = /^(?:bearer|basic|token|bot|digest|apikey|key)\s+/i
+/** An auth scheme word that may open a credential header's value (`Bearer {{TOKEN}}`). */
+const AUTH_SCHEME = /^\s*(?:bearer|basic|token|bot|digest|apikey|key)\s+/i
+
+/**
+ * A credential header's value without its leading auth scheme word, so only what follows it
+ * (`{{TOKEN}}` in `Digest {{TOKEN}}`) is judged a literal secret. The one scheme list workflows and
+ * workspace declarations share.
+ */
+export function withoutAuthScheme(value: string): string {
+  return value.replace(AUTH_SCHEME, '')
+}
 
 /**
  * Whether literal text in a credential slot (a credential header's value, a credential-named
@@ -101,7 +111,7 @@ const AUTH_SCHEME = /^(?:bearer|basic|token|bot|digest|apikey|key)\s+/i
  * reference tokens are gone, and not a placeholder.
  */
 function isCredentialText(text: string): boolean {
-  const literal = withoutReferences(text).trim().replace(AUTH_SCHEME, '').trim()
+  const literal = withoutAuthScheme(withoutReferences(text).trim()).trim()
   return literal.length >= 8 && !/\s/.test(literal) && !PLACEHOLDER.test(literal)
 }
 

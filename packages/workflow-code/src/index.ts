@@ -113,7 +113,7 @@ export { assignIdentifiers, printWorkflow } from './print'
 export { hasSuspiciousCharacter, printKey, quoteString } from './print/strings'
 export { getOwn, invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
 export { JS_RESERVED_WORDS, SDK_CORE_EXPORTS } from './sdk'
-export { holdsSecret } from './secrets'
+export { holdsSecret, withoutAuthScheme } from './secrets'
 export {
   mapAnchorIds,
   parseSourceMeta,

@@ -23,7 +23,7 @@
  * An OAuth client secret is set in the server's settings, never in source.
  */
 import { compareStrings } from '@sim/utils/string'
-import { holdsSecret, type Json } from '@sim/workflow-code'
+import { holdsSecret, type Json, withoutAuthScheme } from '@sim/workflow-code'
 import {
   asDeclared,
   booleanField,
@@ -114,8 +114,6 @@ const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 /** A credential-bearing header name, by its words. */
 const CREDENTIAL_HEADER =
   /^(authorization|proxy-authorization|cookie)$|key|token|secret|auth|password|session|signature|credential/i
-/** An auth scheme word that may open a credential header (`Bearer {{TOKEN}}`). */
-const AUTH_SCHEME = /^\s*(bearer|basic|token|bot|apikey)\s+/i
 
 /** `mcp/<key>.ts`. */
 export function mcpDeclarationPath(key: string): string {
@@ -135,7 +133,7 @@ function isCredentialHeader(name: string): boolean {
  */
 export function holdsLiteralSecret(name: string, value: string): boolean {
   const credential = isCredentialHeader(name)
-  return holdsSecret({ password: credential }, credential ? value.replace(AUTH_SCHEME, '') : value)
+  return holdsSecret({ password: credential }, credential ? withoutAuthScheme(value) : value)
 }
 
 /** Whether a header value is a kept stored value. */

@@ -113,6 +113,16 @@ describe('mcpCodec', () => {
     ).toEqual(['E_MCP_LITERAL_SECRET'])
   })
 
+  it('accepts every auth scheme a workflow credential header accepts before an env reference', () => {
+    for (const scheme of ['Bearer', 'Basic', 'Token', 'Bot', 'Digest', 'ApiKey', 'Key']) {
+      expect(
+        errorCodes(
+          `{ url: 'https://mcp.example.com', headers: { Authorization: '${scheme} {{GH_TOKEN}}' } }`
+        )
+      ).toEqual([])
+    }
+  })
+
   it('refuses a known token format in a header whose name carries no credential', () => {
     expect(
       errorCodes(
