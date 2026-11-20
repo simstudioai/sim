@@ -944,6 +944,49 @@ describe('sim workflows source apply', () => {
       })
     })
 
+    it('deploys no new version when a no-op apply leaves the live version matching the draft', async () => {
+      setTerminal(false)
+      const STATUS_PATH = `/api/v2/workflows/${WORKFLOW_ID}/deployment`
+      const noop = outcome()
+      noop.data.applied = false
+      noop.data.diff.noop = true
+      noop.data.needsRedeployment = false
+      const status = (isDeployed: boolean) => ({
+        data: {
+          ...deployed.data,
+          isDeployed,
+          needsRedeployment: false,
+          isPublicApi: false,
+          webhooks: [],
+          activeDeployment: isDeployed
+            ? { deploymentVersionId: 'dv-7', version: 7, deployedAt: '2026-11-20T00:00:00Z' }
+            : null,
+        },
+      })
+      let live = true
+      request.mockImplementation(async (path: string) =>
+        path === STATUS_PATH ? status(live) : path === DEPLOY_PATH ? deployed : noop
+      )
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+
+      expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH, STATUS_PATH])
+      expect(stdoutJson()).toMatchObject({
+        deployed: { version: 7, isDeployed: true },
+        needsRedeployment: false,
+      })
+
+      // A workflow never deployed is deployed, no-op or not.
+      live = false
+      request.mockClear()
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+      expect(request.mock.calls.map((call) => call[0])).toEqual([
+        APPLY_PATH,
+        STATUS_PATH,
+        DEPLOY_PATH,
+      ])
+    })
+
     it('without --deploy, names the deploy command when the deployed workflow now differs', async () => {
       setTerminal(false)
       request.mockResolvedValue(outcome())
