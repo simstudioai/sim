@@ -33,6 +33,7 @@ import type {
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
+import { gitProvenance } from './git-provenance'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
@@ -670,6 +671,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               `Run it without --workspace to apply it to ${from}, or promote it with --to ${named}: its resources bind by key to that workspace's own, and the directory stays bound to ${from}.`
           ) ?? undefined
         )
+      const provenance = await gitProvenance(options.dir)
       const post = async (submission: WorkspaceSubmission, dryRun: boolean) => {
         const body: ApplyWorkspaceSourceBody = {
           files: submission.files,
@@ -680,7 +682,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
             ...(options.allowDelete ? { allowDelete: true } : {}),
             ...(only ? { only } : {}),
           },
-          provenance: { client: 'cli' },
+          provenance: { client: 'cli', ...provenance },
         }
         const response = await client.request<ApplyWorkspaceSourceResponse>(
           'applyWorkspaceSource',

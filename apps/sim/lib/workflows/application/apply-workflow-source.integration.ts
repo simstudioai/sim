@@ -2158,13 +2158,17 @@ export default workflow('', {}, () => {
   )
 
   check(
-    'a committed apply records one audit row carrying the client, git sha and counts',
+    'a committed apply records one audit row carrying the client, git sha, repository and counts',
     async () => {
       const seeded = await seedWorkflow()
       const source = await getSource(seeded.workflowId)
 
       const result = await apply(source, edit(source.files, SCORE_CODE, 'return 81'), {
-        provenance: { client: 'cli', gitSha: '0123abcd' },
+        provenance: {
+          client: 'cli',
+          gitSha: '0123abcd',
+          repo: 'https://github.com/acme/flows.git',
+        },
       })
 
       const rows = await settledAuditRows(seeded.workflowId, 1)
@@ -2173,6 +2177,7 @@ export default workflow('', {}, () => {
         op: 'apply_source',
         client: 'cli',
         gitSha: '0123abcd',
+        repo: 'https://github.com/acme/flows.git',
         blocksAdded: 0,
         blocksRemoved: 0,
         blocksModified: 1,

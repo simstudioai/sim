@@ -66,6 +66,24 @@ const sourceFilesSchema = z
     `Relative path → file text: \`workflow.ts\` plus every function-code file it references (for example \`functions/score.js\`). At most ${SOURCE_LIMITS.maxFiles} files and ${SOURCE_LIMITS.maxTotalBytes} bytes together, for a workflow of at most ${SOURCE_LIMITS.maxBlocks} blocks.`
   )
 
+/** Whether a repository URL carries credentials: any user in an `http(s)` URL, or a password. */
+function carriesCredentials(repo: string): boolean {
+  const userinfo = /^([a-z][a-z0-9+.-]*):\/\/([^/@]*)@/i.exec(repo)
+  if (!userinfo) return false
+  return /^https?$/i.test(userinfo[1]) || userinfo[2].includes(':')
+}
+
+/** `provenance.repo`: the repository a source or directory was taken from, never with credentials. */
+export const provenanceRepoSchema = z
+  .string()
+  .min(1, 'provenance.repo cannot be empty')
+  .max(512, 'provenance.repo is too long')
+  .refine((repo) => !carriesCredentials(repo), {
+    message:
+      'provenance.repo must not carry credentials: send the URL without its user and password',
+  })
+  .describe('The repository the source was taken from (its remote URL); recorded in the audit log.')
+
 const provenanceSchema = z
   .object({
     client: z
@@ -78,12 +96,7 @@ const provenanceSchema = z
       .regex(/^[0-9a-f]{7,64}$/, 'provenance.gitSha must be a hexadecimal commit hash')
       .optional()
       .describe('The commit the source was taken from; recorded in the audit log.'),
-    repo: z
-      .string()
-      .min(1, 'provenance.repo cannot be empty')
-      .max(512, 'provenance.repo is too long')
-      .optional()
-      .describe('The repository the source was taken from.'),
+    repo: provenanceRepoSchema.optional(),
   })
   .strict()
   .optional()

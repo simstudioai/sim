@@ -19937,10 +19937,10 @@
                 "pattern": "^[0-9a-f]{7,64}$"
               },
               "repo": {
-                "description": "The repository the source was taken from.",
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 512
+                "maxLength": 512,
+                "description": "The repository the source was taken from (its remote URL); recorded in the audit log."
               }
             },
             "required": ["client"],
@@ -20752,10 +20752,10 @@
                 "pattern": "^[0-9a-f]{7,64}$"
               },
               "repo": {
-                "description": "The repository the source was taken from.",
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 512
+                "maxLength": 512,
+                "description": "The repository the source was taken from (its remote URL); recorded in the audit log."
               }
             },
             "required": ["client"],
@@ -26734,6 +26734,12 @@
                 "description": "The commit the directory was taken from; recorded in the audit log.",
                 "type": "string",
                 "pattern": "^[0-9a-f]{7,64}$"
+              },
+              "repo": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "The repository the source was taken from (its remote URL); recorded in the audit log."
               }
             },
             "required": ["client"],

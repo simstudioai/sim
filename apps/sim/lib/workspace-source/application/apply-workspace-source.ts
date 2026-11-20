@@ -379,6 +379,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
             ...(result.failed ? { failed: `${result.failed.kind}:${result.failed.key}` } : {}),
             ...(input.provenance ? { client: input.provenance.client } : {}),
             ...(input.provenance?.gitSha ? { gitSha: input.provenance.gitSha } : {}),
+            ...(input.provenance?.repo ? { repo: input.provenance.repo } : {}),
             source: principalAuditSource(principal),
           },
         }

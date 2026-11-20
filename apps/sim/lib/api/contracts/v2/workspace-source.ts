@@ -11,7 +11,10 @@ import {
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
-import { SOURCE_PATH_MAX_LENGTH } from '@/lib/api/contracts/v2/workflow-source'
+import {
+  provenanceRepoSchema,
+  SOURCE_PATH_MAX_LENGTH,
+} from '@/lib/api/contracts/v2/workflow-source'
 
 const kindSchema = z
   .enum(APPLY_ORDER, {
@@ -286,6 +289,7 @@ const applyBodySchema = z
           .regex(/^[0-9a-f]{7,64}$/, 'provenance.gitSha must be a hexadecimal commit hash')
           .optional()
           .describe('The commit the directory was taken from; recorded in the audit log.'),
+        repo: provenanceRepoSchema.optional(),
       })
       .strict()
       .optional()

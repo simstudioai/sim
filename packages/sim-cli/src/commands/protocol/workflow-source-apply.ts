@@ -21,6 +21,7 @@ import type {
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
+import { gitProvenance } from './git-provenance'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
@@ -507,7 +508,12 @@ export function attachWorkflowSourceApply(source: Command): void {
           client,
           operation: 'applyWorkflowSource',
           params: { workflowId },
-          body: { files, lock, base, provenance: { client: 'cli' } },
+          body: {
+            files,
+            lock,
+            base,
+            provenance: { client: 'cli', ...(await gitProvenance(options.dir)) },
+          },
           save: async (data) => {
             const edges = storedEdgesWrite(
               data,
@@ -608,7 +614,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
             files,
             ...(options.name !== undefined ? { name: options.name } : {}),
             ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
-            provenance: { client: 'cli' },
+            provenance: { client: 'cli', ...(await gitProvenance(options.dir)) },
           },
         })
       })

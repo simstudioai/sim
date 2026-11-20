@@ -1139,6 +1139,7 @@ export type ApplyWorkspaceSourceBody = {
   provenance?: {
     client: 'cli' | 'api'
     gitSha?: string
+    repo?: string
   }
 }
 

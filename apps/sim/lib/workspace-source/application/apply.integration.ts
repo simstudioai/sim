@@ -289,6 +289,43 @@ describe('workspace source apply', () => {
     }
   )
 
+  check(
+    'the commit and repository an apply names are in its audit entries, the workflow writes included',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const provenance = {
+        client: 'cli' as const,
+        gitSha: '0123abcd',
+        repo: 'git@github.com:acme/flows.git',
+      }
+
+      const applied = await apply(workspaceId, STARTER, { provenance })
+
+      await vi.waitFor(async () => {
+        const rows = await db
+          .select({ action: auditLog.action, metadata: auditLog.metadata })
+          .from(auditLog)
+          .where(eq(auditLog.workspaceId, workspaceId))
+        const recorded = rows
+          .filter(
+            (row) =>
+              isRecordLike(row.metadata) &&
+              row.metadata.correlationId === applied.applyId &&
+              (row.action === 'workspace.updated' || row.action === 'workflow.created')
+          )
+          .map((row) => row.metadata)
+        expect(recorded).toHaveLength(2)
+        for (const metadata of recorded) {
+          expect(metadata).toMatchObject({
+            client: 'cli',
+            gitSha: '0123abcd',
+            repo: provenance.repo,
+          })
+        }
+      })
+    }
+  )
+
   check('the workflow-code flag off refuses a get, and no key is allocated', async () => {
     const workspaceId = await newWorkspace()
     await setUp(workspaceId)

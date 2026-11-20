@@ -74,7 +74,7 @@ export interface PlanContext extends SourceContext {
 }
 
 export interface ApplyContext extends SourceContext {
-  provenance?: { client: 'cli' | 'api'; gitSha?: string }
+  provenance?: { client: 'cli' | 'api'; gitSha?: string; repo?: string }
   /**
    * The `sf1:` fingerprint of each draft this apply's workflow writes stored, by workflow id: a
    * later deploy of that workflow publishes exactly that draft.
