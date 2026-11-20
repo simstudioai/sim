@@ -11980,7 +11980,7 @@
                     }
                   }
                 ],
-                "description": "Patch only supplied fields: `inputs`, `name`, `connections`, `removeEdges`, `nestedNodes`, `retry`, `triggerMode`, and `advancedMode`. `inputs` maps sub-block ids directly to values, never through `subBlocks`. Keep `retry`, `triggerMode`, and `advancedMode` beside `inputs`. `connections` maps source handles to target ids, `{ block, handle }`, or arrays; `success` aliases `source`. Re-sending `connections` replaces outgoing edges; use `removeEdges` to delete selected edges."
+                "description": "Patch only supplied fields: `inputs`, `name`, `connections`, `removeEdges`, `nestedNodes`, `retry`, `triggerMode`, `advancedMode`, and `parentId`. `inputs` maps sub-block ids directly to values, never through `subBlocks`. Keep `retry`, `triggerMode`, and `advancedMode` beside `inputs`. `connections` maps source handles to target ids, `{ block, handle }`, or arrays; `success` aliases `source`. Re-sending `connections` replaces outgoing edges; use `removeEdges` to delete selected edges. `parentId` moves the block, keeping its id, into the loop or parallel it names, or with `null` out of its container."
               }
             },
             "required": ["operation_type", "block_id", "params"],
@@ -18918,6 +18918,7 @@
                         "W_APPLY_CATALOG_MOVED",
                         "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
+                        "E_APPLY_UNRESOLVED_REF",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
@@ -19362,6 +19363,7 @@
                         "W_APPLY_CATALOG_MOVED",
                         "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
+                        "E_APPLY_UNRESOLVED_REF",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
@@ -20323,6 +20325,7 @@
                         "W_APPLY_CATALOG_MOVED",
                         "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
+                        "E_APPLY_UNRESOLVED_REF",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
@@ -25365,6 +25368,7 @@
                         "W_APPLY_CATALOG_MOVED",
                         "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
+                        "E_APPLY_UNRESOLVED_REF",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
@@ -25931,6 +25935,7 @@
                       "W_APPLY_CATALOG_MOVED",
                       "W_APPLY_PROBABLE_RENAME",
                       "E_APPLY_LINT",
+                      "E_APPLY_UNRESOLVED_REF",
                       "W_APPLY_LINT",
                       "W_TABLE_UNKNOWN_COLUMN",
                       "E_APPLY_INVALID_SCHEDULE",
@@ -26340,6 +26345,7 @@
                         "W_APPLY_CATALOG_MOVED",
                         "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
+                        "E_APPLY_UNRESOLVED_REF",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",

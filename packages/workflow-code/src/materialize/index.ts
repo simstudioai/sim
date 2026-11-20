@@ -27,7 +27,7 @@ import { type BranchHandles, writeEdges } from './edges'
 import { type IdentityEntry, type LockFreshness, resolveIdentity } from './identity'
 import { restorePreserved } from './preserve'
 import { loopEntry, parallelEntry } from './subflows'
-import { rewriteRenamedReferences } from './values'
+import { rewriteRenamedReferences, rewriteStoredBlockReferences } from './values'
 
 /**
  * Variables keep their ids by key: the lock's id, then prev's, else a new one. A variable
@@ -195,12 +195,15 @@ export function materialize(
   })
   const prevBlock = (prevKey: BlockKey | null) =>
     prevKey !== null && prevCanonical ? getOwn(prevCanonical.workflow.blocks, prevKey) : undefined
-  // Rewrite after restoring: a restored inactive value can hold `<oldkey.` too, and a canvas
-  // rename rewrites every subBlock.
+  // A restored inactive value names blocks by stored keys only, so it takes every rename at once
+  // before restoring; a canvas rename rewrites every subBlock.
   const workflow = rewriteRenamedReferences(
     withPreservedState(
       input,
-      (key) => prevBlock(resolution.blocks.get(key)?.prevKey ?? null),
+      (key) => {
+        const stored = prevBlock(resolution.blocks.get(key)?.prevKey ?? null)
+        return stored && rewriteStoredBlockReferences(stored, resolution.renames)
+      },
       catalog
     ),
     resolution.renames

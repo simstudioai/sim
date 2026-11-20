@@ -2214,7 +2214,7 @@ export default workflow('', {}, () => {
 
 describe('renames in source', () => {
   /** Start → Boom → Tally → Report, each a function; Report's code reads Boom and Tally by $ref. */
-  async function seedChain() {
+  async function seedChain(reportCode = 'return <boom.result> + <tally.result>') {
     const workflowId = generateId()
     const now = new Date()
     await db.insert(workflow).values({
@@ -2238,7 +2238,7 @@ describe('renames in source', () => {
     const start: BlockState = { ...fn('Start', ''), type: 'start_trigger', subBlocks: {} }
     const boom = fn('Boom', 'return 1')
     const tally = fn('Tally', 'return 2')
-    const report = fn('Report', 'return <boom.result> + <tally.result>')
+    const report = fn('Report', reportCode)
     const chain = [start, boom, tally, report]
     const saved = await saveWorkflowToNormalizedTables(workflowId, {
       blocks: Object.fromEntries(chain.map((block) => [block.id, block])),
@@ -2263,6 +2263,59 @@ describe('renames in source', () => {
       'workflow.ts': files['workflow.ts'].replace(new RegExp(`\\b${from}\\b(?!\\.js)`, 'g'), to),
     }
   }
+
+  /** Start → Calc (a function whose result nothing types) → Reply, whose JSON data reads Calc. */
+  async function seedUntypedReply() {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    const written = await apply(
+      source,
+      {
+        'workflow.ts': [
+          '// @sim-sdk 1',
+          "import { codeFile, fn, response, trigger, workflow } from '@sim/workflow-sdk'",
+          '',
+          `export default workflow('Untyped reply ${seeded.workflowId}', {}, () => {`,
+          "  const start = trigger.start('Start', {})",
+          "  const calc = fn('Calc', { code: codeFile('./functions/calc.js') })",
+          "  const reply = response('Reply', { dataMode: 'json', data: { total: calc.result.total } })",
+          '  start.to(calc)',
+          '  calc.to(reply)',
+          '})',
+          '',
+        ].join('\n'),
+        'functions/calc.js': 'return JSON.parse($ref.start.input)\n',
+      },
+      { allowDelete: true }
+    )
+    expect(written.applied).toBe(true)
+    const calcId = written.lock.blocks.calc?.id
+    return { workflowId: seeded.workflowId, calcId }
+  }
+
+  check(
+    'a rename does not report W_JSON_REF_UNTYPED on a JSON field only its reference rewrite changed',
+    async () => {
+      const displayOnly = await seedUntypedReply()
+      const source = await getSource(displayOnly.workflowId)
+      expect(codes((await apply(source, source.files, { dryRun: true })).diagnostics)).toEqual([])
+
+      const renamed = await apply(source, edit(source.files, "fn('Calc'", "fn('Order Calc'"), {
+        dryRun: true,
+      })
+      expect(renamed.diff.blocks.renamed).toEqual([
+        { id: displayOnly.calcId, from: 'calc', to: 'ordercalc' },
+      ])
+      expect(codes(renamed.diagnostics)).toEqual([])
+
+      const both = await seedUntypedReply()
+      const bothSource = await getSource(both.workflowId)
+      const files = edit(renameIdent(bothSource.files, 'calc', 'total'), "fn('Calc'", "fn('Total'")
+      const inferred = await apply(bothSource, files, { dryRun: true })
+      expect(inferred.diff.blocks.renamed).toEqual([{ id: both.calcId, from: 'calc', to: 'total' }])
+      expect(codes(inferred.diagnostics)).not.toContain('W_JSON_REF_UNTYPED')
+    }
+  )
 
   check('two display-name renames in one save keep both ids and resolve their $refs', async () => {
     const seeded = await seedChain()
@@ -2462,7 +2515,7 @@ describe('renames in source', () => {
   })
 
   check(
-    'a $ref to a missing block in a function file is the same warning in check and dry run, at the file',
+    'a $ref to a missing block the edit wrote into a function file is refused, at the file',
     async () => {
       const seeded = await seedChain()
       const source = await getSource(seeded.workflowId)
@@ -2472,7 +2525,26 @@ describe('renames in source', () => {
 
       expect(
         dryRun.diagnostics.map((d) => ({ code: d.code, severity: d.severity, file: d.file }))
-      ).toEqual([{ code: 'W_UNRESOLVED_REF', severity: 'warning', file: 'functions/boom.js' }])
+      ).toEqual([{ code: 'E_APPLY_UNRESOLVED_REF', severity: 'error', file: 'functions/boom.js' }])
+      await expectRejected(apply(source, files), 'E_APPLY_UNRESOLVED_REF')
+    }
+  )
+
+  check(
+    'a dangling reference the stored code already holds stays a warning, whatever else the apply changes',
+    async () => {
+      const seeded = await seedChain('return <ghost.result>')
+      const source = await getSource(seeded.workflowId)
+      expect(source.files['functions/report.js']).toBe('return $ref.ghost.result')
+
+      const result = await apply(source, edit(source.files, "fn('Boom'", "fn('Bang'"))
+
+      expect(result.applied).toBe(true)
+      expect(
+        result.diagnostics
+          .filter((d) => d.code === 'W_UNRESOLVED_REF')
+          .map((d) => ({ severity: d.severity, file: d.file }))
+      ).toEqual([{ severity: 'warning', file: 'functions/report.js' }])
     }
   )
 })

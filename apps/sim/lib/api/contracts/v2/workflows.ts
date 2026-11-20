@@ -3908,8 +3908,10 @@ const v2WorkflowOperationParamsSchema = z
   )
   .describe(
     'Patch only supplied fields: `inputs`, `name`, `connections`, `removeEdges`, `nestedNodes`, ' +
-      `\`retry\`, \`triggerMode\`, and \`advancedMode\`. ${WORKFLOW_OPERATION_PARAM_ENVELOPE} ` +
-      'Re-sending `connections` replaces outgoing edges; use `removeEdges` to delete selected edges.'
+      `\`retry\`, \`triggerMode\`, \`advancedMode\`, and \`parentId\`. ${WORKFLOW_OPERATION_PARAM_ENVELOPE} ` +
+      'Re-sending `connections` replaces outgoing edges; use `removeEdges` to delete selected edges. ' +
+      '`parentId` moves the block, keeping its id, into the loop or parallel it names, or with ' +
+      '`null` out of its container.'
   )
 
 const v2AddWorkflowBlockParamsSchema = z

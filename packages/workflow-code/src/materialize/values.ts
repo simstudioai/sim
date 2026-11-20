@@ -174,9 +174,35 @@ function rewriteBlock(block: CanonicalBlock, rewrite: (text: string) => string):
 }
 
 /**
- * Rewrites `<oldkey.` reference tokens to `<newkey.` after a rename. Case-insensitive,
- * because the block resolver lowercases names (`BlockResolver`). A
- * rename whose old key is still a key of `workflow` is skipped: the token still names that block.
+ * A function rewriting every `<from.` reference token in a text to `<to.`, case-insensitively, as
+ * an apply rewrites the references to a renamed block. Every rename applies in one pass, so a
+ * token one rename wrote is never rewritten again by another (swapped or chained renames).
+ */
+export function renamedReferenceRewriter(
+  renames: ReadonlyArray<{ from: BlockKey; to: BlockKey }>
+): (text: string) => string {
+  const targets = new Map<string, BlockKey>()
+  for (const { from, to } of renames) {
+    const key = from.toLowerCase()
+    if (!targets.has(key)) targets.set(key, to)
+  }
+  if (targets.size === 0) return (text) => text
+  const pattern = new RegExp(`<(${[...targets.keys()].map(escapeRegExp).join('|')})\\.`, 'gi')
+  return (text) =>
+    text.includes('<')
+      ? text.replace(pattern, (token, from: string) => {
+          const to = targets.get(from.toLowerCase())
+          return to === undefined ? token : `<${to}.`
+        })
+      : text
+}
+
+/**
+ * Rewrites `<oldkey.` reference tokens in source text to `<newkey.` after a rename.
+ * Case-insensitive, because the block resolver lowercases names (`BlockResolver`). A rename whose
+ * old key is still a key of `workflow` is skipped: in source the token names the block declared
+ * under that key, as compile resolves it. Text that holds stored keys only (a value restored from
+ * the stored block) goes through {@link rewriteStoredBlockReferences} instead.
  */
 export function rewriteRenamedReferences(
   workflow: CanonicalWorkflow,
@@ -184,17 +210,22 @@ export function rewriteRenamedReferences(
 ): CanonicalWorkflow {
   const active = renames.filter(({ from }) => !Object.hasOwn(workflow.blocks, from))
   if (active.length === 0) return workflow
-  const patterns = active.map(({ from, to }) => ({
-    pattern: new RegExp(`<${escapeRegExp(from)}\\.`, 'gi'),
-    replacement: `<${to}.`,
-  }))
-  const rewrite = (text: string): string =>
-    text.includes('<')
-      ? patterns.reduce((acc, { pattern, replacement }) => acc.replace(pattern, replacement), text)
-      : text
+  const rewrite = renamedReferenceRewriter(active)
   const blocks: CanonicalWorkflow['blocks'] = {}
   for (const [key, block] of Object.entries(workflow.blocks)) {
     setOwn(blocks, key, rewriteBlock(block, rewrite))
   }
   return { ...workflow, blocks }
+}
+
+/**
+ * `block` (a stored block, whose text names blocks by their stored keys) with every `<oldkey.`
+ * token rewritten to its new key through all `renames` at once, so a chain or swap of renames
+ * lands each token on the block it named.
+ */
+export function rewriteStoredBlockReferences(
+  block: CanonicalBlock,
+  renames: ReadonlyArray<{ from: BlockKey; to: BlockKey }>
+): CanonicalBlock {
+  return renames.length === 0 ? block : rewriteBlock(block, renamedReferenceRewriter(renames))
 }
