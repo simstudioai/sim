@@ -66,7 +66,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
    sim workflows source apply --dir ./support-triage --dry-run
    ```
 
-   `apply` reads the workflow ID from `.sim/base.json`. Pass it as `apply <workflowId> --dir …` to have the CLI confirm the directory holds that workflow.
+   `apply` reads the workflow ID from `.sim/base.json`. Pass it as `apply <workflowId> --dir …` to have the CLI confirm the directory holds that workflow. Every command that reads a source directory (`check`, `status`, `diff`, `params`, `apply`, and their `sim workspaces source` counterparts) defaults `--dir` to the current directory; `get` and `create`, which write one, always need `--dir`.
 
    Sim compiles the file and runs every check a save would run: unknown settings, missing required fields, broken references, permissions, and locked blocks. Each problem prints with its line, the code around it, and a hint:
 

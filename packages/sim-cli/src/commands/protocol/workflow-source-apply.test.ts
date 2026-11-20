@@ -199,6 +199,21 @@ describe('sim workflows source apply', () => {
     expect(process.exitCode).toBe(14)
   })
 
+  it('applies the current directory when --dir is left out, as check and status do', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true }))
+    const cwd = process.cwd()
+    process.chdir(dir)
+    try {
+      await apply('--dry-run')
+    } finally {
+      process.chdir(cwd)
+    }
+
+    expect(request.mock.calls[0][0]).toBe(APPLY_PATH)
+    expect(request.mock.calls[0][1].body.files['workflow.ts']).toBe(ENTRY)
+  })
+
   it('without --yes, exits with the refusal and names no next step when the plan has errors', async () => {
     setTerminal(false)
     request.mockResolvedValue(

@@ -470,7 +470,7 @@ export function attachWorkflowSourceApply(source: Command): void {
       '[workflowId]',
       'Workflow whose draft the source replaces (default: the workflowId in .sim/base.json)'
     )
-    .requiredOption('--dir <dir>', DIR_DESCRIPTION)
+    .option('--dir <dir>', DIR_DESCRIPTION, '.')
     .option('--dry-run', 'Check the source and show the outcome without saving or writing files')
     .option('-y, --yes', 'Apply without asking for confirmation')
     .option(

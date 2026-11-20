@@ -468,7 +468,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
   absoluteDirOption(command)
   verboseFlag(command)
   command
-    .requiredOption('--dir <dir>', 'Workspace source directory written by `workspaces source get`')
+    .option('--dir <dir>', 'Workspace source directory written by `workspaces source get`', '.')
     .option('--dry-run', 'Plan and check without writing anything')
     .option('-y, --yes', 'Apply without asking for confirmation')
     .option('--allow-delete', 'Delete resources, columns and data the directory no longer declares')
