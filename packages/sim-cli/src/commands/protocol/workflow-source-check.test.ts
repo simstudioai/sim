@@ -733,6 +733,94 @@ export default workflow('W', {}, () => {
     }
   })
 
+  it('fails on a dangling $ref in an unedited file that a bound block now runs instead of its own', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const total = fn('Total', { code: codeFile('./functions/sum.js') })
+  const sum = fn('Sum', { code: codeFile('./functions/sum.js') })
+  start.to(total)
+  total.to(sum)
+})
+`
+    )
+    const blocks = (codeFiles: Record<string, string>) =>
+      Object.fromEntries(
+        ['start', 'total', 'sum'].map((key, order) => [
+          key,
+          {
+            id: `id-${key}`,
+            parent: null,
+            ident: key,
+            order,
+            ...(codeFiles[key] ? { codeFile: codeFiles[key] } : {}),
+          },
+        ])
+      )
+    writeFileSync(
+      join(dir, '.sim/lock.json'),
+      JSON.stringify({
+        version: 1,
+        blocks: blocks({ total: 'functions/total.js', sum: 'functions/sum.js' }),
+        variables: {},
+      })
+    )
+    writeWritten({
+      'functions/total.js': 'return 1\n',
+      'functions/sum.js': 'return $ref.ordertotals.sum\n',
+    })
+    writeFileSync(join(dir, 'functions/sum.js'), 'return $ref.ordertotals.sum\n')
+
+    await check()
+
+    expect(result().diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'E_APPLY_UNRESOLVED_REF',
+        severity: 'error',
+        file: 'functions/sum.js',
+      })
+    )
+  })
+
+  it('keeps a $ref to a block the source no longer declares a warning, as the server may infer its rename', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const bang = fn('Bang', { code: 'return 1' })
+  const report = fn('Report', { code: codeFile('./functions/report.js') })
+  start.to(bang)
+  bang.to(report)
+})
+`
+    )
+    writeLock(['start', 'boom', 'report'])
+    writeWritten({ 'functions/report.js': 'return $ref.boom.result\n' })
+    writeFileSync(join(dir, 'functions/report.js'), 'return $ref.boom.result + 1\n')
+
+    await check()
+
+    expect(result()).toMatchObject({ errors: 0 })
+    expect(result().diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'W_UNRESOLVED_REF',
+        severity: 'warning',
+        file: 'functions/report.js',
+      })
+    )
+  })
+
   describe('a reference to an output the block lacks', () => {
     /** Start → Call (an HTTP request) → Done, whose JSON body reads `call.<output>`. */
     const reads = (output: string) =>

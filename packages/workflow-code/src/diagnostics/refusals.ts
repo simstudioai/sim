@@ -19,7 +19,11 @@ export type EditRefusalCode =
 export interface EditedBlocks {
   /** Whether the edit added the block or changed it in any way, a move included. */
   changed(blockKey: string): boolean
-  /** Whether the edit changed the text of the block's function code file `file`. */
+  /**
+   * Whether the edit changed the function code the block runs from code file `file`: the file's
+   * text, or which file the block runs. A block runs one file, so a caller holding the block's
+   * code before and after may compare that alone.
+   */
   codeEdited(blockKey: string, file: string): boolean
 }
 

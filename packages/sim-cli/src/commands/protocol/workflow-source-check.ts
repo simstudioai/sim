@@ -139,7 +139,11 @@ on none of them. In every mode, as the server refuses them: ${EDIT_REFUSALS.map(
   ({ warning, refusal, where }) => `${warning} is the error ${refusal} ${REFUSAL_WHERE[where]}`
 ).join('; ')}. A block counts as changed when the lock does not bind it, when the source moved it
 into another container, or when it compiles differently than in the source the last get or
-apply printed (.sim/stored-edges.json records a digest of each block).
+apply printed (.sim/stored-edges.json records a digest of each block). That last comparison
+needs the catalog the source was printed with in the cache: without it, a bound block that did
+not move counts as unchanged, so the server may refuse what the check passes. A $ref in a
+function file to a block the lock binds that the source no longer declares stays a warning: the
+server may infer that block was renamed and rewrite the reference, and refuses it otherwise.
 ${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not bind, and with
 --strict on every block.`
 
@@ -535,10 +539,48 @@ export async function checkWorkflowDir(
   const reported = (code: string, blockKey: string | undefined) =>
     !SERVER_ONLY_CODES.has(code) &&
     !(EDIT_SCOPED_CODES.has(code) && options.strict !== 'all' && bound(blockKey))
-  const refused = refuseEditedFindings(compiled, {
-    changed,
-    codeEdited: (blockKey, file) => edited(file, blockKey),
-  })
+  /**
+   * Whether the code `blockKey` runs from `file` changed, as the server compares it: the file's
+   * text, or a bound block now pointed at another file whose text differs from what it ran.
+   */
+  const codeEdited = (blockKey: string, file: string) => {
+    if (edited(file, blockKey)) return true
+    const before = lock ? getOwn(lock.blocks, blockKey)?.codeFile : undefined
+    const text = files[file]
+    return (
+      before !== undefined &&
+      before !== file &&
+      text !== undefined &&
+      written.digests[before] !== digest(text)
+    )
+  }
+  const removedKeys = new Set(
+    Object.keys(lock?.blocks ?? {}).filter(
+      (key) => !compiled.workflow || getOwn(compiled.workflow.blocks, key) === undefined
+    )
+  )
+  /**
+   * A refused `$ref` in a code file naming a block the lock binds that the source no longer
+   * declares: the server may infer that block's rename (name and const both changed) and then
+   * rewrite the reference, which only it can tell, so the check keeps the warning.
+   */
+  const mayBeRenamed = (finding: (typeof compiled.diagnostics)[number]) => {
+    if (finding.code !== 'W_UNRESOLVED_REF' || finding.span.file === SOURCE_ENTRY_FILE) return false
+    const text = files[finding.span.file]?.slice(finding.span.start, finding.span.end) ?? ''
+    const head = /^(?:\$ref\.|<)([A-Za-z0-9_]+)/.exec(text)?.[1]
+    return head !== undefined && removedKeys.has(head)
+  }
+  const refusable = (finding: (typeof compiled.diagnostics)[number]) => !mayBeRenamed(finding)
+  const refused = [
+    ...refuseEditedFindings(
+      {
+        diagnostics: compiled.diagnostics.filter(refusable),
+        withheld: compiled.withheld.filter(refusable),
+      },
+      { changed, codeEdited }
+    ),
+    ...compiled.diagnostics.filter(mayBeRenamed),
+  ]
   const findings = [
     ...refused.filter((diagnostic) => reported(diagnostic.code, diagnostic.blockKey)),
     ...declared,
