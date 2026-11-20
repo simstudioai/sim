@@ -393,6 +393,36 @@ export async function refreshWorkspaceTypes(dir: string, local: LocalDeclaration
 }
 
 /**
+ * Re-reads the workspace's resources into a workflow directory's `workspace.d.ts` and the manifest
+ * kept beside it, so `tsc` types a resource created since the last get (a child workflow, a table,
+ * a credential) instead of refusing its key, and stops accepting one deleted since. The commands
+ * that already talk to the server (apply, its dry run and plan, create, status) call it; an offline
+ * check cannot. Only a directory holding types the CLI wrote is touched (a workflow folder of a
+ * workspace directory types its workflows at the root, which the workspace commands refresh), only
+ * a file whose text changes is rewritten, and a failure to list the resources (a rate limit, a
+ * dropped connection) leaves the files as they are: the types are a convenience, never the write.
+ */
+export async function refreshWorkflowWorkspaceTypes(
+  client: OperationClient<'getSourceResources'>,
+  dir: string,
+  workspaceId: string
+): Promise<void> {
+  const [types, manifest] = await Promise.all([
+    readSourceText(dir, WORKSPACE_TYPES_FILE),
+    readSourceText(dir, WORKSPACE_MANIFEST_FILE),
+  ])
+  if (types === null || manifest === null) return
+  const fresh = await loadWorkspaceTypes(client, workspaceId).catch(() => null)
+  if (!fresh?.stored) return
+  const stored = `${JSON.stringify(fresh.stored, null, 2)}\n`
+  const write = [
+    ...(fresh.text !== types ? [[WORKSPACE_TYPES_FILE, fresh.text] as const] : []),
+    ...(stored !== manifest ? [[WORKSPACE_MANIFEST_FILE, stored] as const] : []),
+  ]
+  if (write.length > 0) await updateSourceDir(dir, { write })
+}
+
+/**
  * Refuses a catalog for another SDK major than the bundled `core.d.ts`: its builders would be
  * written beside declarations that cannot type them.
  */

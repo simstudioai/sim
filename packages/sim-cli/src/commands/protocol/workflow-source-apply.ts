@@ -38,7 +38,7 @@ import {
   writeBack,
 } from './source-dir'
 import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
-import { cachedCatalogByHash, printTreeResult } from './source-tree'
+import { cachedCatalogByHash, printTreeResult, refreshWorkflowWorkspaceTypes } from './source-tree'
 import {
   type CreatedResource,
   confirm,
@@ -461,6 +461,7 @@ export function attachWorkflowSourceApply(source: Command): void {
   const [command, connectApply] = apiCommand(source, 'apply', [
     'applyWorkflowSource',
     'deployWorkflow',
+    'getSourceResources',
   ])
   absoluteDirOption(command)
   verboseFlag(command)
@@ -494,7 +495,8 @@ export function attachWorkflowSourceApply(source: Command): void {
         const base = await readBase(options.dir, named)
         const workflowId = base.workflowId
         const files = await readSourceFiles(options.dir, lock)
-        await runSourceWrite({
+        await refreshWorkflowWorkspaceTypes(client, options.dir, base.workspaceId)
+        await runSourceWrite<'applyWorkflowSource'>({
           options,
           creating: false,
           question: `Apply these changes to workflow ${workflowId}?`,
@@ -579,6 +581,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
           profile.sources.workspaceId === 'flag' ? null : await readStarterWorkspace(options.dir)
         const workspaceId = client.requireWorkspace(starterWorkspace ?? undefined)
         const files = await readSourceFiles(options.dir, null)
+        await refreshWorkflowWorkspaceTypes(client, options.dir, workspaceId)
         await runSourceWrite<'createWorkflowFromSource'>({
           options,
           creating: true,
