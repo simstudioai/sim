@@ -1860,9 +1860,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           reasoningEffort: {
             values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
           },
-          verbosity: {
-            values: ['low', 'medium', 'high'],
-          },
           maxOutputTokens: 128000,
         },
         contextWindow: 1050000,
@@ -6113,7 +6110,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: 128000,
+          maxOutputTokens: 64000,
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-17',

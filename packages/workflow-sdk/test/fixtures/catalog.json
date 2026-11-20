@@ -5549,7 +5549,7 @@
             "claude-opus-4-5": false,
             "claude-haiku-4-5": false,
             "claude-sonnet-4-5": false,
-            "azure/gpt-6.1-terra": true,
+            "azure/gpt-6.1-terra": false,
             "azure/gpt-6.1-sol": true,
             "azure/gpt-6-sol": true,
             "azure/gpt-6-luna": true,
