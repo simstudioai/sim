@@ -51,6 +51,15 @@ import AppKit
         expectError("unknown_command") { _ = try runAppCommand(AppCommand(name: "run_script")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "  ")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "Pay rent", priority: 3)) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", id: "r1")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", id: "r1", title: " ")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", id: "r1", priority: 3)) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", id: "r1", clearDue: true, due: "2027-05-04")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", completed: true)) }
+        precondition(dueText(DateComponents(year: 2027, month: 5, day: 4)) == "2027-05-04")
+        let padded = String(repeating: "a", count: 7999)
+        precondition(bounded(padded + "😀", 8000) == padded && bounded("👍🏽ok", 4) == "👍🏽")
+        let localDueText = dueText(try dueComponents("2027-05-04T09:30")); precondition(localDueText == "2027-05-04T09:30:00")
         var local = Calendar(identifier: .gregorian); local.timeZone = .current
         let floating = try eventDate("2027-06-09T07:15:00", "Start", allDay: false)
         precondition(local.dateComponents([.hour, .minute], from: floating) == DateComponents(hour: 7, minute: 15))
