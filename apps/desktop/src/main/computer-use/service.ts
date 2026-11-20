@@ -96,11 +96,21 @@ interface UpdateApproval {
   expected: Record<string, unknown>
 }
 
+/**
+ * One line per value: a title or note from a shared calendar could otherwise add lines that read
+ * like extra fields in the confirmation.
+ */
+function oneLine(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').trim()
+}
+
 /** Which item, then each changed field's current and new value, since nothing happens on screen. */
-function changeSummary(header: string[], changes: Change[]): string {
+function changeSummary(header: Array<[label: string, value: string]>, changes: Change[]): string {
   return [
-    ...header,
-    ...changes.map(([label, before, after]) => `${label}: ${before || 'none'} → ${after}`),
+    ...header.map(([label, value]) => `${label}: ${oneLine(value)}`),
+    ...changes.map(
+      ([label, before, after]) => `${label}: ${oneLine(before || 'none')} → ${oneLine(after)}`
+    ),
   ].join('\n')
 }
 
@@ -154,7 +164,7 @@ function writeSummary(command: AppCommand, destination: string | undefined): str
     entries
       .map(([label, value]) => [label, typeof value === 'string' ? value.trim() : value] as const)
       .filter(([, value]) => value !== undefined && value !== '')
-      .map(([label, value]) => `${label}: ${value}`)
+      .map(([label, value]) => `${label}: ${typeof value === 'string' ? oneLine(value) : value}`)
       .join('\n')
   switch (command.name) {
     case 'create_reminder':
@@ -575,7 +585,10 @@ export class ComputerUseService {
       if (!current) throw notFound('reminder', 'find_reminders')
       return {
         summary: changeSummary(
-          [`Reminder: ${current.title}`, `List: ${current.list}`],
+          [
+            ['Reminder', current.title],
+            ['List', current.list],
+          ],
           reminderChanges(command, current)
         ),
         expected: omit(current, ['id', 'list']),
@@ -594,7 +607,11 @@ export class ComputerUseService {
         })
       return {
         summary: changeSummary(
-          [`Event: ${current.title}`, `Calendar: ${current.list}`],
+          [
+            ['Event', current.title],
+            ['Calendar', current.list],
+            ['When', `${current.start} – ${current.end}`],
+          ],
           eventChanges(command, current)
         ),
         expected: omit(current, ['id', 'list', 'allDay', 'recurring']),

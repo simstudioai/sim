@@ -265,6 +265,8 @@ func eventItem(_ event: EKEvent) -> [String: Any] {
     if let notes = event.notes, !notes.isEmpty { item["notes"] = bounded(notes, 8000) }
     return item
 }
+/// Whether a read had to shorten this value; an update cannot check a value it never saw in full.
+func shortened(_ value: String?, _ max: Int) -> Bool { (value?.utf16.count ?? 0) > max }
 /// A non-recurring event's start and end within the same 31-day limit a create has.
 func checkEventSpan(_ start: Date, _ end: Date, allDay: Bool) throws {
     guard allDay ? end >= start : end > start else { throw invalidCommand("End must be after start.") }
@@ -292,6 +294,9 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
         }
         guard reminder.calendar.allowsContentModifications else { throw ComputerError("list_read_only", "This reminder list is read-only.", dispatchState: "not_started") }
         guard let expected else { throw invalidCommand("An update needs the values the user approved.") }
+        if (title != nil && shortened(reminder.title, 1024)) || (command.notes != nil && shortened(reminder.notes, 8000)) {
+            throw ComputerError("too_long_to_compare", "This reminder's title or notes are too long to show in full; change them in Reminders.", dispatchState: "not_started")
+        }
         let now = reminderItem(reminder)
         let moved = (title != nil && now["title"] as? String != expected.title)
             || ((due != nil || command.clearDue == true) && now["due"] as? String != expected.due)
@@ -357,8 +362,12 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
         }
         let start = try command.start.map { try eventDate($0, "Start", allDay: event.isAllDay) } ?? currentStart
         let end = try command.end.map { try eventDate($0, "End", allDay: event.isAllDay) } ?? currentEnd
-        try checkEventSpan(start, end, allDay: event.isAllDay)
+        // An existing event may already be longer than a new one can be; only a new time is checked.
+        if command.start != nil || command.end != nil { try checkEventSpan(start, end, allDay: event.isAllDay) }
         guard let expected else { throw invalidCommand("An update needs the values the user approved.") }
+        if (title != nil && shortened(event.title, 1024)) || (command.location != nil && shortened(event.location, 1024)) || (command.notes != nil && shortened(event.notes, 8000)) {
+            throw ComputerError("too_long_to_compare", "This event's title, location or notes are too long to show in full; change them in Calendar.", dispatchState: "not_started")
+        }
         let now = eventItem(event)
         let moved = (title != nil && now["title"] as? String != expected.title)
             || (command.start != nil && now["start"] as? String != expected.start)

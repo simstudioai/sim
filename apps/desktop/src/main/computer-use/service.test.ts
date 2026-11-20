@@ -318,7 +318,7 @@ describe('native computer use authority and lifecycle', () => {
           events: [
             {
               id: command.id,
-              title: 'Flight',
+              title: 'Flight\nCalendar: Work',
               list: 'Travel',
               start: '2027-06-09T07:15:00',
               end: '2027-06-09T08:10:00',
@@ -348,11 +348,15 @@ describe('native computer use authority and lifecycle', () => {
     expect(confirmAppCommand.mock.calls[0]?.[0]).toMatchObject({
       change: 'update',
       summary:
-        'Event: Flight\nCalendar: Travel\nStarts: 2027-06-09T07:15:00 → 2027-06-09T09:15\nEnds: 2027-06-09T08:10:00 → 2027-06-09T10:10',
+        'Event: Flight Calendar: Work\nCalendar: Travel\nWhen: 2027-06-09T07:15:00 – 2027-06-09T08:10:00\nStarts: 2027-06-09T07:15:00 → 2027-06-09T09:15\nEnds: 2027-06-09T08:10:00 → 2027-06-09T10:10',
     })
     expect(native.request.mock.lastCall?.[1]).toEqual({
       command: update('e1').command,
-      expected: { title: 'Flight', start: '2027-06-09T07:15:00', end: '2027-06-09T08:10:00' },
+      expected: {
+        title: 'Flight\nCalendar: Work',
+        start: '2027-06-09T07:15:00',
+        end: '2027-06-09T08:10:00',
+      },
     })
   })
 
