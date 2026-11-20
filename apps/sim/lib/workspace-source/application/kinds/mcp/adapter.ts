@@ -169,9 +169,14 @@ async function planServer(
   const adoptable = stored.unbound.find((record) => record.id === id)
   const target = bound ?? adoptable
   // A caller who cannot see a header's stored value may only keep it: comparing text they wrote
-  // with the hidden value would tell them whether they guessed it.
-  if (target && (await revealsHeaderValues(ctx)) !== true) {
-    for (const header of hiddenHeadersWritten(declared, target.state)) {
+  // with the hidden value would tell them whether they guessed it. The plan compares the
+  // declaration with the bound server and with the one at its URL, so both are checked.
+  const compared = [bound, adoptable].flatMap((record) => (record ? [record] : []))
+  if (compared.length > 0 && (await revealsHeaderValues(ctx)) !== true) {
+    const hidden = new Set(
+      compared.flatMap((record) => hiddenHeadersWritten(declared, record.state))
+    )
+    for (const header of hidden) {
       finding(
         'E_APPLY_FORBIDDEN',
         `Header "${header}" holds a value you cannot see, so it can only be kept as \`stored()\`.`,

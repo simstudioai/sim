@@ -820,6 +820,50 @@ describe('MCP servers as workspace source', () => {
   )
 
   check(
+    'never tells a read-only member whether a header they write to a new URL matches the server there',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: { workspaceId, name: 'Tenant', url, authType: 'headers' },
+      })
+      const read = await runner.get(workspaceId, reader)
+      const [path] = Object.keys(read.files)
+      // Created after the get, so no key binds it: the plan can only meet it at its URL.
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'Tenant',
+          url: `${url}/v2`,
+          headers: { 'X-Tenant': 'acme' },
+          authType: 'headers',
+        },
+      })
+
+      const planWith = async (guess: string) => {
+        const moved = read.files[path].replace(url, `${url}/v2`)
+        const files = {
+          [path]: moved.replace(
+            /url: ('[^']*'),/,
+            `url: $1,\n  headers: { 'X-Tenant': '${guess}' },`
+          ),
+        }
+        expect(files[path]).toContain(`'X-Tenant': '${guess}'`)
+        const plan = await planAs(reader, workspaceId, files, read.base)
+        return { plan: plan.plan, diagnostics: plan.diagnostics }
+      }
+      const right = await planWith('acme')
+      const wrong = await planWith('other')
+
+      expect(right).toEqual(wrong)
+      expect(findings(right.diagnostics, 'error')).toEqual([
+        `E_APPLY_FORBIDDEN mcp-server:${path.slice(4, -3)}`,
+      ])
+    }
+  )
+
+  check(
     'refuses a replace that carries stored() header values to a new URL unless an admin applies it',
     async () => {
       const workspaceId = await newWorkspace()
