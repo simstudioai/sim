@@ -97,7 +97,7 @@ wait_for_browsers() {
     exit 1
   fi
   browsers_pid=''
-  grep -E '^(Installed system dependencies|Stored [0-9]+ packages|Browser install took)' "$browsers_log" || true
+  grep -E '^(Installed system dependencies|Cache install failed|Stored [0-9]+ packages|Browser install took)' "$browsers_log" || true
 }
 
 # start_app <name> <port> <label> [record-http-status]

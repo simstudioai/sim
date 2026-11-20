@@ -22,10 +22,20 @@ deps_present() {
   bunx --no-install playwright install-deps --dry-run "${browsers[@]}" > /dev/null 2>&1
 }
 
+# Installs only from the cached files; anything apt would still fetch fails it instead.
+install_from_cache() {
+  [ -n "$cache" ] && compgen -G "$cache/*.deb" > /dev/null || return 1
+  local output
+  if ! output=$(sudo apt-get install -y --no-install-recommends --no-download "$cache"/*.deb 2>&1); then
+    printf '%s\n' "$output" | tail -n 5 | sed 's/^/Cache install failed: /'
+    return 1
+  fi
+  deps_present
+}
+
 cache=${PLAYWRIGHT_APT_CACHE:-}
 if ! deps_present; then
-  if [ -n "$cache" ] && compgen -G "$cache/*.deb" > /dev/null &&
-    sudo apt-get install -y --no-install-recommends --no-download "$cache"/*.deb && deps_present; then
+  if install_from_cache; then
     echo "Installed system dependencies from $cache"
   else
     bunx --no-install playwright install-deps "${browsers[@]}"
