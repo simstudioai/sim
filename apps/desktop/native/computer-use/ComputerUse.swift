@@ -288,6 +288,11 @@ func contactItem(_ contact: CNContact) -> [String: Any] {
     if !contact.organizationName.isEmpty { item["organization"] = bounded(contact.organizationName, 1024) }
     return item
 }
+/// An email compared without case.
+func emailKey(_ email: String) -> String { email.lowercased() }
+/// A phone compared without its formatting, but with its dialing controls: `5550100,123` pauses
+/// before the extension and `5550100;123` waits, so they are different numbers.
+func phoneKey(_ phone: String) -> String { phone.filter { $0.isASCII && ($0.isNumber || "+*#,;".contains($0)) } }
 /// Emails and phones a command adds, checked as a create checks them.
 func contactValues(_ command: AppCommand) throws -> (emails: [String], phones: [String]) {
     let emails = try (command.emails ?? []).map { try commandText($0, "Email", max: 320) }
@@ -437,11 +442,11 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
             }
             group = found
         }
-        // Only additions: existing values stay, and a value the contact already has is not added twice.
-        let knownEmails = Set(contact.emailAddresses.map { ($0.value as String).lowercased() })
-        let knownPhones = Set(contact.phoneNumbers.map { $0.value.stringValue.filter(\.isNumber) })
-        changed.emailAddresses += emails.filter { !knownEmails.contains($0.lowercased()) }.map { CNLabeledValue(label: CNLabelWork, value: $0 as NSString) }
-        changed.phoneNumbers += phones.filter { !knownPhones.contains($0.filter(\.isNumber)) }.map { CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: $0)) }
+        // Only additions: existing values stay, and no value is added twice, from the contact or the request.
+        var knownEmails = Set(contact.emailAddresses.map { emailKey($0.value as String) })
+        var knownPhones = Set(contact.phoneNumbers.map { phoneKey($0.value.stringValue) })
+        changed.emailAddresses += emails.filter { knownEmails.insert(emailKey($0)).inserted }.map { CNLabeledValue(label: CNLabelWork, value: $0 as NSString) }
+        changed.phoneNumbers += phones.filter { knownPhones.insert(phoneKey($0)).inserted }.map { CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: $0)) }
         let request = CNSaveRequest(); request.update(changed)
         if let group { request.addMember(contact, to: group) }
         try checkCancellation()
