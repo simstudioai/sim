@@ -42,11 +42,10 @@ import {
   readSourceJson,
   readWritten,
   recordedStats,
-  SOURCE_WRITTEN_FILE,
   updateSourceDir,
   type Written,
   withSourceDirLock,
-  writtenFile,
+  writtenFiles,
   writtenRecord,
 } from './source-dir'
 import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
@@ -427,7 +426,7 @@ async function saveApplied(
     write: [
       ...Object.entries(data.files),
       [WORKSPACE_BASE_FILE, `${JSON.stringify(data.base, null, 2)}\n`],
-      [SOURCE_WRITTEN_FILE, writtenFile(record)],
+      ...writtenFiles(record),
       ...records,
     ],
     remove: [...orphaned, ...removedWorkflowRecords(deleted)],

@@ -995,8 +995,22 @@ describe('workspaces source apply', () => {
       await apply('--yes')
       const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8'))
       expect(written.files['files/a.bin']).toBe(held)
-      expect(written.stats['files/a.bin']).toBeDefined()
+      expect(written.stats).toBeUndefined()
+      const cached = JSON.parse(readFileSync(join(dir, '.sim/cache/stats.json'), 'utf8'))
+      expect(cached.stats['files/a.bin']).toMatchObject({ sha256: held })
+      expect(readFileSync(join(dir, '.sim/cache/.gitignore'), 'utf8')).toBe('*\n')
     }
+
+    it('keeps the committed record free of this machine: a no-op apply of a fresh clone leaves it byte for byte', async () => {
+      await applyOnce()
+      rmSync(join(dir, '.sim/cache'), { recursive: true, force: true })
+      const committed = readFileSync(join(dir, '.sim/written.json'), 'utf8')
+
+      await apply('--yes')
+
+      expect(readFileSync(join(dir, '.sim/written.json'), 'utf8')).toBe(committed)
+      expect(existsSync(join(dir, '.sim/cache/stats.json'))).toBe(true)
+    })
 
     it('stands while the file is untouched, so the file is not read', async () => {
       await applyOnce()
@@ -1004,6 +1018,10 @@ describe('workspaces source apply', () => {
       const written = JSON.parse(readFileSync(path, 'utf8'))
       const recorded = 'f'.repeat(64)
       writeFileSync(path, JSON.stringify({ ...written, files: { 'files/a.bin': recorded } }))
+      const statsPath = join(dir, '.sim/cache/stats.json')
+      const cached = JSON.parse(readFileSync(statsPath, 'utf8'))
+      cached.stats['files/a.bin'].sha256 = recorded
+      writeFileSync(statsPath, JSON.stringify(cached))
 
       await apply('--dry-run')
 

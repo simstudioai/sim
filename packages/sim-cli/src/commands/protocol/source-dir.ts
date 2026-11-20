@@ -68,6 +68,14 @@ export const SOURCE_GITIGNORE_FILE = '.gitignore'
  */
 export const SOURCE_WRITTEN_FILE = '.sim/written.json'
 /**
+ * Machine-local cache the CLI keeps beside its records: the stat each blob digest was taken at,
+ * which names this machine's files (device, inode, times) and so is never committed. The folder
+ * ignores itself (`.sim/cache/.gitignore`), whatever the repository's own `.gitignore` says.
+ */
+const SOURCE_CACHE_DIR = '.sim/cache'
+const SOURCE_STATS_FILE = `${SOURCE_CACHE_DIR}/stats.json`
+const SOURCE_CACHE_IGNORE_FILE = `${SOURCE_CACHE_DIR}/.gitignore`
+/**
  * The workspace a starter written by `workflows source create` was typed for, so the create that
  * follows targets that workspace. The CLI's own record: never sent, and removed once the workflow
  * exists.
@@ -533,17 +541,29 @@ export interface StatDigest extends FileStat {
 }
 
 /**
- * `.sim/written.json`: each source file's digest as the CLI last wrote it, normalized, and for a
- * blob the stat its digest was taken at, so a later command reuses the digest of an untouched blob
- * instead of reading it again.
+ * `.sim/written.json`: each source file's digest as the CLI last wrote it, normalized, sorted by
+ * path. It holds nothing about this machine, so a clone reads it the same and a write that changes
+ * no file leaves it byte for byte.
  */
 interface WrittenRecord {
   version: 1
   files: Record<string, string>
-  stats?: Record<string, FileStat>
 }
 
-/** `.sim/written.json` as one command reads it, once. */
+/**
+ * `.sim/cache/stats.json`: for a blob, the stat its digest was taken at, beside that digest, so a
+ * later command on this machine reuses the digest of an untouched blob instead of reading it
+ * again. A stat whose digest is not the one `.sim/written.json` records is ignored.
+ */
+interface StatsRecord {
+  version: 1
+  stats: Record<string, StatDigest>
+}
+
+/**
+ * What the CLI last wrote, as one command reads it, once: the digests from `.sim/written.json`
+ * and the stats from `.sim/cache/stats.json` that still match them.
+ */
 export interface Written {
   digests: Record<string, string>
   stats: Record<string, FileStat>
@@ -574,14 +594,32 @@ export function writtenRecord(
   return { digests, stats: Object.fromEntries(recorded) }
 }
 
-/** The text of `.sim/written.json` for `written`. */
-export function writtenFile(written: Written): string {
-  const record: WrittenRecord = {
-    version: 1,
-    files: written.digests,
-    ...(Object.keys(written.stats).length > 0 ? { stats: written.stats } : {}),
-  }
-  return `${JSON.stringify(record, null, 2)}\n`
+/** `record` with its keys in path order, so the same entries always print the same text. */
+function sortedByPath<T>(record: Record<string, T>): Record<string, T> {
+  return Object.fromEntries(Object.entries(record).sort(([a], [b]) => compareStrings(a, b)))
+}
+
+/**
+ * The files that record `written`: `.sim/written.json` (committed) and, when a blob stat is
+ * recorded, the machine-local `.sim/cache/stats.json` with the cache folder's own `.gitignore`.
+ */
+export function writtenFiles(written: Written): Array<readonly [string, string]> {
+  const record: WrittenRecord = { version: 1, files: sortedByPath(written.digests) }
+  const files: Array<readonly [string, string]> = [
+    [SOURCE_WRITTEN_FILE, `${JSON.stringify(record, null, 2)}\n`],
+  ]
+  const stats = Object.entries(written.stats).flatMap(([path, stat]) =>
+    Object.hasOwn(written.digests, path)
+      ? [[path, { sha256: written.digests[path], ...fileStatOf(stat) }] as const]
+      : []
+  )
+  if (stats.length === 0) return files
+  const cache: StatsRecord = { version: 1, stats: sortedByPath(Object.fromEntries(stats)) }
+  return [
+    ...files,
+    [SOURCE_STATS_FILE, `${JSON.stringify(cache, null, 2)}\n`],
+    [SOURCE_CACHE_IGNORE_FILE, '*\n'],
+  ]
 }
 
 /** What the CLI recorded for its last write, empty when it recorded nothing. */
@@ -592,10 +630,14 @@ export async function readWritten(dir: string): Promise<Written> {
       (entry): entry is [string, string] => typeof entry[1] === 'string'
     )
   )
+  const cache = toRecord(await readSourceJson(dir, SOURCE_STATS_FILE))
   const stats: Record<string, FileStat> = {}
-  for (const [path, stat] of Object.entries(toRecord(record.stats))) {
-    const { dev, ino, size, mtimeMs, ctimeMs } = toRecord(stat)
+  for (const [path, stat] of Object.entries(toRecord(cache.stats))) {
+    const { sha256, dev, ino, size, mtimeMs, ctimeMs } = toRecord(stat)
     if (
+      typeof sha256 === 'string' &&
+      Object.hasOwn(digests, path) &&
+      digests[path] === sha256 &&
       typeof dev === 'number' &&
       typeof ino === 'number' &&
       typeof size === 'number' &&
@@ -738,7 +780,7 @@ async function recordFolderWrite(
     ),
   }
   const write: Array<readonly [string, string]> = [
-    [SOURCE_WRITTEN_FILE, writtenFile({ digests, stats: record.stats })],
+    ...writtenFiles({ digests, stats: record.stats }),
   ]
   const workspaceBase = toRecord(await readSourceJson(folder.root, SOURCE_BASE_FILE))
   const resources = toRecord(workspaceBase.resources)
@@ -838,7 +880,7 @@ export async function writeBack(
   ]
   const write = [
     ...printed,
-    ...(folder ? [] : [[SOURCE_WRITTEN_FILE, writtenFile(writtenRecord(files))] as const]),
+    ...(folder ? [] : writtenFiles(writtenRecord(files))),
     ...extra.write,
   ]
   const orphaned = orphanedCodeFiles(previousLock, answer.lock, Object.keys(answer.files))

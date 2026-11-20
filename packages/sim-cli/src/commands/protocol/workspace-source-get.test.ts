@@ -576,8 +576,8 @@ describe('workspaces source get', () => {
         const file = join(dir, 'files/report.bin')
         utimesSync(file, MTIME, MTIME)
         await get()
-        const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8'))
-        expect(written.stats['files/report.bin']).toBeDefined()
+        const cached = JSON.parse(readFileSync(join(dir, '.sim/cache/stats.json'), 'utf8'))
+        expect(cached.stats['files/report.bin']).toBeDefined()
         return file
       }
 

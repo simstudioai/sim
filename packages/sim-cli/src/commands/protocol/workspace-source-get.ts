@@ -35,10 +35,9 @@ import {
   recordedStats,
   SOURCE_DIR_BUSY_HELP,
   SOURCE_DOWNLOADS_DIR,
-  SOURCE_WRITTEN_FILE,
   updateSourceDir,
   withSourceDirLock,
-  writtenFile,
+  writtenFiles,
   writtenRecord,
 } from './source-dir'
 import {
@@ -295,7 +294,7 @@ async function writeWorkspaceSource(
         return marker === null ? [] : [[marker, ''] as const]
       }),
       [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
-      [SOURCE_WRITTEN_FILE, writtenFile(record)],
+      ...writtenFiles(record),
       ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
       ...workflowRecords,
       ...tree.change.write,
