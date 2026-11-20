@@ -15,7 +15,7 @@ import type { SkippedItem, SkippedItemType } from '@/lib/workflows/editing/types
 import { isBlockTypeAllowed } from '@/lib/workflows/editing/validation'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks/registry'
-import { overlayVisibility } from '@/blocks/visibility/context'
+import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 
 /**
  * The per-user gates on a block write, as one list every writer runs: the editing engine's
@@ -152,6 +152,30 @@ const AVAILABLE_TYPE: PlacementGate<'block_not_allowed'> = {
       operationType,
       blockId,
       reason: `Block type "${blockType}" is unavailable in this deployment or blocked by access control - ${outcome}`,
+      details: { requestedType: blockType, ...details },
+    }
+  },
+}
+
+/**
+ * Refuses placing a type the acting user cannot see: an unrevealed `preview` block or one the
+ * `block-visibility` kill switch names, by the catalog's own predicate ({@link isHiddenUnder}), so a
+ * write cannot add a block the catalog hides. Placed instances keep executing and stay editable, so
+ * a block keeping its own type is not refused. Reads the visibility in scope: outside
+ * `withBlockVisibility` preview blocks stay hidden and nothing is kill-switched.
+ */
+const VISIBLE_TYPE: PlacementGate<'block_not_allowed'> = {
+  subject: 'placement',
+  skipTypes: ['block_not_allowed'],
+  check: ({ blockType, previousType, blockId, operationType, outcome, details }) => {
+    if (blockType === previousType) return null
+    const block = getBlock(blockType)
+    if (!block || !isHiddenUnder(overlayVisibility(), block)) return null
+    return {
+      type: 'block_not_allowed',
+      operationType,
+      blockId,
+      reason: `Block type "${blockType}" is not available to you - ${outcome}`,
       details: { requestedType: blockType, ...details },
     }
   },
@@ -373,6 +397,7 @@ const PERMITTED_TOOL: ToolEntryGate<'tool_not_allowed'> = {
 export const BLOCK_GATES: readonly BlockGate[] = [
   REGISTERED_TYPE,
   AVAILABLE_TYPE,
+  VISIBLE_TYPE,
   ACTIVE_TYPE,
   SINGLE_TRIGGER,
   SINGLE_INSTANCE,
