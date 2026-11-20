@@ -13,12 +13,26 @@ import { digest } from './source-dir'
 import { TSCONFIG_MARKER } from './source-tree'
 import { attachWorkflowSourceApply, attachWorkflowSourceCreate } from './workflow-source-apply'
 
-const prompt = vi.hoisted(() => ({ question: vi.fn() }))
+const prompt = vi.hoisted(() => ({
+  question: vi.fn(),
+  /** The open readline interface, to end its input as Ctrl-D does. */
+  open: null as import('node:events').EventEmitter | null,
+}))
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
-vi.mock('node:readline/promises', () => ({
-  createInterface: () => ({ question: prompt.question, close: () => {} }),
-}))
+vi.mock('node:readline/promises', async () => {
+  const { EventEmitter } = await import('node:events')
+  return {
+    createInterface: () => {
+      const readline = Object.assign(new EventEmitter(), {
+        question: prompt.question,
+        close: () => readline.emit('close'),
+      })
+      prompt.open = readline
+      return readline
+    },
+  }
+})
 
 const { mockRequest: request } = contextMockFns
 
@@ -252,6 +266,71 @@ describe('sim workflows source apply', () => {
 
     expect(dryRunFlags()).toEqual([true])
     expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(ENTRY)
+  })
+
+  it.each([
+    [
+      'Node closes the prompt',
+      () => {
+        queueMicrotask(() => prompt.open?.emit('close'))
+        return new Promise(() => {})
+      },
+    ],
+    [
+      'Bun aborts the question',
+      async () => {
+        throw Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' })
+      },
+    ],
+  ])(
+    'at a terminal, applies nothing when input ends at the prompt (%s)',
+    async (_runtime, answer) => {
+      setTerminal(true)
+      request.mockResolvedValue(outcome({ dryRun: true }))
+      prompt.question.mockImplementation(answer)
+
+      await expect(apply(WORKFLOW_ID, '--dir', dir)).rejects.toMatchObject({
+        code: 'CANCELLED',
+        exitCode: 1,
+        message: 'Nothing was applied.',
+      })
+
+      expect(dryRunFlags()).toEqual([true])
+      expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(ENTRY)
+    }
+  )
+
+  it.each([
+    [
+      'table',
+      'The workflow source has 1 error(s); nothing was written. Each finding is printed above.',
+    ],
+    ['json', 'The workflow source has 1 error(s); nothing was written. See details.diagnostics.'],
+  ] as const)('names where the findings of a refusal are in %s output', async (output, message) => {
+    contextMockState.output = output
+    setTerminal(false)
+    request.mockRejectedValue(
+      new SimApiError(
+        'The workflow source has 1 error(s); nothing was written. See details.diagnostics.',
+        400,
+        'BAD_REQUEST',
+        {
+          code: 'SOURCE_REJECTED',
+          diagnostics: [
+            {
+              code: 'E_PARSE',
+              severity: 'error',
+              message: 'Unexpected token.',
+              file: 'workflow.ts',
+              line: 2,
+              column: 1,
+            },
+          ],
+        }
+      )
+    )
+
+    await expect(apply(WORKFLOW_ID, '--dir', dir, '--yes')).rejects.toMatchObject({ message })
   })
 
   it('at a terminal, does not ask when the dry run already found errors', async () => {

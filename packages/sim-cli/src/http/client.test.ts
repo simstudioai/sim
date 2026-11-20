@@ -264,8 +264,29 @@ describe('workspace-key refusals', () => {
 
     await expect(client().request('/api/v2/secrets')).rejects.toMatchObject({
       message:
-        'Workspace API key cannot perform this operation — this operation does not support workspace API keys; use an OAuth login or personal API key: sim login --profile default',
+        'Workspace API key cannot perform this operation — this operation does not support workspace API keys; use an OAuth login or personal API key: the key comes from SIM_API_KEY, which overrides any login: fix it, or unset it and run sim login --profile default',
       code: 'FORBIDDEN',
+    })
+  })
+
+  it('names SIM_API_KEY, not a login that it would override, when the server refuses that key', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: { message: 'Invalid API key' } }), {
+            status: 401,
+            headers: { 'content-type': 'application/json' },
+          })
+      )
+    )
+
+    const refused = client().request('/api/v2/meta')
+
+    await expect(refused).rejects.toMatchObject({
+      message:
+        'Invalid API key — the key comes from SIM_API_KEY, which overrides any login: fix it, or unset it and run sim login --profile default',
+      exitCode: 13,
     })
   })
 

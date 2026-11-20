@@ -3,11 +3,11 @@
  * findings (each with its location, frame and hint), the confirmation prompt, the refusal of a
  * write nobody confirmed, and an API refusal re-thrown with the exit status a script branches on.
  */
-import { createInterface } from 'node:readline/promises'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { type FlatDiagnostic, type RefusalClass, refusalClass } from '@sim/workspace-code'
 import { printError } from '#sim-cli/output/io'
+import { askLine } from '#sim-cli/terminal/line-input'
 import type { OutputFormat } from '../../config/index'
 import { embedStore } from '../../embed-context'
 import {
@@ -146,13 +146,8 @@ function canPrompt(): boolean {
 
 /** Asks `question` on the terminal; anything but `y` or `yes` is no. */
 export async function confirm(question: string): Promise<boolean> {
-  const prompt = createInterface({ input: process.stdin, output: process.stderr })
-  try {
-    const answer = (await prompt.question(`${question} (y/N) `)).trim().toLowerCase()
-    return answer === 'y' || answer === 'yes'
-  } finally {
-    prompt.close()
-  }
+  const answer = (await askLine(`${question} (y/N) `))?.trim().toLowerCase()
+  return answer === 'y' || answer === 'yes'
 }
 
 /** The exit status of each `409` the server tells apart by `details.code`; any other exits 1. */
@@ -186,6 +181,12 @@ function answerLost(error: SimApiError): boolean {
 }
 
 /**
+ * The server's pointer to the findings in the error document (`See details.diagnostics.`): a
+ * display format prints them instead, so the sentence names a JSON field the reader never sees.
+ */
+const DETAILS_REFERENCE = / See details\.diagnostics\.$/
+
+/**
  * Re-throws an API refusal after printing its diagnostics, so each shows its source line, with
  * the exit status a script branches on. In a machine `format` the error document keeps the
  * refusal's details with each finding as a success result carries it ({@link resultDiagnostics});
@@ -198,6 +199,10 @@ export function printRefusal(error: unknown, format: OutputFormat, ifAnswerLost?
   const diagnostics = details.diagnostics
   const printed = isDiagnosticList(diagnostics)
   if (printed) printDiagnostics(diagnostics)
+  const machine = format === 'json' || format === 'yaml'
+  const message = machine
+    ? error.message
+    : error.message.replace(DETAILS_REFERENCE, printed ? ' Each finding is printed above.' : '')
   const nameTaken = error.status === 409 && details.code === 'SOURCE_NAME_TAKEN'
   const hint = nameTaken
     ? 'Pass --name to create it under another name, or apply to that workflow.'
@@ -205,7 +210,7 @@ export function printRefusal(error: unknown, format: OutputFormat, ifAnswerLost?
       ? ifAnswerLost
       : null
   throw new SimApiError(
-    hint ? `${error.message} ${hint}` : error.message,
+    hint ? `${message} ${hint}` : message,
     error.status,
     error.code,
     printed ? refusalDetails(format, details, diagnostics) : error.details,

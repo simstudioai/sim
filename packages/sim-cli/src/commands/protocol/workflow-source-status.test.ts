@@ -115,6 +115,20 @@ afterEach(() => {
 })
 
 describe('workflows source status', () => {
+  it.each(['status', 'diff'] as const)(
+    'on a starter no workflow was created from, %s names the create to run, not a get',
+    async (command) => {
+      const starter = join(root, 'starter')
+      write(starter, 'workflow.ts', GOT['workflow.ts'])
+      write(starter, '.sim/starter.json', JSON.stringify({ workspaceId: WORKSPACE_ID }))
+
+      await expect(run(starter, command)).rejects.toThrow(
+        `It holds a starter no workflow was created from yet: run \`sim workflows source create --dir ${starter} --workspace ${WORKSPACE_ID} --dry-run\``
+      )
+      expect(mockRequest).not.toHaveBeenCalled()
+    }
+  )
+
   it('is clean, exit 0, with nothing changed on either side', async () => {
     mockRequest.mockResolvedValue(dryRun())
 
@@ -241,7 +255,18 @@ describe('workflows source status', () => {
       // A dry run would only exit 13: the login is the next step.
       next: { command: 'sim login --profile default' },
     })
-    expect(process.exitCode).toBe(11)
+    expect(process.exitCode).toBe(13)
+  })
+
+  it('exits 13 without a login even when nothing changed here, like every other command', async () => {
+    mockRequest.mockRejectedValue(
+      new SimApiError('Not logged in on profile "default".', 0, 'AUTH_REQUIRED', undefined, 13)
+    )
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({ server: 'unreachable', state: 'clean' })
+    expect(process.exitCode).toBe(13)
   })
 
   it('fails on a cancelled request instead of reporting the server unreachable', async () => {

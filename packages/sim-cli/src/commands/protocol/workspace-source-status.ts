@@ -392,7 +392,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             report,
             planLine
           )
-          setSoftExitCode(statusExitCode(status.state))
+          setSoftExitCode(statusExitCode(status.state, login))
         },
         READ_ONLY
       )

@@ -213,7 +213,7 @@ export function attachWorkflowSourceStatus(source: Command): void {
         }),
       }
       printStatusReport(output, `Workflow ${workflowId} in ${options.dir}`, report, planLine)
-      setSoftExitCode(statusExitCode(status.state))
+      setSoftExitCode(statusExitCode(status.state, login))
     })
 }
 

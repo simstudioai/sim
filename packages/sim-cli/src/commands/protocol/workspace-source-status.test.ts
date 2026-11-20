@@ -541,6 +541,7 @@ describe('workspaces source status', () => {
       server: 'unreachable',
       next: { command: 'sim login --profile default' },
     })
+    expect(process.exitCode).toBe(13)
   })
 
   it('fails rather than hides a server refusal that is not about reaching it', async () => {

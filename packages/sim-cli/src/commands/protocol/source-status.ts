@@ -12,6 +12,7 @@ import { createTwoFilesPatch, FILE_HEADERS_ONLY } from 'diff'
 import type { OutputFormat } from '../../config/index'
 import {
   AUTH_REQUIRED_CODE,
+  AUTH_REQUIRED_EXIT_CODE,
   SOURCE_DRIFT_EXIT_CODE,
   SOURCE_LOCAL_CHANGES_EXIT_CODE,
   SOURCE_TOO_LARGE_EXIT_CODE,
@@ -47,8 +48,9 @@ read); ${SOURCE_LOCAL_CHANGES_EXIT_CODE} local changes only (applying writes the
 directory was read: drift (a resource edited, added or deleted there that the directory leaves
 alone) or a conflict (also changed here, so applying it is refused as stale), with or without
 local changes; ${SOURCE_TOO_LARGE_EXIT_CODE} the source is too large for the server to read in one dry run; 1 the command
-failed. A server that cannot be reached is not a failure: the status shows the local changes only
-and says so (exit 0 or ${SOURCE_LOCAL_CHANGES_EXIT_CODE}).`
+failed; ${AUTH_REQUIRED_EXIT_CODE} not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the
+local changes only, then run \`sim login\`. A server that cannot be reached is not a failure: the
+status shows the local changes only and says so (exit 0 or ${SOURCE_LOCAL_CHANGES_EXIT_CODE}).`
 
 /** What `diff` compares, and its exit codes. */
 export const DIFF_HELP = `
@@ -60,8 +62,12 @@ file or folder (and in a workspace directory by kind:key, such as table:leads). 
 differences were shown, whether or not there were any; ${SOURCE_TOO_LARGE_EXIT_CODE} the source is too large for the server
 to read; 1 the command failed.`
 
-/** The exit status of a status report: drift or conflict, else local changes, else clean. */
-export function statusExitCode(state: SourceStatus['state']): number {
+/**
+ * The exit status of a status report: no login (`login` holds the command to run), else drift or
+ * conflict, else local changes, else clean.
+ */
+export function statusExitCode(state: SourceStatus['state'], login: string | null): number {
+  if (login) return AUTH_REQUIRED_EXIT_CODE
   if (state === 'conflict' || state === 'drift') return SOURCE_DRIFT_EXIT_CODE
   return state === 'local' ? SOURCE_LOCAL_CHANGES_EXIT_CODE : 0
 }

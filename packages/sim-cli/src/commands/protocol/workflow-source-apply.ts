@@ -78,11 +78,22 @@ interface SourceWriteOptions {
   allowDelete?: boolean
 }
 
-/** The text of a file the directory must hold, or a refusal that says how to write it. */
+/**
+ * The text of a file the directory must hold, or a refusal that says how to write it: `hint`, or
+ * for a starter no workflow was created from yet, the create that makes it one.
+ */
 async function requireText(directory: string, path: string, hint: string): Promise<string> {
   const text = await readSourceText(directory, path)
-  if (text === null) throw new SimApiError(`${directory} has no ${path}. ${hint}`, 0)
-  return text
+  if (text !== null) return text
+  const starterWorkspace = await readStarterWorkspace(directory)
+  throw new SimApiError(
+    `${directory} has no ${path}. ${
+      starterWorkspace === null
+        ? hint
+        : `It holds a starter no workflow was created from yet: run \`${createCommand(directory, starterWorkspace)} --dry-run\`, then the same with --yes.`
+    }`,
+    0
+  )
 }
 
 async function readJson(directory: string, path: string, hint: string): Promise<unknown> {
