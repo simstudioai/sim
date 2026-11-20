@@ -22,11 +22,13 @@ deps_present() {
   bunx --no-install playwright install-deps --dry-run "${browsers[@]}" > /dev/null 2>&1
 }
 
-# Installs only from the cached files; anything apt would still fetch fails it instead.
+# dpkg, not apt: apt prefers a repository copy of a package whose version matches a cached file
+# and fetches it. The cache key pins the runner image, so the files are the exact set apt
+# installed there, and dpkg resolves their dependencies among themselves without the network.
 install_from_cache() {
   [ -n "$cache" ] && compgen -G "$cache/*.deb" > /dev/null || return 1
   local output
-  if ! output=$(sudo apt-get install -y --no-install-recommends --no-download "$cache"/*.deb 2>&1); then
+  if ! output=$(sudo DEBIAN_FRONTEND=noninteractive dpkg -i "$cache"/*.deb 2>&1); then
     printf '%s\n' "$output" | tail -n 5 | sed 's/^/Cache install failed: /'
     return 1
   fi
@@ -38,6 +40,8 @@ if ! deps_present; then
   if install_from_cache; then
     echo "Installed system dependencies from $cache"
   else
+    # A failed dpkg run can leave packages half-configured; let apt finish or remove them first.
+    sudo DEBIAN_FRONTEND=noninteractive apt-get -f install -y > /dev/null
     bunx --no-install playwright install-deps "${browsers[@]}"
     if [ -n "$cache" ] && compgen -G '/var/cache/apt/archives/*.deb' > /dev/null; then
       mkdir -p "$cache"
