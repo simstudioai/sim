@@ -6,7 +6,7 @@
  * {@link refuseEditedFindings} with what each knows the edit changed, so they cannot disagree.
  */
 import { SOURCE_ENTRY_FILE } from '../limits'
-import type { CompileDiagnosticCode } from './codes'
+import { type CompileDiagnosticCode, MAX_ERRORS } from './codes'
 import type { LocatedDiagnostic } from './frame'
 
 /** The error codes an edited block's warning is refused under. */
@@ -112,7 +112,10 @@ function refusalOf(finding: LocatedDiagnostic, edit: EditedBlocks): EditRefusalC
 /**
  * A compile's findings with every warning the apply refuses on an edited block raised to its
  * error code (see the module doc). `withheld`, the refusable warnings the compile's caps left
- * out, join the result only when refused, so a refusal never depends on where a cap fell.
+ * out, join the result only when refused, so a refusal never depends on where a cap fell. They
+ * are listed only up to what remains of {@link MAX_ERRORS}; the rest are counted in one
+ * `E_TOO_MANY_ERRORS`, so the result keeps the compile's error bound and still holds an error
+ * whenever any finding is refused.
  */
 export function refuseEditedFindings<D extends LocatedDiagnostic>(
   compiled: { diagnostics: readonly D[]; withheld: readonly D[] },
@@ -124,8 +127,25 @@ export function refuseEditedFindings<D extends LocatedDiagnostic>(
       ? undefined
       : { ...finding, code, severity: 'error', message: raisedMessage(finding.message) }
   }
-  return [
-    ...compiled.diagnostics.map((finding) => refused(finding) ?? finding),
-    ...compiled.withheld.flatMap((finding) => refused(finding) ?? []),
-  ]
+  const listed: Array<D | LocatedDiagnostic> = compiled.diagnostics.map(
+    (finding) => refused(finding) ?? finding
+  )
+  const extra = compiled.withheld.flatMap((finding) => refused(finding) ?? [])
+  const budget = Math.max(
+    0,
+    MAX_ERRORS - listed.filter((finding) => finding.severity === 'error').length
+  )
+  if (extra.length <= budget) return [...listed, ...extra]
+  const [first] = extra.slice(budget)
+  const omitted = extra.length - budget
+  const summary: LocatedDiagnostic<'E_TOO_MANY_ERRORS'> = {
+    code: 'E_TOO_MANY_ERRORS',
+    severity: 'error',
+    message: `${omitted} more edited ${omitted === 1 ? 'finding is' : 'findings are'} refused, as the ones listed are. The next: ${first.message}`,
+    hint: 'Fix the errors listed and check again to see the rest.',
+    span: first.span,
+    ...(first.frame === undefined ? {} : { frame: first.frame }),
+    ...(first.blockKey === undefined ? {} : { blockKey: first.blockKey }),
+  }
+  return [...listed, ...extra.slice(0, budget), summary]
 }

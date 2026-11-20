@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { codeFileReferences } from '../code-files/references'
+import { MAX_ERRORS } from '../diagnostics/codes'
 import { growth, MAX_GROWTH } from '../scaling.test-helpers'
 import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
-import { MAX_ERRORS, MAX_INFOS, MAX_WARNINGS, MAX_WARNINGS_PER_CODE, Reporter } from './report'
+import { MAX_INFOS, MAX_WARNINGS, MAX_WARNINGS_PER_CODE, Reporter } from './report'
 
 /**
  * Hostile sources: compile never executes anything and never throws. Each input must come

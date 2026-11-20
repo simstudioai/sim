@@ -1,5 +1,5 @@
 import { truncateAtCodePoint } from '@sim/utils/string'
-import { type CompileDiagnosticCode, framesSource } from '../diagnostics/codes'
+import { type CompileDiagnosticCode, framesSource, MAX_ERRORS } from '../diagnostics/codes'
 import {
   codeFrame,
   LINE_BREAK,
@@ -69,8 +69,6 @@ function severityOf(code: CompileDiagnosticCode): SeverityOfCode {
   return code.startsWith('I_') ? 'info' : 'warning'
 }
 
-/** Errors one compile lists before it stops with `E_TOO_MANY_ERRORS`. */
-export const MAX_ERRORS = 100
 /** Warnings one compile lists before the rest are omitted with `W_TOO_MANY_WARNINGS`. */
 export const MAX_WARNINGS = 100
 /**

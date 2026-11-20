@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { TEST_CATALOG } from '../compile/catalog.test-helpers'
 import { compileWorkflow } from '../compile/index'
 import { MAX_WARNINGS_PER_CODE } from '../compile/report'
+import { MAX_ERRORS } from './codes'
 import { type EditedBlocks, refuseEditedFindings } from './refusals'
 
 const IMPORTS = "import { api, codeFile, fn, loop, t, trigger, workflow } from '@sim/workflow-sdk'"
@@ -105,5 +106,28 @@ describe('refuseEditedFindings', () => {
       'E_APPLY_REF_OUT_OF_SCOPE after',
     ])
     expect(errors(refuseEditedFindings(compiled, edited()))).toEqual([])
+  })
+
+  it('lists refused withheld findings only up to the error cap, then one summary error', () => {
+    const count = MAX_ERRORS + 30
+    const keys = Array.from({ length: count }, (_, i) => `f${i}`)
+    const compiled = compile(
+      [
+        START,
+        ...keys.map(
+          (key) =>
+            `const ${key} = fn('${key}', { language: 'python', code: codeFile('./functions/${key}.py') })`
+        ),
+        ...keys.map((key) => `start.to(${key})`),
+      ],
+      Object.fromEntries(keys.map((key) => [`functions/${key}.py`, 'x = $ref.start.input']))
+    )
+    const refused = errors(refuseEditedFindings(compiled, edited(...keys)))
+
+    expect(refused).toHaveLength(MAX_ERRORS + 1)
+    expect(refused.at(-1)).toMatch(/^E_TOO_MANY_ERRORS /)
+    expect(
+      refused.slice(0, -1).every((line) => line.startsWith('E_APPLY_CODE_FILE_REF_SYNTAX'))
+    ).toBe(true)
   })
 })

@@ -293,6 +293,9 @@ const COMPILE_DIAGNOSTIC_CODES = [
   ...CODE_FILE_CODES,
   ...REFERENCE_CODES,
 ] as const
+/** Errors one compile lists before it stops with `E_TOO_MANY_ERRORS`. */
+export const MAX_ERRORS = 100
+
 export type CompileDiagnosticCode = (typeof COMPILE_DIAGNOSTIC_CODES)[number]
 
 /**
