@@ -1,13 +1,14 @@
 /**
  * The findings every kind reports the same way, so the plan reads alike across kinds.
  */
+
+import { diagnostic } from '@sim/workflow-code/diagnostics'
 import {
   type BaseResource,
   type FlatDiagnostic,
   isFileKind,
   KIND_DIRS,
   resourceAddress,
-  severityOf,
   WORKSPACE_KIND_SPECS,
   type WorkspaceDiagnosticCode,
   type WorkspaceKind,
@@ -33,7 +34,7 @@ export function finding(
   message: string,
   extras: Omit<FlatDiagnostic, 'code' | 'severity' | 'message'> = {}
 ): WorkspaceSourceDiagnostic {
-  return { code, severity: severityOf(code), message, ...extras }
+  return diagnostic(code, message, extras)
 }
 
 /** How to recover from a refusal that needs a fresh read. */

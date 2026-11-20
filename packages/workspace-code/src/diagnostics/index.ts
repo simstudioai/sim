@@ -1,9 +1,4 @@
-export {
-  type RefusalClass,
-  refusalClass,
-  severityOf,
-  type WorkspaceDiagnosticCode,
-} from './codes'
+export { refusalClass, type WorkspaceDiagnosticCode } from './codes'
 export {
   diagnostic,
   type FindingResource,

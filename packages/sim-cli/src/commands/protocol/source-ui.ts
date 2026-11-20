@@ -4,8 +4,9 @@
  * write nobody confirmed, and an API refusal re-thrown with the exit status a script branches on.
  */
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import type { RefusalClass } from '@sim/workflow-code/diagnostics'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
-import { type FlatDiagnostic, type RefusalClass, refusalClass } from '@sim/workspace-code'
+import { type FlatDiagnostic, refusalClass } from '@sim/workspace-code'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { askLine } from '#sim-cli/terminal/line-input'

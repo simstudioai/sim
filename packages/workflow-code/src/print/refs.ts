@@ -15,6 +15,7 @@ import {
   parseStoredPath,
 } from '../code-files/ref-path'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
+import { diagnostic } from '../diagnostics/factory'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { BlockKey } from '../model'
 
@@ -106,15 +107,17 @@ export class RefPrinter {
     from: BlockKey | null,
     code: 'W_UNRESOLVED_REF' | 'W_FORWARD_REF_LITERALIZED'
   ): null {
-    this.diagnostics.push({
-      code,
-      severity: 'warning',
-      message:
+    this.diagnostics.push(
+      diagnostic(
+        code,
         code === 'W_FORWARD_REF_LITERALIZED'
           ? `Reference ${token} would point at a block declared later; printed as literal text.`
           : `Reference ${token} does not resolve in scope; printed as literal text.`,
-      ...(from === null ? {} : { blockKey: from }),
-    })
+        {
+          ...(from === null ? {} : { blockKey: from }),
+        }
+      )
+    )
     return null
   }
 }

@@ -7,6 +7,7 @@ import {
   isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
+import { diagnostic } from '../diagnostics/factory'
 import type { Json, ResourceKind, ResourceNode, UnresolvedNode, Value } from '../model'
 import { setOwn } from '../records'
 import type { CanonContext } from './context'
@@ -110,13 +111,12 @@ export function liftResourceId(
   const key = context.resources?.toKey(kind, id) ?? null
   if (key !== null) return { $sim: 'resource', kind, key }
   if (context.resources) {
-    context.diagnostics.push({
-      code: 'W_CANON_UNRESOLVED_ID',
-      severity: 'warning',
-      message: `No ${kind} key for stored id "${id}"; kept verbatim`,
-      blockKey: location.blockKey,
-      param: location.param,
-    })
+    context.diagnostics.push(
+      diagnostic('W_CANON_UNRESOLVED_ID', `No ${kind} key for stored id "${id}"; kept verbatim`, {
+        blockKey: location.blockKey,
+        param: location.param,
+      })
+    )
   }
   return { $sim: 'unresolved', kind, id }
 }

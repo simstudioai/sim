@@ -1,13 +1,64 @@
 /**
+ * Refusals: which findings refuse a write, and how a refused write is classed.
+ *
  * Which compile warnings an apply refuses on the blocks an edit wrote. A warning stays a warning
  * on what the stored workflow already holds, so a workflow saved with one still applies
  * unchanged; on a block the edit added or changed it fails at run time, so the apply refuses it
  * under an `E_APPLY_*` code. The server's source evaluation and the CLI's offline check both call
  * {@link refuseEditedFindings} with what each knows the edit changed, so they cannot disagree.
+ *
+ * How a refusal is classed ({@link refusalClass}): its HTTP status on the server and its exit
+ * code in the CLI, the same for workflow and workspace source.
  */
 import { SOURCE_ENTRY_FILE } from '../limits'
 import { type CompileDiagnosticCode, MAX_ERRORS } from './codes'
+import { diagnostic } from './factory'
 import type { LocatedDiagnostic } from './frame'
+
+/** How a refused write is classed: its HTTP status on the server, its exit code in the CLI. */
+export type RefusalClass = 'conflict' | 'locked' | 'payload_too_large' | 'validation'
+
+/** The error codes of each class but `validation`, which is every other error. */
+export interface RefusalCodes {
+  /** What the write was based on changed since it was read (`409`). */
+  conflict: readonly string[]
+  /** The target is locked against the change (`423`). */
+  locked: readonly string[]
+  /** A size, count or nesting limit (`413`). */
+  payload_too_large: readonly string[]
+}
+
+/** The workflow vocabulary's classed codes, which every vocabulary shares. */
+const REFUSAL_CODES: RefusalCodes = {
+  conflict: ['E_APPLY_STALE'],
+  locked: [],
+  payload_too_large: ['E_LIMIT_EXCEEDED'],
+}
+
+/**
+ * The classifier of a vocabulary that adds `extra` classed codes to the workflow vocabulary's: the
+ * class of a refusal with these error codes, the most specific first (a conflict, then a lock,
+ * then a size limit), else `validation`.
+ */
+export function refusalClassifier(
+  extra: Partial<RefusalCodes> = {}
+): (codes: Iterable<string>) => RefusalClass {
+  const classed = (refusal: keyof RefusalCodes) =>
+    new Set([...REFUSAL_CODES[refusal], ...(extra[refusal] ?? [])])
+  const order = (['conflict', 'locked', 'payload_too_large'] as const).map(
+    (refusal) => [refusal, classed(refusal)] as const
+  )
+  return (codes) => {
+    const present = new Set(codes)
+    for (const [refusal, members] of order) {
+      for (const code of members) if (present.has(code)) return refusal
+    }
+    return 'validation'
+  }
+}
+
+/** The class of a workflow source refusal with these error codes (see {@link refusalClassifier}). */
+export const refusalClass = refusalClassifier()
 
 /** The error codes an edited block's warning is refused under. */
 export type EditRefusalCode =
@@ -131,7 +182,7 @@ export function refuseEditedFindings<D extends LocatedDiagnostic>(
     const code = refusalOf(finding, edit)
     return code === undefined
       ? undefined
-      : { ...finding, code, severity: 'error', message: raisedMessage(finding.message) }
+      : { ...finding, ...diagnostic(code, raisedMessage(finding.message)) }
   }
   const listed: Array<D | LocatedDiagnostic> = compiled.diagnostics.map(
     (finding) => refused(finding) ?? finding
@@ -145,14 +196,15 @@ export function refuseEditedFindings<D extends LocatedDiagnostic>(
   if (extra.length <= budget) return [...listed, ...raised]
   const [first] = extra.slice(budget)
   const omitted = extra.length - budget
-  const summary: LocatedDiagnostic<'E_TOO_MANY_ERRORS'> = {
-    code: 'E_TOO_MANY_ERRORS',
-    severity: 'error',
-    message: `${omitted} more edited ${omitted === 1 ? 'finding is' : 'findings are'} refused, as the ones listed are. The next: ${raisedMessage(first.message)}`,
-    hint: 'Fix the errors listed and check again to see the rest.',
-    span: first.span,
-    ...(first.frame === undefined ? {} : { frame: first.frame }),
-    ...(first.blockKey === undefined ? {} : { blockKey: first.blockKey }),
-  }
+  const summary: LocatedDiagnostic<'E_TOO_MANY_ERRORS'> = diagnostic(
+    'E_TOO_MANY_ERRORS',
+    `${omitted} more edited ${omitted === 1 ? 'finding is' : 'findings are'} refused, as the ones listed are. The next: ${raisedMessage(first.message)}`,
+    {
+      hint: 'Fix the errors listed and check again to see the rest.',
+      span: first.span,
+      ...(first.frame === undefined ? {} : { frame: first.frame }),
+      ...(first.blockKey === undefined ? {} : { blockKey: first.blockKey }),
+    }
+  )
   return [...listed, ...raised, summary]
 }

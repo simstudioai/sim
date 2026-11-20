@@ -8,6 +8,7 @@ import {
   splitLines,
 } from '../diagnostics/frame'
 import { REFUSABLE_WARNING_CODES } from '../diagnostics/refusals'
+import { severityOf } from '../diagnostics/severity'
 import type { BlockKey, SubBlockId } from '../model'
 
 /** Babel's line terminators, so lines agree with Babel `loc`. */
@@ -61,13 +62,6 @@ interface ReportExtras {
   blockKey?: BlockKey
   param?: SubBlockId
   related?: Array<{ at: Range; message: string }>
-}
-
-type SeverityOfCode = LocatedDiagnostic<CompileDiagnosticCode>['severity']
-
-function severityOf(code: CompileDiagnosticCode): SeverityOfCode {
-  if (code.startsWith('E_')) return 'error'
-  return code.startsWith('I_') ? 'info' : 'warning'
 }
 
 /** Warnings one compile lists before the rest are omitted with `W_TOO_MANY_WARNINGS`. */

@@ -2,9 +2,18 @@
  * Every diagnostic code workspace source can emit beside the workflow pipeline's own (which keep
  * their codes, with files prefixed `workflows/<key>/`). The CLI and tests match on them, so they
  * freeze at release. The first letter fixes the severity, as in `@sim/workflow-code`.
+ *
+ * A code means one thing across both vocabularies: the few workspace findings that say what a
+ * workflow code already says ({@link SHARED_CODES}) use that code, and every other workspace code
+ * is one the workflow vocabulary does not hold ({@link WorkspaceDiagnosticCode} is `never` if it
+ * does).
  */
 
-import type { DiagnosticCode } from '@sim/workflow-code'
+import {
+  type DiagnosticCode,
+  type HasDuplicates,
+  refusalClassifier,
+} from '@sim/workflow-code/diagnostics'
 
 /** Declaration files and the directory layout. */
 const DECLARATION_CODES = [
@@ -39,8 +48,6 @@ const DECLARATION_CODES = [
    * apply writes nothing. Stage it, then apply again.
    */
   'E_BLOB_MISSING',
-  /** A size, count or nesting limit exceeded (a file, a kind, the staging area). */
-  'E_LIMIT_EXCEEDED',
   /** A resource key outside `^[a-z][a-z0-9_-]{0,63}$`. */
   'E_KEY_INVALID',
   /**
@@ -230,8 +237,6 @@ const DEPLOYMENT_CODES = [
 
 /** Plan and apply. */
 const PLAN_CODES = [
-  /** The resource changed on the server since the directory was read (HTTP 409). */
-  'E_APPLY_STALE',
   /** The server holds the resource but the directory has no base for it: get it first. */
   'E_APPLY_NO_BASE',
   /** The caller may not make this change. */
@@ -257,8 +262,6 @@ const PLAN_CODES = [
    * stored workflow's Table block, which the run then drops.
    */
   'W_TABLE_COLUMN_RENAMED_IN_USE',
-  /** Another resource of the kind holds this name or key. */
-  'E_NAME_TAKEN',
   /** A workflow folder sent without its files whose base names no workflow of this workspace. */
   'E_WORKFLOW_FILES_MISSING',
   /** A workflow folder holding the base of another declared folder's workflow: a copy. */
@@ -297,8 +300,19 @@ const PLAN_CODES = [
   'I_FINDINGS_TRUNCATED',
 ] as const
 
-/** Every code a workspace source finding can carry, as a value: the wire contracts' enum. */
-export const WORKSPACE_DIAGNOSTIC_CODES = [
+/**
+ * Workflow codes workspace findings carry with the same meaning: a resource changed on the server
+ * since the directory was read (`409`), a size, count or nesting limit exceeded (a file, a kind,
+ * the staging area), and a name or key another resource of the kind holds.
+ */
+const SHARED_CODES = [
+  'E_APPLY_STALE',
+  'E_LIMIT_EXCEEDED',
+  'E_NAME_TAKEN',
+] as const satisfies readonly DiagnosticCode[]
+
+/** The codes only workspace source emits. */
+const OWN_CODES = [
   ...DECLARATION_CODES,
   ...BASE_CODES,
   ...SECRET_CODES,
@@ -312,44 +326,28 @@ export const WORKSPACE_DIAGNOSTIC_CODES = [
   ...DEPLOYMENT_CODES,
   ...PLAN_CODES,
 ] as const
-export type WorkspaceDiagnosticCode = (typeof WORKSPACE_DIAGNOSTIC_CODES)[number]
 
-/** How a finding weighs: an error refuses, a warning and an info only report. */
-export type DiagnosticSeverity = 'error' | 'warning' | 'info'
+type OwnCode = (typeof OWN_CODES)[number]
 
-/** The severity a code's prefix fixes. */
-export type SeverityOfCode<C extends string> = C extends `E_${string}`
-  ? 'error'
-  : C extends `W_${string}`
-    ? 'warning'
-    : 'info'
-
-/** The severity of any code, by its prefix. */
-export function severityOf(code: string): DiagnosticSeverity {
-  return code.startsWith('E_') ? 'error' : code.startsWith('W_') ? 'warning' : 'info'
-}
-
-/** How a refused apply is classed: its HTTP status on the server, its exit code in the CLI. */
-export type RefusalClass = 'conflict' | 'locked' | 'payload_too_large' | 'validation'
+/** Every code a workspace source finding can carry, as a value: the wire contracts' enum. */
+export const WORKSPACE_DIAGNOSTIC_CODES = [...OWN_CODES, ...SHARED_CODES] as const
 
 /**
- * The class of a refusal with these error codes, the most specific first: a resource changed
- * since the directory was read (`conflict`), then a locked one, then a size limit, else
- * `validation`.
+ * One of {@link WORKSPACE_DIAGNOSTIC_CODES}. It is `never`, which fails every use, if a workspace
+ * code is declared twice or is also a workflow code outside {@link SHARED_CODES}.
  */
-export function refusalClass(
-  codes: Iterable<WorkspaceDiagnosticCode | DiagnosticCode>
-): RefusalClass {
-  const present = new Set<WorkspaceDiagnosticCode | DiagnosticCode>(codes)
-  if (present.has('E_APPLY_STALE')) return 'conflict'
-  if (present.has('E_APPLY_LOCKED')) return 'locked'
-  if (
-    present.has('E_LIMIT_EXCEEDED') ||
-    present.has('E_PLAN_TOO_LARGE') ||
-    present.has('E_FILE_TOO_LARGE') ||
-    present.has('E_TABLE_TOO_MANY_COLUMNS')
-  ) {
-    return 'payload_too_large'
-  }
-  return 'validation'
-}
+export type WorkspaceDiagnosticCode = HasDuplicates<typeof WORKSPACE_DIAGNOSTIC_CODES> extends false
+  ? [Extract<OwnCode, DiagnosticCode>] extends [never]
+    ? (typeof WORKSPACE_DIAGNOSTIC_CODES)[number]
+    : never
+  : never
+
+/**
+ * The class of a workspace refusal with these error codes (see `refusalClassifier`): beside the
+ * workflow vocabulary's, a locked resource is `locked`, and a plan, file or table over its size
+ * limit is `payload_too_large`.
+ */
+export const refusalClass = refusalClassifier({
+  locked: ['E_APPLY_LOCKED'],
+  payload_too_large: ['E_PLAN_TOO_LARGE', 'E_FILE_TOO_LARGE', 'E_TABLE_TOO_MANY_COLUMNS'],
+} satisfies Record<'locked' | 'payload_too_large', readonly OwnCode[]>)

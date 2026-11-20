@@ -18,6 +18,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { decodeAnchor, encodeAnchor } from './anchors'
 import type { SourceMetaDiagnosticCode } from './diagnostics/codes'
+import { diagnostic } from './diagnostics/factory'
 import type { Diagnostic } from './diagnostics/frame'
 import {
   fieldNames,
@@ -62,7 +63,7 @@ class SourceMetaReader {
   readonly diagnostics: SourceMetaDiagnostic[] = []
 
   report(code: SourceMetaDiagnosticCode, segments: readonly string[], message: string): void {
-    this.diagnostics.push({ code, severity: 'error', message, path: pointer(segments) })
+    this.diagnostics.push(diagnostic(code, message, { path: pointer(segments) }))
   }
 
   extensions(value: Record<string, unknown>): Record<LockExtensionKey, Json> {

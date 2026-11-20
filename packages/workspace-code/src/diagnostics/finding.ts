@@ -6,13 +6,13 @@ import {
   LineIndex,
   type SourceSpan,
 } from '@sim/workflow-code'
-import type { WorkspaceKind } from '../kind'
 import {
   type DiagnosticSeverity,
-  type SeverityOfCode,
-  severityOf,
-  type WorkspaceDiagnosticCode,
-} from './codes'
+  type SeverityOf,
+  diagnostic as sharedDiagnostic,
+} from '@sim/workflow-code/diagnostics'
+import type { WorkspaceKind } from '../kind'
+import type { WorkspaceDiagnosticCode } from './codes'
 
 /** The resource a finding is about: the CLI joins a finding to its planned change by both. */
 export interface FindingResource {
@@ -34,7 +34,7 @@ type ResourceFields = Partial<FindingResource>
  */
 export type WorkspaceDiagnostic<C extends WorkspaceDiagnosticCode = WorkspaceDiagnosticCode> =
   C extends WorkspaceDiagnosticCode
-    ? DiagnosticFields & ResourceFields & { code: C; severity: SeverityOfCode<C> }
+    ? DiagnosticFields & ResourceFields & { code: C; severity: SeverityOf<C> }
     : never
 
 /** The optional fields of a finding. */
@@ -64,13 +64,10 @@ export function diagnostic<C extends WorkspaceDiagnosticCode>(
   extras: DiagnosticExtras = {}
 ): WorkspaceDiagnostic<C> {
   const { hint, ...rest } = extras
-  return {
+  return sharedDiagnostic(code, truncateAtCodePoint(message, MAX_MESSAGE_LENGTH, '…'), {
     ...rest,
     ...(hint !== undefined ? { hint: truncateAtCodePoint(hint, MAX_MESSAGE_LENGTH, '…') } : {}),
-    code,
-    message: truncateAtCodePoint(message, MAX_MESSAGE_LENGTH, '…'),
-    severity: severityOf(code),
-  } as WorkspaceDiagnostic<C>
+  }) as WorkspaceDiagnostic<C>
 }
 
 /** Spans and code frames in one file, splitting its lines once however many it locates. */

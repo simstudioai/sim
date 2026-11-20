@@ -1,5 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { isIdentifierName } from '../code-files/ref-path'
+import { diagnostic } from '../diagnostics/factory'
 import type { BlockKey, BranchKey, CanonicalBranches, CanonicalBranchRow, Json } from '../model'
 import { parseStoredList, setOwn } from '../records'
 import type { CanonContext } from './context'
@@ -155,24 +156,30 @@ export function liftBranches(
   const storedRows = parseStoredList(stored)
   if (!storedRows) {
     if (typeof stored !== 'string' || stored.trim() !== '') {
-      context.diagnostics.push({
-        code: 'W_CANON_UNDECODABLE_JSON',
-        severity: 'warning',
-        message: `Stored ${kind} branches are not a JSON list; kept verbatim`,
-        blockKey,
-        param,
-      })
+      context.diagnostics.push(
+        diagnostic(
+          'W_CANON_UNDECODABLE_JSON',
+          `Stored ${kind} branches are not a JSON list; kept verbatim`,
+          {
+            blockKey,
+            param,
+          }
+        )
+      )
     }
     return unlifted(kind, blockId, stored)
   }
   if (!storedRows.every(isStoredRow)) {
-    context.diagnostics.push({
-      code: 'W_CANON_UNDECODABLE_JSON',
-      severity: 'warning',
-      message: `Stored ${kind} branches are not a list of { id, title, value } rows; kept verbatim`,
-      blockKey,
-      param,
-    })
+    context.diagnostics.push(
+      diagnostic(
+        'W_CANON_UNDECODABLE_JSON',
+        `Stored ${kind} branches are not a list of { id, title, value } rows; kept verbatim`,
+        {
+          blockKey,
+          param,
+        }
+      )
+    )
     return unlifted(kind, blockId, stored)
   }
   if (storedRows.length === 0) return withImplicit(kind, blockId, [])
@@ -186,13 +193,16 @@ export function liftBranches(
     return false
   })
   if (sharedId !== undefined) {
-    context.diagnostics.push({
-      code: 'W_CANON_UNDECODABLE_JSON',
-      severity: 'warning',
-      message: `Stored ${kind} branches use row id "${sharedId}" twice; kept verbatim`,
-      blockKey,
-      param,
-    })
+    context.diagnostics.push(
+      diagnostic(
+        'W_CANON_UNDECODABLE_JSON',
+        `Stored ${kind} branches use row id "${sharedId}" twice; kept verbatim`,
+        {
+          blockKey,
+          param,
+        }
+      )
+    )
     return unlifted(kind, blockId, stored)
   }
   const keys: Array<BranchKey | undefined> = new Array(count)
@@ -233,13 +243,16 @@ export function liftBranches(
     } else if (stored.title !== positional) {
       row.titleOverride = stored.title
       if (kind === 'condition') {
-        context.diagnostics.push({
-          code: 'W_CANON_TITLE_OVERRIDE',
-          severity: 'warning',
-          message: `Branch ${index + 1} is titled "${stored.title}" but shows as "${positional}"; the executor matches else by stored title`,
-          blockKey,
-          param,
-        })
+        context.diagnostics.push(
+          diagnostic(
+            'W_CANON_TITLE_OVERRIDE',
+            `Branch ${index + 1} is titled "${stored.title}" but shows as "${positional}"; the executor matches else by stored title`,
+            {
+              blockKey,
+              param,
+            }
+          )
+        )
       }
     }
     const extra: Record<string, Json> = {}

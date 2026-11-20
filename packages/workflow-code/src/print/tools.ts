@@ -14,6 +14,7 @@ import { toolModeOverrides } from '../canonicalize/modes'
 import { builderPins, buildFieldIndex, paramAliases, typedForBuilder } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder } from '../catalog/types'
 import { catalogBlock, catalogBuildersOfType, declarationsOf } from '../catalog/view'
+import { diagnostic } from '../diagnostics/factory'
 import { isJson } from '../lock'
 import {
   type CanonicalBlock,
@@ -171,13 +172,16 @@ export function printTools(
   const elements = tools.map((tool) => {
     const code = tool.customTool?.snapshot?.code
     if (code !== undefined && holdsDetectedSecret(code)) {
-      ctx.diagnostics.push({
-        code: 'W_LITERAL_SECRET',
-        severity: 'warning',
-        message: `A custom tool snapshot in ${block.key} holds what looks like a literal credential in its code, which this file carries.`,
-        hint: 'Move the credential into a workspace env variable and read it from the custom tool code, then save the custom tool again.',
-        blockKey: block.key,
-      })
+      ctx.diagnostics.push(
+        diagnostic(
+          'W_LITERAL_SECRET',
+          `A custom tool snapshot in ${block.key} holds what looks like a literal credential in its code, which this file carries.`,
+          {
+            hint: 'Move the credential into a workspace env variable and read it from the custom tool code, then save the custom tool again.',
+            blockKey: block.key,
+          }
+        )
+      )
     }
     const mcp = readMcpTool(ctx.catalog, tool)
     if (mcp) return mcpToolCall(ctx, block, mcp)
@@ -343,12 +347,9 @@ export function storedSecret(
   name: string,
   password = true
 ): Expr {
-  ctx.diagnostics.push({
-    code: 'W_LITERAL_SECRET',
-    severity: 'warning',
-    ...literalSecretFinding(name, { password }),
-    blockKey: block.key,
-    param: name,
-  })
+  const { message, hint } = literalSecretFinding(name, { password })
+  ctx.diagnostics.push(
+    diagnostic('W_LITERAL_SECRET', message, { hint, blockKey: block.key, param: name })
+  )
   return ctx.values.call('stored', [])
 }

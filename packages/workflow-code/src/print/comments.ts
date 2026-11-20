@@ -6,6 +6,7 @@
 
 import { decodeAnchor, encodeAnchor } from '../anchors'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
+import { diagnostic } from '../diagnostics/factory'
 import { type Diagnostic, splitLines } from '../diagnostics/frame'
 import type { AnchorKey, BlockKey, CodeComment, PortKey } from '../model'
 import { breakParent, type Doc, hardline, join, lineSuffix, literalText } from './doc'
@@ -86,12 +87,15 @@ export class CommentPlacer {
       if (!list) continue
       this.pending.delete(anchor)
       moved.push(...list)
-      this.diagnostics.push({
-        code: 'W_COMMENT_MOVED',
-        severity: 'warning',
-        message: 'A comment has no printed anchor; moved to its block declaration.',
-        blockKey: block,
-      })
+      this.diagnostics.push(
+        diagnostic(
+          'W_COMMENT_MOVED',
+          'A comment has no printed anchor; moved to its block declaration.',
+          {
+            blockKey: block,
+          }
+        )
+      )
     }
     return split(moved)
   }
@@ -100,12 +104,11 @@ export class CommentPlacer {
   dropRemaining(): void {
     for (const anchor of this.pending.keys()) {
       const block = anchorBlock(anchor)
-      this.diagnostics.push({
-        code: 'W_COMMENT_DROPPED',
-        severity: 'warning',
-        message: 'A comment was dropped: its anchor no longer exists.',
-        ...(block === null ? {} : { blockKey: block }),
-      })
+      this.diagnostics.push(
+        diagnostic('W_COMMENT_DROPPED', 'A comment was dropped: its anchor no longer exists.', {
+          ...(block === null ? {} : { blockKey: block }),
+        })
+      )
     }
     this.pending.clear()
   }

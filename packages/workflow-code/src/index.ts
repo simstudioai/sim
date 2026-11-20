@@ -48,23 +48,18 @@ export {
 export { LineIndex } from './compile/report'
 export {
   type ApplyDiagnosticCode,
-  type DiagnosticCode,
-  type DiagnosticSeverity,
-  framesSource,
-} from './diagnostics/codes'
-export {
   codeFrame,
   type Diagnostic,
+  type DiagnosticCode,
   type DiagnosticFields,
-  type LocatedDiagnostic,
-  type SourceSpan,
-  splitLines,
-} from './diagnostics/frame'
-export {
   EDIT_REFUSALS,
+  framesSource,
+  type LocatedDiagnostic,
   raisedMessage,
   refuseEditedFindings,
-} from './diagnostics/refusals'
+  type SourceSpan,
+  splitLines,
+} from './diagnostics'
 export { type CanonicalDiff, diffCanonical, renamesBetween, replacedBetween } from './diff'
 export {
   canonicalDigests,

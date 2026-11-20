@@ -5,6 +5,7 @@ import type { BlockCatalog } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import { parseStoredPath } from '../code-files/ref-path'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
+import { diagnostic } from '../diagnostics/factory'
 import type { Diagnostic } from '../diagnostics/frame'
 import { pointer, type WorkflowLockBlock, type WorkflowLockV1 } from '../lock'
 import type { BlockKey, CanonicalBlock, CanonicalWorkflow } from '../model'
@@ -108,12 +109,15 @@ function duplicateLockKeys(
   for (const [id, keys] of keysById) {
     if (keys.length < 2) continue
     for (const key of keys) duplicates.add(key)
-    diagnostics.push({
-      code: 'E_MAT_DUPLICATE_LOCK_ID',
-      severity: 'error',
-      message: `Lock keys ${keys.map((key) => `"${key}"`).join(', ')} all claim block id "${id}"`,
-      path: pointer(['blocks', keys[1], 'id']),
-    })
+    diagnostics.push(
+      diagnostic(
+        'E_MAT_DUPLICATE_LOCK_ID',
+        `Lock keys ${keys.map((key) => `"${key}"`).join(', ')} all claim block id "${id}"`,
+        {
+          path: pointer(['blocks', keys[1], 'id']),
+        }
+      )
+    )
   }
   return duplicates
 }
@@ -163,12 +167,15 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     if (!stored || prevKey === undefined || claimed.has(prevId)) return false
     const relation = typeRelation(catalog, stored.type, target.type)
     if (relation === 'different') {
-      diagnostics.push({
-        code: 'W_MAT_RETYPE_RECREATED',
-        severity: 'warning',
-        message: `Block "${key}" changed type from "${stored.type}" to "${target.type}"; it is deleted and re-created, so its webhook URL and schedules are lost`,
-        blockKey: key,
-      })
+      diagnostics.push(
+        diagnostic(
+          'W_MAT_RETYPE_RECREATED',
+          `Block "${key}" changed type from "${stored.type}" to "${target.type}"; it is deleted and re-created, so its webhook URL and schedules are lost`,
+          {
+            blockKey: key,
+          }
+        )
+      )
       settled.set(key, { retypedPrevId: prevId })
       return true
     }
@@ -267,12 +274,15 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
       !Object.hasOwn(prevBlocks, lockId) &&
       !resolvedIds.has(lockId)
     if (lockId !== undefined && !reusable) {
-      diagnostics.push({
-        code: 'W_MAT_LOCK_ID_CLAIMED',
-        severity: 'warning',
-        message: `Lock id "${lockId}" for block "${key}" already belongs to another block; a new id was minted`,
-        blockKey: key,
-      })
+      diagnostics.push(
+        diagnostic(
+          'W_MAT_LOCK_ID_CLAIMED',
+          `Lock id "${lockId}" for block "${key}" already belongs to another block; a new id was minted`,
+          {
+            blockKey: key,
+          }
+        )
+      )
     }
     const id = reusable ? lockId : hooks.newId()
     resolve(key, {
@@ -284,12 +294,15 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
   }
   for (const [key, lockId] of deletedSincePull) {
     if (resolved.get(key)?.entry.status !== 'created') continue
-    diagnostics.push({
-      code: 'W_MAT_DELETED_SINCE_PULL',
-      severity: 'warning',
-      message: `Block "${key}" (${lockId}) was deleted after the lock was pulled; it is re-created`,
-      blockKey: key,
-    })
+    diagnostics.push(
+      diagnostic(
+        'W_MAT_DELETED_SINCE_PULL',
+        `Block "${key}" (${lockId}) was deleted after the lock was pulled; it is re-created`,
+        {
+          blockKey: key,
+        }
+      )
+    )
   }
 
   for (const [key, block] of resolved) {
@@ -496,12 +509,15 @@ function inferRenames(state: InferenceState): void {
 
   const pair = (key: BlockKey, prevKey: BlockKey, basis: InferenceBasis): boolean => {
     if (!state.match(key, prevIdentity[prevKey].id, 'inferred')) return false
-    state.diagnostics.push({
-      code: 'W_MAT_INFERRED_RENAME',
-      severity: 'warning',
-      message: `Block "${key}" is taken as a rename of "${prevKey}" (${INFERENCE_REASON[basis]}), so it keeps that block's id and run history. To make it a new block instead, delete "${prevKey}" in one apply and add "${key}" in the next`,
-      blockKey: key,
-    })
+    state.diagnostics.push(
+      diagnostic(
+        'W_MAT_INFERRED_RENAME',
+        `Block "${key}" is taken as a rename of "${prevKey}" (${INFERENCE_REASON[basis]}), so it keeps that block's id and run history. To make it a new block instead, delete "${prevKey}" in one apply and add "${key}" in the next`,
+        {
+          blockKey: key,
+        }
+      )
+    )
     return true
   }
 

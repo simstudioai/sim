@@ -7,6 +7,7 @@ import { compareStrings } from '@sim/utils/string'
 import { getWorkflowSubflowHandleIds } from '@sim/workflow-types/workflow'
 import { portKey } from '../anchors'
 import { catalogBlock } from '../catalog/view'
+import { diagnostic } from '../diagnostics/factory'
 import type { AnchorKey, BlockKey, CanonicalEdge, PortKey } from '../model'
 import { anchors } from './comments'
 import type { PrintContext } from './context'
@@ -115,12 +116,11 @@ export function wiringStatements(
       [...targets].sort(byTarget).map((edge) => identExpr(ctx, edge.to))
     )
   const raw = (source: BlockKey, handle: string, target: BlockKey): Expr => {
-    ctx.diagnostics.push({
-      code: 'W_RAW_HANDLE',
-      severity: 'warning',
-      message: `Edge handle ${handle} has no SDK form; printed as edge().`,
-      blockKey: source,
-    })
+    ctx.diagnostics.push(
+      diagnostic('W_RAW_HANDLE', `Edge handle ${handle} has no SDK form; printed as edge().`, {
+        blockKey: source,
+      })
+    )
     return ctx.values.call('edge', [
       identExpr(ctx, source),
       ctx.values.string(handle),

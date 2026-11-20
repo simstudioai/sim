@@ -8,6 +8,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { edgeTupleKey, portKey } from '../anchors'
+import { diagnostic } from '../diagnostics/factory'
 import type { BranchKey, CanonicalEdge, Port } from '../model'
 import type { CanonContext } from './context'
 
@@ -64,12 +65,15 @@ export function canonicalEdges(
     const from = context.keyById.get(edge.source)
     const to = context.keyById.get(edge.target)
     if (!source || !target || from === undefined || to === undefined) {
-      context.diagnostics.push({
-        code: 'W_CANON_DANGLING_EDGE',
-        severity: 'warning',
-        message: `Edge ${edge.source} -> ${edge.target} references a missing block; dropped`,
-        ...(from !== undefined ? { blockKey: from } : {}),
-      })
+      context.diagnostics.push(
+        diagnostic(
+          'W_CANON_DANGLING_EDGE',
+          `Edge ${edge.source} -> ${edge.target} references a missing block; dropped`,
+          {
+            ...(from !== undefined ? { blockKey: from } : {}),
+          }
+        )
+      )
       continue
     }
 
@@ -80,21 +84,23 @@ export function canonicalEdges(
     seen.add(identity)
     if (port.kind === 'error') errorSourceIds.add(edge.source)
     if (port.kind === 'raw') {
-      context.diagnostics.push({
-        code: 'W_CANON_RAW_HANDLE',
-        severity: 'warning',
-        message: `Edge from "${from}" leaves unknown handle "${port.handle}"; kept as a raw port`,
-        blockKey: from,
-      })
+      context.diagnostics.push(
+        diagnostic(
+          'W_CANON_RAW_HANDLE',
+          `Edge from "${from}" leaves unknown handle "${port.handle}"; kept as a raw port`,
+          {
+            blockKey: from,
+          }
+        )
+      )
     }
     const scopeProblem = getWorkflowEdgeScopeDropReason(edge, inputs.blocks)
     if (scopeProblem) {
-      context.diagnostics.push({
-        code: 'E_CANON_EDGE_SCOPE',
-        severity: 'error',
-        message: `Edge ${from} -> ${to}: ${scopeProblem}`,
-        blockKey: from,
-      })
+      context.diagnostics.push(
+        diagnostic('E_CANON_EDGE_SCOPE', `Edge ${from} -> ${to}: ${scopeProblem}`, {
+          blockKey: from,
+        })
+      )
     }
 
     result.push({ from, port, to })
