@@ -357,8 +357,17 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
         const progress: TableFieldsProgress = { current: locked, applied: [], changed: [] }
         if (input.table) await writeTableFields(progress, input.table, resolution?.folderId, tx)
         let table = progress.current
+        // Managed rows' version is the base source compares with, so the drop's cell strip
+        // commits with it rather than moving the version after the apply recorded it.
+        const managed =
+          input.sourceRows === undefined
+            ? locked.metadata?.sourceRows?.mode === 'managed'
+            : input.sourceRows?.mode === 'managed'
         for (const columnName of input.drop ?? []) {
-          table = await deleteColumn({ tableId: table.id, columnName }, requestId, options)
+          table = await deleteColumn({ tableId: table.id, columnName }, requestId, {
+            ...options,
+            stripRowsInTransaction: managed,
+          })
         }
         // With rows to write, a column made required is made so after them (an add, below, too).
         const deferredUpdates: string[] = []

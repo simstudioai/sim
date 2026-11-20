@@ -387,6 +387,19 @@ function stripColumnIdsFromMetadata(
   return next
 }
 
+/** Removes `columnIds`' cells from every row of the table, in `trx`. */
+async function stripColumnData(
+  trx: DbTransaction,
+  tableId: string,
+  workspaceId: string,
+  columnIds: string[]
+): Promise<void> {
+  await updateTableRowsWithDerivedSecretProvenance(trx, {
+    rowWhere: and(eq(userTableRows.tableId, tableId), eq(userTableRows.workspaceId, workspaceId))!,
+    transformation: { mode: 'remove-columns', columnIds },
+  })
+}
+
 /**
  * Fire-and-forget reclamation of a deleted column's row storage. The column is
  * already gone from the schema, so reads never surface the orphaned id —
@@ -409,13 +422,7 @@ function stripColumnDataInBackground(
           perRowMs: 2 * columnIds.length,
         })
         await setTableTxTimeouts(trx, { statementMs })
-        await updateTableRowsWithDerivedSecretProvenance(trx, {
-          rowWhere: and(
-            eq(userTableRows.tableId, tableId),
-            eq(userTableRows.workspaceId, workspaceId)
-          )!,
-          transformation: { mode: 'remove-columns', columnIds },
-        })
+        await stripColumnData(trx, tableId, workspaceId, columnIds)
       })
       logger.info(
         `Background-stripped deleted column data [${columnIds.join(', ')}] from table ${tableId}`,
@@ -432,9 +439,9 @@ function stripColumnDataInBackground(
 }
 
 /**
- * Deletes a column from a table's schema. When id-keyed, returns once the schema
- * is updated and reclaims the column's row-data storage in the background
- * (fire-and-forget); the legacy path strips the row key synchronously.
+ * Deletes a column from a table's schema. Returns once the schema is updated and
+ * reclaims the column's row-data storage in the background (fire-and-forget),
+ * unless `stripRowsInTransaction` strips it in the caller's transaction.
  *
  * @param data - Delete column data
  * @param requestId - Request ID for logging
@@ -444,7 +451,13 @@ function stripColumnDataInBackground(
 export async function deleteColumn(
   data: DeleteColumnData,
   requestId: string,
-  options?: ColumnMutationOptions
+  options?: ColumnMutationOptions & {
+    /**
+     * Strip the column's cells in the caller's `tx`, so the row version the commit leaves already
+     * holds that write (workspace source records it for managed rows, which stay small).
+     */
+    stripRowsInTransaction?: boolean
+  }
 ): Promise<TableDefinition> {
   const { def, stripKey } = await withLockedTable(
     data.tableId,
@@ -534,9 +547,12 @@ export async function deleteColumn(
       def.rowCount ?? 0,
       requestId
     )
-  // Inside a caller's transaction the drop may still roll back, so the cells stay until it commits.
-  if (options?.tx) options.tx.afterCommit(strip)
-  else strip()
+  if (options?.tx && options.stripRowsInTransaction) {
+    await stripColumnData(options.tx.trx, data.tableId, def.workspaceId, [stripKey])
+  } else if (options?.tx) {
+    // Inside a caller's transaction the drop may still roll back, so the cells stay until it commits.
+    options.tx.afterCommit(strip)
+  } else strip()
   return def
 }
 

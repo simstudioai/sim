@@ -1115,4 +1115,47 @@ export default defineTable({
     const settled = await apply(workspaceId, result.files, { base: result.base })
     expect(settled.applied).toEqual([])
   })
+
+  check(
+    'a column the apply drops leaves no row drift: the next plan sees no server change, and a delete of the table is not stale',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await managedPlans(workspaceId)
+      const tierId =
+        (await storedTable(workspaceId)).schema.columns.find((column) => column.name === 'tier')
+          ?.id ?? ''
+      const dropped = await apply(
+        workspaceId,
+        {
+          'tables/plans.ts': read.files['tables/plans.ts'].replace(
+            "    tier: column.select({ options: ['basic', 'pro'] }),\n",
+            ''
+          ),
+          'tables/plans.rows.jsonl': '{"code":"solo","seats":1}\n{"code":"team","seats":10}\n',
+        },
+        { base: read.base, allowDelete: true }
+      )
+      expect(dropped.failed).toBeUndefined()
+      // Once the dropped column's cells are gone from every row, nothing is left to write them.
+      const table = await storedTable(workspaceId)
+      for (let waited = 0; waited < 50; waited++) {
+        const [{ holding }] = await db
+          .select({ holding: sql<number>`count(*)::int` })
+          .from(userTableRows)
+          .where(and(eq(userTableRows.tableId, table.id), sql`${userTableRows.data} ? ${tierId}`))
+        if (holding === 0) break
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+
+      const planned = await apply(workspaceId, dropped.files, {
+        base: dropped.base,
+        dryRun: true,
+      })
+      expect(codes(planned.diagnostics, 'warning')).not.toContain('W_SERVER_CHANGED')
+      const deleted = await apply(workspaceId, {}, { base: dropped.base, allowDelete: true })
+      expect(deleted.applied.map((change) => `${change.action} ${change.key}`)).toEqual([
+        'delete plans',
+      ])
+    }
+  )
 })
