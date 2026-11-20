@@ -285,16 +285,14 @@ export const TextEditor = memo(function TextEditor({
     return false
   }
 
-  /** Every selected passage, joined by line breaks as a multi-cursor copy is. */
-  const selectedText = (): string => {
-    const editor = editorRef.current
-    if (!editor) return ''
-    const text = editor.getText()
-    return editor
-      .getSelectionRanges()
-      .filter(({ start, end }) => start < end)
-      .map(({ start, end }) => text.slice(start, end))
-      .join('\n')
+  /**
+   * Runs the menu's Cut or Copy as the native command on the focused editor, as ⌘X and ⌘C do:
+   * the editor's own handler copies every selection and cuts in one step, and the copy carries
+   * the chat selection reference.
+   */
+  const runClipboardCommand = (command: 'cut' | 'copy') => {
+    editorRef.current?.focus()
+    document.execCommand(command)
   }
 
   const handleEditorPasteCapture = (event: ReactClipboardEvent<HTMLDivElement>) => {
@@ -455,22 +453,16 @@ export const TextEditor = memo(function TextEditor({
             }}
             onCut={() => {
               closeContextMenu()
-              const text = selectedText()
-              if (!text) return
-              /* Delete only once the text is safely on the clipboard. */
-              navigator.clipboard
-                .writeText(text)
-                .then(() => editorRef.current?.replaceSelection(''))
-                .catch(() => {})
+              runClipboardCommand('cut')
             }}
             onCopy={() => {
               closeContextMenu()
-              const text = selectedText()
-              if (text) navigator.clipboard.writeText(text).catch(() => {})
+              runClipboardCommand('copy')
             }}
             onCopyAll={() => {
-              navigator.clipboard.writeText(editorRef.current?.getText() ?? '').catch(() => {})
               closeContextMenu()
+              navigator.clipboard.writeText(editorRef.current?.getText() ?? '').catch(() => {})
+              editorRef.current?.focus()
             }}
             onPaste={() => {
               closeContextMenu()
