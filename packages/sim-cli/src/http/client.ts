@@ -795,7 +795,11 @@ export class SimClient {
         RATE_LIMIT_RETRY_AFTER_MAX_MS
       )
       const backoffMs = backoffWithJitter(rateLimitResends + 1, null, RATE_LIMIT_BACKOFF)
-      await interruptibleSleep(Math.max(retryAfterMs ?? 0, backoffMs), caller)
+      const waitMs = Math.max(retryAfterMs ?? 0, backoffMs)
+      writeStderr(
+        `${styles().dim(`Rate limited (HTTP 429); retrying in ${Math.ceil(waitMs / 1000)}s (retry ${rateLimitResends + 1} of ${RATE_LIMIT_RETRIES}).`)}\n`
+      )
+      await interruptibleSleep(waitMs, caller)
       if (caller?.aborted) throw new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED)
       return this.send(path, options, retriedAfterRefresh, rateLimitResends + 1)
     }

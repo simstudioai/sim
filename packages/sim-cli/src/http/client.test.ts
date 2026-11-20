@@ -474,6 +474,27 @@ describe('rate limiting', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
+  it('says on stderr how long it waits before resending a request answered 429', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const written: string[] = []
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      written.push(String(chunk))
+      return true
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(limited('7'))
+        .mockResolvedValueOnce(Response.json({ data: {} }))
+    )
+
+    await settle(client().request('/api/v2/tables/tbl_1'))
+    write.mockRestore()
+
+    expect(written.join('')).toMatch(/Rate limited \(HTTP 429\); retrying in 7s \(retry 1 of 6\)/)
+  })
+
   it('resends a GET answered 429 even when that response body is lost', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const lostBody = new Response(
