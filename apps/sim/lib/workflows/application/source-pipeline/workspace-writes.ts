@@ -21,7 +21,11 @@ import {
   sourceCreateAudit,
 } from '@/lib/workflows/application/source-pipeline/effects'
 import type { PendingResource } from '@/lib/workflows/application/source-pipeline/evaluate'
-import type { SourceLoads, SourceTarget } from '@/lib/workflows/application/source-pipeline/load'
+import {
+  EMPTY_LOCK,
+  type SourceLoads,
+  type SourceTarget,
+} from '@/lib/workflows/application/source-pipeline/load'
 import type { SourceOutcome } from '@/lib/workflows/application/source-pipeline/outcome'
 import {
   type PlannedSource,
@@ -33,9 +37,6 @@ import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
 } from '@/lib/workspaces/application/context'
-
-/** The empty lock a created workflow is planned with: every id is minted. */
-const EMPTY_LOCK: WorkflowLockV1 = { version: 1, blocks: {}, variables: {} }
 
 /** An update of a stored workflow's draft, as a workspace source apply plans it. */
 interface UpdatePlanInput {

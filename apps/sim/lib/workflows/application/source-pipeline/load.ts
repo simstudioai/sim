@@ -8,6 +8,7 @@ import type {
   BlockCatalog,
   SourceBase,
   SourceFingerprint,
+  WorkflowLockV1,
   WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
 import { readWorkflowSourceMeta } from '@sim/workflow-persistence/source-meta'
@@ -34,6 +35,9 @@ const EMPTY_STORED_SOURCE: StoredSource = {
   state: { blocks: {}, edges: [], loops: {}, parallels: {}, variables: {} },
   meta: { name: '', description: null },
 }
+
+/** The empty lock a created workflow is planned with: every id is minted. */
+export const EMPTY_LOCK: WorkflowLockV1 = { version: 1, blocks: {}, variables: {} }
 
 /** Where a source write lands: an existing workflow's draft, or a new workflow `workflowId`. */
 export type CommitTarget =

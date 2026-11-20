@@ -8,7 +8,7 @@ export {
   sourceCreateAudit,
 } from './effects'
 export type { PendingResource, SourcePlan, SourceReference } from './evaluate'
-export type { SourceLoads, SourceTarget } from './load'
+export { EMPTY_LOCK, type SourceLoads, type SourceTarget } from './load'
 export { previewSource, refusedOutcome, type SourceOutcome } from './outcome'
 export {
   type PlannedSource,

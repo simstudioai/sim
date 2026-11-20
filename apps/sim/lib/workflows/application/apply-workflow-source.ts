@@ -17,6 +17,7 @@ import {
   afterSourceApply,
   afterSourceCreate,
   commitSource,
+  EMPTY_LOCK,
   planSource,
   previewSource,
   refusalError,
@@ -30,9 +31,6 @@ import {
 } from '@/lib/workflows/application/source-pipeline'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
-
-/** The empty lock a created workflow is planned with: every id is minted. */
-const EMPTY_LOCK: WorkflowLockV1 = { version: 1, blocks: {}, variables: {} }
 
 export interface ApplyWorkflowSourceInput {
   workflowId: string
