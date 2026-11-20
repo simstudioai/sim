@@ -302,4 +302,37 @@ describe('workspace source staging', () => {
       expect(stored(row.storageKey)).toBe(false)
     }
   )
+
+  check(
+    'a blob kept by one sweep is removed by the next even when both start in the same millisecond',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await stage(owner, workspaceId, [blob('kept within one millisecond')])
+      await db
+        .update(workspaceSourceStagedBlob)
+        .set({ expiresAt: new Date(Date.now() - 1000) })
+        .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
+      const [row] = await rows(workspaceId)
+      const folder = path.dirname(path.join(storageRoot, row.storageKey))
+      // Only Date is faked: both sweeps read one start time, as back-to-back sweeps on a fast
+      // database can.
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() })
+      try {
+        chmodSync(folder, 0o555)
+        try {
+          await sweepExpiredStagedBlobs()
+        } finally {
+          chmodSync(folder, 0o755)
+        }
+        expect((await rows(workspaceId)).map((left) => left.storageKey)).toEqual([row.storageKey])
+
+        await sweepExpiredStagedBlobs()
+      } finally {
+        vi.useRealTimers()
+      }
+
+      expect(await rows(workspaceId)).toEqual([])
+      expect(stored(row.storageKey)).toBe(false)
+    }
+  )
 })
