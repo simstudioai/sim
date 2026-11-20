@@ -4,6 +4,7 @@ import {
   getOwn,
   type LockIdentity,
 } from '@sim/workflow-code'
+import { isEqual } from 'es-toolkit'
 
 interface SourceBlockRef {
   id: string
@@ -84,36 +85,42 @@ export function summarizeDiff(
       }),
     },
     edges: { added: diff.edges.added.length, removed: diff.edges.removed.length },
-    variables: variableChanges(diff, base.identity, target.identity),
+    variables: variableChanges(diff, base, target),
   }
 }
 
 /**
  * The variable changes, a removed key whose id an added key kept reported as a rename: the apply
- * keeps that variable, so it is neither deleted nor needs `allowDelete`.
+ * keeps that variable, so it is neither deleted nor needs `allowDelete`. A renamed variable whose
+ * type or value also changed is listed under `modified` too, by its new key.
  */
 function variableChanges(
   diff: CanonicalDiff,
-  base: LockIdentity,
-  target: LockIdentity
+  base: { workflow: CanonicalWorkflow; identity: LockIdentity },
+  target: { workflow: CanonicalWorkflow; identity: LockIdentity }
 ): SourceDiffSummary['variables'] {
   const addedById = new Map(
     diff.variables.added.flatMap((key) => {
-      const id = getOwn(target.variables, key)
+      const id = getOwn(target.identity.variables, key)
       return id === undefined ? [] : [[id, key] as const]
     })
   )
   const renamed = diff.variables.removed.flatMap((from) => {
-    const id = getOwn(base.variables, from)
+    const id = getOwn(base.identity.variables, from)
     const to = id === undefined ? undefined : addedById.get(id)
     return to === undefined ? [] : [{ from, to }]
   })
   const moved = new Set(renamed.flatMap(({ from, to }) => [from, to]))
+  const rewritten = renamed.flatMap(({ from, to }) => {
+    const before = getOwn(base.workflow.variables, from)
+    const after = getOwn(target.workflow.variables, to)
+    return before?.type === after?.type && isEqual(before?.value, after?.value) ? [] : [to]
+  })
   return {
     added: diff.variables.added.filter((key) => !moved.has(key)),
     removed: diff.variables.removed.filter((key) => !moved.has(key)),
     renamed,
-    modified: diff.variables.modified,
+    modified: [...diff.variables.modified, ...rewritten],
   }
 }
 

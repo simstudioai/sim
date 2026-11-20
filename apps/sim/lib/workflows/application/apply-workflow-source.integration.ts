@@ -2955,6 +2955,8 @@ describe('workflow variables in source', () => {
       .from(workflow)
       .where(eq(workflow.id, seeded.workflowId))
     expect(Object.keys(row.variables as Record<string, unknown>)).toEqual([seeded.variableId])
+    const [audit] = await settledAuditRows(seeded.workflowId, 1)
+    expect(audit?.metadata).toMatchObject({ variablesChanged: 1 })
   })
 
   check(

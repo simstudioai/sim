@@ -421,7 +421,11 @@ function sourceAuditMetadata(
     blocksModified: blocks.modified.length,
     edgesAdded: edges.added,
     edgesRemoved: edges.removed,
-    variablesChanged: variables.added.length + variables.removed.length + variables.modified.length,
+    variablesChanged:
+      variables.added.length +
+      variables.removed.length +
+      variables.renamed.length +
+      variables.modified.length,
     sdkMajor: result.sdkMajor,
     catalogHash: result.base.catalogHash,
     ...(input.provenance ? { client: input.provenance.client } : {}),

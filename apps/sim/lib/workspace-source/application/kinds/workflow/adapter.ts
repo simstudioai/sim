@@ -269,7 +269,10 @@ function diffFields(diff: SourceDiffSummary): string[] {
   for (const block of blocks.modified) fields.push(`${block.key}: ${block.fields.join(', ')}`)
   if (edges.added + edges.removed > 0) fields.push(`connections +${edges.added} -${edges.removed}`)
   const changedVariables =
-    variables.added.length + variables.removed.length + variables.modified.length
+    variables.added.length +
+    variables.removed.length +
+    variables.renamed.length +
+    variables.modified.length
   if (changedVariables > 0) fields.push(`variables ${changedVariables}`)
   return fields
 }
