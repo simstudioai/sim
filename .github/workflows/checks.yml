@@ -206,12 +206,19 @@ jobs:
   # the production (migrate) path. Each group's app environment lives in http-e2e.sh.
   #
   # All groups reuse the production build; compiling routes is not part of HTTP acceptance.
+  # Starts beside build (e2e) rather than after it: checkout, install, services and migrations
+  # (about a minute on a hosted runner) overlap the build, and the job then waits for the build's
+  # artifact. The bound adds the four minutes that wait can take at the build's p95, so the suite's
+  # own share of it is unchanged.
   e2e:
     name: e2e (${{ matrix.group }})
-    needs: [changes, e2e-build]
+    needs: changes
     if: needs.changes.outputs.http == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 24
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.http_matrix) }}
@@ -263,6 +270,12 @@ jobs:
         if: matrix.group != 'project-files'
         working-directory: packages/db
         run: bun run db:migrate
+
+      # A failed or cancelled build fails this job here instead of leaving it waiting.
+      - name: Wait for the production build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/wait-for-e2e-build.sh
 
       - &download-e2e-build
         name: Download the production build
