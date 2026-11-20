@@ -6165,6 +6165,7 @@
                           "variables": {
                             "added": [],
                             "removed": [],
+                            "renamed": [],
                             "modified": []
                           }
                         },
@@ -6360,6 +6361,7 @@
                           "variables": {
                             "added": [],
                             "removed": [],
+                            "renamed": [],
                             "modified": []
                           }
                         },
@@ -6547,6 +6549,7 @@
                           "variables": {
                             "added": [],
                             "removed": [],
+                            "renamed": [],
                             "modified": []
                           }
                         },
@@ -19568,6 +19571,26 @@
                         },
                         "description": "Variable keys removed."
                       },
+                      "renamed": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "from": {
+                              "type": "string",
+                              "description": "Former key."
+                            },
+                            "to": {
+                              "type": "string",
+                              "description": "New key."
+                            }
+                          },
+                          "required": ["from", "to"],
+                          "additionalProperties": false,
+                          "description": "A renamed variable."
+                        },
+                        "description": "Variables renamed; each keeps its id, so none is deleted."
+                      },
                       "modified": {
                         "type": "array",
                         "items": {
@@ -19576,7 +19599,7 @@
                         "description": "Variable keys changed."
                       }
                     },
-                    "required": ["added", "removed", "modified"],
+                    "required": ["added", "removed", "renamed", "modified"],
                     "additionalProperties": false,
                     "description": "Variable changes."
                   }
@@ -20071,6 +20094,7 @@
                 "variables": {
                   "added": [],
                   "removed": [],
+                  "renamed": [],
                   "modified": []
                 }
               },
@@ -20536,6 +20560,26 @@
                         },
                         "description": "Variable keys removed."
                       },
+                      "renamed": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "from": {
+                              "type": "string",
+                              "description": "Former key."
+                            },
+                            "to": {
+                              "type": "string",
+                              "description": "New key."
+                            }
+                          },
+                          "required": ["from", "to"],
+                          "additionalProperties": false,
+                          "description": "A renamed variable."
+                        },
+                        "description": "Variables renamed; each keeps its id, so none is deleted."
+                      },
                       "modified": {
                         "type": "array",
                         "items": {
@@ -20544,7 +20588,7 @@
                         "description": "Variable keys changed."
                       }
                     },
-                    "required": ["added", "removed", "modified"],
+                    "required": ["added", "removed", "renamed", "modified"],
                     "additionalProperties": false,
                     "description": "Variable changes."
                   }
@@ -21039,6 +21083,7 @@
                 "variables": {
                   "added": [],
                   "removed": [],
+                  "renamed": [],
                   "modified": []
                 }
               },
@@ -21480,6 +21525,26 @@
                         },
                         "description": "Variable keys removed."
                       },
+                      "renamed": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "from": {
+                              "type": "string",
+                              "description": "Former key."
+                            },
+                            "to": {
+                              "type": "string",
+                              "description": "New key."
+                            }
+                          },
+                          "required": ["from", "to"],
+                          "additionalProperties": false,
+                          "description": "A renamed variable."
+                        },
+                        "description": "Variables renamed; each keeps its id, so none is deleted."
+                      },
                       "modified": {
                         "type": "array",
                         "items": {
@@ -21488,7 +21553,7 @@
                         "description": "Variable keys changed."
                       }
                     },
-                    "required": ["added", "removed", "modified"],
+                    "required": ["added", "removed", "renamed", "modified"],
                     "additionalProperties": false,
                     "description": "Variable changes."
                   }
@@ -21989,6 +22054,7 @@
                 "variables": {
                   "added": [],
                   "removed": [],
+                  "renamed": [],
                   "modified": []
                 }
               },

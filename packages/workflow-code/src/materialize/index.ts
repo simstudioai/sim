@@ -26,6 +26,7 @@ import type { MaterializeContext, MaterializeHooks } from './context'
 import { type BranchHandles, writeEdges } from './edges'
 import { type IdentityEntry, type LockFreshness, resolveIdentity } from './identity'
 import { restorePreserved } from './preserve'
+import { sharesEvidence, soleRename } from './rename'
 import { loopEntry, parallelEntry } from './subflows'
 import { rewriteRenamedReferences, rewriteStoredBlockReferences } from './values'
 
@@ -98,11 +99,7 @@ function writeVariables(
   return { variables, idByKey }
 }
 
-/**
- * The one variable a rename left without a known id, with the one prev variable whose key the
- * workflow no longer holds, when both have the same type; `null` unless there is exactly one of
- * each, as a single key rename leaves.
- */
+/** The one variable a lone key rename left without a known id, with its id (see {@link soleRename}). */
 function renamedVariable(
   workflow: CanonicalWorkflow,
   knownIds: ReadonlyMap<VarKey, string>,
@@ -110,16 +107,23 @@ function renamedVariable(
   used: ReadonlySet<string>
 ): { key: VarKey; id: string } | null {
   if (!prevCanonical) return null
-  const unmatched = Object.keys(workflow.variables).filter((key) => !knownIds.has(key))
-  const orphans = Object.entries(prevCanonical.identity.variables).filter(
-    ([key, id]) => !Object.hasOwn(workflow.variables, key) && !used.has(id)
+  const renamed = soleRename(
+    Object.keys(workflow.variables).filter((key) => !knownIds.has(key)),
+    Object.entries(prevCanonical.identity.variables).flatMap(([key, id]) =>
+      !Object.hasOwn(workflow.variables, key) && !used.has(id) ? [[id, key] as const] : []
+    ),
+    (key, formerKey) => {
+      const former = getOwn(prevCanonical.workflow.variables, formerKey)
+      const variable = getOwn(workflow.variables, key)
+      return (
+        former !== undefined &&
+        variable !== undefined &&
+        former.type === variable.type &&
+        sharesEvidence(former, variable, ['value'])
+      )
+    }
   )
-  const [key] = unmatched
-  const [orphan] = orphans
-  if (unmatched.length !== 1 || orphans.length !== 1 || key === undefined || !orphan) return null
-  const [formerKey, id] = orphan
-  const former = getOwn(prevCanonical.workflow.variables, formerKey)
-  return former?.type === getOwn(workflow.variables, key)?.type ? { key, id } : null
+  return renamed && { key: renamed.item, id: renamed.id }
 }
 
 /**

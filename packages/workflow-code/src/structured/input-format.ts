@@ -12,6 +12,7 @@ import { unsupported } from '../compile/context'
 import { isJson, type LockItem } from '../lock'
 import type { MaterializeContext } from '../materialize/context'
 import type { ParamSite } from '../materialize/params'
+import { sharesEvidence, soleRename } from '../materialize/rename'
 import { type BlockKey, isPlainRecord, type Value } from '../model'
 import { printKey } from '../print/strings'
 import { objectExpr, type Property } from '../print/syntax'
@@ -212,9 +213,9 @@ function restoreInputFormatIds(list: unknown[], site: ParamSite, context: Materi
 }
 
 /**
- * The one field a rename left without a known id, with the one known id whose name no field holds
- * any more, when prev stored that id with the same type; `null` unless there is exactly one of
- * each, as a single field rename leaves.
+ * The one field a lone rename left without a known id, with the id prev stored under the former
+ * name, when prev's field shares its type and its default value or description (see
+ * {@link soleRename}).
  */
 function renamedFieldId(
   list: readonly unknown[],
@@ -224,30 +225,36 @@ function renamedFieldId(
   prevById: ReadonlyMap<string, Record<string, unknown>>,
   used: ReadonlySet<string>
 ): { index: number; id: string } | null {
-  const unmatched = list.flatMap((item, index) =>
-    isRecordLike(item) &&
-    item.id === undefined &&
-    typeof item.name === 'string' &&
-    unique.has(item.name) &&
-    known[index] === undefined
-      ? [index]
-      : []
-  )
-  if (unmatched.length !== 1) return null
   const names = new Set(list.flatMap((item) => (isRecordLike(item) ? [item.name] : [])))
-  const orphans = new Set(
-    itemIds
-      .filter((entry) => !names.has(entry.name) && !used.has(entry.id))
-      .map((entry) => entry.id)
+  const renamed = soleRename(
+    list.flatMap((item, index) =>
+      isRecordLike(item) &&
+      item.id === undefined &&
+      typeof item.name === 'string' &&
+      unique.has(item.name) &&
+      known[index] === undefined
+        ? [index]
+        : []
+    ),
+    [
+      ...new Set(
+        itemIds
+          .filter((entry) => !names.has(entry.name) && !used.has(entry.id))
+          .map((entry) => entry.id)
+      ),
+    ].map((id) => [id, id] as const),
+    (index, id) => {
+      const field = list[index]
+      const former = prevById.get(id)
+      return (
+        isRecordLike(field) &&
+        former !== undefined &&
+        former.type === field.type &&
+        sharesEvidence<Record<string, unknown>>(former, field, ['value', 'description'])
+      )
+    }
   )
-  const [index] = unmatched
-  const [id] = orphans
-  if (orphans.size !== 1 || index === undefined || id === undefined) return null
-  const field = list[index]
-  const former = prevById.get(id)
-  return isRecordLike(field) && former !== undefined && former.type === field.type
-    ? { index, id }
-    : null
+  return renamed && { index: renamed.item, id: renamed.id }
 }
 
 /** The record sugar as source: `name: 'type'`, or `name: { type, value?, description?, required? }`. */

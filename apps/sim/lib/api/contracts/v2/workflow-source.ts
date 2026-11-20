@@ -199,6 +199,16 @@ const sourceDiffSchema = z
       .object({
         added: z.array(z.string()).describe('Variable keys added.'),
         removed: z.array(z.string()).describe('Variable keys removed.'),
+        renamed: z
+          .array(
+            z
+              .object({
+                from: z.string().describe('Former key.'),
+                to: z.string().describe('New key.'),
+              })
+              .describe('A renamed variable.')
+          )
+          .describe('Variables renamed; each keeps its id, so none is deleted.'),
         modified: z.array(z.string()).describe('Variable keys changed.'),
       })
       .describe('Variable changes.'),

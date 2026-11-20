@@ -84,7 +84,7 @@ function dryRun(diagnostics: Array<Record<string, unknown>> = [], modified = 0) 
           })),
         },
         edges: { added: 0, removed: 0 },
-        variables: { added: [], removed: [], modified: [] },
+        variables: { added: [], removed: [], renamed: [], modified: [] },
       },
       diagnostics,
       files: GOT,

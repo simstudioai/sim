@@ -1,7 +1,8 @@
 import { positionalKeys, positionalTitle } from '../canonicalize/branches'
 import type { BranchKey, CanonicalBranches, CanonicalBranchRow } from '../model'
-import { deepEqual, getOwn, setOwn } from '../records'
+import { getOwn, setOwn } from '../records'
 import type { MaterializeContext } from './context'
+import { sharesEvidence, soleRename } from './rename'
 
 interface BranchWrite {
   /** The stored subBlock value: JSON text, or `null` for never-persisted rows. */
@@ -59,9 +60,8 @@ export function writeBranches(
 }
 
 /**
- * The one row a branch rename left without a known id, with the one known id whose key no row
- * holds any more, when the prev row under that key held the same expression; `null` unless there
- * is exactly one of each, as a single key rename leaves.
+ * The one row a lone branch key rename left without a known id, with its id, when the prev row
+ * under the former key held the same expression (see {@link soleRename}).
  */
 function renamedRowId(
   rows: readonly CanonicalBranchRow[],
@@ -70,8 +70,6 @@ function renamedRowId(
   prevRows: readonly CanonicalBranchRow[],
   used: ReadonlySet<string>
 ): { index: number; id: string } | null {
-  const unmatched = knownRowIds.flatMap((id, index) => (id === undefined ? [index] : []))
-  if (unmatched.length !== 1) return null
   const keys = new Set(rows.map((row) => row.key))
   const orphans = new Map<string, BranchKey>()
   for (const source of knownIds) {
@@ -79,10 +77,14 @@ function renamedRowId(
       if (!keys.has(key) && !used.has(id)) orphans.set(id, key)
     }
   }
-  const [index] = unmatched
-  const [orphan] = orphans
-  if (orphans.size !== 1 || index === undefined || orphan === undefined) return null
-  const [id, formerKey] = orphan
-  const former = prevRows.find((row) => row.key === formerKey)
-  return former && deepEqual(former.value, rows[index]?.value) ? { index, id } : null
+  const renamed = soleRename(
+    knownRowIds.flatMap((id, index) => (id === undefined ? [index] : [])),
+    [...orphans],
+    (index, formerKey) => {
+      const former = prevRows.find((row) => row.key === formerKey)
+      const row = rows[index]
+      return former !== undefined && row !== undefined && sharesEvidence(former, row, ['value'])
+    }
+  )
+  return renamed && { index: renamed.item, id: renamed.id }
 }

@@ -165,9 +165,12 @@ function diffSummary(data: SourceApplyData): string {
     `${blocks.renamed.length} renamed`,
     `${blocks.modified.length} modified`,
   ]
-  const variableChanges = (['added', 'removed', 'modified'] as const).flatMap((change) =>
-    variables[change].length > 0 ? [`${change} ${variables[change].join(', ')}`] : []
-  )
+  const variableChanges = [
+    ...(['added', 'removed', 'modified'] as const).flatMap((change) =>
+      variables[change].length > 0 ? [`${change} ${variables[change].join(', ')}`] : []
+    ),
+    ...renamedVariables(variables).map(({ from, to }) => `renamed ${from} → ${to}`),
+  ]
   const modified = blocks.modified.map(({ key, fields }) => `${key} (${fields.join(', ')})`)
   const typed = (list: ReadonlyArray<{ key: string; type: string }>) =>
     list.map(({ key, type }) => `${key} (${type})`).join('; ')
@@ -621,9 +624,21 @@ export function attachWorkflowSourceCreate(source: Command): void {
     )
 }
 
+/** The variables a diff renames, none when the answer lists none. */
+function renamedVariables(
+  variables: SourceApplyData['diff']['variables']
+): ReadonlyArray<{ from: string; to: string }> {
+  return variables.renamed ?? []
+}
+
 /** Whether a diff adds, removes or changes any workflow variable. */
 function variablesChanged(variables: SourceApplyData['diff']['variables']): boolean {
-  return variables.added.length > 0 || variables.removed.length > 0 || variables.modified.length > 0
+  return (
+    variables.added.length > 0 ||
+    variables.removed.length > 0 ||
+    renamedVariables(variables).length > 0 ||
+    variables.modified.length > 0
+  )
 }
 
 /** The create command for `dir` in `workspaceId`, as the next step a starter prints. */

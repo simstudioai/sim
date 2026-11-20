@@ -30,7 +30,7 @@ function applied() {
         noop: false,
         blocks: { added: [{ id: 'b-1', key: 'start' }], removed: [], renamed: [], modified: [] },
         edges: { added: 1, removed: 0 },
-        variables: { added: [], removed: [], modified: [] },
+        variables: { added: [], removed: [], renamed: [], modified: [] },
       },
       diagnostics: [],
       files: { 'workflow.ts': `${ENTRY}// stored\n` },

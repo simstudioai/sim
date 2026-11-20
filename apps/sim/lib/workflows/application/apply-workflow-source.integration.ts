@@ -2933,12 +2933,34 @@ describe('workflow variables in source', () => {
     )
 
     expect(result.applied).toBe(true)
+    expect(result.diff.variables).toMatchObject({
+      added: [],
+      removed: [],
+      renamed: [{ from: 'threshold', to: 'limit' }],
+    })
     const [row] = await db
       .select({ variables: workflow.variables })
       .from(workflow)
       .where(eq(workflow.id, seeded.workflowId))
     expect(Object.keys(row.variables as Record<string, unknown>)).toEqual([seeded.variableId])
   })
+
+  check(
+    'an unrelated variable of the same type replacing one is a delete, refused without allowDelete',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const files = withVariables(source.files, "{ retries: { type: 'number', value: 5 } }")
+
+      await expectRejected(apply(source, files), 'E_APPLY_VARIABLE_DELETE')
+      const allowed = await apply(source, files, { allowDelete: true, dryRun: true })
+      expect(allowed.diff.variables).toMatchObject({
+        added: ['retries'],
+        removed: ['threshold'],
+        renamed: [],
+      })
+    }
+  )
 
   check('deleting a variable is refused without allowDelete, like deleting a block', async () => {
     const seeded = await seedWorkflow()

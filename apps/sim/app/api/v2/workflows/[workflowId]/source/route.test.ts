@@ -180,7 +180,7 @@ const applied = {
       modified: [{ id: 'b-1', key: 'start', fields: ['name'] }],
     },
     edges: { added: 0, removed: 0 },
-    variables: { added: [], removed: [], modified: [] },
+    variables: { added: [], removed: [], renamed: [], modified: [] },
   },
   diagnostics: [],
   files: source.files,

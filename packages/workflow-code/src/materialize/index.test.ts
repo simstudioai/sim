@@ -897,20 +897,20 @@ describe('materialize: identity', () => {
     })
   })
 
-  it('keeps the id of the one inputFormat field renamed to a field of the same type', () => {
+  it('keeps the id of the one inputFormat field renamed with its type and description', () => {
     const prev = workflowState([
       blockState('start', 'start_trigger', 'Start', {
         inputFormat: [
-          { id: 'f-n', name: 'n', type: 'number' },
+          { id: 'f-n', name: 'n', type: 'number', description: 'How many' },
           { id: 'f-q', name: 'q', type: 'string' },
         ],
       }),
     ])
-    const renamed = (to: string, type: string) =>
+    const renamed = (to: string, type: string, description = 'How many') =>
       edit(canonical(prev).workflow, (draft) => {
         const inputFormat = draft.blocks.start.params.inputFormat
         if (inputFormat.kind === 'value' && Array.isArray(inputFormat.value)) {
-          inputFormat.value[0] = { name: to, type }
+          inputFormat.value[0] = { name: to, type, description }
         }
       })
     const ids = (workflow: CanonicalWorkflow) =>
@@ -922,6 +922,8 @@ describe('materialize: identity', () => {
 
     expect(ids(renamed('num', 'number'))).toEqual(['f-n', 'f-q'])
     expect(ids(renamed('label', 'string'))).toEqual(['new-1', 'f-q'])
+    // A shared type alone ties nothing: another field of that type is a delete and an add.
+    expect(ids(renamed('count', 'number', 'Rows to fetch'))).toEqual(['new-1', 'f-q'])
   })
 
   it('keeps the id of the one variable renamed to a key of the same type', () => {
@@ -937,6 +939,17 @@ describe('materialize: identity', () => {
 
     expect(ids(renamed('number'))).toEqual(['var-1'])
     expect(ids(renamed('plain'))).toEqual(['new-1'])
+  })
+
+  it('treats an unrelated variable of the same type added beside a removed one as a delete and an add', () => {
+    const pulled = base()
+    const replaced = edit(canonical(pulled).workflow, (draft) => {
+      draft.variables = { region: { key: 'region', name: 'Region', type: 'number', value: 42 } }
+    })
+
+    expect(Object.keys(run(replaced, null, { prev: pulled }).state.variables ?? {})).toEqual([
+      'new-1',
+    ])
   })
 
   it('leaves an inputFormat id two fields share out of the identity items', () => {

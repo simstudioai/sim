@@ -1,4 +1,9 @@
-import type { CanonicalDiff, CanonicalWorkflow, LockIdentity } from '@sim/workflow-code'
+import {
+  type CanonicalDiff,
+  type CanonicalWorkflow,
+  getOwn,
+  type LockIdentity,
+} from '@sim/workflow-code'
 
 interface SourceBlockRef {
   id: string
@@ -20,7 +25,13 @@ export interface SourceDiffSummary {
     modified: Array<SourceBlockRef & { fields: string[]; reparented?: boolean }>
   }
   edges: { added: number; removed: number }
-  variables: { added: string[]; removed: string[]; modified: string[] }
+  variables: {
+    added: string[]
+    removed: string[]
+    /** Keys renamed with their id kept (an inferred lone rename), not added and removed. */
+    renamed: Array<{ from: string; to: string }>
+    modified: string[]
+  }
   /** The workflow's name and description fields the source changes (a stored workflow's). */
   meta?: Array<'name' | 'description'>
 }
@@ -73,11 +84,36 @@ export function summarizeDiff(
       }),
     },
     edges: { added: diff.edges.added.length, removed: diff.edges.removed.length },
-    variables: {
-      added: diff.variables.added,
-      removed: diff.variables.removed,
-      modified: diff.variables.modified,
-    },
+    variables: variableChanges(diff, base.identity, target.identity),
+  }
+}
+
+/**
+ * The variable changes, a removed key whose id an added key kept reported as a rename: the apply
+ * keeps that variable, so it is neither deleted nor needs `allowDelete`.
+ */
+function variableChanges(
+  diff: CanonicalDiff,
+  base: LockIdentity,
+  target: LockIdentity
+): SourceDiffSummary['variables'] {
+  const addedById = new Map(
+    diff.variables.added.flatMap((key) => {
+      const id = getOwn(target.variables, key)
+      return id === undefined ? [] : [[id, key] as const]
+    })
+  )
+  const renamed = diff.variables.removed.flatMap((from) => {
+    const id = getOwn(base.variables, from)
+    const to = id === undefined ? undefined : addedById.get(id)
+    return to === undefined ? [] : [{ from, to }]
+  })
+  const moved = new Set(renamed.flatMap(({ from, to }) => [from, to]))
+  return {
+    added: diff.variables.added.filter((key) => !moved.has(key)),
+    removed: diff.variables.removed.filter((key) => !moved.has(key)),
+    renamed,
+    modified: diff.variables.modified,
   }
 }
 
@@ -90,6 +126,6 @@ export function emptyDiffSummary(): SourceDiffSummary {
     noop: false,
     blocks: { added: [], removed: [], renamed: [], modified: [] },
     edges: { added: 0, removed: 0 },
-    variables: { added: [], removed: [], modified: [] },
+    variables: { added: [], removed: [], renamed: [], modified: [] },
   }
 }

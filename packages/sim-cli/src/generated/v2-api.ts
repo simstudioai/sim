@@ -806,6 +806,10 @@ export type ApplyWorkflowSourceResponse = {
       variables: {
         added: Array<string>
         removed: Array<string>
+        renamed: Array<{
+          from: string
+          to: string
+        }>
         modified: Array<string>
       }
     }
@@ -5264,6 +5268,10 @@ export type CreateWorkflowFromSourceResponse = {
       variables: {
         added: Array<string>
         removed: Array<string>
+        renamed: Array<{
+          from: string
+          to: string
+        }>
         modified: Array<string>
       }
     }
@@ -14383,6 +14391,10 @@ export type PlanWorkflowSourceResponse = {
       variables: {
         added: Array<string>
         removed: Array<string>
+        renamed: Array<{
+          from: string
+          to: string
+        }>
         modified: Array<string>
       }
     }
