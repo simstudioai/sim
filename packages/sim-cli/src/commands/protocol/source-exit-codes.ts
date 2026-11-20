@@ -1,3 +1,4 @@
+import { DEFERRED_INTERRUPT_BOUND_MS } from '#sim-cli/terminal/interrupts'
 import {
   AUTH_REQUIRED_EXIT_CODE,
   RATE_LIMITED_EXIT_CODE,
@@ -10,7 +11,6 @@ import {
   SOURCE_STALE_EXIT_CODE,
   SOURCE_TOO_LARGE_EXIT_CODE,
 } from '../../exit-codes'
-import { DEFERRED_INTERRUPT_BOUND_MS } from '#sim-cli/terminal/interrupts'
 
 /** The status a shell reports for a command Ctrl-C ended (128 + SIGINT). */
 const INTERRUPTED_EXIT_CODE = 130

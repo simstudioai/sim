@@ -743,6 +743,26 @@ describe('workspaces source apply', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('keeps the server’s refusal of a staging area with no room, which no CLI update or proxy fixes', async () => {
+    write('files/a.bin', Buffer.alloc(3_000, 1))
+    const full =
+      'Staging 3000 more bytes would hold 2000000001, over the 2000000000-byte limit. Staged files expire a day after their last use.'
+    mockRequest.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path.endsWith('/source/blobs')) {
+        throw new SimApiError(full, 413, 'PAYLOAD_TOO_LARGE', { code: 'SOURCE_STAGING_FULL' })
+      }
+      return path.includes('/source/blobs') ? stagingAnswer(path, options) : request(path, options)
+    })
+
+    const refused = await apply('--yes').then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    expect(refused).toMatchObject({ status: 413, message: full })
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('uploads two files that would overflow one request body in two requests', async () => {
     write('files/a.bin', Buffer.alloc(6_000_000, 1))
     write('files/b.bin', Buffer.alloc(6_000_000, 2))

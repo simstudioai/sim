@@ -21,6 +21,7 @@ vi.mock('@/lib/workspace-source/application/stage-blobs', () => ({
   stageSourceBlobs: { operation: { id: 'workspaces.source.blobs.stage' }, execute: mocks.stage },
 }))
 
+import { SourceStagingFullError } from '@/lib/workspace-source/staging/store'
 import { POST } from '@/app/api/v2/workspaces/[workspaceId]/source/blobs/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
@@ -74,6 +75,47 @@ describe('POST /api/v2/workspaces/{workspaceId}/source/blobs', () => {
     expect(error.code).toBe('PAYLOAD_TOO_LARGE')
     expect(error.message).toMatch(/at most \d+ bytes; this one carries \d+/)
     expect(mocks.stage).not.toHaveBeenCalled()
+  })
+
+  it('answers a chunked body past the limit with 413 saying it carries more, not a count it never read', async () => {
+    const declared = await stagingRequest([Buffer.alloc(6_000_000, 1), Buffer.alloc(6_000_000, 2)])
+    const body = Buffer.from(await declared.arrayBuffer())
+    const headers = new Headers(declared.headers)
+    headers.delete('content-length')
+    const chunked = new NextRequest(declared.url, {
+      method: 'POST',
+      headers,
+      body: new ReadableStream({
+        start(controller) {
+          for (let at = 0; at < body.byteLength; at += 1_000_000) {
+            controller.enqueue(new Uint8Array(body.subarray(at, at + 1_000_000)))
+          }
+          controller.close()
+        },
+      }),
+      duplex: 'half',
+    } as ConstructorParameters<typeof NextRequest>[1])
+
+    const response = await POST(chunked, context)
+
+    expect(response.status).toBe(413)
+    const { error } = await response.json()
+    expect(error.message).toMatch(/at most (\d+) bytes; this one carries more than \1\./)
+    expect(mocks.stage).not.toHaveBeenCalled()
+  })
+
+  it('answers a caller whose staging area is full with 413 SOURCE_STAGING_FULL, apart from a body over the limit', async () => {
+    mocks.admit.mockRejectedValue(
+      new SourceStagingFullError(
+        'Staging 1 more binary files would hold 5001, over the 5000-file limit.'
+      )
+    )
+
+    const response = await POST(await stagingRequest([Buffer.from('a')]), context)
+
+    expect(response.status).toBe(413)
+    const { error } = await response.json()
+    expect(error.details).toEqual({ code: 'SOURCE_STAGING_FULL' })
   })
 
   it('stages a single file of the largest size a directory holds', async () => {

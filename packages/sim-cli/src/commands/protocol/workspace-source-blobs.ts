@@ -12,6 +12,7 @@ import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { generateShortId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import {
   APPLY_ORDER,
   type BlobEntry,
@@ -537,10 +538,12 @@ export async function stageBlobs(
  * A staging request the server refused as too large (`413`), re-raised naming what it carried and
  * what to do: nothing was applied, and since this CLI batches within the limits it shares with the
  * server, a refusal means the server runs other limits (another version, or a proxy in front of
- * it with a smaller body limit). Any other error passes through.
+ * it with a smaller body limit). A staging area with no room (`SOURCE_STAGING_FULL`), which only
+ * freeing staged files fixes, and any other error pass through.
  */
 function stagingTooLarge(error: unknown, batch: readonly BlobEntry[]): unknown {
   if (!(error instanceof SimApiError) || error.status !== 413) return error
+  if (toRecord(error.details).code === 'SOURCE_STAGING_FULL') return error
   const bytes = batch.reduce((sum, blob) => sum + blob.size, 0)
   const largest = batch.reduce((top, blob) => (blob.size > top.size ? blob : top), batch[0])
   return new SimApiError(
