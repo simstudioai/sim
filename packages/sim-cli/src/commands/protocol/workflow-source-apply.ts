@@ -33,6 +33,7 @@ import {
   withWorkspaceFolderLock,
   writeBack,
 } from './source-dir'
+import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
 import { cachedCatalogByHash } from './source-tree'
 import {
   confirm,
@@ -57,15 +58,17 @@ const APPLY_EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
 file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the
 directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry);
-6 the workflow or its folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after
-the CLI's retries, so nothing was written: wait a minute and run it again.`
+6 the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1,
+E_APPLY_LOCKED_BLOCK); 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's
+retries, so nothing was written: wait a minute and run it again.`
 
 const CREATE_EXIT_CODES_HELP = `
 Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each
 printed as file:line:column with its frame and hint), the workflow name is taken
-(SOURCE_NAME_TAKEN: pass --name), or the command failed; 6 the folder is locked; 7 the source
-is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a
-minute and run it again.`
+(SOURCE_NAME_TAKEN: pass --name), a starter written for another workspace
+(SOURCE_OTHER_WORKSPACE: pass --workspace), or the command failed; 6 the folder is locked; 7 the
+source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created:
+wait a minute and run it again.`
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 
@@ -326,7 +329,10 @@ export function attachWorkflowSourceApply(source: Command): void {
     )
     .allowExcessArguments(false)
     .description('Apply a workflow source directory to a workflow draft')
-    .addHelpText('after', `${APPLY_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}`)
+    .addHelpText(
+      'after',
+      `${APPLY_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}${SOURCE_WRITE_EXIT_CODES_HELP}`
+    )
     .action(async (named: string | undefined, options: SourceWriteOptions) =>
       withWorkspaceFolderLock(options.dir, async () => {
         requireConsent(options, 'writes the workflow draft', 'apply')
@@ -381,7 +387,10 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .option('-y, --yes', 'Create without asking for confirmation')
     .allowExcessArguments(false)
     .description('Create a workflow from a workflow source directory')
-    .addHelpText('after', `${CREATE_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}`)
+    .addHelpText(
+      'after',
+      `${CREATE_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}${SOURCE_WRITE_EXIT_CODES_HELP}`
+    )
     .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) =>
       withWorkspaceFolderLock(options.dir, async () => {
         if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {

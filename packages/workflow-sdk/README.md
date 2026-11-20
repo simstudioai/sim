@@ -26,9 +26,11 @@ have the CLI confirm the directory holds that workflow.
    cannot (duplicate names, cycles, literal secrets). It exits 1 on errors and on a missing
    required field, an unknown option or output path, a wrong value kind, an out-of-range value or
    a literal secret in a block the lock does not bind yet (`--strict`: in every block; `--no-strict`: never on a
-   warning). It also adds the blocks the source now uses to `tsconfig.json`. Then
-   `bunx -p typescript@7.0.2 tsc -p ./wf` type-checks with the TypeScript release the
-   declarations are built for. `tsconfig.json` includes only the blocks the source used at the
+   warning). It also adds the blocks the source now uses to `tsconfig.json`. Then always run
+   `bunx -p typescript@7.0.2 tsc -p ./wf` after an edit and fix what it reports: it takes about a
+   second and catches what check and the dry run do not, such as a reference to a start input the
+   trigger does not declare. It type-checks with the TypeScript release the declarations are built
+   for. `tsconfig.json` includes only the blocks the source used at the
    last check, get or apply (fast); `tsconfig.full.json` includes every current block. In a
    workspace directory, `sim workspaces source check --dir .` checks every workflow against the
    directory's own secrets, credentials, resource keys and table columns, and
@@ -43,11 +45,13 @@ have the CLI confirm the directory holds that workflow.
    source to find it), dry-run, apply. Keep the fresh `.sim/` files: `.sim/base.json` holds the
    fingerprint that makes the next apply safe.
 6. **New workflow**: write `workflow.ts` in an empty directory and run
-   `sim workflows source create --dir ./wf [--name <name>] [--folder <path>] --yes`. It prints the
+   `sim workflows source create --dir ./wf --workspace <id> [--name <name>] [--folder <path>] --yes`. It prints the
    new workflow id and writes the full tree a `get` writes: the `.sim/sdk` types, `tsconfig.json`,
    `.sim/AGENTS.md` and the lock files. Continue with the loop above. Run on a directory without
-   `workflow.ts` and without `--dry-run` or `--yes`, `create --dir ./wf` writes a starter
-   `workflow.ts` and the types instead, and creates nothing.
+   `workflow.ts` and without `--dry-run` or `--yes`, `create --dir ./wf --workspace <id>` writes a
+   starter `workflow.ts` and that workspace's types instead, records the workspace in
+   `.sim/starter.json`, and creates nothing; the create that follows targets that workspace, and
+   one into another workspace is refused unless `--workspace` names it.
 
 `apply` and `create` ask for confirmation on a terminal; elsewhere pass `--yes` (without it they
 refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
@@ -99,14 +103,22 @@ Every code and its meaning: the "Diagnostics" table of `SYNTAX.md` in the Sim re
 
 ## Exit codes
 
+Every `sim workflows source` and `sim workspaces source` command exits with one of these:
+
 | Code | Meaning | Do |
 |---|---|---|
-| 0 | Applied, or a clean dry run | Done |
-| 1 | The source has errors, or the command failed | Fix the printed findings |
-| 5 | `SOURCE_STALE`: the workflow changed since `get` | Get again, reapply the edit (step 5) |
-| 6 | The workflow is locked | Ask someone to unlock it in the workflow builder |
-| 7 | The source is too large | Split function code or remove blocks |
-| 9 | Still rate limited (HTTP 429) after the CLI's retries; nothing was written | Wait a minute and run the same command again |
+| 0 | Applied or created, a dry run or check with no errors, or a clean status | Done |
+| 1 | The source has errors, a locked block (`E_APPLY_LOCKED_BLOCK`), a name another workflow holds (`SOURCE_NAME_TAKEN`), a cancelled prompt, or the command failed | Fix what it printed |
+| 5 | `SOURCE_STALE`: the workflow changed since `get`, and nothing was written | Get again, reapply the edit (step 5) |
+| 6 | The workflow or its folder is locked (`E_APPLY_LOCKED`) | Ask someone to unlock it in the workflow builder |
+| 7 | The source is too large (on a get, status or diff too) | Split function code or remove blocks |
+| 8 | `sim workspaces source apply` stopped part-way; what was written is saved into the directory | Apply again until it exits 0 |
+| 9 | Still rate limited (HTTP 429) after the CLI's retries; nothing more was written | Wait a minute and run the same command again |
+| 10 | Busy: another apply is writing the workspace, or another `sim` command is using the directory; nothing was written | Run it again once the other finished |
+| 11 | `status`: only your local edits | Dry-run, then apply |
+| 12 | `status`: the server changed since the get (drift, or a conflict with your edits) | Follow the `Next:` line it prints |
+| 13 | Not logged in, or the server refused the credential (`AUTH_REQUIRED`); nothing was sent | `sim login`, or fix or unset `SIM_API_KEY` |
+| 130 | Interrupted (Ctrl-C). An apply or create already sent is finished and saved first; a second Ctrl-C stops at once and says it may have been written | `sim workflows source status --dir ./wf` |
 
 ## Write declarations, not programs
 

@@ -39,6 +39,7 @@ import {
   writtenFile,
   writtenRecord,
 } from './source-dir'
+import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
 import { cachedCatalog } from './source-tree'
 import {
   confirm,
@@ -85,8 +86,8 @@ another workspace than the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace t
 to promote it), its
 base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the
 command failed; 5 a resource changed or was deleted on the server since the directory was read
-(SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is
-locked; 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was
+(SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource (a
+workflow or its folder, a table) is locked (a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was
 written is saved into the directory, and applying again continues. An apply a resource refused
 part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6
 or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a
@@ -430,7 +431,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     )
     .allowExcessArguments(false)
     .description('Apply a workspace source directory')
-    .addHelpText('after', EXIT_CODES_HELP)
+    .addHelpText('after', `${EXIT_CODES_HELP}${SOURCE_WRITE_EXIT_CODES_HELP}`)
     .action(async (options: ApplyOptions) => {
       requireConsent(options, 'writes the workspace', 'apply')
       const only = parseKinds(options.only)
