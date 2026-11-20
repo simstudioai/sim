@@ -24,11 +24,10 @@ import {
   SOURCE_AGENTS_FILE,
   SOURCE_STARTER_FILE,
   updateSourceDir,
-  WORKFLOW_DIR_BUSY_HELP,
   withSourceCommandLock,
   writeBack,
 } from './source-dir'
-import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
+import { SOURCE_WRITE_EXIT_CODES_HELP, sourceExitCodesHelp } from './source-exit-codes'
 import { cachedCatalogByHash, printTreeResult, refreshWorkflowWorkspaceTypes } from './source-tree'
 import {
   type CreatedResource,
@@ -54,25 +53,6 @@ import {
   writeSourceDirectory,
   writeSourceScaffold,
 } from './workflow-dir'
-
-const APPLY_EXIT_CODES_HELP = `
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
-file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the
-directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry);
-6 the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1,
-E_APPLY_LOCKED_BLOCK); 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's
-retries, so nothing was written: wait a minute and run it again; 14 without --yes and with no
-terminal to ask: the plan was printed with no errors and nothing was written (run the same
-command with --yes to apply it).`
-
-const CREATE_EXIT_CODES_HELP = `
-Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each
-printed as file:line:column with its frame and hint), the workflow name is taken
-(SOURCE_NAME_TAKEN: pass --name), or the command failed (a starter is created in the
-workspace its types were written for unless --workspace names another); 6 the folder is locked; 7 the
-source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created:
-wait a minute and run it again; 14 without --yes and with no terminal to ask: the plan was
-printed with no errors and nothing was created (run the same command with --yes).`
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 
@@ -362,7 +342,7 @@ export function attachWorkflowSourceApply(source: Command): void {
     .description('Apply a workflow source directory to a workflow draft')
     .addHelpText(
       'after',
-      `${APPLY_EXIT_CODES_HELP}${WORKFLOW_DIR_BUSY_HELP}${SOURCE_WRITE_EXIT_CODES_HELP}`
+      `${sourceExitCodesHelp('workflows source apply')}${SOURCE_WRITE_EXIT_CODES_HELP}`
     )
     .action(async (named: string | undefined, options: SourceWriteOptions) => {
       const mode = writeMode(options)
@@ -449,7 +429,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .description('Create a workflow from a workflow source directory')
     .addHelpText(
       'after',
-      `${CREATE_EXIT_CODES_HELP}${WORKFLOW_DIR_BUSY_HELP}${SOURCE_WRITE_EXIT_CODES_HELP}`
+      `${sourceExitCodesHelp('workflows source create')}${SOURCE_WRITE_EXIT_CODES_HELP}`
     )
     .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) => {
       const mode = writeMode(options)

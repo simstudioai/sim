@@ -12,9 +12,9 @@ import {
   locallyEditedFiles,
   readPreviousLock,
   readSourceJson,
-  WORKFLOW_DIR_BUSY_HELP,
   withSourceCommandLock,
 } from './source-dir'
+import { sourceExitCodesHelp } from './source-exit-codes'
 import { printTreeResult, withSourceExitCode } from './source-tree'
 import { findingsOutput } from './source-ui'
 import { type PrintedSource, writeSourceDirectory } from './workflow-dir'
@@ -54,13 +54,6 @@ async function assertNoLocalEdits(dir: string, source: PrintedSource): Promise<v
   )
 }
 
-const GET_EXIT_CODES_HELP = `
-Exit codes with --dir: 0 written; 1 the command failed, the directory is a workspace source
-directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source
-(SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into
-another directory, or pass --force); 7 the workflow is too large to print as source;
-9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again.`
-
 /**
  * Teaches the generated `workflows source get` leaf `--dir <dir>`: instead of printing the
  * response, it writes `workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`, SDK
@@ -93,7 +86,7 @@ export function attachWorkflowSourceGet(source: Command): void {
     "With --dir: replace another workflow's source or edits no apply has saved"
   )
   absoluteDirOption(get)
-  get.addHelpText('after', `${GET_EXIT_CODES_HELP}${WORKFLOW_DIR_BUSY_HELP}`)
+  get.addHelpText('after', sourceExitCodesHelp('workflows source get', 'Exit codes with --dir'))
   get.action(async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
     const flags = command.optsWithGlobals() as Record<string, unknown>
     const dir = flags[DIR_FLAG]

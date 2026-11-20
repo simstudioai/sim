@@ -9,7 +9,6 @@ export {
   SOURCE_DIR_BUSY_HELP,
   SOURCE_DIR_LOCK,
   takeOverStaleLock,
-  WORKFLOW_DIR_BUSY_HELP,
   withSourceCommandLock,
   withSourceDirLock,
 } from './command-lock'

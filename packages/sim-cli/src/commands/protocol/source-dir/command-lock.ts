@@ -25,7 +25,7 @@ export const SOURCE_DIR_LOCK = '.sim/command.lock'
 
 /** The help line every command that holds {@link SOURCE_DIR_LOCK} adds to its exit codes. */
 export const SOURCE_DIR_BUSY_HELP = `
-Exit 10 (busy, retry): another sim workspaces source command is using this directory
+Exit ${SOURCE_BUSY_EXIT_CODE} (busy, retry): another sim workspaces source command is using this directory
 (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.`
 
 /** The file-system codes of a directory the user may not write: its lock cannot be taken. */
@@ -193,9 +193,3 @@ export async function withSourceCommandLock<T>(
   const folder = await workspaceFolderOf(dir)
   return withSourceDirLock(folder ? folder.root : dir, run, options)
 }
-
-/** The help line every single-workflow command that writes a directory adds to its exit codes. */
-export const WORKFLOW_DIR_BUSY_HELP = `
-Exit 10 (busy, retry): another sim command is using --dir, or the workspace directory it is a
-workflow folder of (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it
-finished.`

@@ -24,13 +24,13 @@ import {
   readSourceText,
   readWritten,
   recordedStats,
-  SOURCE_DIR_BUSY_HELP,
   SOURCE_DOWNLOADS_DIR,
   updateSourceDir,
   withSourceDirLock,
   writtenFiles,
   writtenRecord,
 } from './source-dir'
+import { sourceExitCodesHelp } from './source-exit-codes'
 import {
   assertSdkMajor,
   finishTree,
@@ -68,18 +68,10 @@ import {
 
 type WorkspaceSource = GetWorkspaceSourceResponse['data']
 
-const GET_EXIT_CODES_HELP = `
+const GET_HELP = `
 A directory that already holds a .sim/base.json is refreshed from the workspace it was read from,
 whatever the profile's default workspace.
-
-Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved
-(SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace names
-another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), the directory
-is a workflow source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or a downloaded
-binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace
-has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's
-retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and
-running the get again downloads only the rest.`
+${sourceExitCodesHelp('workspaces source get')}`
 
 /**
  * The base a get writes: the answer's, plus the directory's entries for the kinds this get did not
@@ -352,7 +344,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
     .option('--force', 'Replace files with edits no apply has saved')
     .allowExcessArguments(false)
     .description('Write a workspace as a source directory')
-    .addHelpText('after', `${GET_EXIT_CODES_HELP}\n${SOURCE_DIR_BUSY_HELP}`)
+    .addHelpText('after', GET_HELP)
     .action(async (options: { dir: string; only?: string; force?: boolean }) => {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
