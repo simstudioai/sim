@@ -21,7 +21,7 @@ workspace directory).
 | `packages/workspace-code` | Pure workspace half: `KIND_DIRS`, `APPLY_ORDER`, one codec per kind (`src/kinds/`), `.sim/base.json`, `rf1:` fingerprints, limits |
 | `packages/table-cells` | Pure table cell rules (coerce, validate, currency/date/ttl parsing) shared by the table codec's offline row check and the server's writes |
 | `packages/workflow-sdk` | Authoring declarations (`src/core.d.ts`, `src/workspace/*.d.ts`), type codegen from the catalog (`src/codegen/`), the cookbook |
-| `packages/sim-cli/src/commands/protocol/` | `workflow-source-*` and `workspace-source-*` commands, which never import each other; `source-dir/`, `workflow-dir.ts`, `source-check.ts`, `source-write.ts`, `source-tree.ts`, `source-ui.ts` are shared |
+| `packages/sim-cli/src/commands/protocol/` | `workflow-source-*` and `workspace-source-*` commands, which never import each other's command modules; `source-dir/`, `workflow-dir.ts`, `source-check.ts`, `source-write.ts`, `source-tree.ts`, `source-ui.ts` and `workspace-source-dir.ts` (the workspace directory reader a workflow check also reads declarations through) are shared |
 | `apps/sim/lib/workflows/code/` | Server glue: catalog projection from the registry (`catalog/`), source-apply gates (`apply/`), stored canonical form, the feature flag, the proof corpus (`corpus/`) |
 | `apps/sim/lib/workflows/application/*source*` | Workflow source use cases: read, apply, create, catalog, resources |
 | `apps/sim/lib/workspace-source/` | Workspace source use cases (`application/`), one adapter per kind (`application/kinds/<kind>/`), route policies (`api/`) |
