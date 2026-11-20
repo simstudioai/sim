@@ -58,6 +58,7 @@ import {
   type JsonFieldEntry,
   lookup,
   rangeOf,
+  reportNotImported,
   reportUnresolvedIdentifier,
   type Scope,
   unsupported,
@@ -257,6 +258,8 @@ function checkIterationTag(
 }
 
 function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: ValueSite): void {
+  // A note never runs, so nothing in it resolves: `<b>` in its markdown is text, not a reference.
+  if (catalogBlockOf(site.decl)?.graph.annotationOnly) return
   for (const token of findWorkflowReferenceTokens(text)) {
     if (token.kind !== 'workflow') continue
     const segments = parseStoredPath(token.value.slice(1, -1))
@@ -1323,6 +1326,15 @@ export function compileValue(
     }
     case 'TaggedTemplateExpression': {
       const tag = node.tag.type === 'Identifier' ? lookup(site.scope, node.tag.name) : null
+      if (!tag && node.tag.type === 'Identifier' && isTemplateTag(node.tag.name)) {
+        return reportNotImported(
+          ctx,
+          'E_UNKNOWN_IDENTIFIER',
+          node.tag.name,
+          node.tag,
+          site.decl.key
+        )
+      }
       if (!tag || tag.kind !== 'sdk' || !isTemplateTag(tag.name)) return rejectNode(ctx, node, site)
       const text = templateText(ctx, node, site)
       return text === null ? null : { kind: 'value', value: text, form: 'template' }

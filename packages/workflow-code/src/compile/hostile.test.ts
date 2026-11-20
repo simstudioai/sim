@@ -4,7 +4,7 @@ import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
-import { MAX_ERRORS, MAX_INFOS, MAX_WARNINGS, Reporter } from './report'
+import { MAX_ERRORS, MAX_INFOS, MAX_WARNINGS, MAX_WARNINGS_PER_CODE, Reporter } from './report'
 
 /**
  * Hostile sources: compile never executes anything and never throws. Each input must come
@@ -195,7 +195,14 @@ describe('hostile sources produce diagnostics only', () => {
     const reporter = new Reporter()
     reporter.addFile('w.ts', `body: '${jwt}'`)
     const at = { file: 'w.ts', start: 7, end: 7 + jwt.length }
-    for (let i = 0; i < MAX_WARNINGS; i++) reporter.report('W_SUBFLOW_COUNT', 'x', at)
+    const fillers = [
+      'W_SUBFLOW_COUNT',
+      'W_FORWARD_REF',
+      'W_VALUE_KIND',
+      'W_OUT_OF_RANGE',
+      'W_UNKNOWN_OPTION',
+    ] as const
+    for (let i = 0; i < MAX_WARNINGS; i++) reporter.report(fillers[i % fillers.length], `x${i}`, at)
     reporter.report('W_LITERAL_SECRET', 'body holds a literal secret', at)
     const capped = reporter.diagnostics.at(-1)
     expect(capped?.code).toBe('W_TOO_MANY_WARNINGS')
@@ -218,13 +225,13 @@ describe('hostile sources produce diagnostics only', () => {
     expect(frameChars).toBeLessThan(result.diagnostics.length * 1_000)
   })
 
-  it('lists 100 warnings and omits the rest without failing the compile', () => {
+  it('lists 20 warnings of one code and omits the rest without failing the compile', () => {
     let body = ''
     for (let i = 0; i < 150; i++) body += `const a${i} = api('A${i}', { url: a${i + 1}.data })\n`
     body += `const a150 = api('A150', { url: 'x' })`
     const result = run(wrap(body))
     expect(result.workflow).not.toBeNull()
-    expect(result.diagnostics).toHaveLength(MAX_WARNINGS + 1)
+    expect(result.diagnostics).toHaveLength(MAX_WARNINGS_PER_CODE + 1)
     expect(result.diagnostics.at(-1)?.code).toBe('W_TOO_MANY_WARNINGS')
   })
 
@@ -235,7 +242,7 @@ describe('hostile sources produce diagnostics only', () => {
     for (let i = 0; i < 1_000; i++) {
       reporter.report(
         'W_UNRESOLVED_REF',
-        'x',
+        `x${i}`,
         { file: 'w.ts', start: 0, end: 1 },
         {
           hint: () => {
@@ -245,7 +252,7 @@ describe('hostile sources produce diagnostics only', () => {
         }
       )
     }
-    expect(computed).toBe(MAX_WARNINGS)
+    expect(computed).toBe(MAX_WARNINGS_PER_CODE)
     expect(reporter.diagnostics[0]?.hint).toBe('Did you mean y?')
   })
 
@@ -253,7 +260,7 @@ describe('hostile sources produce diagnostics only', () => {
     const reporter = new Reporter()
     reporter.addFile('w.ts', 'x')
     const at = { file: 'w.ts', start: 0, end: 1 }
-    for (let i = 0; i < MAX_WARNINGS + 50; i++) reporter.report('I_SCHEDULE_UTC', 'x', at)
+    for (let i = 0; i < MAX_WARNINGS + 50; i++) reporter.report('I_SCHEDULE_UTC', `x${i}`, at)
     reporter.report('W_LITERAL_SECRET', 'apiKey holds a literal secret', at)
     const listed = reporter.diagnostics.map((d) => d.code)
     expect(listed).toContain('W_LITERAL_SECRET')

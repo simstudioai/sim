@@ -1867,3 +1867,32 @@ describe('$ref and $env in a Python or shell code file', () => {
     ])
   })
 })
+
+describe('reference-shaped text that floods the warnings', () => {
+  const notNormalized = (result: CompileResult) =>
+    result.diagnostics.filter((d) => d.code === 'W_REF_NOT_NORMALIZED')
+
+  it('never reads a note for references, which a note never resolves', () => {
+    const html = '<b>bold</b> and <i>it</i> '.repeat(50)
+    const result = run(source(`note('Docs', { content: md\`${html}<start.q>\` })`))
+    expect(notNormalized(result)).toEqual([])
+  })
+
+  it('lists one finding once, however often the text repeats it', () => {
+    const result = run(source("const a = api('A', { url: t`<b>x</b><b>y</b><b>z</b>` })"))
+    expect(notNormalized(result).map((d) => d.message)).toEqual([
+      '<b> names no block; the text is kept as written.',
+    ])
+  })
+
+  it('caps one code apart from the rest, so a flood of it hides no other warning', () => {
+    const flood = Array.from(
+      { length: 120 },
+      (_, i) => `const a${i} = api('A${i}', { url: t\`<x${i}>\` })`
+    )
+    const later = "const later = api('Later', { url: t`${start.missing}` })"
+    const result = run(source([START, ...flood, later].join('\n')))
+    expect(result.diagnostics.filter((d) => d.code === 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(1)
+    expect(result.diagnostics.filter((d) => d.code === 'W_TOO_MANY_WARNINGS')).toHaveLength(1)
+  })
+})

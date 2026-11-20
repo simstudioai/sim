@@ -72,6 +72,12 @@ function severityOf(code: CompileDiagnosticCode): SeverityOfCode {
 export const MAX_ERRORS = 100
 /** Warnings one compile lists before the rest are omitted with `W_TOO_MANY_WARNINGS`. */
 export const MAX_WARNINGS = 100
+/**
+ * Warnings of one code one compile lists before the rest of that code are omitted with
+ * `W_TOO_MANY_WARNINGS`, so a flood of one finding leaves room under {@link MAX_WARNINGS} for the
+ * others.
+ */
+export const MAX_WARNINGS_PER_CODE = 20
 /** Infos one compile lists before the rest are dropped; counted apart so none displaces a warning. */
 export const MAX_INFOS = 100
 /** Code units of a message or hint kept; longer text, which quotes the source, is cut. */
@@ -105,6 +111,9 @@ export class Reporter {
   private errorCount = 0
   private warningCount = 0
   private infoCount = 0
+  private readonly warningsByCode = new Map<CompileDiagnosticCode, number>()
+  /** What each recorded finding says where, so the same finding is listed once. */
+  private readonly seen = new Set<string>()
 
   addFile(path: string, text: string): void {
     this.indexes.set(path, new LineIndex(text))
@@ -131,12 +140,17 @@ export class Reporter {
   }
 
   /**
-   * Records a diagnostic. The error after the {@link MAX_ERRORS}th is recorded as
+   * Records a diagnostic, once: a finding with the same code, message and range as one already
+   * recorded is dropped. The error after the {@link MAX_ERRORS}th is recorded as
    * `E_TOO_MANY_ERRORS` and throws {@link ErrorLimitReached}; the warning after the
-   * {@link MAX_WARNINGS}th is recorded as `W_TOO_MANY_WARNINGS` and later ones are dropped. Infos
-   * have their own cap, {@link MAX_INFOS}, so they never crowd out a warning.
+   * {@link MAX_WARNINGS}th, or after the {@link MAX_WARNINGS_PER_CODE}th of its code, is recorded as
+   * `W_TOO_MANY_WARNINGS` and later ones are dropped. Each severity has its own cap, so a warning
+   * never crowds out an error, nor an info a warning.
    */
   report(code: CompileDiagnosticCode, message: string, at: Range, extras: ReportExtras = {}): void {
+    const key = `${code}\u0000${at.file}\u0000${at.start}\u0000${at.end}\u0000${message}`
+    if (this.seen.has(key)) return
+    this.seen.add(key)
     const severity = severityOf(code)
     if (severity === 'error') {
       if (this.errorCount === MAX_ERRORS) {
@@ -162,6 +176,21 @@ export class Reporter {
         )
       }
       return
+    } else {
+      const ofCode = this.warningsByCode.get(code) ?? 0
+      this.warningsByCode.set(code, ofCode + 1)
+      if (ofCode >= MAX_WARNINGS_PER_CODE) {
+        if (ofCode === MAX_WARNINGS_PER_CODE) {
+          this.record(
+            'W_TOO_MANY_WARNINGS',
+            `Listed ${MAX_WARNINGS_PER_CODE} ${code} warnings; the rest of them are omitted. The next: ${message}`,
+            at,
+            {},
+            framesSource(code)
+          )
+        }
+        return
+      }
     }
     this.record(code, message, at, extras, framesSource(code))
   }

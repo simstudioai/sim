@@ -382,7 +382,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_WORKFLOW_EXPORT` | Not exactly one `export default workflow(…)`. |
 | `E_LIMIT_EXCEEDED` | Over the block, edge, total-byte, depth or `codeFile()` reference cap (`SOURCE_LIMITS`). Apply answers 413. |
 | `E_TOO_MANY_ERRORS` | The compile stopped after 100 errors; fix those and compile again to see the rest. |
-| `W_TOO_MANY_WARNINGS` | 100 warnings were listed and the rest omitted. Infos are capped apart (100, the rest dropped), so they never displace a warning. |
+| `W_TOO_MANY_WARNINGS` | 100 warnings, or 20 of one code, were listed and the rest omitted, so a flood of one finding never hides another. A finding repeated at the same place is listed once. Infos are capped apart (100, the rest dropped), so they never displace a warning, and errors are never displaced by either. |
 | `E_DUPLICATE_NAME` | Two blocks normalize to one key. |
 | `E_RESERVED_NAME` | A block name normalizes to `loop`, `parallel` or `variable`. |
 | `E_KEY_OVERRIDE` | A `meta.key` that is not a legacy key the stored workflow already has. |

@@ -7,6 +7,7 @@ import type {
 } from '@babel/types'
 import { encodeAnchor } from '../anchors'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder } from '../catalog/types'
+import { catalogBuilderPaths } from '../catalog/view'
 import type { CodeFileRef } from '../code-files'
 import type { RefSegment } from '../code-files/ref-path'
 import type { SourceSpan } from '../diagnostics/frame'
@@ -25,6 +26,7 @@ import type {
   SubBlockId,
   VarKey,
 } from '../model'
+import { isSdkCoreExport, SDK_MODULE } from '../sdk'
 import type { AddCommentItem, CommentCollector } from './comments'
 import { didYouMean } from './hints'
 import type { CompileLimits } from './parse'
@@ -256,6 +258,35 @@ function visibleNames(scope: Scope): string[] {
 }
 
 /**
+ * Whether `name` is something a workflow file imports from the SDK: a core export (`loop`, `js`,
+ * `env`) or a block namespace of the catalog (`slack`).
+ */
+export function isSdkImportable(ctx: CompileContext, name: string): boolean {
+  return (
+    isSdkCoreExport(name) ||
+    catalogBuilderPaths(ctx.catalog).some((path) => path === name || path.startsWith(`${name}.`))
+  )
+}
+
+/**
+ * Reports `code` for an SDK export the file uses but does not import: the one finding that names
+ * the fix, which the caller follows by compiling nothing that depends on it.
+ */
+export function reportNotImported(
+  ctx: CompileContext,
+  code: 'E_UNKNOWN_BUILDER' | 'E_UNKNOWN_IDENTIFIER',
+  name: string,
+  at: Located,
+  blockKey?: BlockKey
+): null {
+  ctx.reporter.report(code, `${name} is not imported from '${SDK_MODULE}'.`, rangeOf(ctx, at), {
+    hint: `Add ${name} to the import from '${SDK_MODULE}'.`,
+    blockKey,
+  })
+  return null
+}
+
+/**
  * Reports an identifier `scope` does not bind: `E_OUT_OF_SCOPE` when a block inside another loop or
  * parallel holds the name, else `E_UNKNOWN_IDENTIFIER` with a did-you-mean over the visible names.
  * `at` is what the out-of-scope error covers (a whole member chain for a reference). Returns `null`.
@@ -278,6 +309,9 @@ export function reportUnresolvedIdentifier(
       }
     )
     return null
+  }
+  if (isSdkImportable(ctx, identifier.name)) {
+    return reportNotImported(ctx, 'E_UNKNOWN_IDENTIFIER', identifier.name, identifier, blockKey)
   }
   ctx.reporter.report(
     'E_UNKNOWN_IDENTIFIER',

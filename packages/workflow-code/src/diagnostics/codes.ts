@@ -41,7 +41,10 @@ const COMPILE_SYNTAX_CODES = [
    * Fixing the errors listed and compiling again shows the rest.
    */
   'E_TOO_MANY_ERRORS',
-  /** `MAX_WARNINGS` warnings were listed; this one sits where the next was found, and the rest are omitted. */
+  /**
+   * `MAX_WARNINGS` warnings, or `MAX_WARNINGS_PER_CODE` of one code, were listed; this one sits
+   * where the next was found, and the rest (of that code) are omitted.
+   */
   'W_TOO_MANY_WARNINGS',
 ] as const
 

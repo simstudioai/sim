@@ -482,6 +482,48 @@ describe('unknown builders', () => {
   })
 })
 
+describe('an SDK export the file did not import', () => {
+  function compileWith(imports: string, body: string): CompileResult {
+    return compileWorkflow({
+      entry: {
+        path: 'workflow.ts',
+        text: `// @sim-sdk 1\nimport { ${imports} } from '@sim/workflow-sdk'\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`,
+      },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+    })
+  }
+
+  it('names the missing import of a container, a template tag and env, and nothing else', () => {
+    const result = compileWith(
+      'fn, js, trigger, workflow',
+      [
+        START,
+        "const lp = loop.for('Lp', { count: 2 }, (p) => {",
+        "  const inner = fn('Inner', { code: js`return ${p.index}` })",
+        '  p.to(inner)',
+        '})',
+        "const after = fn('After', { code: t`${lp.results}` })",
+        "const last = fn('Last', { code: js`return ${env.KEY}` })",
+        'start.to(lp)',
+        'lp.to(after)',
+        'after.to(last)',
+      ].join('\n')
+    )
+    expect(
+      result.diagnostics
+        .filter((d) => d.severity === 'error')
+        .map((d) => ({ message: d.message, hint: d.hint }))
+    ).toEqual(
+      ['loop', 't', 'env'].map((name) => ({
+        message: `${name} is not imported from '@sim/workflow-sdk'.`,
+        hint: `Add ${name} to the import from '@sim/workflow-sdk'.`,
+      }))
+    )
+  })
+})
+
 describe('a misspelled required param', () => {
   it('reports the unknown param once, without a second W_REQUIRED_MISSING for its suggestion', () => {
     const result = run("const a = api('A', { urll: 'https://x' })")
