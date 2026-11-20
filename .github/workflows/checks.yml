@@ -971,6 +971,7 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     timeout-minutes: 25
     env:
+      TURBO_FORCE: 'true'
       NEXT_BUILD_PERSISTENT_CACHE: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && 'true' || 'false' }}
 
     steps:
@@ -1033,9 +1034,7 @@ jobs:
         run: node ../../scripts/prune-turbopack-cache.mts --build
 
       - name: Build application
-        env:
-          <<: *e2e-build-env
-          TURBO_FORCE: 'true'
+        env: *e2e-build-env
         run: bunx turbo run build --filter=@sim/app
 
       - name: Bound compiler state before persistence
