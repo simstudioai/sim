@@ -432,6 +432,56 @@ describe('materialize: branches', () => {
     expect(JSON.parse(String(raw))[0]).toEqual({ id: 'c1-if', value: 'b' })
   })
 
+  it('keeps the row id of the one branch whose key changed, and its edge with it', () => {
+    const prev = workflowState(
+      [
+        blockState('c1', 'condition', 'Gate', {
+          conditions: JSON.stringify([
+            { id: 'c1-a', key: 'one', value: 'x' },
+            { id: 'c1-b', key: 'two', value: 'y' },
+            { id: 'c1-else', value: '' },
+          ]),
+        }),
+        blockState('n1', 'function', 'Next', { code: 'return 1' }),
+      ],
+      { edges: [{ ...edge('e1', 'c1', 'n1'), sourceHandle: 'condition-c1-a' }] }
+    )
+    const target = edit(canonical(prev).workflow, (draft) => {
+      const rows = draft.blocks.gate.branches?.rows ?? []
+      rows[0].key = 'single'
+      draft.edges = draft.edges.map((e) =>
+        e.port.kind === 'branch' ? { ...e, port: { kind: 'branch', key: 'single' } } : e
+      )
+    })
+    const result = run(target, null, { prev })
+    const stored = JSON.parse(String(subBlockValue(result.state, 'c1', 'conditions')))
+    expect(stored.map((row: { id: string }) => row.id)).toEqual(['c1-a', 'c1-b', 'c1-else'])
+    expect(result.state.edges.map((e) => [e.id, e.sourceHandle])).toEqual([
+      ['e1', 'condition-c1-a'],
+    ])
+  })
+
+  it('mints new row ids when more than one branch key changed, which nothing pairs', () => {
+    const prev = workflowState([
+      blockState('c1', 'condition', 'Gate', {
+        conditions: JSON.stringify([
+          { id: 'c1-a', key: 'one', value: 'x' },
+          { id: 'c1-b', key: 'two', value: 'y' },
+          { id: 'c1-else', value: '' },
+        ]),
+      }),
+    ])
+    const target = edit(canonical(prev).workflow, (draft) => {
+      const rows = draft.blocks.gate.branches?.rows ?? []
+      rows[0].key = 'uno'
+      rows[1].key = 'dos'
+    })
+    const result = run(target, null, { prev })
+    const stored = JSON.parse(String(subBlockValue(result.state, 'c1', 'conditions')))
+    expect(stored[0].id).not.toBe('c1-a')
+    expect(stored[1].id).not.toBe('c1-b')
+  })
+
   it('keeps never-persisted rows null and routes edges to the implicit ids', () => {
     const [, prev] = QUIRK_STATES[4]
     const target = edit(canonical(prev).workflow, (draft) => {
@@ -827,6 +877,48 @@ describe('materialize: identity', () => {
     expect(result.identity.blocks.start.items).toEqual({
       inputFormat: [{ name: 'question', id: 'f-q' }],
     })
+  })
+
+  it('keeps the id of the one inputFormat field renamed to a field of the same type', () => {
+    const prev = workflowState([
+      blockState('start', 'start_trigger', 'Start', {
+        inputFormat: [
+          { id: 'f-n', name: 'n', type: 'number' },
+          { id: 'f-q', name: 'q', type: 'string' },
+        ],
+      }),
+    ])
+    const renamed = (to: string, type: string) =>
+      edit(canonical(prev).workflow, (draft) => {
+        const inputFormat = draft.blocks.start.params.inputFormat
+        if (inputFormat.kind === 'value' && Array.isArray(inputFormat.value)) {
+          inputFormat.value[0] = { name: to, type }
+        }
+      })
+    const ids = (workflow: CanonicalWorkflow) =>
+      (
+        subBlockValue(run(workflow, null, { prev }).state, 'start', 'inputFormat') as Array<{
+          id: string
+        }>
+      ).map((field) => field.id)
+
+    expect(ids(renamed('num', 'number'))).toEqual(['f-n', 'f-q'])
+    expect(ids(renamed('label', 'string'))).toEqual(['new-1', 'f-q'])
+  })
+
+  it('keeps the id of the one variable renamed to a key of the same type', () => {
+    const pulled = base()
+    const renamed = (type: 'number' | 'plain') =>
+      edit(canonical(pulled).workflow, (draft) => {
+        draft.variables = {
+          total: { key: 'total', name: 'Total', type, value: type === 'number' ? 1 : '1' },
+        }
+      })
+    const ids = (workflow: CanonicalWorkflow) =>
+      Object.keys(run(workflow, null, { prev: pulled }).state.variables ?? {})
+
+    expect(ids(renamed('number'))).toEqual(['var-1'])
+    expect(ids(renamed('plain'))).toEqual(['new-1'])
   })
 
   it('leaves an inputFormat id two fields share out of the identity items', () => {
