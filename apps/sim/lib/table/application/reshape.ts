@@ -81,6 +81,11 @@ export interface ReshapeTableInput {
    */
   sourceRows?: { mode: 'managed'; keyColumn: string } | null
   /**
+   * Records each source column's key, by column name as the reshape leaves the columns
+   * (`metadata.sourceColumnKeys`, replaced whole); absent leaves the record alone.
+   */
+  sourceColumnKeys?: Record<string, string>
+  /**
    * The row version the caller read the rows at. Checked under the table's lock before anything
    * changes: a row written since refuses the reshape (`TableRowsChangedError`), so `rows`
    * never overwrites or deletes an edit the caller did not see.
@@ -141,6 +146,20 @@ function withSourceRows(
 ): TableMetadata {
   const rest = omit(metadata ?? {}, ['sourceRows'])
   return sourceRows ? { ...rest, sourceRows } : rest
+}
+
+/** Source column keys by column name, as `metadata.sourceColumnKeys` holds them: by column id. */
+function sourceColumnKeysById(
+  keysByName: Readonly<Record<string, string>>,
+  idByName: ReadonlyMap<string, string>
+): Record<string, string> {
+  const byId: Record<string, string> = {}
+  for (const [name, key] of Object.entries(keysByName)) {
+    const id = idByName.get(name)
+    if (!id) throw new OrchestrationError('validation', `Column "${name}" does not exist`)
+    byId[id] = key
+  }
+  return byId
 }
 
 /** A column name no column of `table` holds, to park a column under during a rename cycle. */
@@ -376,11 +395,17 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
           })
         }
         const idByName = buildIdByName(table.schema)
-        if (input.sourceRows !== undefined) {
-          const metadata = withSourceRows(
-            table.metadata,
-            sourceRowsMark(input.sourceRows, idByName)
-          )
+        if (input.sourceRows !== undefined || input.sourceColumnKeys !== undefined) {
+          let metadata: TableMetadata = table.metadata ?? {}
+          if (input.sourceRows !== undefined) {
+            metadata = withSourceRows(metadata, sourceRowsMark(input.sourceRows, idByName))
+          }
+          if (input.sourceColumnKeys !== undefined) {
+            metadata = {
+              ...metadata,
+              sourceColumnKeys: sourceColumnKeysById(input.sourceColumnKeys, idByName),
+            }
+          }
           await tx.trx
             .update(userTableDefinitions)
             .set({ metadata })

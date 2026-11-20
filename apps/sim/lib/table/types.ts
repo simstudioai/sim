@@ -303,6 +303,13 @@ export interface TableMetadata {
    * the workspace as source prints them. Written only by the reshape that applies them.
    */
   sourceRows?: TableSourceRows
+  /**
+   * Each source column's key (`columns: { <key>: ... }` in workspace source) by **column id**, as
+   * the workspace source write that last wrote the table declared it, so reading the table as
+   * source prints a column under its key even after a rename. Written only by that write; a column
+   * without an entry is keyed by its name.
+   */
+  sourceColumnKeys?: Record<string, string>
 }
 
 /** Rows workspace source manages: the whole table, each row matched by its key column. */

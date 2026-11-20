@@ -73,6 +73,13 @@ deleted. A workflow still names a workspace file by its resource key (`file('rep
 its path: a file an apply creates claims the key a get would first allocate it, so a workflow of
 the same apply resolves it.
 
+A table's column keys persist with the table too: every table write records each declared column
+whose key is not its name in `metadata.sourceColumnKeys` (column id → key), and a read prints a
+column under the base's binding, else that record, else its name. So a fresh get, and the target's
+read in a promotion, print the key the declaration gave the column (also after a rename in Sim), and
+a promotion's managed rows match the stored ones by the same keys. An apply that finds a column a
+read would print under another key records the keys alone (`fields: ['column keys']`).
+
 ## Fingerprints and the three-way rule
 
 A resource's fingerprint is `fingerprintOf(canonical(decl))` = `rf1:` + SHA-256 of the canonical
