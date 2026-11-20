@@ -15,6 +15,7 @@ import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { promotionSubmission } from '@sim/workspace-code/promote'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
+import { DEFERRED_INTERRUPT_BOUND_MS, deferInterrupts } from '#sim-cli/terminal/interrupts'
 import { setSoftExitCode } from '../../embed-context'
 import { SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
 import type {
@@ -497,8 +498,6 @@ export function attachWorkspaceSourceApply(source: Command): void {
         )
       }
 
-      // Set while the apply write is in flight, so an interrupt names what it may have done.
-      let writing = false
       await withSourceDirLock(
         options.dir,
         async () => {
@@ -552,18 +551,25 @@ export function attachWorkspaceSourceApply(source: Command): void {
 
           // Without a preview, stage the blobs the base does not hold as they are.
           await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
-          writing = true
-          const data = await send(submission, false)
-          writing = false
-          printNewDiagnostics(data.diagnostics, printed)
-          // A promotion leaves the directory bound to the workspace it was read from.
-          if (!options.to) {
-            const workspaceCatalog = cachedCatalog(workspaceId)
-            const records = workspaceCatalog
-              ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, data.files)
-              : []
-            await saveApplied(options.dir, data, submission, written, records)
-          }
+          const data = await deferInterrupts(
+            async () => {
+              const answer = await send(submission, false)
+              printNewDiagnostics(answer.diagnostics, printed)
+              // A promotion leaves the directory bound to the workspace it was read from.
+              if (!options.to) {
+                const workspaceCatalog = cachedCatalog(workspaceId)
+                const records = workspaceCatalog
+                  ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, answer.files)
+                  : []
+                await saveApplied(options.dir, answer, submission, written, records)
+              }
+              return answer
+            },
+            {
+              waiting: `Interrupted: the apply was already sent. Waiting up to ${DEFERRED_INTERRUPT_BOUND_MS / 1000}s for its answer and saving it into ${options.dir}, so the directory matches the workspace; press Ctrl-C again to stop now.`,
+              abandoned: `Stopped before the apply answered. ${answerLostHint(options.dir)}`,
+            }
+          )
           const held = data.plan.filter((change) => change.held)
           if (held.length > 0) {
             printError(
@@ -580,13 +586,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
             ...resultDiagnostics(profile.output, data.diagnostics),
           })
         },
-        {
-          readOnly: options.dryRun === true,
-          interruptNote: () =>
-            writing
-              ? `Interrupted while the apply was being sent. ${answerLostHint(options.dir)}`
-              : null,
-        }
+        { readOnly: options.dryRun === true }
       )
     })
 }

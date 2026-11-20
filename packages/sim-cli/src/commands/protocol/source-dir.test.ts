@@ -150,27 +150,55 @@ describe('withSourceDirLock', () => {
     expect(existsSync(join(dir, SOURCE_DIR_LOCK))).toBe(false)
   })
 
-  it('prints what the interrupted command may have done, then ends with the signal', () => {
-    const script = `
+  /**
+   * The shape of `workspaces source apply`: the commit and its write-back run deferred inside the
+   * directory lock, whose own interrupt handler must wait for them too.
+   */
+  function deferredWriteScript(interrupts: number): string {
+    return `
+      import { writeFileSync } from 'node:fs'
+      import { join } from 'node:path'
+      import { setTimeout as sleep } from 'node:timers/promises'
       import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir.ts'))}
-      let sending = false
-      await withSourceDirLock(
-        process.env.SOURCE_DIR,
-        async () => {
-          sending = true
-          process.kill(process.pid, 'SIGINT')
-          await new Promise(() => {})
-        },
-        { interruptNote: () => (sending ? 'It may have been written.' : null) }
-      )
+      import { deferInterrupts } from ${JSON.stringify(join(import.meta.dirname, '../../terminal/interrupts.ts'))}
+      await withSourceDirLock(process.env.SOURCE_DIR, async () => {
+        await deferInterrupts(
+          async () => {
+            for (let sent = 0; sent < ${interrupts}; sent += 1) {
+              process.kill(process.pid, 'SIGINT')
+              await sleep(50)
+            }
+            await sleep(300)
+            writeFileSync(join(process.env.SOURCE_DIR, 'saved'), 'yes')
+          },
+          { waiting: 'Waiting for the write.', abandoned: 'Stopped before the write answered.' }
+        )
+        await new Promise(() => {})
+      })
     `
-    const interrupted = spawnSync('bun', ['-e', script], {
+  }
+
+  it('finishes a deferred write at an interrupt, then releases the lock and ends with the signal', () => {
+    const interrupted = spawnSync('bun', ['-e', deferredWriteScript(1)], {
       env: { ...process.env, SOURCE_DIR: dir },
       timeout: 20_000,
     })
 
     expect(interrupted.signal).toBe('SIGINT')
-    expect(interrupted.stderr.toString()).toContain('It may have been written.')
+    expect(interrupted.stderr.toString()).toContain('Waiting for the write.')
+    expect(existsSync(join(dir, 'saved'))).toBe(true)
+    expect(existsSync(join(dir, SOURCE_DIR_LOCK))).toBe(false)
+  })
+
+  it('abandons a deferred write at a second interrupt, saying so, and releases the lock', () => {
+    const interrupted = spawnSync('bun', ['-e', deferredWriteScript(2)], {
+      env: { ...process.env, SOURCE_DIR: dir },
+      timeout: 20_000,
+    })
+
+    expect(interrupted.signal).toBe('SIGINT')
+    expect(interrupted.stderr.toString()).toContain('Stopped before the write answered.')
+    expect(existsSync(join(dir, 'saved'))).toBe(false)
     expect(existsSync(join(dir, SOURCE_DIR_LOCK))).toBe(false)
   })
 

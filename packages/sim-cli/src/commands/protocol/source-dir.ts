@@ -37,7 +37,6 @@ import {
   SOURCE_LOCK_FILE,
 } from '@sim/workflow-code/limits'
 import { fingerprintOf, KIND_DIRS } from '@sim/workspace-code'
-import { printError } from '#sim-cli/output/io'
 import { embedStore } from '../../embed-context'
 import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
 import { SimApiError } from '../../http/client'
@@ -835,14 +834,7 @@ export async function takeOverStaleLock(lock: string, seen: LockSighting): Promi
 export async function withSourceDirLock<T>(
   dir: string,
   run: () => Promise<T>,
-  options: {
-    readOnly?: boolean
-    /**
-     * What to print when an interrupt (Ctrl-C) ends the command: read when it arrives, so a
-     * command can name what a write in flight may have done; `null` prints nothing.
-     */
-    interruptNote?: () => string | null
-  } = {}
+  options: { readOnly?: boolean } = {}
 ): Promise<T> {
   if (embedStore.getStore()) return run()
   const absent = async (path: string) =>
@@ -899,14 +891,7 @@ export async function withSourceDirLock<T>(
   const owner: LockOwner = { pid: process.pid, host: hostname() }
   // An interrupt (Ctrl-C) releases the lock too: a lock left behind is taken over only by a
   // command on the same host, so one left on a folder shared with a container would stay.
-  const disposeSignalRelease = removeStagingOnSignal(
-    () => lock,
-    (signal) => {
-      const note = options.interruptNote?.()
-      if (note) printError(note)
-      process.kill(process.pid, signal)
-    }
-  )
+  const disposeSignalRelease = removeStagingOnSignal(() => lock)
   try {
     await writeFile(join(lock, LOCK_OWNER_FILE), JSON.stringify(owner))
     return await run()

@@ -10,6 +10,7 @@ import {
 } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
+import { DEFERRED_INTERRUPT_BOUND_MS, deferInterrupts } from '#sim-cli/terminal/interrupts'
 import { setSoftExitCode } from '../../embed-context'
 import type {
   ApplyWorkflowSourceBody,
@@ -205,7 +206,9 @@ type SourceWriteOperation = 'applyWorkflowSource' | 'createWorkflowFromSource'
 /**
  * The shared write flow of `apply` and `create`: refuse a write without consent when no terminal
  * can ask, preview and ask on a terminal, send, print the diagnostics, and after a successful
- * write save it into the directory with the caller's `save`.
+ * write save it into the directory with the caller's `save`. From the send through the save an
+ * interrupt waits for them ({@link deferInterrupts}), so Ctrl-C never strands a stored write the
+ * directory did not record.
  */
 async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   options: SourceWriteOptions
@@ -258,12 +261,21 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
     }
   }
 
-  const data = await send(options.dryRun === true)
-  printFindings(data, printed)
-  const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
-  if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
-
-  if (!data.dryRun && !refused && (data.applied || !creating)) await args.save(data)
+  const verb = creating ? 'create' : 'apply'
+  const sendAndSave = async (): Promise<SourceApplyData> => {
+    const data = await send(options.dryRun === true)
+    printFindings(data, printed)
+    const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+    if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
+    if (!data.dryRun && !refused && (data.applied || !creating)) await args.save(data)
+    return data
+  }
+  const data = options.dryRun
+    ? await sendAndSave()
+    : await deferInterrupts(sendAndSave, {
+        waiting: `Interrupted: the ${verb} was already sent. Waiting up to ${DEFERRED_INTERRUPT_BOUND_MS / 1000}s for its answer and saving it into ${options.dir}, so the directory matches the workflow; press Ctrl-C again to stop now.`,
+        abandoned: `Stopped before the ${verb} answered. ${args.ifAnswerLost}`,
+      })
 
   printProtocolResult(args.output, {
     ...summarize(data, creating),
