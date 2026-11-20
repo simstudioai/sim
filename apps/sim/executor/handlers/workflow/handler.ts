@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import type { Variable, WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
+import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
 import {
   inheritFailureMarks,
   markFailureKind,
@@ -193,6 +194,18 @@ type WorkflowTraceSpan = TraceSpan & {
  * Handler for workflow blocks that execute other workflows inline.
  * Creates sub-execution contexts and manages data flow between parent and child workflows.
  */
+/**
+ * A child workflow read refused because the run's delegation does not reach it, named for what
+ * that almost always means: the workflow block names a workflow of another workspace (a raw id
+ * copied across workspaces). Any other error is returned as it is.
+ */
+function childReadError(error: unknown, workflowId: string): unknown {
+  if (!(error instanceof DelegatedWorkspaceAuthorizationError)) return error
+  return new Error(
+    `Child workflow ${workflowId} is not in this workspace, or this run may no longer read it: a workflow block runs only workflows of its own workspace.`
+  )
+}
+
 export class WorkflowBlockHandler implements BlockHandler {
   private serializer = new Serializer()
 
@@ -1307,7 +1320,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         logger.warn(`Child workflow ${workflowId} not found`)
         return null
       }
-      throw error
+      throw childReadError(error, workflowId)
     }
 
     const workflowData = definition.workflow
@@ -1365,6 +1378,9 @@ export class WorkflowBlockHandler implements BlockHandler {
       })
       return definition.state !== null
     } catch (error) {
+      if (error instanceof DelegatedWorkspaceAuthorizationError) {
+        throw childReadError(error, workflowId)
+      }
       logger.error('Failed to check child deployment', {
         errorName: toError(error).name,
         hasWorkflowId: workflowId.length > 0,
@@ -1385,7 +1401,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       if (asOrchestrationError(error)?.code === 'not_found') {
         return null
       }
-      throw error
+      throw childReadError(error, workflowId)
     }
 
     const deployedState = definition.state

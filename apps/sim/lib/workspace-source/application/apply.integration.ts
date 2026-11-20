@@ -1604,6 +1604,64 @@ export default workflow('Notes', {}, () => {
     }
   )
 
+  check(
+    'refuses a workflow naming by id a table or child workflow of another workspace, and accepts its own',
+    async () => {
+      const other = await newWorkspace()
+      const theirs = await apply(other, STARTER)
+      expect(theirs.failed).toBeUndefined()
+      const workspaceId = await newWorkspace()
+      const ours = await apply(workspaceId, STARTER)
+      expect(ours.failed).toBeUndefined()
+      const probe = (tableId: string, workflowId: string) => ({
+        'workflows/probe/workflow.ts': `// @sim-sdk 1
+import { runWorkflow, table, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Probe', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { email: 'string' } })
+  const save = table.insertRow('Save Lead', {
+    tableId: '${tableId}',
+    data: { email: start.email },
+  })
+  const child = runWorkflow('Child', { workflowId: '${workflowId}' })
+
+  start.to(save)
+  save.to(child)
+})
+`,
+      })
+      const idOf = (result: typeof ours, address: keyof typeof ours.base.resources) =>
+        result.base.resources[address]?.id ?? ''
+
+      const refused = await refusal(
+        apply(workspaceId, probe(idOf(theirs, 'table:leads'), idOf(theirs, 'workflow:ingest')), {
+          base: ours.base,
+        })
+      )
+
+      const foreign = refused.diagnostics.filter(
+        (finding) => finding.code === 'E_MAT_UNKNOWN_RESOURCE'
+      )
+      expect(foreign.map((finding) => finding.message).sort()).toEqual([
+        expect.stringContaining(`No table "${idOf(theirs, 'table:leads')}" in this workspace`),
+        expect.stringContaining(
+          `No workflow "${idOf(theirs, 'workflow:ingest')}" in this workspace`
+        ),
+      ])
+      expect(foreign.map((finding) => finding.file)).toEqual([
+        'workflows/probe/workflow.ts',
+        'workflows/probe/workflow.ts',
+      ])
+
+      const own = await apply(
+        workspaceId,
+        probe(idOf(ours, 'table:leads'), idOf(ours, 'workflow:ingest')),
+        { kinds: ['workflow'], only: ['workflow'], dryRun: true }
+      )
+      expect(codes(own.diagnostics)).toEqual([])
+    }
+  )
+
   check('a workflow may use a table the same apply adopts', async () => {
     const workspaceId = await newWorkspace()
     const { table: unbound } = await tableUseCases.createTableUseCase.execute({

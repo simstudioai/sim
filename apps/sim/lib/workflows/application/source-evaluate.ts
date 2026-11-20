@@ -53,6 +53,7 @@ import {
   lintDiagnostics,
   normalizeChangedValues,
 } from '@/lib/workflows/application/source-locate'
+import { foreignResourceRefusals } from '@/lib/workflows/application/source-resource-scope'
 import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
 import { gateSourceDiff } from '@/lib/workflows/code/apply/gates'
 import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
@@ -1052,12 +1053,20 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     changedIds,
     keyOfId
   )
+  const foreignIds = await foreignResourceRefusals({
+    blocks,
+    diff: graphDiff,
+    workspaceId: scope.workspaceId,
+    pendingIds: new Set((input.pendingResources ?? []).map((entry) => entry.id)),
+    keyOf: keyOfId,
+  })
   const diagnostics = [
     ...entryRefs.diagnostics,
     ...keptDiagnostics,
     ...materializeDiagnostics,
     ...refusals,
     ...normalized.diagnostics,
+    ...foreignIds,
     ...lintDiagnostics(entryRefs.lint, changedIds, keyOfId),
   ].map(locate)
   if (hasErrors(diagnostics)) {
