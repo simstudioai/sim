@@ -10,9 +10,13 @@ import {
   SOURCE_STALE_EXIT_CODE,
   SOURCE_TOO_LARGE_EXIT_CODE,
 } from '../../exit-codes'
+import { DEFERRED_INTERRUPT_BOUND_MS } from '#sim-cli/terminal/interrupts'
 
 /** The status a shell reports for a command Ctrl-C ended (128 + SIGINT). */
 const INTERRUPTED_EXIT_CODE = 130
+
+/** How long an interrupted write waits for its answer before it stops without it. */
+const DEFERRED_SECONDS = DEFERRED_INTERRUPT_BOUND_MS / 1000
 
 /**
  * Every exit code of the `workflows source` and `workspaces source` commands, as the Markdown
@@ -81,7 +85,7 @@ export function sourceExitCodesTable(
     ],
     [
       INTERRUPTED_EXIT_CODE,
-      'Interrupted (Ctrl-C). An apply or create already sent is finished and saved into the directory first; a second Ctrl-C stops at once and prints that it may have been written',
+      `Interrupted (Ctrl-C). An apply or create already sent is finished and saved into the directory first, waiting up to ${DEFERRED_SECONDS}s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written`,
       `\`${prefix} status --dir .\``,
     ],
   ]
@@ -96,5 +100,6 @@ export function sourceExitCodesTable(
 export const SOURCE_WRITE_EXIT_CODES_HELP = `
 Exit ${AUTH_REQUIRED_EXIT_CODE}: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent.
 Run \`sim login\`, or fix or unset SIM_API_KEY when the key comes from it. Exit ${INTERRUPTED_EXIT_CODE}: interrupted
-(Ctrl-C). A write already sent is finished and saved into the directory first; a second Ctrl-C
-stops at once and prints that it may have been written and how to check.`
+(Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to
+${DEFERRED_SECONDS}s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may
+have been written and how to check.`
