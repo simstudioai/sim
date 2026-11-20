@@ -68,8 +68,9 @@ interface ReportExtras {
 /**
  * How many warnings and infos one compile builds, and how long their text runs: the defaults of
  * the bound every answer applies (`FINDING_LIMITS`). These stop work, not only trim a list: a
- * warning past them never computes its code frame or did-you-mean, and a message never holds more
- * of the source it quotes than an answer could show.
+ * warning past them computes no did-you-mean unless read, and no code frame unless it is a
+ * refusable one kept back (one per code, block and file); a message never holds more of the
+ * source it quotes than an answer could show.
  */
 const {
   perSeverity: MAX_LISTED,
