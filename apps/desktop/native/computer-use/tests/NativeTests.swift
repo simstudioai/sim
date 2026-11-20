@@ -57,6 +57,9 @@ import AppKit
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", id: "r1", clearDue: true, due: "2027-05-04")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", completed: true)) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_event", id: "e1")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_contact", id: "c1")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_contact", id: "c1", emails: ["not-an-email"])) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_contact", id: "c1", phones: ["1", "2", "3", "4", "5", "6"])) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_event", id: "e1", title: " ")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "find_events", from: "2027-06-01")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "find_events", from: "2027-06-01", to: "2027-08-01")) }

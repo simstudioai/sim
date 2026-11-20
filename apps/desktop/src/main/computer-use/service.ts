@@ -62,6 +62,8 @@ const APP_COMMAND_APPS: Record<AppCommand['name'], string> = {
   list_contact_groups: 'com.apple.AddressBook',
   create_contact_group: 'com.apple.AddressBook',
   create_contact: 'com.apple.AddressBook',
+  find_contacts: 'com.apple.AddressBook',
+  update_contact: 'com.apple.AddressBook',
 }
 
 const PRIORITY_NAMES: Record<number, string> = { 1: 'High', 5: 'Medium', 9: 'Low' }
@@ -80,7 +82,7 @@ function chosenDestination(
     return { id: command.listId, list: 'list_reminder_lists' }
   if (command.name === 'create_event' && command.calendarId)
     return { id: command.calendarId, list: 'list_calendars' }
-  if (command.name === 'create_contact' && command.groupId)
+  if ((command.name === 'create_contact' || command.name === 'update_contact') && command.groupId)
     return { id: command.groupId, list: 'list_contact_groups' }
   return null
 }
@@ -90,10 +92,13 @@ type ReminderItem = NonNullable<CommandResult['reminders']>[number]
 type EventItem = NonNullable<CommandResult['events']>[number]
 type Change = [label: string, before: string | undefined, after: string]
 
-/** An update as the user approves it, and the values the helper must still find before it writes. */
+/**
+ * An update as the user approves it, and the values the helper must still find before it writes;
+ * a contact update only adds, so it has none to check.
+ */
 interface UpdateApproval {
   summary: string
-  expected: Record<string, unknown>
+  expected?: Record<string, unknown>
 }
 
 /**
@@ -104,13 +109,21 @@ function oneLine(value: string): string {
   return value.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').trim()
 }
 
-/** Which item, then each changed field's current and new value, since nothing happens on screen. */
-function changeSummary(header: Array<[label: string, value: string]>, changes: Change[]): string {
+/**
+ * Which item, then each changed field's current and new value, then anything only added, since
+ * nothing happens on screen.
+ */
+function changeSummary(
+  header: Array<[label: string, value: string]>,
+  changes: Change[],
+  additions: Array<[label: string, value: string | undefined]> = []
+): string {
   return [
     ...header.map(([label, value]) => `${label}: ${oneLine(value)}`),
     ...changes.map(
       ([label, before, after]) => `${label}: ${oneLine(before || 'none')} → ${oneLine(after)}`
     ),
+    ...additions.flatMap(([label, value]) => (value ? [`${label}: ${oneLine(value)}`] : [])),
   ].join('\n')
 }
 
@@ -615,6 +628,25 @@ export class ComputerUseService {
           eventChanges(command, current)
         ),
         expected: omit(current, ['id', 'list', 'allDay', 'recurring']),
+      }
+    }
+    if (command.name === 'update_contact') {
+      const found = await this.appCommand({ name: 'find_contacts', id: command.id })
+      this.check(work)
+      const current = found.contacts?.find((item) => item.id === command.id)
+      if (!current) throw notFound('contact', 'find_contacts')
+      const header: Array<[string, string]> = [['Contact', current.title]]
+      if (current.organization) header.push(['Organization', current.organization])
+      return {
+        summary: changeSummary(
+          header,
+          [],
+          [
+            ['Add emails', command.emails?.map((email) => email.trim()).join(', ')],
+            ['Add phones', command.phones?.map((phone) => phone.trim()).join(', ')],
+            ['Add to group', await this.destinationName(command, work)],
+          ]
+        ),
       }
     }
     return undefined

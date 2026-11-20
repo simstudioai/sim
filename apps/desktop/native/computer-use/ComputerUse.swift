@@ -56,12 +56,13 @@ struct Expectation: Decodable {
     var notes: String?
 }
 /// One allowlisted app command. Commands go through EventKit and Contacts, never Apple Events or
-/// scripts, so they cannot reach a shell; each is a typed create, a bounded read, or a reminder or
-/// event update by id. Nothing is ever deleted.
+/// scripts, so they cannot reach a shell; each is a typed create, a bounded read, a reminder or
+/// event update by id, or additions to a contact. Nothing is ever deleted or overwritten on a contact.
 struct AppCommand: Decodable {
     var name: String
     var id: String?
     var titleContains: String?
+    var nameContains: String?
     var from: String?
     var to: String?
     var includeCompleted: Bool?
@@ -275,6 +276,26 @@ func checkEventSpan(_ start: Date, _ end: Date, allDay: Bool) throws {
         throw invalidCommand("An event can last at most 31 days.")
     }
 }
+/// The keys a contact read or confirmation needs: its name, organization, emails and phones.
+let contactReadKeys: [CNKeyDescriptor] = [
+    CNContactFormatter.descriptorForRequiredKeys(for: .fullName), CNContactOrganizationNameKey as CNKeyDescriptor,
+    CNContactEmailAddressesKey as CNKeyDescriptor, CNContactPhoneNumbersKey as CNKeyDescriptor,
+]
+/// A contact as reads report it: its name only, never its emails, phones or notes.
+func contactItem(_ contact: CNContact) -> [String: Any] {
+    let name = CNContactFormatter.string(from: contact, style: .fullName) ?? ""
+    var item: [String: Any] = ["id": contact.identifier, "title": bounded(name.isEmpty ? contact.organizationName : name, 1024)]
+    if !contact.organizationName.isEmpty { item["organization"] = bounded(contact.organizationName, 1024) }
+    return item
+}
+/// Emails and phones a command adds, checked as a create checks them.
+func contactValues(_ command: AppCommand) throws -> (emails: [String], phones: [String]) {
+    let emails = try (command.emails ?? []).map { try commandText($0, "Email", max: 320) }
+    let phones = try (command.phones ?? []).map { try commandText($0, "Phone", max: 64) }
+    guard emails.count <= 5, phones.count <= 5 else { throw invalidCommand("A contact takes at most 5 emails and 5 phones.") }
+    guard emails.allSatisfy({ $0.contains("@") }) else { throw invalidCommand("Each email needs an @.") }
+    return (emails, phones)
+}
 func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -> [String: Any] {
     switch command.name {
     case "update_reminder":
@@ -385,6 +406,49 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
         inputDispatched = true
         try store.save(event, span: .thisEvent, commit: true)
         return ["kind": "command", "command": command.name, "updated": ["id": event.eventIdentifier ?? id, "title": bounded(event.title ?? "", 1024), "list": bounded(event.calendar.title, 1024)]]
+    case "find_contacts":
+        let store = try contactStore()
+        if let id = command.id {
+            let found = try? store.unifiedContact(withIdentifier: id, keysToFetch: contactReadKeys)
+            return ["kind": "command", "command": command.name, "contacts": found.map { [contactItem($0)] } ?? [], "truncated": false]
+        }
+        let name = try commandText(command.nameContains, "nameContains", max: 256)
+        guard name.count >= 2 else { throw invalidCommand("nameContains needs at least 2 characters.") }
+        let matches = try store.unifiedContacts(matching: CNContact.predicateForContacts(matchingName: name), keysToFetch: contactReadKeys)
+        return ["kind": "command", "command": command.name, "contacts": matches.prefix(50).map(contactItem), "truncated": matches.count > 50]
+    case "update_contact":
+        let id = try commandText(command.id, "id", max: 256)
+        let (emails, phones) = try contactValues(command)
+        guard !emails.isEmpty || !phones.isEmpty || command.groupId != nil else { throw invalidCommand("An update needs an email, phone or group to add.") }
+        let store = try contactStore()
+        guard let contact = try? store.unifiedContact(withIdentifier: id, keysToFetch: contactReadKeys), let changed = contact.mutableCopy() as? CNMutableContact else {
+            throw ComputerError("not_found", "No contact has this id; call find_contacts.", dispatchState: "not_started")
+        }
+        var group: CNGroup?
+        if let groupId = command.groupId {
+            guard let found = try store.groups(matching: CNGroup.predicateForGroups(withIdentifiers: [groupId])).first else {
+                throw ComputerError("list_unavailable", "No contact group has this id; call list_contact_groups.", dispatchState: "not_started")
+            }
+            // A group's members must live in the group's own account.
+            let groupAccount = try store.containers(matching: CNContainer.predicateForContainerOfGroup(withIdentifier: found.identifier)).first?.identifier
+            let contactAccount = try store.containers(matching: CNContainer.predicateForContainerOfContact(withIdentifier: contact.identifier)).first?.identifier
+            guard groupAccount != nil, groupAccount == contactAccount else {
+                throw ComputerError("group_other_account", "This group is in a different account from the contact; add it in Contacts.", dispatchState: "not_started")
+            }
+            group = found
+        }
+        // Only additions: existing values stay, and a value the contact already has is not added twice.
+        let knownEmails = Set(contact.emailAddresses.map { ($0.value as String).lowercased() })
+        let knownPhones = Set(contact.phoneNumbers.map { $0.value.stringValue.filter(\.isNumber) })
+        changed.emailAddresses += emails.filter { !knownEmails.contains($0.lowercased()) }.map { CNLabeledValue(label: CNLabelWork, value: $0 as NSString) }
+        changed.phoneNumbers += phones.filter { !knownPhones.contains($0.filter(\.isNumber)) }.map { CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: $0)) }
+        let request = CNSaveRequest(); request.update(changed)
+        if let group { request.addMember(contact, to: group) }
+        try checkCancellation()
+        inputDispatched = true
+        try store.execute(request)
+        let item = contactItem(contact)
+        return ["kind": "command", "command": command.name, "updated": ["id": contact.identifier, "title": item["title"] ?? "", "list": bounded(group?.name ?? "Contacts", 1024)]]
     case "list_reminder_lists":
         let allLists = try remindersStore().calendars(for: .reminder)
         let lists = allLists.prefix(200).map { list -> [String: Any] in
@@ -473,10 +537,7 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
         let given = try optionalText(command.givenName, "Given name"), family = try optionalText(command.familyName, "Family name")
         let organization = try optionalText(command.organization, "Organization"), jobTitle = try optionalText(command.jobTitle, "Job title")
         guard given != nil || family != nil || organization != nil else { throw invalidCommand("A contact needs a name or an organization.") }
-        let emails = try (command.emails ?? []).map { try commandText($0, "Email", max: 320) }
-        let phones = try (command.phones ?? []).map { try commandText($0, "Phone", max: 64) }
-        guard emails.count <= 5, phones.count <= 5 else { throw invalidCommand("A contact takes at most 5 emails and 5 phones.") }
-        guard emails.allSatisfy({ $0.contains("@") }) else { throw invalidCommand("Each email needs an @.") }
+        let (emails, phones) = try contactValues(command)
         let store = try contactStore()
         var group: CNGroup?
         if let groupId = command.groupId {
