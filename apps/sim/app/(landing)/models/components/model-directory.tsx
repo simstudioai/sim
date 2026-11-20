@@ -134,7 +134,7 @@ export function ModelDirectory() {
           <h3 className='text-[18px] text-[var(--text-primary)]'>No matches found</h3>
           <p className='mt-2 text-[var(--text-muted)] text-sm leading-[150%]'>
             Try a provider name like OpenAI or Anthropic, or search for capabilities like
-            &nbsp;structured outputs, reasoning, or deep research.
+            &nbsp;structured outputs, reasoning, or tool choice.
           </p>
         </div>
       ) : (

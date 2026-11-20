@@ -135,6 +135,8 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
   slack_v2: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
   /** Google Ads moved API access to the OAuth client's Cloud project and retired developer tokens. */
   google_ads: [{ from: 'developerToken', to: '_removed_developerToken' }],
+  /** Google shut down the Deep Research agent, the only model that read a previous interaction. */
+  agent: [{ from: 'previousInteractionId', to: '_removed_previousInteractionId' }],
   /** Help Scout triggers now register their own webhook and generate its signing secret. */
   helpscout: [{ from: 'webhookSecret', to: '_removed_webhookSecret' }],
   instagram: [{ from: 'metrics', to: 'insightMetrics' }],

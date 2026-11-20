@@ -235,8 +235,15 @@ export function formatCapabilityBoolean(
   return value ? positive : negative
 }
 
-function supportsCatalogStructuredOutputs(capabilities: ModelCapabilities): boolean {
-  return !capabilities.deepResearch
+/**
+ * A retired model accepts no requests, and evaluation models answer native questions and reject a
+ * response format.
+ */
+function supportsCatalogStructuredOutputs(
+  capabilities: ModelCapabilities,
+  retired: boolean
+): boolean {
+  return !retired && !capabilities.evaluation
 }
 
 export function getEffectiveMaxOutputTokens(capabilities: ModelCapabilities): number | null {
@@ -385,7 +392,7 @@ function formatModelDisplayName(providerId: string, modelId: string): string {
   return displayName.replace(/^GPT (\d[\w.]*)/i, 'GPT-$1').replace(/\bGpt\b/g, 'GPT')
 }
 
-function buildCapabilityTags(capabilities: ModelCapabilities): string[] {
+function buildCapabilityTags(capabilities: ModelCapabilities, retired: boolean): string[] {
   const tags: string[] = []
 
   if (capabilities.temperature) {
@@ -396,16 +403,12 @@ function buildCapabilityTags(capabilities: ModelCapabilities): string[] {
     tags.push('Tool choice')
   }
 
-  if (supportsCatalogStructuredOutputs(capabilities)) {
+  if (supportsCatalogStructuredOutputs(capabilities, retired)) {
     tags.push('Structured outputs')
   }
 
   if (capabilities.computerUse) {
     tags.push('Computer use')
-  }
-
-  if (capabilities.deepResearch) {
-    tags.push('Deep research')
   }
 
   if (capabilities.reasoningEffort) {
@@ -437,10 +440,6 @@ function buildBestForLine(model: {
   contextWindow: number | null
 }): string | null {
   const { pricing, capabilities, contextWindow } = model
-
-  if (capabilities.deepResearch) {
-    return 'Best for multi-step research workflows and agent-led web investigation.'
-  }
 
   if (capabilities.reasoningEffort || capabilities.thinking) {
     return 'Best for reasoning-heavy tasks that need more deliberate model control.'
@@ -484,7 +483,6 @@ function computeModelRelevanceScore(model: CatalogModel): number {
   return (
     (model.capabilities.reasoningEffort ? 10 : 0) +
     (model.capabilities.thinking ? 10 : 0) +
-    (model.capabilities.deepResearch ? 8 : 0) +
     (model.capabilities.nativeStructuredOutputs ? 4 : 0) +
     (model.contextWindow ?? 0) / 100000
   )
@@ -503,12 +501,13 @@ function compareModelsByRelevance(a: CatalogModel, b: CatalogModel): number {
 const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
   const providerSlug = slugify(provider.id)
   const providerDisplayName = provider.name
-  const providerCapabilityTags = buildCapabilityTags(provider.capabilities ?? {})
+  const providerCapabilityTags = buildCapabilityTags(provider.capabilities ?? {}, false)
 
   const models: CatalogModel[] = provider.models.map((model) => {
     const shortId = stripProviderPrefix(provider.id, model.id)
     const mergedCapabilities = { ...provider.capabilities, ...model.capabilities }
-    const capabilityTags = buildCapabilityTags(mergedCapabilities)
+    const retired = model.sunset?.status === 'deprecated'
+    const capabilityTags = buildCapabilityTags(mergedCapabilities, retired)
     const bestFor = buildBestForLine({
       pricing: model.pricing,
       capabilities: mergedCapabilities,
@@ -530,7 +529,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
       contextWindow: model.contextWindow ?? null,
       releaseDate: model.releaseDate ?? null,
       deprecated: !!model.sunset,
-      retired: model.sunset?.status === 'deprecated',
+      retired,
       featured: model.featured ?? false,
       recommended: model.recommended ?? false,
       pricing: model.pricing,
@@ -825,7 +824,7 @@ export function buildModelFaqs(provider: CatalogProvider, model: CatalogModel): 
 
 export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[] {
   const { capabilities } = model
-  const supportsStructuredOutputs = supportsCatalogStructuredOutputs(capabilities)
+  const supportsStructuredOutputs = supportsCatalogStructuredOutputs(capabilities, model.retired)
 
   return [
     {
@@ -867,10 +866,6 @@ export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[]
     {
       label: 'Computer use',
       value: formatCapabilityBoolean(capabilities.computerUse),
-    },
-    {
-      label: 'Deep research',
-      value: formatCapabilityBoolean(capabilities.deepResearch),
     },
     {
       label: 'Memory support',

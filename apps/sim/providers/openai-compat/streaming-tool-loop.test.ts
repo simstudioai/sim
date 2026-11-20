@@ -546,7 +546,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
     await expect(collectStream(stream)).rejects.toMatchObject({ name: 'AbortError' })
     expect(createStream).toHaveBeenCalledTimes(1)
     expect(onComplete).toHaveBeenLastCalledWith(
-      expect.objectContaining({ tokens: { input: 5, output: 3, total: 8 } })
+      expect.objectContaining({ tokens: { input: 5, output: 3, cacheRead: 0, total: 8 } })
     )
   })
 
@@ -688,7 +688,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
     expect(onComplete).toHaveBeenCalledWith(
       expect.objectContaining({
         content: 'Truncated answer',
-        tokens: { input: 7, output: 9, total: 16 },
+        tokens: { input: 7, output: 9, cacheRead: 0, total: 16 },
         iterations: 1,
       })
     )

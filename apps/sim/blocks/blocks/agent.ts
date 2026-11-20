@@ -16,7 +16,6 @@ import {
   getBaseModelProviders,
   getEvaluationModels,
   getMaxTemperature,
-  getModelsWithDeepResearch,
   getModelsWithoutMemory,
   getModelsWithPromptCaching,
   getModelsWithReasoningEffort,
@@ -38,10 +37,8 @@ const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 const MODELS_WITH_THINKING = getModelsWithThinking()
 const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
-const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 const EVALUATION_MODELS = getEvaluationModels()
-const MODELS_WITHOUT_CHAT_CONTROLS = [...MODELS_WITH_DEEP_RESEARCH, ...EVALUATION_MODELS]
 
 // Helper function to get the tool ID from a block type
 const getToolIdFromBlock = (blockType: string): string | undefined => {
@@ -272,7 +269,7 @@ Return ONLY the JSON array.`,
       defaultValue: [],
       condition: {
         field: 'model',
-        value: MODELS_WITHOUT_CHAT_CONTROLS,
+        value: EVALUATION_MODELS,
         not: true,
       },
     },
@@ -283,7 +280,7 @@ Return ONLY the JSON array.`,
       defaultValue: [],
       condition: {
         field: 'model',
-        value: MODELS_WITHOUT_CHAT_CONTROLS,
+        value: EVALUATION_MODELS,
         not: true,
       },
     },
@@ -355,16 +352,9 @@ Return ONLY the JSON array.`,
       mode: 'advanced',
       condition: () => ({
         field: 'model',
-        value: (() => {
-          const deepResearch = new Set(MODELS_WITH_DEEP_RESEARCH.map((m) => m.toLowerCase()))
-          const allModels = Object.keys(getBaseModelProviders())
-          return allModels.filter(
-            (model) =>
-              supportsTemperature(model) &&
-              getMaxTemperature(model) === 1 &&
-              !deepResearch.has(model.toLowerCase())
-          )
-        })(),
+        value: Object.keys(getBaseModelProviders()).filter(
+          (model) => supportsTemperature(model) && getMaxTemperature(model) === 1
+        ),
       }),
     },
     {
@@ -377,16 +367,9 @@ Return ONLY the JSON array.`,
       mode: 'advanced',
       condition: () => ({
         field: 'model',
-        value: (() => {
-          const deepResearch = new Set(MODELS_WITH_DEEP_RESEARCH.map((m) => m.toLowerCase()))
-          const allModels = Object.keys(getBaseModelProviders())
-          return allModels.filter(
-            (model) =>
-              supportsTemperature(model) &&
-              getMaxTemperature(model) === 1.5 &&
-              !deepResearch.has(model.toLowerCase())
-          )
-        })(),
+        value: Object.keys(getBaseModelProviders()).filter(
+          (model) => supportsTemperature(model) && getMaxTemperature(model) === 1.5
+        ),
       }),
     },
     {
@@ -399,16 +382,9 @@ Return ONLY the JSON array.`,
       mode: 'advanced',
       condition: () => ({
         field: 'model',
-        value: (() => {
-          const deepResearch = new Set(MODELS_WITH_DEEP_RESEARCH.map((m) => m.toLowerCase()))
-          const allModels = Object.keys(getBaseModelProviders())
-          return allModels.filter(
-            (model) =>
-              supportsTemperature(model) &&
-              getMaxTemperature(model) === 2 &&
-              !deepResearch.has(model.toLowerCase())
-          )
-        })(),
+        value: Object.keys(getBaseModelProviders()).filter(
+          (model) => supportsTemperature(model) && getMaxTemperature(model) === 2
+        ),
       }),
     },
     {
@@ -419,7 +395,7 @@ Return ONLY the JSON array.`,
       mode: 'advanced',
       condition: {
         field: 'model',
-        value: MODELS_WITHOUT_CHAT_CONTROLS,
+        value: EVALUATION_MODELS,
         not: true,
       },
     },
@@ -431,20 +407,10 @@ Return ONLY the JSON array.`,
       language: 'json',
       condition: {
         field: 'model',
-        value: MODELS_WITHOUT_CHAT_CONTROLS,
+        value: EVALUATION_MODELS,
         not: true,
       },
       wandConfig: RESPONSE_FORMAT_WAND_CONFIG,
-    },
-    {
-      id: 'previousInteractionId',
-      title: 'Previous Interaction ID',
-      type: 'short-input',
-      placeholder: 'e.g., {{agent_1.interactionId}}',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_DEEP_RESEARCH,
-      },
     },
     {
       ...getModelFallbackSubBlock(),
@@ -640,13 +606,5 @@ Return ONLY the JSON array.`,
       description: 'Provider timing information',
     },
     cost: { type: 'json', description: 'Cost of the API call' },
-    interactionId: {
-      type: 'string',
-      description: 'Interaction ID for multi-turn deep research follow-ups',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_DEEP_RESEARCH,
-      },
-    },
   },
 }

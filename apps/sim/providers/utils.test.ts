@@ -1384,7 +1384,6 @@ describe('Cost Calculation', () => {
     it.each([
       ['gemini-3.1-pro-preview', 2, 0.2, 12, 4, 0.4, 18],
       ['gemini-2.5-pro', 1.25, 0.125, 10, 2.5, 0.25, 15],
-      ['grok-4.6', 2, 0.5, 6, 4, 1, 12],
     ])(
       'applies %s long-context rates only above 200k prompt tokens, including cached input',
       (model, input, cached, output, longInput, longCached, longOutput) => {
@@ -1399,6 +1398,27 @@ describe('Cost Calculation', () => {
         expect(longContext.output).toBeCloseTo(longOutput * 0.1, 10)
         expect(shortCached.input).toBeCloseTo(cached * 0.2, 10)
         expect(longCachedCost.input).toBeCloseTo((longCached * 200_001) / 1e6, 10)
+      }
+    )
+
+    /** xAI bills the whole request at the long-context rate once the prompt reaches 200k tokens. */
+    it.each([
+      ['grok-4.6', 2, 0.5, 6, 4, 1, 12],
+      ['grok-4.3', 1.25, 0.2, 2.5, 2.5, 0.4, 5],
+    ])(
+      'applies %s long-context rates from 200k prompt tokens, including cached input',
+      (model, input, cached, output, longInput, longCached, longOutput) => {
+        const shortContext = calculateCost(model, 199_999, 100_000)
+        const longContext = calculateCost(model, 200_000, 100_000)
+        const shortCached = calculateCost(model, 199_999, 100_000, true)
+        const longCachedCost = calculateCost(model, 200_000, 100_000, true)
+
+        expect(shortContext.input).toBeCloseTo((input * 199_999) / 1e6, 10)
+        expect(shortContext.output).toBeCloseTo(output * 0.1, 10)
+        expect(longContext.input).toBeCloseTo(longInput * 0.2, 10)
+        expect(longContext.output).toBeCloseTo(longOutput * 0.1, 10)
+        expect(shortCached.input).toBeCloseTo((cached * 199_999) / 1e6, 10)
+        expect(longCachedCost.input).toBeCloseTo(longCached * 0.2, 10)
       }
     )
 
