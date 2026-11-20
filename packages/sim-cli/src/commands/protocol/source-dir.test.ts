@@ -132,6 +132,20 @@ describe('withSourceDirLock', () => {
     expect(existsSync(lock)).toBe(false)
   })
 
+  it('a failed command on a missing nested directory leaves none of the folders the lock created', async () => {
+    mkdirSync(join(dir, 'out'))
+    writeFileSync(join(dir, 'out', 'kept.txt'), 'kept')
+
+    await expect(
+      withSourceDirLock(join(dir, 'out', 'a', 'b'), async () => {
+        throw new Error('not found')
+      })
+    ).rejects.toThrow('not found')
+
+    expect(existsSync(join(dir, 'out', 'a'))).toBe(false)
+    expect(readFileSync(join(dir, 'out', 'kept.txt'), 'utf8')).toBe('kept')
+  })
+
   it('releases the lock when an interrupt ends the command holding it', () => {
     const script = `
       import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir/index.ts'))}

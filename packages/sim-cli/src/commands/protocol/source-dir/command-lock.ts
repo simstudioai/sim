@@ -6,7 +6,7 @@
 import type { Stats } from 'node:fs'
 import { lstat, mkdir, readFile, realpath, rm, rmdir, stat, writeFile } from 'node:fs/promises'
 import { hostname } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { toRecord } from '@sim/utils/object'
 import { embedStore } from '../../../embed-context'
 import { SOURCE_BUSY_EXIT_CODE } from '../../../exit-codes'
@@ -119,17 +119,18 @@ export async function withSourceDirLock<T>(
       () => false,
       () => true
     )
-  const createdDir = await absent(dir)
+  /** The outermost folder the lock created on the way to `dir`, when `dir` was missing. */
+  let createdFrom: string | undefined
   let root: string
   let records: string
   let createdRecords: boolean
   let lock: string
   let held = false
   try {
-    await mkdir(dir, { recursive: true })
+    createdFrom = await mkdir(dir, { recursive: true })
     root = await realpath(dir)
     records = await checkedPath(root, '.sim', new Set())
-    createdRecords = createdDir || (await absent(records))
+    createdRecords = createdFrom !== undefined || (await absent(records))
     await mkdir(records).catch((error: unknown) => {
       if (errorCode(error) !== 'EEXIST') throw error
     })
@@ -173,7 +174,20 @@ export async function withSourceDirLock<T>(
     await rm(await checkedPath(root, SOURCE_DIR_LOCK, new Set()), { recursive: true, force: true })
     // Folders the lock alone created go with it; one the command filled stays.
     if (createdRecords) await rmdir(records).catch(() => {})
-    if (createdDir) await rmdir(dir).catch(() => {})
+    if (createdFrom !== undefined) await removeEmptyFolders(dir, createdFrom)
+  }
+}
+
+/** Removes `dir` and each parent up to `outermost`, stopping at the first that is not empty. */
+async function removeEmptyFolders(dir: string, outermost: string): Promise<void> {
+  const last = resolve(outermost)
+  for (let folder = resolve(dir); ; folder = dirname(folder)) {
+    try {
+      await rmdir(folder)
+    } catch {
+      return
+    }
+    if (folder === last || dirname(folder) === folder) return
   }
 }
 
