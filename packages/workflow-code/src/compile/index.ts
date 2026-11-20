@@ -36,7 +36,7 @@ import { EdgeCollector } from './edges'
 import { referencedResultKind } from './function-returns'
 import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
-import { ErrorLimitReached, type Range, Reporter } from './report'
+import { ErrorLimitReached, type OmittedFinding, type Range, Reporter } from './report'
 import { checkSuspiciousName, collectBody, collisionSuffix } from './scope'
 import {
   checkCodeFileRefs,
@@ -115,6 +115,8 @@ export interface CompileResult {
    * what `refuseEditedFindings` reads beside `diagnostics`, so a cap never hides a refusal.
    */
   withheld: LocatedDiagnostic<CompileDiagnosticCode>[]
+  /** Every other warning the caps left out, by code and block, so a caller counts every finding. */
+  omitted: OmittedFinding[]
   /** Where each anchor sits, to map later server findings back to lines. */
   spans: Partial<Record<AnchorKey, SourceSpan>>
   /**
@@ -428,6 +430,7 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
     workflow: null,
     diagnostics: reporter.diagnostics,
     withheld: reporter.withheld,
+    omitted: reporter.omitted,
     spans: {},
     metaSpans: {},
     hints: { blocks: {} },
@@ -793,6 +796,7 @@ function compileEntry(
     workflow,
     diagnostics: reporter.diagnostics,
     withheld: reporter.withheld,
+    omitted: reporter.omitted,
     spans,
     metaSpans: ctx.metaSpans,
     hints,

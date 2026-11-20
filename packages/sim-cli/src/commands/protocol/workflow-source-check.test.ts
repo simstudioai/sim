@@ -469,6 +469,30 @@ describe('sim workflows source check', () => {
     expect(codes.filter((code) => code === 'I_FINDINGS_TRUNCATED')).toHaveLength(1)
   })
 
+  it('counts every literal secret it fails on, past the 20 of one code it lists', async () => {
+    cacheCatalog()
+    const bearer = `Bearer ${'sk-proj-'}${'Abc123Def456Ghi789Jkl012'}`
+    const calls = Array.from(
+      { length: 25 },
+      (_, index) =>
+        `  const call${index} = api('Call ${index}', { url: 'https://api.example.com/v1', method: 'GET', headers: [{ cells: { Key: 'Authorization', Value: '${bearer}' } }] })\n  start.to(call${index})`
+    ).join('\n')
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace('import { response,', 'import { api, response,').replace(
+        '  start.to(done)',
+        `${calls}\n  start.to(done)`
+      )
+    )
+
+    await check()
+
+    const answer = result()
+    expect(answer).toMatchObject({ errors: 25 })
+    const codes = (answer.diagnostics as Array<{ code: string }>).map((finding) => finding.code)
+    expect(codes.filter((code) => code === 'W_LITERAL_SECRET')).toHaveLength(20)
+  })
+
   it('fails a row write naming a column or select option the table does not declare', async () => {
     cacheCatalog()
     writeWorkspace()

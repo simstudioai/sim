@@ -20,6 +20,7 @@ import {
   parseWorkflowLock,
   raisedMessage,
   refuseEditedFindings,
+  refusesEdited,
   scriptName,
   startInputs,
   type Value,
@@ -435,7 +436,7 @@ export async function checkWorkflowDir(
   dir: string,
   catalog: BlockCatalog,
   options: { declarations?: WorkspaceDeclarations; strict: StrictMode; prefix?: string }
-): Promise<{ findings: CheckFinding[]; entry: string }> {
+): Promise<{ findings: CheckFinding[]; entry: string; unlisted: UnlistedCounts }> {
   const { lock, files, compiled, storedBlocks, printedWith } = await compileWorkflowDir(
     dir,
     catalog,
@@ -576,7 +577,25 @@ export async function checkWorkflowDir(
       ...(span ? { file: `${prefix}${span.file}`, line: span.line, column: span.column } : {}),
     }
   })
-  return { findings, entry: entryText }
+  // The warnings the compile's caps left out are counted as the listed ones would be: one a
+  // refusal raised is listed already.
+  const unlisted: UnlistedCounts = { errors: 0, warnings: 0 }
+  const edit = { changed, codeEdited }
+  for (const { code, blockKey } of [
+    ...compiled.omitted,
+    ...compiled.withheld.filter((finding) => !refusable(finding) || !refusesEdited(finding, edit)),
+  ]) {
+    if (!reported(code, blockKey)) continue
+    if (fails(code, blockKey)) unlisted.errors++
+    else unlisted.warnings++
+  }
+  return { findings, entry: entryText, unlisted }
+}
+
+/** Findings a check counts but does not list: those the compile's caps left out. */
+interface UnlistedCounts {
+  errors: number
+  warnings: number
 }
 
 /**
@@ -588,17 +607,19 @@ export function reportCheck(
   output: Parameters<typeof printProtocolResult>[0],
   findings: CheckFinding[],
   result: Record<string, unknown>,
-  options: { verbose?: boolean; bound?: AnswerBound } = {}
+  options: { verbose?: boolean; bound?: AnswerBound; unlisted?: UnlistedCounts } = {}
 ): void {
   const shown = findingsOutput(output, options.verbose)
   const listed = boundAnswerFindings(findings, options.bound)
   shown.print(listed)
-  const errors = findings.filter((finding) => finding.severity === 'error').length
+  const unlisted = options.unlisted ?? { errors: 0, warnings: 0 }
+  const errors = findings.filter((finding) => finding.severity === 'error').length + unlisted.errors
   if (errors > 0) setSoftExitCode(1)
   printProtocolResult(output, {
     checked: 'compile',
     errors,
-    warnings: findings.filter((finding) => finding.severity === 'warning').length,
+    warnings:
+      findings.filter((finding) => finding.severity === 'warning').length + unlisted.warnings,
     ...result,
     ...shown.result(listed),
   })

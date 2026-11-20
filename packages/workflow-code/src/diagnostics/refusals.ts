@@ -189,6 +189,11 @@ function refusalOf(finding: LocatedDiagnostic, edit: EditedBlocks): EditRefusalC
   return inCode && edit.codeEdited(blockKey, span.file) ? inCode : undefined
 }
 
+/** Whether the apply refuses `finding` (a compile warning), given what the edit changed. */
+export function refusesEdited(finding: LocatedDiagnostic, edit: EditedBlocks): boolean {
+  return refusalOf(finding, edit) !== undefined
+}
+
 /**
  * A compile's findings with every warning the apply refuses on an edited block raised to its
  * error code (see the module doc). `withheld`, the refusable warnings the compile's caps left
