@@ -306,6 +306,56 @@ describe('native computer use authority and lifecycle', () => {
     })
   })
 
+  it('confirms an event update against its current times, and refuses a repeating event first', async () => {
+    const { service, native, confirmAppCommand } = setup()
+    native.request.mockImplementation(async (method, params): Promise<ComputerUseResult> => {
+      if (method !== 'app_command') return { kind: 'apps', apps: [] }
+      const command = params?.command as { name: string; id: string }
+      if (command.name === 'find_events')
+        return {
+          kind: 'command',
+          command: 'find_events',
+          events: [
+            {
+              id: command.id,
+              title: 'Flight',
+              list: 'Travel',
+              start: '2027-06-09T07:15:00',
+              end: '2027-06-09T08:10:00',
+              allDay: false,
+              recurring: command.id === 'weekly',
+            },
+          ],
+          truncated: false,
+        }
+      return {
+        kind: 'command',
+        command: 'update_event',
+        updated: { id: command.id, title: 'Flight', list: 'Travel' },
+      }
+    })
+    const update = (id: string) => ({
+      action: 'app_command',
+      command: { name: 'update_event', id, start: '2027-06-09T09:15', end: '2027-06-09T10:10' },
+    })
+
+    await expect(service.execute('weekly', 'chat', update('weekly'))).rejects.toMatchObject({
+      details: { code: 'recurring_unsupported', dispatchState: 'not_started' },
+    })
+    expect(confirmAppCommand).not.toHaveBeenCalled()
+
+    await service.execute('moved', 'chat', update('e1'))
+    expect(confirmAppCommand.mock.calls[0]?.[0]).toMatchObject({
+      change: 'update',
+      summary:
+        'Event: Flight\nCalendar: Travel\nStarts: 2027-06-09T07:15:00 → 2027-06-09T09:15\nEnds: 2027-06-09T08:10:00 → 2027-06-09T10:10',
+    })
+    expect(native.request.mock.lastCall?.[1]).toEqual({
+      command: update('e1').command,
+      expected: { title: 'Flight', start: '2027-06-09T07:15:00', end: '2027-06-09T08:10:00' },
+    })
+  })
+
   it('refuses an app command when the user denies the app, before asking to confirm', async () => {
     const { service, native, approveApp, confirmAppCommand } = setup()
     approveApp.mockResolvedValue('deny')
