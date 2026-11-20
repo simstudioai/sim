@@ -311,7 +311,7 @@ async function planKnowledgeBase(
         const refused = refuseUnreadAdopt(
           change,
           resource,
-          changes.fields.filter((field) => !field.endsWith(' (add)'))
+          changes.fields.filter((field) => !changes.additions.includes(field))
         )
         if (refused) return refused
       }

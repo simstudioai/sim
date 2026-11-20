@@ -529,7 +529,7 @@ function changedOnAdopt(
   rows: RowsOutcome,
   state: StoredTableState
 ): string[] {
-  const fields = changes.fields.filter((field) => !field.endsWith(' (add)'))
+  const fields = changes.fields.filter((field) => !changes.additions.includes(field))
   const rowsChanged =
     rows.plan !== undefined &&
     state.table.rowCount > 0 &&
