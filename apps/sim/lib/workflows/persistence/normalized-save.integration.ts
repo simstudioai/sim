@@ -368,6 +368,26 @@ describe('saveWorkflowToNormalizedTables', () => {
     expect(loaded?.edges.map((edge) => edge.id)).toEqual([`${workflowId}-z`, `${workflowId}-a`])
   })
 
+  it('saves and reloads a workflow at the 10,000-edge source limit, in order', async () => {
+    const workflowId = await insertWorkflow()
+    const blocks = ['b1', 'b2'].map((id, index) =>
+      functionBlock(`${workflowId}-${id}`, `Block ${index}`, index * 100)
+    )
+    const [first, second] = blocks.map((block) => block.id)
+    const edges = Array.from({ length: 10_000 }, (_, index) => ({
+      id: `${workflowId}-e${String(9_999 - index).padStart(5, '0')}`,
+      source: first,
+      target: second,
+    }))
+
+    expect(await saveWorkflowToNormalizedTables(workflowId, stateOf(blocks, edges))).toEqual({
+      success: true,
+    })
+    const loaded = await loadWorkflowFromNormalizedTablesRaw(workflowId)
+
+    expect(loaded?.edges.map((edge) => edge.id)).toEqual(edges.map((edge) => edge.id))
+  })
+
   it('refuses a block id another workflow owns and leaves the stored graph as it was', async () => {
     const owner = await insertWorkflow()
     const workflowId = await insertWorkflow()

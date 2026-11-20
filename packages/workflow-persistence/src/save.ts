@@ -1,6 +1,7 @@
 import { db, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { chunkArray } from '@sim/utils/helpers'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import {
   normalizeWorkflowEdgeSourceHandle,
@@ -21,6 +22,12 @@ type GraphTable = typeof workflowBlocks | typeof workflowEdges | typeof workflow
 type BlockRow = InferInsertModel<typeof workflowBlocks>
 type EdgeRow = InferInsertModel<typeof workflowEdges>
 type SubflowRow = InferInsertModel<typeof workflowSubflows>
+
+/**
+ * Edges one insert writes: each binds seven parameters, so a workflow's edges at the source limit
+ * stay under Postgres's 65,535 per statement.
+ */
+const EDGE_INSERT_BATCH = 5_000
 
 /** Columns the database stamps; the save never compares them. */
 const UNCOMPARED_COLUMNS = new Set(['createdAt', 'updatedAt'])
@@ -259,25 +266,21 @@ export async function saveWorkflowToNormalizedTables(
       storedEdges.some((edge, index) => edge.id !== desiredEdges[index]?.id)
 
     if (rewriteEdges) {
-      await deleteRows(
-        tx,
-        workflowEdges,
-        workflowId,
-        storedEdges.map((edge) => edge.id)
-      )
+      await tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId))
     }
     await deleteRows(tx, workflowSubflows, workflowId, subflows.deleteIds)
 
     if (blocks.inserts.length > 0) await tx.insert(workflowBlocks).values(blocks.inserts)
     await updateRows(tx, workflowBlocks, workflowId, blocks.updates, BLOCK_UPDATE_SET)
 
-    if (rewriteEdges && desiredEdges.length > 0) {
-      await tx.insert(workflowEdges).values(
-        desiredEdges.map((edge, index) => ({
-          ...edge,
-          createdAt: sql`now() + ${index} * interval '1 microsecond'`,
-        }))
-      )
+    if (rewriteEdges) {
+      const timed = desiredEdges.map((edge, index) => ({
+        ...edge,
+        createdAt: sql`now() + ${index} * interval '1 microsecond'`,
+      }))
+      for (const batch of chunkArray(timed, EDGE_INSERT_BATCH)) {
+        await tx.insert(workflowEdges).values(batch)
+      }
     }
 
     await deleteRows(tx, workflowBlocks, workflowId, blocks.deleteIds)
