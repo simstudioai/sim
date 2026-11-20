@@ -159,12 +159,13 @@ export interface CompileContext {
    */
   jsonFields: JsonFieldEntry[]
   /**
-   * References into blocks whose outputs come from a `responseFormat` param, checked once every
-   * block is compiled, since the format is JSON field text written last (`checkResponseFormatRefs`).
+   * References into blocks whose outputs a param declares (`responseFormat`, an input trigger's
+   * `inputFormat`), checked once every block is compiled, since the format is JSON field text
+   * written last (`checkDynamicOutputRefs`).
    */
-  responseFormatRefs: ResponseFormatRef[]
+  dynamicOutputRefs: DynamicOutputRef[]
   /** `x.error` references, checked once the edges are known (`checkErrorOutputRefs`). */
-  errorOutputRefs: Array<Omit<ResponseFormatRef, 'segments'>>
+  errorOutputRefs: Array<Omit<DynamicOutputRef, 'segments'>>
   /**
    * Branch keys already refused with an error, by block key. Wiring and branch meta that name one
    * stay quiet instead of adding `E_UNKNOWN_BRANCH` for the same mistake.
@@ -178,7 +179,7 @@ export interface CompileContext {
 }
 
 /** A reference path into a block whose outputs its `responseFormat` declares. */
-interface ResponseFormatRef {
+interface DynamicOutputRef {
   at: Range
   target: BlockDecl
   segments: RefSegment[]

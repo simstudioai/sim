@@ -328,8 +328,10 @@ Compile also refuses or flags source the runtime would silently mishandle:
   every edge between two blocks its lock binds, by key or by ident for a block renamed in source,
   as one it may hold, or with `storedUnreadEdges`, the edges the get printed by lock key, only
   those; the same goes for `W_ERROR_PORT_STORED`);
-- a reference into an agent whose `responseFormat` declares its fields names a declared field or
-  a static output (`W_UNKNOWN_OUTPUT_PATH` otherwise); a format with references inside is unread;
+- a reference into an agent whose `responseFormat` declares its fields, or into a Start, API or
+  Input trigger (whose `inputFormat` declares its inputs), names a declared field or a static
+  output (`W_UNKNOWN_OUTPUT_PATH` otherwise; a warning, since a caller may pass an undeclared
+  input the unified Start passes through); a format with references inside is unread;
 - a dropdown value outside its static options is `W_UNKNOWN_OPTION`, a `model` the catalog does
   not list `W_UNKNOWN_MODEL` (free text stays valid), and an unknown `operation`
   `E_UNKNOWN_OPERATION` unless the stored block already holds it;

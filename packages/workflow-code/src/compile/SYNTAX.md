@@ -190,8 +190,9 @@ reordered tool never takes another tool's secret.
 - `blk.a.b` → `<key.a.b>`, `blk['x-y']` → `<key.x-y>`, `blk.items[0]` → `<key.items[0]>`,
   `blk.items['0']` → `<key.items.0>`. Paths are typed from the block's outputs; a path no output
   has is `W_UNKNOWN_OUTPUT_PATH`. For an agent with a `responseFormat`, its declared fields count
-  beside the static outputs (skipped when the format holds references); other dynamic outputs
-  skip the check.
+  beside the static outputs (skipped when the format holds references); for a Start, API or Input
+  trigger its declared `inputFormat` inputs do, so `start.nope`, or a reference to an input since
+  removed, warns at the reference; other dynamic outputs skip the check.
 - A ref to a block declared later is `W_FORWARD_REF`; it still resolves. A ref into a sibling
   subflow's child is `E_OUT_OF_SCOPE`. An unknown identifier is `E_UNKNOWN_IDENTIFIER` with a
   did-you-mean. Wiring resolves its identifiers the same way.

@@ -37,8 +37,8 @@ import { ErrorLimitReached, Reporter } from './report'
 import { checkSuspiciousName, collectBody, collisionSuffix } from './scope'
 import {
   checkCodeFileRefs,
+  checkDynamicOutputRefs,
   checkErrorOutputRefs,
-  checkResponseFormatRefs,
   compileJsonLiteral,
   objectEntries,
 } from './values'
@@ -502,7 +502,7 @@ function compileEntry(
     envDeclaredIn: input.envDeclaredIn,
     envReferences: new Set(),
     jsonFields: [],
-    responseFormatRefs: [],
+    dynamicOutputRefs: [],
     errorOutputRefs: [],
     refusedBranches: new Map(),
     valueConsts: new Set(),
@@ -639,7 +639,7 @@ function compileEntry(
     }
   }
 
-  checkResponseFormatRefs(ctx, (key) => compiled.get(key))
+  checkDynamicOutputRefs(ctx, (key) => compiled.get(key))
 
   const unread = input.stored === undefined ? input.storedUnread : undefined
   const edges = new EdgeCollector(

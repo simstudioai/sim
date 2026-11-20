@@ -104,6 +104,48 @@ describe('cycles', () => {
   })
 })
 
+describe("references into a start trigger's declared inputs", () => {
+  const START_WITH = (inputs: string) =>
+    `const start = trigger.start('Start', { inputFormat: ${inputs} })`
+  const unknown = (inputs: string, ref: string, extra = '') =>
+    findings(
+      run(
+        [
+          START_WITH(inputs),
+          `const next = api('Next', { url: t\`https://x/\${${ref}}\` }${extra})`,
+          'start.to(next)',
+        ].join('\n')
+      ),
+      'W_UNKNOWN_OUTPUT_PATH'
+    )
+
+  it('warns on an input the start does not declare, at the reference', () => {
+    const [finding] = unknown("{ label: 'string' }", 'start.nope')
+    expect(finding?.message).toBe('Start declares no input nope: its inputFormat declares label.')
+    expect(finding?.span).toMatchObject({ file: 'workflow.ts', line: 6 })
+  })
+
+  it('warns on an input that was removed while a reference still reads it', () => {
+    const [finding] = unknown('{}', 'start.label')
+    expect(finding?.message).toBe('Start declares no input label: its inputFormat declares none.')
+    expect(finding?.hint).toBe(
+      "Add label to start's inputFormat, or reference an input it declares."
+    )
+  })
+
+  it('suggests a declared input an unknown one is close to', () => {
+    expect(unknown("{ label: 'string' }", 'start.lable')[0]?.hint).toBe('Did you mean label?')
+  })
+
+  it.each([
+    ['a declared input', 'start.label'],
+    ['a path under a declared input', 'start.label.length'],
+    ['a static output', 'start.input'],
+  ])('accepts %s', (_label, ref) => {
+    expect(unknown("{ label: 'string' }", ref)).toEqual([])
+  })
+})
+
 describe('references into an agent responseFormat', () => {
   const FORMAT =
     "responseFormat: { name: 'classify', schema: { type: 'object', properties: { priority: { type: 'string' }, score: { type: 'number' } } } }"
