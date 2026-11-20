@@ -1,15 +1,17 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   type BlockCatalog,
+  type CanonicalBlock,
   compileWorkflow,
   parseWorkflowLock,
   type StoredEdgeRef,
   setOwn,
+  stableStringify,
 } from '@sim/workflow-code'
 import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS } from '@sim/workspace-code'
 import type { OperationClient } from '../../runtime/called-operations'
-import { readSourceJson, SOURCE_STORED_EDGES_FILE } from './source-dir'
+import { digest, readSourceJson, SOURCE_STORED_EDGES_FILE } from './source-dir'
 import { cachedCatalogByHash, loadWorkflowCatalog } from './source-tree'
 
 /** A printed source as a get, apply or create answers it. */
@@ -19,11 +21,16 @@ interface PrintedAnswer {
   base: unknown
 }
 
+/** A digest of one compiled block, to tell a block an edit changed from one it left alone. */
+export function blockDigest(block: CanonicalBlock): string {
+  return digest(stableStringify(block))
+}
+
 /**
- * The `.sim/stored-edges.json` write for a printed source: its edges, compiled against `catalog`
- * (the one it was printed with), tagged with its base fingerprint. `null` when the answer has no
- * fingerprint or entry, or nothing to compile it with; the record left on disk then names an
- * older fingerprint, which a check ignores.
+ * The `.sim/stored-edges.json` write for a printed source: its edges and a digest of each block
+ * ({@link blockDigest}, by key), compiled against `catalog` (the one it was printed with), tagged
+ * with its base fingerprint. `null` when the answer has no fingerprint or entry, or nothing to
+ * compile it with; the record left on disk then names an older fingerprint, which a check ignores.
  */
 export function storedEdgesWrite(
   answer: PrintedAnswer,
@@ -34,7 +41,7 @@ export function storedEdgesWrite(
   const entry = answer.files[SOURCE_ENTRY_FILE]
   const { lock } = parseWorkflowLock(answer.lock)
   if (!catalog || typeof fingerprint !== 'string' || entry === undefined || !lock) return null
-  const { edges } = compileWorkflow({
+  const { edges, workflow } = compileWorkflow({
     entry: { path: SOURCE_ENTRY_FILE, text: entry },
     files: new Map(Object.entries(answer.files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
     catalog,
@@ -44,7 +51,22 @@ export function storedEdgesWrite(
   })
   return [
     `${folder}${SOURCE_STORED_EDGES_FILE}`,
-    `${JSON.stringify({ version: 1, fingerprint, edges }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        version: 1,
+        fingerprint,
+        edges,
+        ...(workflow
+          ? {
+              blocks: Object.fromEntries(
+                Object.entries(workflow.blocks).map(([key, block]) => [key, blockDigest(block)])
+              ),
+            }
+          : {}),
+      },
+      null,
+      2
+    )}\n`,
   ]
 }
 
@@ -168,6 +190,35 @@ export async function readStoredEdges(dir: string): Promise<StoredEdgeRef[] | un
     return undefined
   }
   return edges
+}
+
+/**
+ * The digest of each block of the printed source the record of the base `dir` holds now was
+ * written from, by key (see {@link storedEdgesWrite}); `undefined` when there is no such record or
+ * it records no blocks (an older CLI wrote it).
+ */
+export async function readStoredBlockDigests(
+  dir: string
+): Promise<ReadonlyMap<string, string> | undefined> {
+  const [record, base] = await Promise.all([
+    readSourceJson(dir, SOURCE_STORED_EDGES_FILE),
+    readSourceJson(dir, SOURCE_BASE_FILE),
+  ])
+  const { version, fingerprint, blocks } = toRecord(record)
+  if (
+    version !== 1 ||
+    typeof fingerprint !== 'string' ||
+    fingerprint !== toRecord(base).fingerprint ||
+    !isRecordLike(blocks)
+  ) {
+    return undefined
+  }
+  const digests = new Map<string, string>()
+  for (const [key, value] of Object.entries(blocks)) {
+    if (typeof value !== 'string') return undefined
+    digests.set(key, value)
+  }
+  return digests
 }
 
 /** The stored-edges records of the workflow folders whose base a write removes (`paths`). */

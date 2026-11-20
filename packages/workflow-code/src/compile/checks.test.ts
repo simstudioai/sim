@@ -547,6 +547,20 @@ describe('typed references in JSON fields', () => {
     expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
   })
 
+  it('reports a reference to an output the block lacks once, not also as untyped', () => {
+    const result = run(
+      [
+        START,
+        "const a = api('A', { url: 'https://x' })",
+        "const b = api('B', { url: 'https://x', body: { items: a.dataa } })",
+        'start.to(a)',
+        'a.to(b)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(1)
+    expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
+  })
+
   it('tells an untyped reference to stay bare unless it holds text', () => {
     const result = run(
       `${START}\nconst a = api('A', { url: 'https://x', body: { items: start.input.list } })`

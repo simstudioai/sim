@@ -371,6 +371,56 @@ function withOutOfScopeRefsRefused(
   }
 }
 
+/** Compile findings of a reference in the entry file to an output or block that does not exist. */
+const ENTRY_REF_CODES: ReadonlySet<string> = new Set(['W_UNKNOWN_OUTPUT_PATH', 'W_UNRESOLVED_REF'])
+
+/**
+ * One finding per dangling reference in the entry file, in the vocabulary an offline check uses.
+ * Compile reports such a reference at its line (`W_UNKNOWN_OUTPUT_PATH`, `W_UNRESOLVED_REF`), and
+ * the lint reports the same one again on the whole block, refusing it (`E_APPLY_LINT`) on a block
+ * this apply adds or changes (`changed`, by block key). So the lint's block-output finding on a
+ * block compile already reported one for is dropped, and where the lint would have refused it,
+ * compile's finding is the refusal instead: `E_APPLY_UNRESOLVED_REF`, located at the reference.
+ */
+function withEntryRefsDeduplicated(
+  diagnostics: LocatedDiagnostic[],
+  lint: WorkflowLintReport,
+  changed: ReadonlySet<string>,
+  keyOf: (id: string) => string | undefined
+): { diagnostics: LocatedDiagnostic[]; lint: WorkflowLintReport } {
+  const reported = new Set(
+    diagnostics.flatMap((diagnostic) =>
+      ENTRY_REF_CODES.has(diagnostic.code) &&
+      diagnostic.blockKey !== undefined &&
+      diagnostic.span.file === SOURCE_ENTRY_FILE
+        ? [diagnostic.blockKey]
+        : []
+    )
+  )
+  if (reported.size === 0) return { diagnostics, lint }
+  const refused = new Set<string>()
+  const unresolvedReferences = lint.unresolvedReferences.filter((reference) => {
+    const key = keyOf(reference.blockId)
+    if (reference.kind !== 'block-output' || key === undefined || !reported.has(key)) return true
+    if (changed.has(reference.blockId)) refused.add(key)
+    return false
+  })
+  return {
+    lint: { ...lint, unresolvedReferences },
+    diagnostics: diagnostics.map((diagnostic): LocatedDiagnostic => {
+      if (
+        !ENTRY_REF_CODES.has(diagnostic.code) ||
+        diagnostic.span.file !== SOURCE_ENTRY_FILE ||
+        diagnostic.blockKey === undefined ||
+        !refused.has(diagnostic.blockKey)
+      ) {
+        return diagnostic
+      }
+      return { ...diagnostic, code: 'E_APPLY_UNRESOLVED_REF', severity: 'error' }
+    }),
+  }
+}
+
 /** `{ span }` when there is one, to spread into a diagnostic. */
 function withSpan(span: SourceSpan | undefined): { span?: SourceSpan } {
   return span ? { span } : {}
@@ -985,27 +1035,30 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   )
   const changedIds = new Set([...graphDiff.added, ...graphDiff.modified.map((m) => m.id)])
   const changedKeys = new Set([...changedIds].flatMap((id) => keyById.get(id) ?? []))
+  const keyOfId = (id: string) => keyById.get(id)
   const scoped = withOutOfScopeRefsRefused(
     compileDiagnostics,
     lint,
     (key) => changedKeys.has(key),
-    (id) => keyById.get(id)
+    keyOfId
+  )
+  const entryRefs = withEntryRefsDeduplicated(
+    scoped.diagnostics,
+    withoutCodeFileReferences(
+      withoutPendingReferences(scoped.lint, input.pendingResources ?? []),
+      compileDiagnostics,
+      keyOfId
+    ),
+    changedIds,
+    keyOfId
   )
   const diagnostics = [
-    ...scoped.diagnostics,
+    ...entryRefs.diagnostics,
     ...keptDiagnostics,
     ...materializeDiagnostics,
     ...refusals,
     ...normalized.diagnostics,
-    ...lintDiagnostics(
-      withoutCodeFileReferences(
-        withoutPendingReferences(scoped.lint, input.pendingResources ?? []),
-        compileDiagnostics,
-        (id) => keyById.get(id)
-      ),
-      changedIds,
-      (id) => keyById.get(id)
-    ),
+    ...lintDiagnostics(entryRefs.lint, changedIds, keyOfId),
   ].map(locate)
   if (hasErrors(diagnostics)) {
     return {

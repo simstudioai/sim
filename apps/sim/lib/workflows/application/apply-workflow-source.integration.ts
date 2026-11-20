@@ -2294,6 +2294,51 @@ describe('renames in source', () => {
   }
 
   check(
+    'an output typo in an existing block is one refusal at the reference, as an offline check reports it',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      const written = await apply(
+        source,
+        {
+          'workflow.ts': [
+            '// @sim-sdk 1',
+            "import { api, response, trigger, workflow } from '@sim/workflow-sdk'",
+            '',
+            `export default workflow('Output typo ${seeded.workflowId}', {}, () => {`,
+            "  const start = trigger.start('Start', {})",
+            "  const fetch = api('Fetch', { url: 'https://example.com' })",
+            "  const reply = response('Reply', { dataMode: 'json', data: { items: fetch.data } })",
+            '  start.to(fetch)',
+            '  fetch.to(reply)',
+            '})',
+            '',
+          ].join('\n'),
+        },
+        { allowDelete: true }
+      )
+      expect(written.applied).toBe(true)
+      const stored = await getSource(seeded.workflowId)
+      const typo = edit(stored.files, 'fetch.data', 'fetch.dataa')
+
+      const replyLine =
+        typo['workflow.ts'].split('\n').findIndex((line) => line.includes('fetch.dataa')) + 1
+      const replyId = written.lock.blocks.reply?.id
+
+      const dryRun = await apply(stored, typo, { dryRun: true })
+
+      expect(
+        dryRun.diagnostics
+          .filter((d) => d.blockId === replyId || d.line === replyLine)
+          .map((d) => ({ code: d.code, severity: d.severity, file: d.file, line: d.line }))
+      ).toEqual([
+        { code: 'E_APPLY_UNRESOLVED_REF', severity: 'error', file: 'workflow.ts', line: replyLine },
+      ])
+      await expectRejected(apply(stored, typo), 'E_APPLY_UNRESOLVED_REF')
+    }
+  )
+
+  check(
     'a rename does not report W_JSON_REF_UNTYPED on a JSON field only its reference rewrite changed',
     async () => {
       const displayOnly = await seedUntypedReply()

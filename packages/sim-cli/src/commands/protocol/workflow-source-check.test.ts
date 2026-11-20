@@ -7,6 +7,7 @@ import type { SimApiError } from '../../http/client'
 import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, mockedProfile } from '../../test/context-mock'
 import { digest } from './source-dir'
+import { storedEdgesWrite } from './stored-edges'
 import { attachWorkflowSourceCheck } from './workflow-source-check'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -463,8 +464,8 @@ describe('sim workflows source check', () => {
       join(dir, 'workflow.ts'),
       CLEAN.replace(
         "const done = response('Done', { body: { received: start.message } })",
-        "const call = api('Call', { url: 'https://x', method: 'POST', body: { n: start.missing.deep } })\n  const done = response('Done', { body: { received: start.message } })"
-      ).replace('import { response,', 'import { api, response,')
+        "const calc = fn('Calc', { code: 'return 1' })\n  const call = api('Call', { url: 'https://x', method: 'POST', body: { n: calc.result.deep } })\n  const done = response('Done', { body: { received: start.message } })"
+      ).replace('import { response,', 'import { api, fn, response,')
     )
     const untyped = () =>
       ((result().diagnostics ?? []) as Array<{ code: string }>).filter(
@@ -474,7 +475,7 @@ describe('sim workflows source check', () => {
     await check()
     expect(untyped()).toHaveLength(1)
 
-    writeLock(['start', 'done', 'call'])
+    writeLock(['start', 'done', 'calc', 'call'])
     await check()
     expect(untyped()).toEqual([])
 
@@ -671,6 +672,71 @@ export default workflow('W', {}, () => {
       expect(result()).toMatchObject({ errors: 0, warnings: 1 })
       expect(process.exitCode).toBeUndefined()
     }
+  })
+
+  describe('a reference to an output the block lacks', () => {
+    /** Start → Call (an HTTP request) → Done, whose JSON body reads `call.<output>`. */
+    const reads = (output: string) =>
+      CLEAN.replace(
+        "const done = response('Done', { body: { received: start.message } })",
+        `const call = api('Call', { url: 'https://example.com', method: 'GET' })\n  const done = response('Done', { body: { items: call.${output} } })`
+      )
+        .replace('  start.to(done)', '  start.to(call)\n  call.to(done)')
+        .replace('import { response,', 'import { api, response,')
+
+    /** Writes `printed` as a get leaves it: the source, its lock and its stored-edges record. */
+    function writePrinted(printed: string): void {
+      const lock = {
+        version: 1,
+        blocks: Object.fromEntries(
+          ['start', 'call', 'done'].map((key, order) => [
+            key,
+            { id: `id-${key}`, parent: null, ident: key, order },
+          ])
+        ),
+        variables: {},
+      }
+      writeFileSync(join(dir, 'workflow.ts'), printed)
+      writeFileSync(join(dir, '.sim/lock.json'), JSON.stringify(lock))
+      const record = storedEdgesWrite(
+        { files: { 'workflow.ts': printed }, lock, base: { fingerprint: 'sf1:a' } },
+        JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
+      )
+      if (!record) throw new Error('no stored-edges record')
+      writeFileSync(join(dir, record[0]), record[1])
+    }
+
+    const findings = () =>
+      ((result().diagnostics ?? []) as Array<{ code: string; severity: string }>).map(
+        ({ code, severity }) => `${severity} ${code}`
+      )
+
+    it('fails as the server refuses it once an edit types it into a block the lock binds', async () => {
+      cacheCatalog()
+      writePrinted(reads('data'))
+      await check()
+      expect(result()).toMatchObject({ errors: 0 })
+
+      writeFileSync(join(dir, 'workflow.ts'), reads('dataa'))
+      await check()
+
+      expect(findings()).toEqual(['error E_APPLY_UNRESOLVED_REF'])
+      expect(process.exitCode).toBe(1)
+    })
+
+    it('stays a warning on a block the stored workflow already holds that way, and with --no-strict', async () => {
+      cacheCatalog()
+      writePrinted(reads('dataa'))
+      await check()
+      expect(findings()).toEqual(['warning W_UNKNOWN_OUTPUT_PATH'])
+      expect(process.exitCode).toBeUndefined()
+
+      writePrinted(reads('data'))
+      writeFileSync(join(dir, 'workflow.ts'), reads('dataa'))
+      await checkIn(dir, '--no-strict')
+      expect(findings()).toEqual(['warning W_UNKNOWN_OUTPUT_PATH'])
+      expect(process.exitCode).toBeUndefined()
+    })
   })
 
   it('fails on a bound block with --strict and on nothing with --no-strict', async () => {

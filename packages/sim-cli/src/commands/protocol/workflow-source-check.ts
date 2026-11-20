@@ -44,7 +44,7 @@ import {
   refreshWorkspaceTypes,
 } from './source-tree'
 import { type Diagnostic, findingsOutput, verboseFlag } from './source-ui'
-import { readStoredEdges } from './stored-edges'
+import { blockDigest, readStoredBlockDigests, readStoredEdges } from './stored-edges'
 import { readSourceFiles, requireEntry } from './workflow-source-apply'
 import { WORKFLOW_TREE } from './workflow-source-get'
 import {
@@ -104,6 +104,20 @@ const MOVED_BLOCK_REFUSALS: ReadonlyMap<string, CheckFinding['code']> = new Map(
 ])
 
 /**
+ * Warnings in `workflow.ts` a check refuses under the server's error code on a block the edit
+ * added or changed, in the default and strict modes: a reference to an output or block that does
+ * not exist (`E_APPLY_UNRESOLVED_REF`, at the reference), or an iteration field read outside its
+ * container (`E_APPLY_REF_OUT_OF_SCOPE`), which the server refuses on such a block and keeps as a warning only on a block the stored workflow already holds. A block counts as
+ * changed when the lock does not bind it, or when it compiles differently than in the source the
+ * last get or apply printed (`.sim/stored-edges.json` records a digest of each block).
+ */
+const EDITED_ENTRY_REFUSALS: ReadonlyMap<string, CheckFinding['code']> = new Map([
+  ['W_UNKNOWN_OUTPUT_PATH', 'E_APPLY_UNRESOLVED_REF'],
+  ['W_UNRESOLVED_REF', 'E_APPLY_UNRESOLVED_REF'],
+  ['W_REF_OUT_OF_SCOPE', 'E_APPLY_REF_OUT_OF_SCOPE'],
+])
+
+/**
  * Which {@link STRICT_CODES} warnings fail a check: `new` those on a block the lock does not bind
  * (one added since the get, or every block of a workflow that has no lock yet), `all` every one,
  * `off` none. Printed source can hold such a warning on a block nobody edited (a field left empty
@@ -145,9 +159,12 @@ on none of them. In a function file changed since the get, ${[...EDITED_CODE_FIL
   .map(([warning, refusal]) => `${warning} is the error ${refusal}`)
   .join(', ')} in every mode, as the server refuses it; so is ${[...MOVED_BLOCK_REFUSALS]
   .map(([warning, refusal]) => `${warning} (${refusal})`)
-  .join(
-    ', '
-  )} on a block the source moved into another container. ${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not
+  .join(', ')} on a block the source moved into another container. In workflow.ts, ${[
+  ...EDITED_ENTRY_REFUSALS.keys(),
+].join(', ')} are the error ${[...new Set(EDITED_ENTRY_REFUSALS.values())].join(
+  ', '
+)} on a block the edit added or changed, as the server refuses them there (not with
+--no-strict). ${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not
 bind, and with --strict on every block.`
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
@@ -397,9 +414,10 @@ async function compileWorkflowDir(
   declarations?: WorkspaceDeclarations
 ) {
   const { lock } = parseWorkflowLock(await readSourceJson(dir, SOURCE_LOCK_FILE))
-  const [files, storedEdges, printedWith] = await Promise.all([
+  const [files, storedEdges, storedBlocks, printedWith] = await Promise.all([
     readSourceFiles(dir, lock ?? null),
     readStoredEdges(dir),
+    readStoredBlockDigests(dir),
     cachedSourceCatalog(dir),
   ])
   const catalog = printedWith ?? workspaceCatalog
@@ -414,7 +432,7 @@ async function compileWorkflowDir(
     ...(storedEdges ? { storedUnreadEdges: storedEdges } : {}),
     ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
   })
-  return { lock, files, compiled }
+  return { lock, files, compiled, storedBlocks }
 }
 
 /**
@@ -461,7 +479,11 @@ export async function checkWorkflowDir(
   catalog: BlockCatalog,
   options: { declarations?: WorkspaceDeclarations; strict: StrictMode; prefix?: string }
 ): Promise<{ findings: CheckFinding[]; entry: string }> {
-  const { lock, files, compiled } = await compileWorkflowDir(dir, catalog, options.declarations)
+  const { lock, files, compiled, storedBlocks } = await compileWorkflowDir(
+    dir,
+    catalog,
+    options.declarations
+  )
   const entryText = files[SOURCE_ENTRY_FILE]
   const locate = (block: string, param: string, names: string | undefined) => {
     const prefix = encodeAnchor({ kind: 'param', block, param: '' })
@@ -521,10 +543,26 @@ export async function checkWorkflowDir(
         : getOwn(compiled.workflow.blocks, blockKey)
     return held !== undefined && block !== undefined && held.parent !== block.parent
   }
-  const editedRefusal = (code: string, file: string | undefined, blockKey: string | undefined) =>
-    (file !== undefined && file !== SOURCE_ENTRY_FILE && edited(file, blockKey)
-      ? EDITED_CODE_FILE_REFUSALS.get(code)
-      : undefined) ?? (moved(blockKey) ? MOVED_BLOCK_REFUSALS.get(code) : undefined)
+  /** Whether the edit added or changed the block: see {@link EDITED_ENTRY_REFUSALS}. */
+  const changed = (blockKey: string | undefined) => {
+    if (!bound(blockKey)) return true
+    const block = blockKey === undefined ? undefined : compiled.workflow?.blocks[blockKey]
+    const printed = blockKey === undefined ? undefined : storedBlocks?.get(blockKey)
+    return block !== undefined && printed !== undefined && blockDigest(block) !== printed
+  }
+  const editedRefusal = (code: string, file: string | undefined, blockKey: string | undefined) => {
+    const refusal =
+      file === undefined
+        ? undefined
+        : file !== SOURCE_ENTRY_FILE
+          ? edited(file, blockKey)
+            ? EDITED_CODE_FILE_REFUSALS.get(code)
+            : undefined
+          : options.strict !== 'off' && changed(blockKey)
+            ? EDITED_ENTRY_REFUSALS.get(code)
+            : undefined
+    return refusal ?? (moved(blockKey) ? MOVED_BLOCK_REFUSALS.get(code) : undefined)
+  }
   const fails = (code: string, blockKey: string | undefined) =>
     STRICT_CODES.has(code) &&
     !(STORED_EXEMPT_CODES.has(code) && bound(blockKey)) &&

@@ -129,7 +129,7 @@ The \`// @sim-sdk 1\` header must be the first line, and the file has exactly on
 
 ## Diagnostics and exit codes
 
-Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. \`check\` prints the \`W_*\` codes it fails on as \`error\` on a block you added; the apply still saves them as warnings. Exit codes of every \`workflows source\` command:
+Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. \`check\` prints the \`W_*\` codes it fails on as \`error\` on a block you added; the apply still saves them as warnings. A reference to an output or block that does not exist, in a block you added or changed, is the error \`E_APPLY_UNRESOLVED_REF\` in both. Exit codes of every \`workflows source\` command:
 
 ${sourceExitCodesTable('sim workflows source')}
 
