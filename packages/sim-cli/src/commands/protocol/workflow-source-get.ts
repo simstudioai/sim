@@ -43,6 +43,7 @@ import {
   type WorkspaceTypes,
   withSourceExitCode,
 } from './source-tree'
+import { findingsOutput } from './source-ui'
 import { storedEdgesWrite } from './stored-edges'
 
 const DIR_FLAG = 'dir'
@@ -370,11 +371,14 @@ export function attachWorkflowSourceGet(source: Command): void {
         workflowSource,
         workflowSource.blockTypes
       )
+      const findings = findingsOutput(profile.output)
+      findings.print(workflowSource.diagnostics)
       printTreeResult(profile.output, {
         workflowId: workflowSource.workflowId,
         dir,
         ...tree,
         fingerprint: workflowSource.base.fingerprint,
+        ...findings.result(workflowSource.diagnostics),
       })
     })
   })

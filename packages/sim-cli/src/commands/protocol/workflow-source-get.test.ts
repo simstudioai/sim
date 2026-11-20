@@ -370,6 +370,20 @@ describe('sim workflows source get --dir', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it("reports the server's findings on the printed source, such as a secret printed as stored()", async () => {
+    const finding = {
+      code: 'W_LITERAL_SECRET',
+      severity: 'warning',
+      message: 'code holds what looks like a literal credential; get prints it as stored()',
+    }
+    serve({ [SOURCE_PATH]: () => ({ data: { ...source().data, diagnostics: [finding] } }) })
+
+    await get('--dir', outDir)
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed.diagnostics).toEqual([expect.objectContaining(finding)])
+  })
+
   it('prints the response unchanged without --dir', async () => {
     request.mockResolvedValue(source())
 

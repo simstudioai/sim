@@ -49,6 +49,7 @@ import {
   sourceTreeChange,
   withSourceExitCode,
 } from './source-tree'
+import { findingsOutput } from './source-ui'
 import {
   removedWorkflowRecords,
   unrecordedFoldersWarning,
@@ -409,6 +410,8 @@ export function attachWorkspaceSourceGet(source: Command): void {
             throw withSourceExitCode(error)
           })
         const result = await writeWorkspaceSource(client, options.dir, data, options.force === true)
+        const findings = findingsOutput(profile.output)
+        findings.print(data.diagnostics)
         printTreeResult(profile.output, {
           workspaceId: data.workspaceId,
           dir: options.dir,
@@ -419,6 +422,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
           skipped: data.skipped.length,
           guide: result.guide,
           primer: result.primer,
+          ...findings.result(data.diagnostics),
         })
       })
     })

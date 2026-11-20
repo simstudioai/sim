@@ -29,6 +29,8 @@ import { hostname, tmpdir } from 'node:os'
 import { basename, dirname, join, posix, resolve } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
+import { codeFileReferences } from '@sim/workflow-code/code-files/references'
 import {
   isCodeFilePath,
   SOURCE_BASE_FILE,
@@ -840,6 +842,7 @@ export async function writeBack(
     ...extra.write,
   ]
   const orphaned = orphanedCodeFiles(previousLock, answer.lock, Object.keys(answer.files))
+  const unnamed = await unnamedCodeFiles(dir, previousLock, answer, orphaned)
   await updateSourceDir(dir, {
     write,
     remove: [
@@ -850,7 +853,38 @@ export async function writeBack(
     ],
   })
   if (folder) await recordFolderWrite(folder, Object.fromEntries(printed), orphaned, answer.base)
+  if (unnamed.length > 0) {
+    printError(
+      `warning: ${unnamed.join(', ')} ${unnamed.length === 1 ? 'is' : 'are'} no longer named by ${SOURCE_ENTRY_FILE} (the printed source names no code file there, such as code now printed as stored()), so ${unnamed.length === 1 ? 'it was' : 'they were'} left on disk as written: delete ${unnamed.length === 1 ? 'it' : 'them'}, or name ${unnamed.length === 1 ? 'it' : 'them'} again with codeFile(). Never commit one that holds a credential.`
+    )
+  }
   return write.length
+}
+
+/**
+ * The code files a write leaves on disk although the printed source no longer names them: named
+ * by the entry file on disk before the write or by the previous lock, neither written nor pruned
+ * now, and still present. A file the person added is never deleted, so the caller says where it
+ * is instead: one that held a literal secret now printed as `stored()` must not be committed.
+ */
+async function unnamedCodeFiles(
+  dir: string,
+  previousLock: unknown,
+  answer: PrintedSourceAnswer,
+  pruned: readonly string[]
+): Promise<string[]> {
+  const entry = await readSourceText(dir, SOURCE_ENTRY_FILE)
+  const named = lockCodeFiles(previousLock)
+  for (const literal of entry === null ? [] : codeFileReferences(entry)) {
+    const path = sourceRelativePath(literal)
+    if (path !== null) named.add(path)
+  }
+  const kept = new Set([...Object.keys(answer.files), ...lockCodeFiles(answer.lock), ...pruned])
+  const candidates = [...named].filter((path) => isCodeFilePath(path) && !kept.has(path))
+  const present = await Promise.all(
+    candidates.map(async (path) => (await readSourceText(dir, path)) !== null)
+  )
+  return candidates.filter((_, index) => present[index]).sort(compareStrings)
 }
 
 /**

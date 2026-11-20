@@ -588,6 +588,31 @@ describe('pruning function files', () => {
     expect(read('functions/mine.js')).toBe('mine')
   })
 
+  it('keeps, and names, a code file the edit added that the printed source no longer names', async () => {
+    await get()
+    writeFileSync(join(dir, 'functions/leak.js'), 'const token = "ghp_secret"\nreturn token\n')
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      WORKFLOW_TS.replace(
+        '})\n})',
+        "})\n  const leak = fn('Leak', { code: codeFile('./functions/leak.js') })\n})"
+      )
+    )
+    const stored = WORKFLOW_TS.replace(
+      '})\n})',
+      "})\n  const leak = fn('Leak', { code: stored() })\n})"
+    )
+    server.apply = () => json(appliedResponse({ ...FILES, 'workflow.ts': stored }))
+
+    await apply()
+
+    expect(read('functions/leak.js')).toContain('ghp_secret')
+    expect(stderr.join('\n')).toContain(
+      'warning: functions/leak.js is no longer named by workflow.ts'
+    )
+    expect(stderr.join('\n')).not.toContain('functions/score.js is no longer named')
+  })
+
   it('prunes, on a fresh get, a function file the previous get wrote', async () => {
     server.source = () => json(sourceResponse(twoFiles, twoLock))
     await get()
