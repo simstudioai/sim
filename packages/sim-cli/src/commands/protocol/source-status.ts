@@ -22,7 +22,7 @@ import { noAnswer, SimApiError } from '../../http/client'
 import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
-import { CliUsageError } from './local-errors'
+import { CliUsageError, LocalRefusal } from './local-errors'
 import { type Diagnostic, findingsOutput } from './source-ui'
 
 /** One change of a workspace apply's plan. */
@@ -116,7 +116,7 @@ export function credentialRefused(error: unknown): boolean {
  * cancelled request included), which a status reports rather than hides.
  */
 export function unreachableReason(error: unknown): string | null {
-  if (!(error instanceof SimApiError)) return null
+  if (!(error instanceof SimApiError) || error instanceof LocalRefusal) return null
   if (!noAnswer(error, UNREACHABLE_STATUSES) && !credentialRefused(error)) return null
   return /[.!?]$/.test(error.message) ? error.message : `${error.message}.`
 }

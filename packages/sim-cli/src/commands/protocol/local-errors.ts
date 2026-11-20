@@ -15,11 +15,17 @@ interface LocalErrorOptions {
 }
 
 /**
+ * A refusal the CLI raised itself. Its `status` 0 and possibly null `code` read like a request
+ * that got no answer, so a check for an unreachable server or a lost answer excludes this class.
+ */
+export abstract class LocalRefusal extends SimApiError {}
+
+/**
  * A source directory, its records or a file it would send or write refused by the CLI: a missing
  * or unreadable file, a symbolic link, another kind of directory, a busy or unwritable directory,
  * or a server answer naming a path the CLI never writes.
  */
-export class SourceDirError extends SimApiError {
+export class SourceDirError extends LocalRefusal {
   constructor(message: string, options: LocalErrorOptions = {}) {
     super(message, 0, options.code ?? null, undefined, options.exitCode ?? 1)
     this.name = 'SourceDirError'
@@ -30,7 +36,7 @@ export class SourceDirError extends SimApiError {
  * Flags or arguments a source command cannot act on: an unknown kind or path filter, flags that
  * contradict each other, or a missing `--workspace`. Refused before any request is sent.
  */
-export class CliUsageError extends SimApiError {
+export class CliUsageError extends LocalRefusal {
   constructor(message: string, options: Pick<LocalErrorOptions, 'code'> = {}) {
     super(message, 0, options.code ?? null)
     this.name = 'CliUsageError'

@@ -24,6 +24,7 @@ import type {
   ApplyWorkspaceSourceResponse,
 } from '../../generated/v2-api'
 import { noAnswer, REQUEST_CANCELLED, SimApiError } from '../../http/client'
+import { LocalRefusal } from './local-errors'
 
 /** One finding of a source write, as the workflow and workspace answers both carry it. */
 type WorkflowDiagnostic = ApplyWorkflowSourceResponse['data']['diagnostics'][number]
@@ -287,6 +288,7 @@ const LOST_ANSWER_STATUSES = new Set([502, 504])
  * that gave up, a cancellation), so it may or may not have been stored.
  */
 function answerLost(error: SimApiError): boolean {
+  if (error instanceof LocalRefusal) return false
   return noAnswer(error, LOST_ANSWER_STATUSES) || error.code === REQUEST_CANCELLED
 }
 
