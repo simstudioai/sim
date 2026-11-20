@@ -4,7 +4,7 @@ import { getChatCompletionConversationUsage } from '@/providers/openai-compat/co
 import type { ModelPricing } from '@/providers/types'
 
 /** Token counts a meter has accumulated; `input` excludes the cache hits counted in `cacheRead`. */
-export interface ChatCompletionMeteredTokens {
+interface ChatCompletionMeteredTokens {
   input: number
   output: number
   cacheRead: number
@@ -12,7 +12,7 @@ export interface ChatCompletionMeteredTokens {
 }
 
 /** List-price cost of everything a meter has recorded, plus any tool cost passed in. */
-export interface ChatCompletionMeteredCost {
+interface ChatCompletionMeteredCost {
   input: number
   output: number
   total: number
