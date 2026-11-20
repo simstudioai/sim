@@ -76,6 +76,11 @@ export interface PlanContext extends SourceContext {
 export interface ApplyContext extends SourceContext {
   provenance?: { client: 'cli' | 'api'; gitSha?: string }
   /**
+   * The `sf1:` fingerprint of each draft this apply's workflow writes stored, by workflow id: a
+   * later deploy of that workflow publishes exactly that draft.
+   */
+  writtenDrafts: Map<string, string>
+  /**
    * Reads the staged bytes of a blob a write needs, by directory path, checked against its
    * SHA-256. Loaded one blob at a time, so a write never holds more than it is writing.
    */

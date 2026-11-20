@@ -302,6 +302,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
   async execute({ principal, input, context }): Promise<ApplyWorkspaceSourceResult> {
     const ctx: ApplyContext = {
       ...sourceContext(principal, context),
+      writtenDrafts: new Map(),
       ...(input.provenance ? { provenance: input.provenance } : {}),
     }
     if (input.dryRun === true) {

@@ -881,6 +881,7 @@ export const workflowAdapter: KindAdapter<'workflow', StoredWorkflowState> = {
       if (!(error instanceof WorkflowSourceRejectedError)) throw error
       throw new WorkspaceSourceRejectedError(inFolder(change.key, error.diagnostics))
     })
+    ctx.writtenDrafts.set(result.workflowId, result.base.fingerprint)
     const base: BaseResource = {
       id: result.workflowId,
       fingerprint: workflowFingerprint(result.base),

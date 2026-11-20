@@ -217,6 +217,13 @@ const DEPLOYMENT_CODES = [
   'E_DEPLOY_PINNED_CHAT',
   /** An apply edits a deployed workflow that no `live: 'draft'` deployment republishes. */
   'W_DEPLOYED_DRAFT_CHANGED',
+  /**
+   * A `live: 'draft'` deployment whose draft holds edits the directory does not declare (made in
+   * the editor, say): the apply does not publish it.
+   */
+  'W_DEPLOY_DRAFT_NOT_SOURCE',
+  /** A chat change while the draft holds edits the directory does not: deploying a chat publishes it. */
+  'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT',
   /** A pinned deployment's draft differs from its live version, which keeps running. */
   'I_DEPLOY_DRAFT_NOT_LIVE',
 ] as const

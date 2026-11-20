@@ -229,7 +229,12 @@ workflow's key and claims none (`WORKSPACE_KIND_SPECS[kind].resourceKind` is `nu
 is the workflow's id. The three-way rule covers what the server stores (public API, chat); `live`
 is outside the fingerprint and read on every apply against the server's `needsRedeployment`:
 `'draft'` deploys when the apply edits the workflow or the draft already differs, `'pinned'` never
-redeploys and reports `I_DEPLOY_DRAFT_NOT_LIVE`. A deploy's idempotency key hashes the deployment's
+redeploys and reports `I_DEPLOY_DRAFT_NOT_LIVE`. `'draft'` publishes only a draft the directory
+vouches for: the one this apply's workflow write stored, or one that still prints as the workflow
+folder's base. A draft holding edits made outside source is not deployed
+(`W_DEPLOY_DRAFT_NOT_SOURCE`; a chat write, which would deploy it, is `E_DEPLOY_DRAFT_NOT_SOURCE_CHAT`),
+and every deploy names the vouched draft's `sf1:` fingerprint (`expectedDraftFingerprint`), so a draft
+edited between the plan and the deploy is refused as stale rather than published. A deploy's idempotency key hashes the deployment's
 fingerprint and the live version it replaces. The flag, the deploy and the chat are separate writes, so the
 apply checks what the chat write refuses (an identifier another chat holds,
 `E_DEPLOY_CHAT_IDENTIFIER`, at plan time and again before the first write; the password, the
