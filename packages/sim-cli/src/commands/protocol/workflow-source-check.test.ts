@@ -391,6 +391,38 @@ describe('sim workflows source check', () => {
     expect(process.exitCode).toBeUndefined()
   })
 
+  it('fails on a dangling $ref in a new function file by default, and on any with --strict', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(join(dir, 'functions/total.js'), 'return $ref.ordertotals.sum\n')
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const total = fn('Total', { code: codeFile('./functions/total.js') })
+  start.to(total)
+})
+`
+    )
+
+    await check()
+    expect(stderr()).toMatch(/functions\/total\.js:1:8 error W_UNRESOLVED_REF/)
+    expect(process.exitCode).toBe(1)
+
+    process.exitCode = undefined
+    writeLock(['start', 'total'])
+    await check()
+    expect(result()).toMatchObject({ errors: 0, warnings: 1 })
+    expect(process.exitCode).toBeUndefined()
+
+    await checkIn(dir, '--strict')
+    expect(result()).toMatchObject({ errors: 1 })
+    expect(process.exitCode).toBe(1)
+  })
+
   it('fails on a bound block with --strict and on nothing with --no-strict', async () => {
     cacheCatalog()
     writeFileSync(join(dir, 'workflow.ts'), UNKNOWN_METHOD)

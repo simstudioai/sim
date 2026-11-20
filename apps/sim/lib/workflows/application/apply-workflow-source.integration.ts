@@ -2283,6 +2283,7 @@ describe('renames in source', () => {
     expect(after.state?.blocks[seeded.ids.report]?.subBlocks.code?.value).toBe(
       'return <bang.result> + <total.result>'
     )
+    expect(result.files['functions/report.js']).toBe('return $ref.bang.result + $ref.total.result')
   })
 
   check(

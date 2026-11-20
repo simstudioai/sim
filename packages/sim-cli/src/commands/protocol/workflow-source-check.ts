@@ -62,6 +62,7 @@ const STRICT_CODES: ReadonlySet<string> = new Set([
   'W_TABLE_UNKNOWN_COLUMN',
   'W_CHILD_INPUT_UNKNOWN',
   'W_BRANCH_UNWIRED',
+  'W_UNRESOLVED_REF',
 ])
 
 /**
