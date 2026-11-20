@@ -263,6 +263,9 @@ describe('materialize: params keep prev bytes unless they changed', () => {
       resources: { ...RESOURCES, keysOf },
     }).diagnostics.filter((d) => d.code === 'E_MAT_UNKNOWN_RESOURCE')
     expect(finding?.hint).toContain('sim credentials connect <provider> --name "<Name>"')
+    expect(finding?.hint).toContain(
+      'sim credentials create <provider> --name "<Name>" --credentials @<file>'
+    )
   })
 
   it('recomputes stored outputs when an edit changes what they derive from', () => {

@@ -55,7 +55,7 @@ const LISTED_KEYS = 20
  */
 const CREATE_COMMANDS: Partial<Record<ResourceKind, string>> = {
   credential:
-    '`sim credentials connect <provider> --name "<Name>"` (OAuth; hand the link to the person who owns the account) or `sim credentials create <provider>`',
+    '`sim credentials connect <provider> --name "<Name>"` (OAuth; hand the link to the person who owns the account) or `sim credentials create <provider> --name "<Name>" --credentials @<file>` (a service account)',
   table: '`sim tables create`',
   'knowledge-base': '`sim knowledge create`',
   skill: '`sim skills create`',
