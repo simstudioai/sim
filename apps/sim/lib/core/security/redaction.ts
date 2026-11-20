@@ -460,6 +460,22 @@ export function isLargeDataKey(key: string): boolean {
   return LARGE_DATA_KEYS.has(key)
 }
 
+/**
+ * Table sub-blocks (such as API block headers and query params) store each row as
+ * `{ cells: { Key, Value } }`, so a sensitive name like `Authorization` is a cell value
+ * rather than an object key and key-based redaction never sees it.
+ */
+function isSensitiveTableCells(
+  key: string,
+  value: unknown
+): value is { Key: string; Value: unknown } {
+  if (key !== 'cells' || typeof value !== 'object' || value === null) {
+    return false
+  }
+  const name = (value as { Key?: unknown }).Key
+  return typeof name === 'string' && isSensitiveKey(name)
+}
+
 export function redactApiKeys(obj: any): any {
   if (obj === null || obj === undefined) {
     return obj
@@ -493,6 +509,8 @@ export function redactApiKeys(obj: any): any {
       result[key] = REDACTED_MARKER
     } else if (isLargeDataKey(key) && typeof value === 'string') {
       result[key] = TRUNCATED_MARKER
+    } else if (isSensitiveTableCells(key, value)) {
+      result[key] = { ...value, Value: REDACTED_MARKER }
     } else if (typeof value === 'object' && value !== null) {
       result[key] = redactApiKeys(value)
     } else {

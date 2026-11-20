@@ -458,6 +458,42 @@ describe('redactApiKeys', () => {
     redactApiKeys(original)
     expect(original).toEqual(originalCopy)
   })
+
+  it.concurrent('should redact the value of a table row whose key is sensitive', () => {
+    const result = redactApiKeys({
+      url: 'https://example.com',
+      headers: [
+        { id: 'h1', cells: { Key: 'Authorization', Value: 'Bearer ghp_secret' } },
+        { id: 'h2', cells: { Key: 'X-GitHub-Token', Value: 'ghs_secret' } },
+        { id: 'h3', cells: { Key: 'Accept', Value: 'application/json' } },
+      ],
+    })
+
+    expect(result.headers).toEqual([
+      { id: 'h1', cells: { Key: 'Authorization', Value: '[REDACTED]' } },
+      { id: 'h2', cells: { Key: 'X-GitHub-Token', Value: '[REDACTED]' } },
+      { id: 'h3', cells: { Key: 'Accept', Value: 'application/json' } },
+    ])
+  })
+
+  it.concurrent('should keep table rows without a string key unchanged', () => {
+    const input = {
+      params: [
+        { id: 'p1', cells: { Key: '', Value: 'v' } },
+        { id: 'p2', cells: {} },
+      ],
+    }
+
+    expect(redactApiKeys(input)).toEqual(input)
+  })
+
+  it.concurrent('should not mutate the original table row', () => {
+    const row = { id: 'h1', cells: { Key: 'Authorization', Value: 'Bearer ghp_secret' } }
+
+    redactApiKeys({ headers: [row] })
+
+    expect(row.cells.Value).toBe('Bearer ghp_secret')
+  })
 })
 
 describe('sanitizeForLogging', () => {
