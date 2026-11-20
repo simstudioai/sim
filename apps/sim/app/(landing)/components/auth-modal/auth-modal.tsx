@@ -25,7 +25,6 @@ import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 const logger = createLogger('AuthModal')
 
@@ -80,7 +79,6 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   const [view, setView] = useState<AuthView>(defaultView)
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
   const [socialLoading, setSocialLoading] = useState<SocialSignInProvider | null>(null)
-  const brand = getBrandConfig()
 
   useEffect(() => {
     fetchProviderStatus().then(setProviderStatus)
@@ -196,8 +194,8 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
             <>
               <div className='flex flex-col items-start gap-6 pe-10'>
                 <Image
-                  src={brand.logoUrl || '/logo/sim-landing.svg'}
-                  alt={brand.name}
+                  src='/logo/sim-landing.svg'
+                  alt='Sim'
                   width={71}
                   height={22}
                   unoptimized

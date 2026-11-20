@@ -99,7 +99,7 @@ The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal
 - **Errors** → `error` prop. Never `className={cn(err && 'border-[var(--text-error)]')}`.
 - **Leading icon** → `icon` prop (rendered 14px in `--text-icon`).
 - **Trailing buttons** (reveal/copy/fetch) → `endAdornment`.
-- **Inner-input styling** (e.g. `font-mono`, number-spinner reset) → `inputClassName` (ChipInput only). See `ee/whitelabeling/components/whitelabeling-settings.tsx`.
+- **Inner-input styling** (e.g. `font-mono`, number-spinner reset) → `inputClassName` (ChipInput only).
 - **`ChipModalField` controls take NO className.** Pass `title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`. The field owns label, control, and error/hint rendering. See `app/workspace/[workspaceId]/skills/components/skill-modal/skill-modal.tsx`.
 
 ### What className MAY carry

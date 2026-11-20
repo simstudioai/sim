@@ -74,7 +74,7 @@ The operating principle is direct: centralize policy and evidence, but let each 
 
 - Centralized AI agent governance gives IT a common inventory, identity layer, policy model, and evidence trail across business units.
 - Sim governs agents and workflows operated inside shared workspaces, bringing agent logic, integrations, credentials, deployments, and execution history into one operating model.
-- [Sim Enterprise](https://docs.sim.ai/platform/enterprise) adds SSO, Access Control, audit logs, data retention, data drains, workspace forks, SOC 2 compliance, whitelabeling, and Enterprise features on self-hosted deployments. The [current pricing page](https://www.sim.ai/pricing) lists Access Control, SSO, SOC 2 compliance, and Self-Hosted Enterprise Features on the Enterprise plan.
+- [Sim Enterprise](https://docs.sim.ai/platform/enterprise) adds SSO, Access Control, audit logs, data retention, data drains, workspace forks, SOC 2 compliance, and Enterprise features on self-hosted deployments. The [current pricing page](https://www.sim.ai/pricing) lists Access Control, SSO, SOC 2 compliance, and Self-Hosted Enterprise Features on the Enterprise plan.
 - Sim Access Control restricts the model providers, workflow blocks, and platform features available to workspace members. It does not determine who belongs to a workspace.
 - Sim fits organizations establishing one workspace for building, deploying, and governing agents across business units.
 
@@ -167,7 +167,7 @@ Sim Enterprise combines company-managed authentication with workspace-scoped aut
 
 Access Control then restricts the model providers, workflow blocks, and platform features available to authenticated workspace members. SSO answers **who the user is**; workspace membership answers **where the user belongs**; permission groups answer **which capabilities the user can use there**.
 
-Sim's [pricing page](https://www.sim.ai/pricing) lists Access Control, SSO, SOC 2 compliance, Self-Hosted Enterprise Features, and Dedicated Support under Enterprise. It excludes those features from Free, Pro, and Max. [Enterprise whitelabeling](https://docs.sim.ai/platform/enterprise#white-labeling) lets organizations replace Sim's default logos, product name, and favicons with their own branding.
+Sim's [pricing page](https://www.sim.ai/pricing) lists Access Control, SSO, SOC 2 compliance, Self-Hosted Enterprise Features, and Dedicated Support under Enterprise. It excludes those features from Free, Pro, and Max.
 
 ## How do audit logs and execution traces prove what agents and administrators did?
 
@@ -284,7 +284,7 @@ Choose Sim when AI-agent lifecycle controls, model flexibility, self-hosting, an
 
 Self-hosting makes Sim safer to standardize on because the enterprise retains control of its deployment, data location, and exit path instead of depending permanently on one hosted service.
 
-Sim's [Apache 2.0 core](https://github.com/simstudioai/sim) can run on customer-selected infrastructure through options such as Docker and Kubernetes. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, data retention, data drains, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. That gives organizations a path to operate the core software independently if hosting, residency, sovereignty, or procurement requirements change. Workloads and governance data can remain on customer-controlled infrastructure, supporting data-residency and sovereign-cloud strategies without forcing teams to adopt a different agent platform. The broader tradeoffs are covered in the related guidance below on open-source AI agent platforms.
+Sim's [Apache 2.0 core](https://github.com/simstudioai/sim) can run on customer-selected infrastructure through options such as Docker and Kubernetes. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, data retention, and data drains, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. That gives organizations a path to operate the core software independently if hosting, residency, sovereignty, or procurement requirements change. Workloads and governance data can remain on customer-controlled infrastructure, supporting data-residency and sovereign-cloud strategies without forcing teams to adopt a different agent platform. The broader tradeoffs are covered in the related guidance below on open-source AI agent platforms.
 
 Local models are a self-hosting capability rather than an Enterprise plan entitlement: any [self-hosted Sim deployment](https://docs.sim.ai/platform/self-hosting) can connect to Ollama, vLLM, LM Studio, or LiteLLM through the supported model endpoints.
 

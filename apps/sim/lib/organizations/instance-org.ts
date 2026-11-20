@@ -2,8 +2,8 @@
  * Instance-tier organization: one organization that every user on a deployment
  * belongs to.
  *
- * Org-scoped enterprise features — whitelabeling, PII redaction, permission
- * groups, data drains, audit scoping — resolve their settings from a
+ * Org-scoped enterprise features — PII redaction, permission groups, data
+ * drains, audit scoping — resolve their settings from a
  * workspace's `organizationId`. A deployment where everyone works in personal
  * workspaces has no organization for those features to read, so enabling them
  * appears to do nothing. Setting `INSTANCE_ORG_NAME` turns on this mode: the

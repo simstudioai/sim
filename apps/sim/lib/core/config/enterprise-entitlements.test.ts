@@ -88,7 +88,6 @@ describe('resolveEnterpriseEntitlement', () => {
 
   describe('legacy defaults', () => {
     it('keeps the features that were already reachable with billing off', () => {
-      expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.whitelabeling).toBe(true)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.sessionPolicies).toBe(true)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.inbox).toBe(true)
     })

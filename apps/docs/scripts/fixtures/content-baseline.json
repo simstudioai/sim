@@ -169941,7 +169941,6 @@
         "/platform/enterprise/data-drains",
         "/platform/enterprise/custom-blocks",
         "/platform/enterprise/forks",
-        "/platform/enterprise/whitelabeling",
         "/platform/enterprise/self-hosted"
       ],
       "media": []
@@ -171060,13 +171059,6 @@
         {
           "lang": "bash",
           "meta": null,
-          "sha256": "5f943c8dc3ae17edeee35961bc6c1c53d8b2f5cb9b1100941cb813c552358c34",
-          "bytes": 220,
-          "line": 145
-        },
-        {
-          "lang": "bash",
-          "meta": null,
           "sha256": "61e14846227b90c89e246e23545e0fce1382071604baf8d34a6c77068fb206b4",
           "bytes": 201,
           "line": 153
@@ -171749,115 +171741,6 @@
           "className": "mx-auto h-auto w-full max-w-xl"
         }
       ]
-    },
-    {
-      "source": "platform/enterprise/whitelabeling.mdx",
-      "url": "/platform/enterprise/whitelabeling",
-      "sha256": "a159e4c7f51e4110cb75bcf01107c0cf36c35bdb6d2377476986dcec5ad6414e",
-      "bytes": 5696,
-      "frontmatter": {
-        "title": "White-labeling",
-        "description": "Set organization branding or a self-hosted deployment's default identity, colors, and links"
-      },
-      "headings": [
-        {
-          "title": "Configure organization branding",
-          "url": "#configure-organization-branding",
-          "depth": 2
-        },
-        {
-          "title": "Identity",
-          "url": "#identity",
-          "depth": 3
-        },
-        {
-          "title": "Colors",
-          "url": "#colors",
-          "depth": 3
-        },
-        {
-          "title": "Links",
-          "url": "#links",
-          "depth": 3
-        },
-        {
-          "title": "Scope and fallback",
-          "url": "#scope-and-fallback",
-          "depth": 2
-        },
-        {
-          "title": "Instance-wide branding",
-          "url": "#instance-wide-branding",
-          "depth": 2
-        },
-        {
-          "title": "Identity variables",
-          "url": "#identity-variables",
-          "depth": 3
-        },
-        {
-          "title": "Color variables",
-          "url": "#color-variables",
-          "depth": 3
-        },
-        {
-          "title": "Link variables",
-          "url": "#link-variables",
-          "depth": 3
-        },
-        {
-          "title": "Serve assets on Kubernetes",
-          "url": "#serve-assets-on-kubernetes",
-          "depth": 3
-        },
-        {
-          "title": "Related docs",
-          "url": "#related-docs",
-          "depth": 2
-        }
-      ],
-      "explicitIds": [],
-      "imports": [],
-      "components": [],
-      "expressions": [],
-      "codeFences": [
-        {
-          "lang": "bash",
-          "meta": null,
-          "sha256": "8e80f47a93dcce528eb103fa840efe537ec09a49a2866f2848cfca56b0f4d219",
-          "bytes": 227,
-          "line": 56
-        },
-        {
-          "lang": "bash",
-          "meta": null,
-          "sha256": "4913154073ff05d86b2a8aee6597f8822ad68280ac52c4d619e447c2bfba4095",
-          "bytes": 222,
-          "line": 68
-        },
-        {
-          "lang": "bash",
-          "meta": null,
-          "sha256": "b4a7bebd4c1cd1a2bbe88a2c7941e44688512aa8e0695032868cb7ac9484548e",
-          "bytes": 188,
-          "line": 80
-        },
-        {
-          "lang": "yaml",
-          "meta": null,
-          "sha256": "e9721cad54b2890cb2e9598b82ac45dd7e5e7f95fdd8c729d7c9e5fa1f09067d",
-          "bytes": 287,
-          "line": 93
-        }
-      ],
-      "links": [
-        "#instance-wide-branding",
-        "/platform/enterprise/self-hosted",
-        "/platform/enterprise/self-hosted",
-        "/platform/self-hosting/kubernetes",
-        "/platform/self-hosting/security"
-      ],
-      "media": []
     },
     {
       "source": "platform/organization.mdx",
@@ -232204,8 +232087,7 @@
           "audit-logs",
           "usage-tracking",
           "data-retention",
-          "data-drains",
-          "whitelabeling"
+          "data-drains"
         ],
         "defaultOpen": false
       },

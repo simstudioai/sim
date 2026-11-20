@@ -28,7 +28,6 @@ import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { lockInvitationResendPolicy } from '@/lib/invitations/resend-policy'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface WorkspaceGrantInput {
   workspaceId: string
@@ -576,12 +575,10 @@ export async function sendInvitationEmail(
       workspaceNames,
       inviteUrl
     )
-
-    const brandName = getBrandConfig().name
     const subject =
       workspaceNames.length === 1
-        ? `You've been invited to join "${workspaceNames[0]}" on ${brandName}`
-        : `You've been invited to join ${workspaceNames.length} workspaces on ${brandName}`
+        ? `You've been invited to join "${workspaceNames[0]}" on Sim`
+        : `You've been invited to join ${workspaceNames.length} workspaces on Sim`
 
     const result = await sendEmail({
       to: input.email,

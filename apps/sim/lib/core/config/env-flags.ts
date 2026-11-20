@@ -420,15 +420,6 @@ export const isSandboxDeploymentEntitled = enterpriseFeatureEnabled(
 )
 
 /**
- * Is whitelabeling enabled
- */
-export const isWhitelabelingEnabled = enterpriseFeatureEnabled(
-  'whitelabeling',
-  env.WHITELABELING_ENABLED,
-  'NEXT_PUBLIC_WHITELABELING_ENABLED'
-)
-
-/**
  * Is audit log reading enabled.
  *
  * Off-hosted this replaces the enterprise-subscription check that audit access

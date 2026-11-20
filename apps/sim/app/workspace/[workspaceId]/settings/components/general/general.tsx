@@ -43,7 +43,6 @@ import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/comp
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
-import { useBrandConfig } from '@/ee/whitelabeling'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import {
   useResetPassword,
@@ -96,7 +95,6 @@ function getInitials(name: string | undefined | null): string {
 
 export function General() {
   const router = useRouter()
-  const brandConfig = useBrandConfig()
   const { data: session } = useSession()
   const { hosted } = useDeploymentShape()
 
@@ -273,7 +271,7 @@ export function General() {
     }
   }
 
-  const imageUrl = profilePictureUrl || profile?.image || brandConfig.logoUrl
+  const imageUrl = profilePictureUrl || profile?.image
 
   if (view === 'privacy') {
     return <PrivacyView onBack={() => setView(null, { history: 'replace' })} />

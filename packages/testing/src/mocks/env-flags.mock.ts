@@ -36,7 +36,6 @@ interface EnvFlagsMockState {
   isSandboxDeploymentEntitled: boolean
   isSandboxesEnabled: boolean
   isScimEnabled: boolean
-  isWhitelabelingEnabled: boolean
   isAuditLogsEnabled: boolean
   isCustomBlocksEnabled: boolean
   isCredentialGroupsEnabled: boolean
@@ -94,7 +93,6 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isSandboxDeploymentEntitled: false,
   isSandboxesEnabled: false,
   isScimEnabled: false,
-  isWhitelabelingEnabled: true,
   isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,
   isCustomBlocksEnabled: false,

@@ -951,14 +951,6 @@ export const dustProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value: 'Not publicly documented',
-        detail:
-          'No Dust source describes a white-label/custom-branding offering for the workspace or chat UI.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
       dataRetention: {
         value: 'Yes: Enterprise plan documents custom data retention as a named feature',
         detail:

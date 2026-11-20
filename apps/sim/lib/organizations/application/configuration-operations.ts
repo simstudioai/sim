@@ -7,22 +7,6 @@ const configurationPolicy = {
 } as const
 
 export const organizationConfigurationOperations = {
-  // permission-group-exempt: organization branding is readable by current organization members.
-  readWhitelabel: defineOrganizationOperation({
-    ...configurationPolicy,
-    id: 'organizations.whitelabel.read',
-    contentDelivery: 'none',
-    minimumRole: 'member',
-    capability: 'none',
-  }),
-  // permission-group-exempt: organization branding uses administrator authority and enterprise entitlement.
-  updateWhitelabel: defineOrganizationOperation({
-    ...configurationPolicy,
-    id: 'organizations.whitelabel.update',
-    contentDelivery: 'none',
-    minimumRole: 'admin',
-    capability: 'none',
-  }),
   // permission-group-exempt: session policy is readable by current organization members.
   readSessionPolicy: defineOrganizationOperation({
     ...configurationPolicy,

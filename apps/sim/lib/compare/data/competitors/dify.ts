@@ -1002,29 +1002,6 @@ export const difyProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'Partial: web app branding with a custom logo and UI is on the Team plan and Enterprise, and Enterprise branding settings replace the application title, login page logo, and workspace logo. On self-hosted Community deployments, the license forbids removing or modifying the Dify logo in the console or applications without a commercial license.',
-        shortValue: 'Team web app branding; full rebrand on Enterprise',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://enterprise-docs.dify.ai/en/3.13.x/administer/branding',
-            label: 'Dify Enterprise Docs: Branding Settings',
-            asOf: '2026-11-19',
-          },
-          {
-            url: 'https://dify.ai/pricing/dify-cloud',
-            label: 'Dify Cloud plan comparison (WebApp Branding Customization)',
-            asOf: '2026-11-19',
-          },
-          {
-            url: 'https://github.com/langgenius/dify/blob/main/LICENSE',
-            label: 'langgenius/dify LICENSE (GitHub)',
-            asOf: '2026-11-19',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Partial: Dify Cloud keeps logs for 30 days on Sandbox; on Professional and Team, conversation logs last for the subscription and workflow run logs older than about three months move to downloadable monthly CSV archives. Self-hosted deployments can turn on automatic workflow log cleanup with a configurable retention period (30 days by default).',

@@ -191,20 +191,6 @@ app:
     PII_URL: ""                                           # Presidio PII service URL; auto-computed when pii.enabled, override here otherwise
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
 
-    # UI Branding & Whitelabeling Configuration
-    NEXT_PUBLIC_BRAND_NAME: ""                            # Custom brand name (default "Sim" via envDefaults)
-    NEXT_PUBLIC_BRAND_LOGO_URL: ""                        # Custom logo URL — square icon, shown in collapsed sidebar
-    NEXT_PUBLIC_BRAND_WORDMARK_URL: ""                    # Custom wordmark URL — wide image, shown in expanded sidebar
-    NEXT_PUBLIC_BRAND_FAVICON_URL: ""                     # Custom favicon URL (leave empty for default)
-    NEXT_PUBLIC_BRAND_PRIMARY_COLOR: ""                   # Primary brand color (hex, e.g., "#701a75")
-    NEXT_PUBLIC_BRAND_ACCENT_COLOR: ""                    # Accent color (hex, e.g., "#9333ea")
-    NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: ""                # Background color (hex, e.g., "#ffffff")
-    NEXT_PUBLIC_CUSTOM_CSS_URL: ""                        # Custom stylesheet URL (leave empty for none)
-    NEXT_PUBLIC_SUPPORT_EMAIL: ""                        # Support email address (default "help@sim.ai" via envDefaults)
-    NEXT_PUBLIC_DOCUMENTATION_URL: ""                    # Documentation URL (leave empty for none)
-    NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
-    NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
-
     # Registration Control
     DISABLE_REGISTRATION: ""                              # Set to "true" to disable new user signups
     EMAIL_PASSWORD_SIGNUP_ENABLED: ""                     # Set to "false" to disable email/password login (SSO-only mode, server-side enforcement)
@@ -269,8 +255,6 @@ app:
     # Enterprise Feature Overrides (self-hosted)
     INBOX_ENABLED: ""                                     # Enable Sim Mailer on self-hosted ("true" to enable)
     NEXT_PUBLIC_INBOX_ENABLED: ""                         # Show Sim Mailer settings page ("true" to enable)
-    WHITELABELING_ENABLED: ""                             # Enable whitelabeling on self-hosted ("true" to enable)
-    NEXT_PUBLIC_WHITELABELING_ENABLED: ""                 # Show whitelabeling settings page ("true" to enable)
     AUDIT_LOGS_ENABLED: ""                                # Enable audit logs on self-hosted ("true" to enable)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: ""                    # Show audit logs settings page ("true" to enable)
     CUSTOM_BLOCKS_ENABLED: ""                             # Enable custom blocks on self-hosted ("true" to enable)
@@ -363,10 +347,6 @@ app:
 
     # Vertex AI defaults
     VERTEX_LOCATION: "us-central1"
-
-    # Branding defaults
-    NEXT_PUBLIC_BRAND_NAME: "Sim"
-    NEXT_PUBLIC_SUPPORT_EMAIL: "help@sim.ai"
 
     # Feature flags — left EMPTY, not "false", on purpose.
     # A per-feature flag set to "false" is an explicit override that wins over
@@ -477,7 +457,7 @@ app:
     timeoutSeconds: 3
     failureThreshold: 3
 
-  # Additional volumes for app deployment (e.g., branding assets, custom configs)
+  # Additional volumes for app deployment (e.g., custom configs)
   extraVolumes: []
   extraVolumeMounts: []
 
@@ -1286,34 +1266,6 @@ sharedStorage:
 # Additional volumes for custom configurations (advanced users)
 extraVolumes: []
 extraVolumeMounts: []
-
-# Branding configuration
-# Use this to inject custom branding assets (logos, CSS, etc.) into the application
-branding:
-  # Enable/disable branding ConfigMap
-  enabled: false
-
-  # Mount path in the container where branding files will be available
-  # Must sit inside the image's public directory, which the standalone build
-  # places at /app/apps/sim/public — a path outside it serves nothing.
-  mountPath: "/app/apps/sim/public/branding"
-
-  # Text files (CSS, JSON, HTML, etc.) - values are plain text
-  # Example:
-  #   files:
-  #     custom.css: |
-  #       .logo { background-color: #ff0000; }
-  #     config.json: |
-  #       {"theme": "dark"}
-  files: {}
-
-  # Binary files (PNG, JPG, ICO, etc.) - values must be base64 encoded
-  # Generate base64 with: base64 -i logo.png | tr -d '\n'
-  # Example:
-  #   binaryFiles:
-  #     logo.png: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk..."
-  #     favicon.ico: "AAABAAEAEBAAAAEAIABoBAAAFgAAAA..."
-  binaryFiles: {}
 
 # Additional environment variables for custom integrations
 extraEnvVars: []

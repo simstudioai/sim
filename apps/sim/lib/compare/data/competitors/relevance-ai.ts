@@ -1065,20 +1065,6 @@ export const relevanceAiProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'Partial: the embeddable chat widget can hide Relevance AI branding and set a primary color; full white-labeling of the app is not documented',
-        detail: 'Widget options include hide_logo, primary_color, and bubble icon settings.',
-        shortValue: 'Chat widget branding can be hidden',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://relevanceai.com/docs/build/agents/share-your-agent',
-            label: 'Share Your Agent | Relevance AI Docs',
-            asOf: '2026-11-19',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Yes on Enterprise: admins set retention windows for tool runs, agent conversations, Workforce tasks, and old versions; Pro and Team list 90-day task history',

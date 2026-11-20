@@ -613,7 +613,7 @@ export const isOrganizationGovernanceActive = cache(resolveOrganizationGovernanc
  * When billing runs, the organization's plan decides and every feature moves
  * together. When it does not, there is no plan to read, so deployment
  * configuration decides per feature — which is what lets an operator run, say,
- * audit logs without whitelabeling.
+ * audit logs without data drains.
  *
  * Pass the matching flag from `@/lib/core/config/env-flags` as
  * `selfHostEntitlement`; those already resolve the master switch and the

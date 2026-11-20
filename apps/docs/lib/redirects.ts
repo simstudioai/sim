@@ -113,6 +113,12 @@ const PATH_REDIRECTS: DocsRedirect[] = [
   // copilot deprecated and removed
   { source: '/copilot', destination: '/chat', permanent: true },
   { source: '/copilot/:path*', destination: '/chat', permanent: true },
+  // white-labeling removed
+  {
+    source: '/platform/enterprise/whitelabeling',
+    destination: '/platform/enterprise',
+    permanent: true,
+  },
   // mothership/* renamed to chat/* — the surface is "Chat", the agent is "Sim"
   { source: '/mothership', destination: '/chat', permanent: true },
   { source: '/mothership/:path*', destination: '/chat/:path*', permanent: true },

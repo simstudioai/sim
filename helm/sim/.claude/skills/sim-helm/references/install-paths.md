@@ -162,7 +162,7 @@ BETTER_AUTH_SECRET:
 
 ## Cross-cutting: things that are NOT secrets
 
-Operational tunables (rate limits, timeouts, IVM pool size, branding) live in `app.envDefaults` and `realtime.envDefaults`. They're rendered as **inline `env:`** on the Deployment, not written to the Secret. See `values-model.md` for the full mental model.
+Operational tunables (rate limits, timeouts, IVM pool size) live in `app.envDefaults` and `realtime.envDefaults`. They're rendered as **inline `env:`** on the Deployment, not written to the Secret. See `values-model.md` for the full mental model.
 
 Don't try to push these into ESO — they're not sensitive, they'd just bloat the secret store.
 

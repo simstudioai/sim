@@ -275,7 +275,7 @@ const EMAIL_SUBJECTS: Record<string, string> = {
  *
  * - Every `render*Email` is a bare `vi.fn()` (returns `undefined`); set the rendered HTML per test.
  * - Every email/layout component is `vi.fn(() => null)`.
- * - The subject helpers port the real logic with the default brand name `Sim` (no whitelabeling):
+ * - The subject helpers port the real logic with the brand name `Sim`:
  *   `mockGetEmailSubject`, `mockGetLimitEmailSubject`, `mockGetPlanWelcomeSubject`,
  *   `mockGetRequestConfirmationSubject`, `mockGetOtpSubject`,
  *   `mockGetCredentialGroupInvitationSubject`.
@@ -370,8 +370,7 @@ export const emailTemplatesMockFns = {
 
 /**
  * Static mock module for `@/components/emails`. The style tokens (`baseStyles`, `colors`,
- * `fontWeight`, `plainEmailStyles`, `spacing`, `typography`) carry the real non-whitelabeled
- * values.
+ * `fontWeight`, `plainEmailStyles`, `spacing`, `typography`) carry the real values.
  *
  * @example
  * ```ts

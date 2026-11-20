@@ -384,39 +384,6 @@
               "type": "string",
               "description": "Manual execution bypass value"
             },
-            "NEXT_PUBLIC_BRAND_NAME": {
-              "type": "string",
-              "description": "Custom brand name"
-            },
-            "NEXT_PUBLIC_BRAND_LOGO_URL": {
-              "type": "string",
-              "description": "Custom logo URL (leave empty for default)"
-            },
-            "NEXT_PUBLIC_BRAND_FAVICON_URL": {
-              "type": "string",
-              "description": "Custom favicon URL (leave empty for default)"
-            },
-            "NEXT_PUBLIC_CUSTOM_CSS_URL": {
-              "type": "string",
-              "description": "Custom stylesheet URL (leave empty for none)"
-            },
-            "NEXT_PUBLIC_SUPPORT_EMAIL": {
-              "type": "string",
-              "anyOf": [{ "format": "email" }, { "const": "" }],
-              "description": "Support email address (default help@sim.ai via envDefaults; set explicitly here to override in Secret)"
-            },
-            "NEXT_PUBLIC_DOCUMENTATION_URL": {
-              "type": "string",
-              "description": "Documentation URL"
-            },
-            "NEXT_PUBLIC_TERMS_URL": {
-              "type": "string",
-              "description": "Terms of service URL"
-            },
-            "NEXT_PUBLIC_PRIVACY_URL": {
-              "type": "string",
-              "description": "Privacy policy URL"
-            },
             "ALLOWED_LOGIN_EMAILS": {
               "type": "string",
               "description": "Comma-separated list of allowed email addresses for login"
@@ -1263,7 +1230,7 @@
     },
     "branding": {
       "type": "object",
-      "description": "Whitelabel branding configuration (logos, names, colors)"
+      "description": "Removed in chart 1.12.0 and ignored; still accepted so values files copied from older charts keep validating"
     },
     "certManager": {
       "type": "object",

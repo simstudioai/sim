@@ -143,7 +143,6 @@ vi.mock('@/lib/workspaces/admin-move-source-impact', () => ({
   findSourceOrgCustomBlocksForWorkspace,
   getSourceOrganization,
   resolveMoveEntitlements,
-  willBrandingChange: vi.fn(() => Promise.resolve(false)),
 }))
 
 const movedWorkspace = {

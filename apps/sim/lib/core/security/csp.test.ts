@@ -10,10 +10,6 @@ await vi.hoisted(async () => {
     AWS_REGION: 'us-east-1',
     S3_KB_BUCKET_NAME: 'test-kb-bucket',
     S3_CHAT_BUCKET_NAME: 'test-chat-bucket',
-    NEXT_PUBLIC_BRAND_LOGO_URL: 'https://brand.example.com/logo.png',
-    NEXT_PUBLIC_BRAND_FAVICON_URL: 'https://brand.example.com/favicon.ico',
-    NEXT_PUBLIC_PRIVACY_URL: 'https://legal.example.com/privacy',
-    NEXT_PUBLIC_TERMS_URL: 'https://legal.example.com/terms',
     S3_ENDPOINT: 'https://s3.de.io.cloud.ovh.net',
     S3_FORCE_PATH_STYLE: undefined,
   })
@@ -59,13 +55,12 @@ describe('getMainCSPPolicy', () => {
 })
 
 describe('generateRuntimeCSP', () => {
-  it('adds the runtime app, socket (with WebSocket variant) and brand origins', () => {
+  it('adds the runtime app and socket (with WebSocket variant) origins', () => {
     const csp = generateRuntimeCSP()
 
     expect(csp).toContain('https://example.com')
     expect(csp).toContain('https://socket.example.com')
     expect(csp).toContain('wss://socket.example.com')
-    expect(csp).toContain('https://brand.example.com')
   })
 
   it('should allow blob URLs for iframe-based PDF previews', () => {

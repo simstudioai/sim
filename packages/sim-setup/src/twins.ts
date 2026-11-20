@@ -10,7 +10,6 @@ export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
   { server: 'ENTERPRISE_ENABLED', client: 'NEXT_PUBLIC_ENTERPRISE_ENABLED' },
   { server: 'ACCESS_CONTROL_ENABLED', client: 'NEXT_PUBLIC_ACCESS_CONTROL_ENABLED' },
   { server: 'ORGANIZATIONS_ENABLED', client: 'NEXT_PUBLIC_ORGANIZATIONS_ENABLED' },
-  { server: 'WHITELABELING_ENABLED', client: 'NEXT_PUBLIC_WHITELABELING_ENABLED' },
   { server: 'AUDIT_LOGS_ENABLED', client: 'NEXT_PUBLIC_AUDIT_LOGS_ENABLED' },
   { server: 'CUSTOM_BLOCKS_ENABLED', client: 'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED' },
   { server: 'DATA_RETENTION_ENABLED', client: 'NEXT_PUBLIC_DATA_RETENTION_ENABLED' },
@@ -52,7 +51,6 @@ export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; h
     label: 'Usage monitoring',
     hint: 'org-wide credit usage',
   },
-  { server: 'WHITELABELING_ENABLED', label: 'Whitelabeling', hint: 'custom branding' },
 ]
 
 export function getConfiguredMailProvider(vars: Map<string, string>): string {

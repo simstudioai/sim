@@ -1,7 +1,6 @@
 import { Link, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface CredentialGroupInvitationEmailProps {
   recipientEmail: string
@@ -21,8 +20,6 @@ export function CredentialGroupInvitationEmail({
   invitationLink,
   searchProviderName,
 }: CredentialGroupInvitationEmailProps) {
-  const brand = getBrandConfig()
-
   return (
     <EmailLayout
       preview={
@@ -51,7 +48,7 @@ export function CredentialGroupInvitationEmail({
         ) : (
           <>
             to connect accounts for <strong>{credentialGroupName}</strong> in the{' '}
-            <strong>{workspaceName}</strong> workspace on {brand.name}.
+            <strong>{workspaceName}</strong> workspace on Sim.
           </>
         )}
       </Text>
@@ -70,9 +67,9 @@ export function CredentialGroupInvitationEmail({
       <div style={baseStyles.divider} />
 
       <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-        This private link expires in 7 days. {brand.name} will send you to each provider to sign in
-        and will never ask for your provider password. If you did not expect this invitation, you
-        can ignore it.
+        This private link expires in 7 days. Sim will send you to each provider to sign in and will
+        never ask for your provider password. If you did not expect this invitation, you can ignore
+        it.
       </Text>
     </EmailLayout>
   )

@@ -40,7 +40,6 @@ import { getCustomBlockTile } from '@/blocks/custom/custom-block-icon'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
-import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
@@ -480,8 +479,6 @@ export const Toolbar = memo(
 
     const { workspaceId, workflowId: currentWorkflowId } = useWorkflowScope()
     const { data: customBlocksData } = useCustomBlocks(workspaceId)
-    /** No-icon custom blocks use the access-authorized workspace host logo, then the glyph. */
-    const fallbackIconUrl = useOrgBrandConfig().logoUrl ?? null
 
     // Re-read the block lists whenever the overlay version bumps (custom-block
     // or block-visibility hydrate) — the module caches are keyed to it.
@@ -507,7 +504,7 @@ export const Toolbar = memo(
       return customBlocksData
         .filter((cb) => cb.enabled && cb.workflowId !== currentWorkflowId)
         .map((cb) => {
-          const { icon, bgColor } = getCustomBlockTile(cb.iconUrl, fallbackIconUrl)
+          const { icon, bgColor } = getCustomBlockTile(cb.iconUrl)
           return {
             name: cb.name,
             type: cb.type,
@@ -527,7 +524,7 @@ export const Toolbar = memo(
           } satisfies BlockItem
         })
         .sort((a, b) => a.name.localeCompare(b.name))
-    }, [customBlocksData, currentWorkflowId, fallbackIconUrl])
+    }, [customBlocksData, currentWorkflowId])
 
     const handleRequestItemClick = useCallback((type: string) => {
       setRequestedBlockType(type)
