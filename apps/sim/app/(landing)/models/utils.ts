@@ -235,8 +235,9 @@ export function formatCapabilityBoolean(
   return value ? positive : negative
 }
 
+/** Evaluation models answer native questions and reject a response format. */
 function supportsCatalogStructuredOutputs(capabilities: ModelCapabilities): boolean {
-  return !capabilities.deepResearch
+  return !capabilities.evaluation
 }
 
 export function getEffectiveMaxOutputTokens(capabilities: ModelCapabilities): number | null {
@@ -404,10 +405,6 @@ function buildCapabilityTags(capabilities: ModelCapabilities): string[] {
     tags.push('Computer use')
   }
 
-  if (capabilities.deepResearch) {
-    tags.push('Deep research')
-  }
-
   if (capabilities.reasoningEffort) {
     tags.push(`Reasoning ${capabilities.reasoningEffort.values.join(', ')}`)
   }
@@ -437,10 +434,6 @@ function buildBestForLine(model: {
   contextWindow: number | null
 }): string | null {
   const { pricing, capabilities, contextWindow } = model
-
-  if (capabilities.deepResearch) {
-    return 'Best for multi-step research workflows and agent-led web investigation.'
-  }
 
   if (capabilities.reasoningEffort || capabilities.thinking) {
     return 'Best for reasoning-heavy tasks that need more deliberate model control.'
@@ -484,7 +477,6 @@ function computeModelRelevanceScore(model: CatalogModel): number {
   return (
     (model.capabilities.reasoningEffort ? 10 : 0) +
     (model.capabilities.thinking ? 10 : 0) +
-    (model.capabilities.deepResearch ? 8 : 0) +
     (model.capabilities.nativeStructuredOutputs ? 4 : 0) +
     (model.contextWindow ?? 0) / 100000
   )
@@ -867,10 +859,6 @@ export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[]
     {
       label: 'Computer use',
       value: formatCapabilityBoolean(capabilities.computerUse),
-    },
-    {
-      label: 'Deep research',
-      value: formatCapabilityBoolean(capabilities.deepResearch),
     },
     {
       label: 'Memory support',

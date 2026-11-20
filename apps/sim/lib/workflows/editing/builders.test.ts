@@ -46,9 +46,9 @@ const agentBlockConfig = {
   name: 'Agent',
   outputs: {
     content: { type: 'string', description: 'Default content output' },
-    interactionId: {
-      type: 'string',
-      condition: { field: 'model', value: ['deep-research-pro-preview-12-2025'] },
+    answers: {
+      type: 'json',
+      condition: { field: 'model', value: ['jev-latest'] },
     },
   },
   subBlocks: [
@@ -249,16 +249,16 @@ describe('createBlockFromParams', () => {
 
   it('exposes the output ports of the seeded Agent default', () => {
     const block = createBlockFromParams(
-      'agent-research-default',
+      'agent-evaluation-default',
       { type: 'agent', name: 'Agent' },
       undefined,
       undefined,
       {
         ...DEFAULT_PERMISSION_GROUP_CONFIG,
-        defaultAgentModel: 'deep-research-pro-preview-12-2025',
+        defaultAgentModel: 'jev-latest',
       }
     )
-    expect(block.outputs.interactionId).toEqual({ type: 'string' })
+    expect(block.outputs.answers).toEqual({ type: 'json' })
   })
   it('uses the group Agent default when creating an Agent without an explicit model', () => {
     const config = { ...DEFAULT_PERMISSION_GROUP_CONFIG, defaultAgentModel: 'gpt-4o' }

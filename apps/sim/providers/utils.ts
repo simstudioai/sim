@@ -32,7 +32,6 @@ import {
   findProviderFromModel,
   getComputerUseModels,
   getHostedModels,
-  getModelsWithDeepResearch,
   getModelsWithoutMemory,
   getModelsWithPromptCaching,
   getModelsWithReasoningEffort,
@@ -1476,7 +1475,6 @@ export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 export const MODELS_WITH_THINKING = getModelsWithThinking()
 export const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
-export const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 export const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 
 /**
@@ -1518,10 +1516,6 @@ export function supportsThinking(model: string): boolean {
 /** Whether the model accepts caller-placed prompt-cache breakpoints. */
 export function supportsPromptCaching(model: string): boolean {
   return MODELS_WITH_PROMPT_CACHING.includes(model.toLowerCase())
-}
-
-export function isDeepResearchModel(model: string): boolean {
-  return MODELS_WITH_DEEP_RESEARCH.includes(model.toLowerCase())
 }
 
 /**

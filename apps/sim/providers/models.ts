@@ -99,7 +99,6 @@ export interface ModelCapabilities {
   }
   /** Uses native state and questions instead of a conversational prompt. */
   evaluation?: boolean
-  deepResearch?: boolean
   /** Whether this model supports conversation memory. Defaults to true if omitted. */
   memory?: boolean
 }
@@ -2643,7 +2642,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     name: 'Google',
     description: "Google's Gemini models",
     defaultModel: 'gemini-2.5-pro',
-    modelPatterns: [/^gemini/, /^deep-research/],
+    modelPatterns: [/^gemini/],
     capabilities: {
       toolUsageControl: true,
     },
@@ -2995,12 +2994,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-06-11',
         },
         capabilities: {
-          deepResearch: true,
-          memory: false,
           maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
         releaseDate: '2025-12-11',
+        sunset: { status: 'deprecated' },
       },
     ],
   },
@@ -3282,12 +3280,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-06-11',
         },
         capabilities: {
-          deepResearch: true,
-          memory: false,
           maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
         releaseDate: '2025-12-11',
+        sunset: { status: 'deprecated' },
       },
     ],
   },
@@ -7048,21 +7045,6 @@ export function getEvaluationModels(): string[] {
 
 export function isEvaluationModel(modelId: string): boolean {
   return getModelCapabilities(modelId)?.evaluation === true
-}
-
-/**
- * Get all models that support deep research capability
- */
-export function getModelsWithDeepResearch(): string[] {
-  const models: string[] = []
-  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    for (const model of provider.models) {
-      if (model.capabilities.deepResearch) {
-        models.push(model.id)
-      }
-    }
-  }
-  return models
 }
 
 /**
