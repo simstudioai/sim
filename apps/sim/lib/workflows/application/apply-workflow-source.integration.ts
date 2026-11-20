@@ -2248,7 +2248,10 @@ export default workflow('', {}, () => {
 
 describe('renames in source', () => {
   /** Start → Boom → Tally → Report, each a function; Report's code reads Boom and Tally by $ref. */
-  async function seedChain(reportCode = 'return <boom.result> + <tally.result>') {
+  async function seedChain(
+    reportCode = 'return <boom.result> + <tally.result>',
+    tallyCode = 'return 2'
+  ) {
     const workflowId = generateId()
     const now = new Date()
     await db.insert(workflow).values({
@@ -2271,7 +2274,7 @@ describe('renames in source', () => {
     })
     const start: BlockState = { ...fn('Start', ''), type: 'start_trigger', subBlocks: {} }
     const boom = fn('Boom', 'return 1')
-    const tally = fn('Tally', 'return 2')
+    const tally = fn('Tally', tallyCode)
     const report = fn('Report', reportCode)
     const chain = [start, boom, tally, report]
     const saved = await saveWorkflowToNormalizedTables(workflowId, {
@@ -2769,6 +2772,30 @@ describe('renames in source', () => {
           ),
         ].sort()
       ).toEqual(['functions/boom.py', 'functions/tally.py'])
+    }
+  )
+
+  check(
+    'refuses a missing block an edited file reads after a reference an inferred rename settles',
+    async () => {
+      // The stored Tally already reads more missing blocks than a compile lists of that code, so
+      // each of Report's findings is left out of the listing.
+      const ghosts = Array.from({ length: 20 }, (_, i) => `<ghost${i}.result>`)
+      const seeded = await seedChain(undefined, `return [${ghosts.join(', ')}]`)
+      const source = await getSource(seeded.workflowId)
+      const files = {
+        ...edit(renameIdent(source.files, 'boom', 'bang'), "fn('Boom'", "fn('Bang'"),
+        'functions/report.js': 'return $ref.boom.result + $ref.nosuchblock.result\n',
+      }
+
+      const dryRun = await apply(source, files, { dryRun: true })
+
+      expect(codes(dryRun.diagnostics)).toContain('W_MAT_INFERRED_RENAME')
+      expect(
+        dryRun.diagnostics
+          .filter((d) => d.severity === 'error')
+          .map((d) => ({ code: d.code, file: d.file }))
+      ).toEqual([{ code: 'E_APPLY_UNRESOLVED_REF', file: 'functions/report.js' }])
     }
   )
 

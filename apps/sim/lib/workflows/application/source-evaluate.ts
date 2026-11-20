@@ -289,7 +289,9 @@ const RENAME_SETTLED_CODES: ReadonlySet<string> = new Set([
  * `diagnostics` without the {@link RENAME_SETTLED_CODES} findings a block rename settles. The
  * compile already knew the renames the lock names by ident; a rename materialize inferred (name
  * and const both changed) is known only now, so the source is compiled again with every rename and
- * a finding stays only where that compile still reports it.
+ * its findings of those codes, listed and withheld, replace the first compile's. Taken whole, not
+ * matched by position: the first compile withholds one finding per code, block and file, so a
+ * settled one may stand for a later finding in that file that the rename leaves unresolved.
  */
 function withoutRenameSettledFindings(
   compiled: Pick<CompileResult, 'diagnostics' | 'withheld'>,
@@ -300,14 +302,11 @@ function withoutRenameSettledFindings(
   if (renames.size === 0 || ![...compiled.diagnostics, ...compiled.withheld].some(settles)) {
     return compiled
   }
-  const at = (d: CompileResult['diagnostics'][number]) =>
-    `${d.code}@${d.span.file}:${d.span.line}:${d.span.column}`
   const again = recompile()
-  const still = new Set([...again.diagnostics, ...again.withheld].filter(settles).map(at))
-  const kept = (d: CompileResult['diagnostics'][number]) => !settles(d) || still.has(at(d))
+  const unsettled = (d: CompileResult['diagnostics'][number]) => !settles(d)
   return {
-    diagnostics: compiled.diagnostics.filter(kept),
-    withheld: compiled.withheld.filter(kept),
+    diagnostics: [...compiled.diagnostics.filter(unsettled), ...again.diagnostics.filter(settles)],
+    withheld: [...compiled.withheld.filter(unsettled), ...again.withheld.filter(settles)],
   }
 }
 
