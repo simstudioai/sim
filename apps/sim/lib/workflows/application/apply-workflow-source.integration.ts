@@ -2264,6 +2264,59 @@ describe('renames in source', () => {
     }
   }
 
+  /** Start → Calc (a function whose result nothing types) → Reply, whose JSON data reads Calc. */
+  async function seedUntypedReply() {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    const written = await apply(
+      source,
+      {
+        'workflow.ts': [
+          '// @sim-sdk 1',
+          "import { codeFile, fn, response, trigger, workflow } from '@sim/workflow-sdk'",
+          '',
+          `export default workflow('Untyped reply ${seeded.workflowId}', {}, () => {`,
+          "  const start = trigger.start('Start', {})",
+          "  const calc = fn('Calc', { code: codeFile('./functions/calc.js') })",
+          "  const reply = response('Reply', { dataMode: 'json', data: { total: calc.result.total } })",
+          '  start.to(calc)',
+          '  calc.to(reply)',
+          '})',
+          '',
+        ].join('\n'),
+        'functions/calc.js': 'return JSON.parse($ref.start.input)\n',
+      },
+      { allowDelete: true }
+    )
+    expect(written.applied).toBe(true)
+    const calcId = written.lock.blocks.calc?.id
+    return { workflowId: seeded.workflowId, calcId }
+  }
+
+  check(
+    'a rename does not report W_JSON_REF_UNTYPED on a JSON field only its reference rewrite changed',
+    async () => {
+      const displayOnly = await seedUntypedReply()
+      const source = await getSource(displayOnly.workflowId)
+      expect(codes((await apply(source, source.files, { dryRun: true })).diagnostics)).toEqual([])
+
+      const renamed = await apply(source, edit(source.files, "fn('Calc'", "fn('Order Calc'"), {
+        dryRun: true,
+      })
+      expect(renamed.diff.blocks.renamed).toEqual([
+        { id: displayOnly.calcId, from: 'calc', to: 'ordercalc' },
+      ])
+      expect(codes(renamed.diagnostics)).toEqual([])
+
+      const both = await seedUntypedReply()
+      const bothSource = await getSource(both.workflowId)
+      const files = edit(renameIdent(bothSource.files, 'calc', 'total'), "fn('Calc'", "fn('Total'")
+      const inferred = await apply(bothSource, files, { dryRun: true })
+      expect(inferred.diff.blocks.renamed).toEqual([{ id: both.calcId, from: 'calc', to: 'total' }])
+      expect(codes(inferred.diagnostics)).not.toContain('W_JSON_REF_UNTYPED')
+    }
+  )
+
   check('two display-name renames in one save keep both ids and resolve their $refs', async () => {
     const seeded = await seedChain()
     const source = await getSource(seeded.workflowId)

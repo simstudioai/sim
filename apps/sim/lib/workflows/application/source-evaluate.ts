@@ -271,28 +271,37 @@ function withoutCodeFileReferences(
 }
 
 /**
- * `diagnostics` without the code-file `W_UNRESOLVED_REF` findings a block rename resolves: an
- * apply rewrites every `<old key.path>` to the new key, so `$ref.<old key>` runs. The compile
- * already knew the renames the lock names by ident; a rename materialize inferred (name and
- * const both changed) is known only now, so the source is compiled again with every rename and
+ * Findings a block rename can settle: a code-file `W_UNRESOLVED_REF` (an apply rewrites every
+ * `<old key.path>` to the new key, so `$ref.<old key>` runs) and a `W_JSON_REF_UNTYPED` on a JSON
+ * field whose only change is that rewrite.
+ */
+const RENAME_SETTLED_CODES: ReadonlySet<string> = new Set([
+  'W_UNRESOLVED_REF',
+  'W_JSON_REF_UNTYPED',
+])
+
+/**
+ * `diagnostics` without the {@link RENAME_SETTLED_CODES} findings a block rename settles. The
+ * compile already knew the renames the lock names by ident; a rename materialize inferred (name
+ * and const both changed) is known only now, so the source is compiled again with every rename and
  * a finding stays only where that compile still reports it.
  */
-function withoutRenamedCodeFileRefs(
+function withoutRenameSettledFindings(
   diagnostics: CompileResult['diagnostics'],
   renames: ReadonlyMap<string, string>,
   recompile: () => CompileResult
 ): CompileResult['diagnostics'] {
-  if (renames.size === 0 || !diagnostics.some((d) => d.code === 'W_UNRESOLVED_REF')) {
+  if (renames.size === 0 || !diagnostics.some((d) => RENAME_SETTLED_CODES.has(d.code))) {
     return diagnostics
   }
   const at = (d: CompileResult['diagnostics'][number]) =>
-    `${d.span.file}:${d.span.line}:${d.span.column}`
+    `${d.code}@${d.span.file}:${d.span.line}:${d.span.column}`
   const still = new Set(
     recompile()
-      .diagnostics.filter((d) => d.code === 'W_UNRESOLVED_REF')
+      .diagnostics.filter((d) => RENAME_SETTLED_CODES.has(d.code))
       .map(at)
   )
-  return diagnostics.filter((d) => d.code !== 'W_UNRESOLVED_REF' || still.has(at(d)))
+  return diagnostics.filter((d) => !RENAME_SETTLED_CODES.has(d.code) || still.has(at(d)))
 }
 
 /** `{ span }` when there is one, to spread into a diagnostic. */
@@ -755,7 +764,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     blockRenames
   )
   const renamedKeys = new Map([...blockRenames].map(([key, storedKey]) => [storedKey, key]))
-  const compileDiagnostics = withoutRenamedCodeFileRefs(compiled.diagnostics, renamedKeys, () =>
+  const compileDiagnostics = withoutRenameSettledFindings(compiled.diagnostics, renamedKeys, () =>
     compileWorkflow({ ...compileInput, stored: compiled.stored, renamedKeys })
   )
   const sourceRefusals: Diagnostic[] = []

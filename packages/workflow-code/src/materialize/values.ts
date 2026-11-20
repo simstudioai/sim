@@ -174,6 +174,23 @@ function rewriteBlock(block: CanonicalBlock, rewrite: (text: string) => string):
 }
 
 /**
+ * A function rewriting every `<from.` reference token in a text to `<to.`, case-insensitively, as
+ * an apply rewrites the references to a renamed block.
+ */
+export function renamedReferenceRewriter(
+  renames: ReadonlyArray<{ from: BlockKey; to: BlockKey }>
+): (text: string) => string {
+  const patterns = renames.map(({ from, to }) => ({
+    pattern: new RegExp(`<${escapeRegExp(from)}\\.`, 'gi'),
+    replacement: `<${to}.`,
+  }))
+  return (text) =>
+    text.includes('<')
+      ? patterns.reduce((acc, { pattern, replacement }) => acc.replace(pattern, replacement), text)
+      : text
+}
+
+/**
  * Rewrites `<oldkey.` reference tokens to `<newkey.` after a rename. Case-insensitive,
  * because the block resolver lowercases names (`BlockResolver`). A
  * rename whose old key is still a key of `workflow` is skipped: the token still names that block.
@@ -184,14 +201,7 @@ export function rewriteRenamedReferences(
 ): CanonicalWorkflow {
   const active = renames.filter(({ from }) => !Object.hasOwn(workflow.blocks, from))
   if (active.length === 0) return workflow
-  const patterns = active.map(({ from, to }) => ({
-    pattern: new RegExp(`<${escapeRegExp(from)}\\.`, 'gi'),
-    replacement: `<${to}.`,
-  }))
-  const rewrite = (text: string): string =>
-    text.includes('<')
-      ? patterns.reduce((acc, { pattern, replacement }) => acc.replace(pattern, replacement), text)
-      : text
+  const rewrite = renamedReferenceRewriter(active)
   const blocks: CanonicalWorkflow['blocks'] = {}
   for (const [key, block] of Object.entries(workflow.blocks)) {
     setOwn(blocks, key, rewriteBlock(block, rewrite))
