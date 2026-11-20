@@ -1,8 +1,9 @@
 /**
  * The layout of the generated declarations (`generateSdkTypes`) and which of them a source
- * directory type-checks. A whole catalog is about 500 block files; `tsc` over all of them costs
- * hundreds of megabytes, so a directory's `tsconfig.json` includes only the blocks its source
- * uses, and `tsconfig.full.json` every current block for adding a new one.
+ * directory holds and type-checks. A whole catalog is about 500 block files (over 13 MB), so a
+ * directory holds and its `tsconfig.json` includes only the blocks its source uses; the whole set
+ * lives once per catalog in the CLI's cache, which `tsconfig.full.json` includes for adding any
+ * block.
  */
 
 import { compareStrings } from '@sim/utils/string'
@@ -98,10 +99,10 @@ export function referencedBlockTypes(catalog: BlockCatalog, sources: Iterable<st
 }
 
 /**
- * The block files a directory's `tsconfig.json` includes, relative to the SDK directory: those of
- * the `used` types that have one, plus the {@link ALWAYS_CHECKED_BUILDERS}' blocks.
+ * The block types a directory holds declarations for and its `tsconfig.json` type-checks: the
+ * `used` types that have builders, plus the {@link ALWAYS_CHECKED_BUILDERS}' blocks.
  */
-export function defaultBlockFiles(catalog: BlockCatalog, used: Iterable<string>): string[] {
+export function checkedBlockTypes(catalog: BlockCatalog, used: Iterable<string>): string[] {
   const declared = declaredBlockTypes(catalog)
   const types = new Set<string>()
   for (const key of ALWAYS_CHECKED_BUILDERS) {
@@ -109,7 +110,15 @@ export function defaultBlockFiles(catalog: BlockCatalog, used: Iterable<string>)
     if (type) types.add(type)
   }
   for (const type of used) if (declared.has(type)) types.add(type)
-  return [...types].sort(compareStrings).map(blockTypesFile)
+  return [...types].sort(compareStrings)
+}
+
+/**
+ * The block files a directory's `tsconfig.json` includes, relative to the SDK directory: those of
+ * the {@link checkedBlockTypes}.
+ */
+export function defaultBlockFiles(catalog: BlockCatalog, used: Iterable<string>): string[] {
+  return checkedBlockTypes(catalog, used).map(blockTypesFile)
 }
 
 /**

@@ -113,7 +113,7 @@ The \`// @sim-sdk 1\` header must be the first line, and the file has exactly on
 
 - \`sim workflows source params <builder>\`: one builder's params (required first, enums, defaults) and outputs; a namespace (\`gmail\`) lists its builders; a miss names the closest. Builders are named for the service, not the block type: \`gmail_v2\` is \`gmail.*\`, \`workflow_input\` is \`runWorkflow\`, the HTTP request block is \`api\`, and \`legacy.*\` builders are old versions not to write.
 - \`${SDK_DIR}/core.d.ts\`: the SDK (\`workflow\`, \`t\`, \`env\`, \`credential\`, \`table\`, \`loop\`, \`parallel\`, \`BlockMeta\`).
-- \`${SDK_DIR}/blocks/<block type>.d.ts\`: one block's builders with their params and outputs. Do not read them, or \`${SDK_DIR}/models.d.ts\`, whole: \`params\` prints the part you need, and \`grep\` finds a model id.
+- \`${SDK_DIR}/blocks/<block type>.d.ts\`: the builders of a block the source uses, with their params and outputs (check adds the file of a block an edit starts using). Do not read them, or \`${SDK_DIR}/models.d.ts\`, whole: \`params\` prints the part you need, and \`grep\` finds a model id.
 - \`${WORKSPACE_TYPES_FILE}\`: this workspace's tables, knowledge bases, credentials, workflows and env names.
 
 ## Rules
@@ -296,11 +296,11 @@ get into another directory, or pass --force); 7 the workflow is too large to pri
 /**
  * Teaches the generated `workflows source get` leaf `--dir <dir>`: instead of printing the
  * response, it writes `workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`, SDK
- * declarations for every block in the workspace's catalog (`.sim/sdk/**`, so a block an agent
- * adds resolves too; the catalog is ETag-cached per workspace in the CLI's config directory),
- * `.sim/sdk/workspace.d.ts` from the resource manifest, a `tsconfig.json` that resolves them, a
- * short `.sim/AGENTS.md`, the example `.sim/examples/cookbook.ts` and the `.gitattributes` lines
- * that keep the source LF. Without `--dir` the generated handler runs unchanged. Commander offers
+ * declarations for the blocks the source uses (`.sim/sdk/**`; every block's are generated once
+ * per catalog into the CLI's cache, which `tsconfig.full.json` includes, and the catalog itself is
+ * ETag-cached), `.sim/sdk/workspace.d.ts` from the resource manifest, the tsconfig files, the
+ * primer it prints atop `.sim/AGENTS.md`, the examples in `.sim/examples/` and the
+ * `.gitattributes` lines that keep the source LF. Without `--dir` the generated handler runs unchanged. Commander offers
  * no way to read the action it holds, so it is captured and delegated to, as `runs get` does.
  */
 export function attachWorkflowSourceGet(source: Command): void {

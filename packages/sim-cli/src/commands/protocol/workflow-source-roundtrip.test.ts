@@ -493,13 +493,14 @@ describe('catalog and declarations', () => {
     expect(existsSync(join(dir, 'workflow.ts'))).toBe(false)
   })
 
-  it('leaves the declarations alone while the index on disk names the same catalog', async () => {
+  it('drops the file of a block the source no longer uses while the index names the same catalog', async () => {
     await get()
-    writeFileSync(join(dir, '.sim/sdk/blocks/kept_block.d.ts'), 'declare const x: 1\n')
+    writeFileSync(join(dir, '.sim/sdk/blocks/unused_block.d.ts'), 'declare const x: 1\n')
 
     await get()
 
-    expect(existsSync(join(dir, '.sim/sdk/blocks/kept_block.d.ts'))).toBe(true)
+    expect(existsSync(join(dir, '.sim/sdk/blocks/unused_block.d.ts'))).toBe(false)
+    expect(existsSync(join(dir, '.sim/sdk/blocks/agent.d.ts'))).toBe(true)
   })
 
   it('regenerates the declarations for the same catalog when another CLI release generated them', async () => {
@@ -1016,7 +1017,7 @@ describe('checking a workflow holding a type the workspace catalog withholds', (
     await get()
 
     expect(readdirSync(cacheDir).sort()).toEqual(
-      [`${CATALOG.hash}.json`, `${WORKSPACE_CATALOG.hash}.json`, 'workspaces'].sort()
+      [CATALOG.hash, `${CATALOG.hash}.json`, `${WORKSPACE_CATALOG.hash}.json`, 'workspaces'].sort()
     )
     expect(queries.filter((query) => query === WORKFLOW_ID)).toHaveLength(1)
   })

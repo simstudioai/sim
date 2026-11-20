@@ -7,6 +7,7 @@ export {
   sdkIndexHeader,
 } from './generate'
 export {
+  checkedBlockTypes,
   defaultBlockFiles,
   fullBlockFiles,
   referencedBlockTypes,

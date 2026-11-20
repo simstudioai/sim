@@ -1,5 +1,6 @@
 /**
- * `generateSdkTypes(catalog)`: the block catalog → `.d.ts` files.
+ * `generateSdkTypes(catalog, options)`: the block catalog → `.d.ts` files, for every block (the
+ * CLI's cached copy of a catalog) or only the blocks a source directory holds.
  *
  * - `blocks/{type}.d.ts` per block type with builders: every builder's params and output types,
  *   and the augmentation of `@sim/workflow-sdk` with the builder functions, tool forms and
@@ -8,8 +9,9 @@
  * - `models.d.ts`: model ids, apart so a model-list change touches one file.
  * - `index.d.ts`: imports the models and every current block (not the legacy-only ones); the only
  *   file that names the catalog hash.
- * - `INDEX.md`: one line per builder naming its block, operation, file and params type, so an
- *   agent finds a builder with one `grep` instead of reading declarations.
+ * - `INDEX.md`: the naming rule, how a workflow runs, and one line per builder naming its block,
+ *   operation, file and params type (in a directory's copy, only its blocks' builders; any other
+ *   builder is one `sim workflows source params` away).
  *
  * Output is deterministic: the same catalog gives byte-identical files in path order.
  */
@@ -56,7 +58,16 @@ export interface SdkTypeFile {
   text: string
 }
 
-export type GenerateSdkTypesFn = (catalog: BlockCatalog) => SdkTypeFile[]
+/** Which declarations `generateSdkTypes` writes. */
+interface SdkTypesOptions {
+  /**
+   * Only these block types' files, with `index.d.ts` importing them and `INDEX.md` listing their
+   * builders: a source directory's own copy. Without it, every block (the cached full catalog).
+   */
+  blockTypes?: ReadonlySet<string>
+}
+
+export type GenerateSdkTypesFn = (catalog: BlockCatalog, options?: SdkTypesOptions) => SdkTypeFile[]
 
 /** Names `core.d.ts` exports that generated files may reference; imported only when used. */
 const CORE_TYPE_NAMES = [
@@ -729,12 +740,20 @@ const NAMING_RULE = [
   '`<namespace>.tool.<operation>(params)` (`slack.tool.sendMessage({ … })`).',
 ]
 
+/** The lookup command for any builder, which the directory's `INDEX.md` points to. */
+const PARAMS_LOOKUP =
+  'Look up any builder, used here or not: `sim workflows source params <builder>` (`table.upsertRow`, `trigger.schedule`; a namespace such as `gmail` lists its builders) prints its params and outputs offline.'
+
 /**
  * `INDEX.md`: one line per builder, `key — Block: Operation → file (ParamsType)`, current builders
- * first and legacy ones in their own section, so `grep -i gmail .sim/sdk/INDEX.md` finds a builder
- * and the params type to read.
+ * first and legacy ones in their own section. The full catalog's lists every builder; a
+ * directory's (`subset`) only the builders of the blocks it holds, beside the lookup command.
  */
-function generateSdkIndex(catalog: BlockCatalog, entries: readonly IndexEntry[]): SdkTypeFile {
+function generateSdkIndex(
+  catalog: BlockCatalog,
+  entries: readonly IndexEntry[],
+  subset: boolean
+): SdkTypeFile {
   const line = (entry: IndexEntry) =>
     `- \`${entry.key}\` — ${entry.summary} → \`${blockTypesFile(entry.type)}\` (\`${entry.paramsName}\`)`
   const sorted = [...entries].sort((a, b) => compareStrings(a.key, b.key))
@@ -749,10 +768,10 @@ function generateSdkIndex(catalog: BlockCatalog, entries: readonly IndexEntry[])
       '',
       ...NAMING_RULE,
       '',
-      'Find a builder: `grep -i "gmail" .sim/sdk/INDEX.md`. Read its params and outputs: `grep -n -A40 "export type GmailSendEmailParams" .sim/sdk/blocks/gmail_v2.d.ts` (the output type follows as `GmailSendEmailOutput`).',
+      PARAMS_LOOKUP,
       '',
       ...RUNTIME_SEMANTICS,
-      '## Builders',
+      subset ? '## Builders of the blocks in this directory' : '## Builders',
       '',
       ...current.map(line),
       '',
@@ -770,22 +789,27 @@ function generateSdkIndex(catalog: BlockCatalog, entries: readonly IndexEntry[])
   }
 }
 
-/** Generates every declaration file and `INDEX.md` for a catalog, sorted by path. */
-export const generateSdkTypes: GenerateSdkTypesFn = (catalog) => {
+/**
+ * Generates the declaration files and `INDEX.md` for a catalog, sorted by path: every block, or
+ * only `options.blockTypes` (a directory's own copy, whose `index.d.ts` imports just those).
+ */
+export const generateSdkTypes: GenerateSdkTypesFn = (catalog, options = {}) => {
   const byType = new Map<string, BuilderEntry[]>()
   for (const entry of builderEntries(catalog)) {
+    if (options.blockTypes && !options.blockTypes.has(entry.builder.type)) continue
     const list = byType.get(entry.builder.type)
     if (list) list.push(entry)
     else byType.set(entry.builder.type, [entry])
   }
   const types = [...byType.keys()].sort(compareStrings)
-  const legacyOnly = legacyOnlyBlockTypes(catalog)
+  // A directory's index imports every block it holds: it holds a legacy-only one only when used.
+  const legacyOnly = options.blockTypes ? new Set<string>() : legacyOnlyBlockTypes(catalog)
   const index: IndexEntry[] = []
   const files: SdkTypeFile[] = [generateModelsFile(catalog)]
   for (const type of types) {
     files.push(generateBlockFile(catalog, type, byType.get(type) ?? [], index))
   }
-  files.push(generateSdkIndex(catalog, index))
+  files.push(generateSdkIndex(catalog, index, options.blockTypes !== undefined))
   files.push({
     path: SDK_INDEX_FILE,
     text: [

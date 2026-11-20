@@ -31,7 +31,8 @@ have the CLI confirm the directory holds that workflow.
    second and catches what check and the dry run do not, such as a reference to a start input the
    trigger does not declare. It type-checks with the TypeScript release the declarations are built
    for. `tsconfig.json` includes only the blocks the source used at the
-   last check, get or apply (fast); `tsconfig.full.json` includes every current block. In a
+   last check, get or apply (fast); `tsconfig.full.json` includes every current block, from the CLI's cache. A builder of a block
+   the directory does not hold yet type-checks once `check` has run: it writes that block's file. In a
    workspace directory, `sim workspaces source check --dir .` checks every workflow against the
    directory's own secrets, credentials, resource keys and table columns, and
    `sim workflows source check` run in a `workflows/<key>` folder does the same for one.
@@ -65,12 +66,13 @@ refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
 | `.sim/base.json` | The workflow, workspace, fingerprint and catalog hash the source was read at. Do not edit. |
 | `.sim/written.json` | The CLI's record of each file as it last wrote it, so `status`, `diff` and a later `get` can tell your unapplied edits from files it may replace. Commit it with the lock and base. Do not edit. |
 | `.sim/sdk/core.d.ts` | This package: `workflow`, `t`, `env`, `credential`, `table`, `BlockMeta`, ... |
-| `.sim/sdk/INDEX.md` | One line per builder: `slack.sendMessage — Slack: Send Message → blocks/slack_v2.d.ts (SlackSendMessageParams)`, legacy builders apart, and the block type → builder naming rule. `grep` it to find a builder. |
-| `.sim/sdk/blocks/{type}.d.ts` | One block type's builders with their params and outputs, for every block, not only the ones in use. `grep` the params type `INDEX.md` names rather than reading a file whole. |
-| `.sim/sdk/index.d.ts` | Imports every current block (not the legacy-only ones); `tsconfig.full.json` includes it. |
+| `.sim/sdk/INDEX.md` | The block type → builder naming rule, how a workflow runs, and one line per builder of the blocks the directory holds: `slack.sendMessage — Slack: Send Message → blocks/slack_v2.d.ts (SlackSendMessageParams)`. Any other builder: `sim workflows source params <builder>`. |
+| `.sim/sdk/blocks/{type}.d.ts` | One block type's builders with their params and outputs, for the blocks the source uses and the core builders' (`check` adds a block an edit starts using). `sim workflows source params` prints one builder rather than a file whole. |
+| `.sim/sdk/index.d.ts` | Names the catalog and generator the declarations come from, and imports the blocks the directory holds. |
+| `~/.sim/cache/source-catalog/<hash>/sdk-<generator>/` | Every block's declarations and the full `INDEX.md`, generated once per catalog and shared by every directory; `tsconfig.full.json` includes its `index.d.ts` (every current block). |
 | `.sim/sdk/workspace.d.ts` | This workspace's tables (with columns), knowledge bases, credentials, workflows (with inputs), skills, custom tools and env var names, so `table('tickets')`, `credential('support-slack')`, `skill('triage')` and `env.X` are checked. |
 | `tsconfig.json` | Resolves `@sim/workflow-sdk` to `.sim/sdk` and type-checks `workflow.ts` with the blocks it uses (from the source and the server's `blockTypes`) and the core builders' blocks: a few dozen files for `tsc` instead of every block. |
-| `tsconfig.full.json` | The same with every current block, plus any legacy-only block the workflow uses. |
+| `tsconfig.full.json` | The same with every current block (the cached index, an absolute path on this machine), plus any legacy-only block the workflow uses. |
 | `.sim/AGENTS.md` | The authoring guide for agents: the primer `get` prints (edit loop, identity, references, deletes, deploy, exit codes, and a snippet for each builder the source calls), then a reference linking [the docs](https://docs.sim.ai/workflows/code). A top-level `AGENTS.md` of your own is never touched. |
 | `.sim/examples/*.ts` | Example workflows, together one correct example of each common block: `cookbook.ts` (agent, condition, function, table, knowledge, Slack, human in the loop, loop, response), `integrations.ts` (webhook, weekday cron, HTTP headers, table update by id, Gmail, `onError`), `agents.ts` (router, agent tools, child workflow, parallel). Read them before writing. They name example resources, so the tsconfig files leave them out. |
 | `.gitattributes` | `text eol=lf` for the source files, merged into any file already there. |
@@ -165,7 +167,7 @@ files are stored verbatim. One file per block; imports between function files ar
 | `src/core.d.ts` | Authoring types. Exports exactly `SDK_CORE_EXPORTS` from `@sim/workflow-code`; after editing run `bun scripts/generate-embedded-text.ts`. |
 | `cookbook/examples/*.ts` | The examples the CLI writes into `.sim/examples/`. After editing run `bun scripts/generate-embedded-text.ts`; `apps/sim/lib/workflows/code/real-catalog.test.ts` type-checks and compiles each against the real catalog (its `COOKBOOK_WORKSPACE` lists the resources they name). |
 | `src/runtime.ts` | The runtime entry: every export throws `SimSdkNotExecutable`. |
-| `src/codegen/` | `generateSdkTypes(catalog)` (catalog → `.d.ts` and the `.sim/sdk/INDEX.md` builder list, deterministic, sorted by path), `generateWorkspaceTypes(manifest)` (`workspace.d.ts`), and `layout.ts`: which declaration files a directory's tsconfig files include. |
+| `src/codegen/` | `generateSdkTypes(catalog, { blockTypes })` (catalog → `.d.ts` and the `INDEX.md` builder list, for every block or a directory's subset, deterministic, sorted by path), `describeBuilder`/`lookupBuilder` (one builder's params and outputs, for `sim workflows source params`), `generateWorkspaceTypes(manifest)` (`workspace.d.ts`), and `layout.ts`: which declaration files a directory's tsconfig files include. |
 | `test/examples` | Five example workflows, also compiled against the real catalog with zero diagnostics in `apps/sim/lib/workflows/code/sdk-examples.test.ts`. |
 | `test/negative` | Code each generated type must reject. |
 

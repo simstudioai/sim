@@ -481,6 +481,5 @@ describe('sim workflows source check', () => {
     expect(includes(join(dir, 'tsconfig.json'))).toEqual(
       expect.arrayContaining(['.sim/sdk/blocks/slack_v2.d.ts', '.sim/sdk/blocks/gmail_v2.d.ts'])
     )
-    expect(() => readFileSync(join(dir, 'tsconfig.full.json'))).toThrow()
   })
 })

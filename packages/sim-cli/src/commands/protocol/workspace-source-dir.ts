@@ -168,7 +168,7 @@ const ADVANCED_GUIDE = `# Sim workspace source: advanced
 
 ## Git and CI
 
-- Commit the whole directory, \`.sim/\` included: \`${WORKSPACE_BASE_FILE}\`, each workflow's \`.sim/\` and \`.sim/written.json\` are what a later apply compares with, from any clone. The generated \`.gitignore\` leaves out only what a command keeps while it runs (\`.sim/downloads/\`, \`.sim/command.lock/\`, \`.sim-staging-*\`), and \`.gitattributes\` keeps workspace files and documents byte for byte.
+- Commit the whole directory, \`.sim/\` included: \`${WORKSPACE_BASE_FILE}\`, each workflow's \`.sim/\` and \`.sim/written.json\` are what a later apply compares with, from any clone. The generated \`.gitignore\` leaves out only what a command keeps while it runs (\`.sim/downloads/\`, \`.sim/command.lock/\`, \`.sim-staging-*\`) and \`${TSCONFIG_FULL_FILE}\`, which names the CLI's cache on this machine (\`check\` writes it again), and \`.gitattributes\` keeps workspace files and documents byte for byte.
 - A fresh clone runs \`check\` (it downloads the block catalog once when none is cached), \`apply --dry-run\` and \`apply --yes\` with only the committed files. A workspace API key may apply tables, rows, knowledge bases, files, custom tools, MCP servers and credential bindings; workflows, skills, secrets and deployments need a member's personal API key (deployments an admin's).
 - Plan on every pull request (\`apply --dry-run\`), apply on merge, and commit the files the apply rewrote. Two branches that each applied: merge them, then run the dry run. No changes means the merged files match the workspace. Exit 5 means a resource changed since the base this branch holds: \`sim workspaces source get --dir <fresh dir>\`, carry the edit over, and apply from there.
 - \`sim workspaces source get --dir .\` refreshes the workspace \`${WORKSPACE_BASE_FILE}\` names, whatever the profile's default; a \`--workspace\` naming another is refused.
@@ -195,7 +195,13 @@ export const WORKSPACE_TREE: SourceTreeProfile = {
     `${KIND_DIRS.file}/** -text`,
     `${KIND_DIRS['knowledge-base']}/*/docs/** -text`,
   ],
-  gitignore: [`${SOURCE_DOWNLOADS_DIR}/`, `${SOURCE_DIR_LOCK}/`, `${SOURCE_STAGING_PREFIX}*/`],
+  gitignore: [
+    `${SOURCE_DOWNLOADS_DIR}/`,
+    `${SOURCE_DIR_LOCK}/`,
+    `${SOURCE_STAGING_PREFIX}*/`,
+    // It includes the cached declarations by this machine's absolute path; `check` writes it again.
+    TSCONFIG_FULL_FILE,
+  ],
   sdk: Object.entries(WORKSPACE_SDK_DTS).map(
     ([name, text]) => [`${WORKSPACE_SDK_DIR}/${name}`, text] as const
   ),
