@@ -523,8 +523,17 @@ describe('workspaces source apply', () => {
           { kind: 'table', key: 'leads', action: 'noop' },
           { kind: 'table', key: 'prod-only', action: 'delete' },
           { kind: 'table', key: 'dropped', action: 'delete' },
+          { kind: 'table', key: 'hotfixed', action: 'noop' },
         ],
         diagnostics: [
+          {
+            code: 'W_SERVER_CHANGED',
+            severity: 'warning',
+            message: 'tables/hotfixed changed on the server since this directory was read.',
+            hint: 'Run `sim workspaces source get` into a fresh directory to see what changed.',
+            kind: 'table',
+            key: 'hotfixed',
+          },
           {
             code: 'W_SERVER_DELETED',
             severity: 'warning',
@@ -561,8 +570,11 @@ describe('workspaces source apply', () => {
     expect(stale.hint).not.toContain('fresh directory')
     expect(stale.hint).toContain('sim workspaces source get --workspace ws_prod')
     expect(stale.hint).not.toContain('.sim/targets/ws_prod.json first')
+    const [drifted] = byCode('W_SERVER_CHANGED')
+    expect(drifted.hint).toContain('sim workspaces source get --workspace ws_prod')
     const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
     expect(stderr).toContain('  ! gone (deleted on the server; kept as the server has it)')
+    expect(stderr).toContain('  ! leads (changed on the server; your edit is refused as stale)')
     expect(stderr).not.toContain('resource(s) that only workspace ws_prod holds')
   })
 

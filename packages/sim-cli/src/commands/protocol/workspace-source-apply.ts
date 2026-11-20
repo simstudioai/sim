@@ -178,6 +178,11 @@ function printPlan(
   )
   const driftOf = (change: Change) =>
     change.action === 'noop' ? drifted.get(`${change.kind}:${change.key}`) : undefined
+  const stale = new Set(
+    diagnostics
+      .filter((finding) => finding.code === 'E_APPLY_STALE')
+      .map((finding) => `${finding.kind}:${finding.key}`)
+  )
   for (const kind of APPLY_ORDER) {
     const changes = plan.filter((change) => change.kind === kind)
     if (changes.length === 0) continue
@@ -197,7 +202,10 @@ function printPlan(
     for (const change of changes) {
       const drift = driftOf(change)
       if (drift) {
-        printError(`  ! ${change.key} (${drift} on the server; kept as the server has it)`)
+        const fate = stale.has(`${change.kind}:${change.key}`)
+          ? 'your edit is refused as stale'
+          : 'kept as the server has it'
+        printError(`  ! ${change.key} (${drift} on the server; ${fate})`)
         continue
       }
       if (change.action === 'noop') continue
@@ -504,6 +512,9 @@ function promotionHint(code: string, target: string): string | undefined {
   const record = promotionRecordPath(target) ?? '.sim/targets/<workspaceId>.json'
   if (code === 'E_APPLY_STALE') {
     return `Workspace ${target} changed this resource since the last promotion from this directory. Carry that change into the directory (\`sim workspaces source get --workspace ${target} --dir <fresh dir>\` prints it), or undo it in ${target}, then promote again. Don't delete ${record} to get past this: the next promotion would then overwrite every change made in ${target} since, rows its workflows wrote included.`
+  }
+  if (code === 'W_SERVER_CHANGED') {
+    return `Workspace ${target} changed this resource since the last promotion from this directory, and this promotion keeps that change. To carry it into the directory, \`sim workspaces source get --workspace ${target} --dir <fresh dir>\` prints it.`
   }
   if (code === 'E_APPLY_NO_BASE') {
     return `Workspace ${target} holds this resource, but no promotion from this directory recorded it. Rename the declaration, or rename or delete the resource in ${target}, then promote again.`
