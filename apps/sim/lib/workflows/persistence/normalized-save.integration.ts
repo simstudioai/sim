@@ -4,7 +4,8 @@
  * random edit sequences (add, remove, modify, move into a subflow, retarget and drop edges, replace a block
  * under the edges it keeps) are
  * saved both ways and the rows compared. A one-field edit rewrites one row, and an id owned by another
- * workflow is still refused with the unique violation callers map to a conflict.
+ * workflow is still refused with the unique violation callers map to a conflict, as are an edge id
+ * repeated in one state and an edge to a block the state does not hold.
  */
 import { db } from '@sim/db'
 import { user, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
@@ -124,7 +125,10 @@ async function fullReplaceRows(workflowId: string, state: WorkflowState) {
   })
 }
 
-/** One random edit of the kinds a source apply, operations apply or Copilot edit makes. */
+/**
+ * One random edit of the kinds a source apply, operations apply or Copilot edit makes, a retype
+ * under the same id included.
+ */
 function mutate(state: WorkflowState, random: () => number): WorkflowState {
   const blocks = Object.values(state.blocks).map((block) => structuredClone(block))
   let edges = state.edges.map((edge) => ({ ...edge }))
@@ -161,7 +165,13 @@ function mutate(state: WorkflowState, random: () => number): WorkflowState {
     }
   } else if (edit === 2) {
     const target = pick(functions)
-    if (target) target.subBlocks.code = { id: 'code', type: 'code', value: `return ${random()}` }
+    if (!target) return stateOf(blocks, edges)
+    if (random() < 0.5) {
+      target.subBlocks.code = { id: 'code', type: 'code', value: `return ${random()}` }
+    } else {
+      target.type = 'api'
+      target.subBlocks = { url: { id: 'url', type: 'short-input', value: 'https://example.com' } }
+    }
   } else if (edit === 3) {
     const target = pick(blocks)
     if (target) target.position = { x: Math.floor(random() * 2000), y: Math.floor(random() * 900) }
@@ -238,7 +248,9 @@ describe('saveWorkflowToNormalizedTables', () => {
       expect(await saveWorkflowToNormalizedTables(workflowId, state)).toEqual({ success: true })
 
       for (let step = 0; step < 40; step++) {
-        state = mutate(state, random)
+        // Real applies batch edits, and the risky orderings come from combinations of them.
+        const edits = 1 + Math.floor(random() * 5)
+        for (let applied = 0; applied < edits; applied++) state = mutate(state, random)
         expect(await saveWorkflowToNormalizedTables(workflowId, state)).toEqual({ success: true })
         const diffed = await storedRows(db, workflowId)
         expect(diffed, `seed ${seed} step ${step}`).toEqual(
@@ -295,5 +307,85 @@ describe('saveWorkflowToNormalizedTables', () => {
     expect(getPostgresErrorCode(refused)).toBe('23505')
     expect(await storedRows(db, workflowId)).toEqual(before)
     expect((await storedRows(db, owner)).blocks.map((block) => block.name)).toEqual(['Claimed'])
+  })
+
+  it('refuses an edge id another workflow owns and leaves the stored graph as it was', async () => {
+    const owner = await insertWorkflow()
+    const workflowId = await insertWorkflow()
+    const [a, b] = [functionBlock(generateId(), 'A', 0), functionBlock(generateId(), 'B', 100)]
+    const [c, d] = [functionBlock(generateId(), 'C', 0), functionBlock(generateId(), 'D', 100)]
+    const edgeId = generateId()
+    await saveWorkflowToNormalizedTables(
+      owner,
+      stateOf([a, b], [{ id: edgeId, source: a.id, target: b.id }])
+    )
+    await saveWorkflowToNormalizedTables(workflowId, stateOf([c, d], []))
+    const before = await storedRows(db, workflowId)
+
+    const refused = await db
+      .transaction((tx) =>
+        saveWorkflowToNormalizedTables(
+          workflowId,
+          stateOf([c, d], [{ id: edgeId, source: c.id, target: d.id }]),
+          tx
+        )
+      )
+      .then(
+        () => undefined,
+        (error: unknown) => error
+      )
+
+    expect(getPostgresErrorCode(refused)).toBe('23505')
+    expect(await storedRows(db, workflowId)).toEqual(before)
+  })
+
+  it('refuses a state repeating a stored edge id, with the unique violation and nothing written', async () => {
+    const workflowId = await insertWorkflow()
+    const [a, b, c] = ['A', 'B', 'C'].map((name, index) =>
+      functionBlock(generateId(), name, index * 100)
+    )
+    const edgeId = generateId()
+    await saveWorkflowToNormalizedTables(
+      workflowId,
+      stateOf([a, b, c], [{ id: edgeId, source: a.id, target: b.id }])
+    )
+    const before = await storedRows(db, workflowId)
+
+    const refused = await db
+      .transaction((tx) =>
+        saveWorkflowToNormalizedTables(
+          workflowId,
+          stateOf(
+            [a, b, c],
+            [
+              { id: edgeId, source: a.id, target: b.id },
+              { id: edgeId, source: b.id, target: c.id },
+            ]
+          ),
+          tx
+        )
+      )
+      .then(
+        () => undefined,
+        (error: unknown) => error
+      )
+
+    expect(getPostgresErrorCode(refused)).toBe('23505')
+    expect(await storedRows(db, workflowId)).toEqual(before)
+  })
+
+  it('refuses an edge to a block the state removes, as a full replace did, and writes nothing', async () => {
+    const workflowId = await insertWorkflow()
+    const [a, b] = [functionBlock(generateId(), 'A', 0), functionBlock(generateId(), 'B', 100)]
+    const edges = [{ id: generateId(), source: a.id, target: b.id }]
+    expect(await saveWorkflowToNormalizedTables(workflowId, stateOf([a, b], edges))).toEqual({
+      success: true,
+    })
+    const before = await storedRows(db, workflowId)
+
+    const saved = await saveWorkflowToNormalizedTables(workflowId, stateOf([a], edges))
+
+    expect(saved.success).toBe(false)
+    expect(await storedRows(db, workflowId)).toEqual(before)
   })
 })

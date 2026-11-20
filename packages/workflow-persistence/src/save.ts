@@ -195,7 +195,8 @@ async function deleteRows(
 
 /**
  * Makes the workflow's normalized block, edge and subflow rows match `state`, leaving the rows a
- * delete-all and re-insert would leave. Only the difference is written: rows whose stored columns
+ * delete-all and re-insert would leave; a state with an edge to a block it does not hold is
+ * refused before anything is written, as that re-insert's foreign keys refused it. Only the difference is written: rows whose stored columns
  * already match are untouched (keeping their timestamps), changed rows are rewritten, and missing
  * or extra rows are inserted or deleted, so an edit costs its size rather than the graph's.
  *
@@ -219,8 +220,20 @@ export async function saveWorkflowToNormalizedTables(
     targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle) ?? null,
   }))
   const desiredSubflows = toSubflowRows(workflowId, blockRecords)
+  const desiredBlockIds = new Set(desiredBlocks.map((block) => block.id))
+  const dangling = desiredEdges.find(
+    (edge) => !desiredBlockIds.has(edge.sourceBlockId) || !desiredBlockIds.has(edge.targetBlockId)
+  )
 
   const execute = async (tx: DbOrTx) => {
+    // The diff keeps an unchanged edge and deletes the block it names, whose cascade would then
+    // drop it silently; a full replace refused such a state with a foreign-key violation, so this
+    // refuses it before writing anything.
+    if (dangling) {
+      throw new Error(
+        `Edge ${dangling.id} connects a block the saved state does not hold (${dangling.sourceBlockId} → ${dangling.targetBlockId})`
+      )
+    }
     const [storedBlocks, storedEdges, storedSubflows] = await Promise.all([
       tx
         .select()
