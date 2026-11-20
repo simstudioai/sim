@@ -236,7 +236,7 @@ check(
   }
 )
 
-check('a dry run of source naming an unkeyed credential allocates no key for it', async () => {
+check('a dry run over a stored credential that has no key yet allocates none for it', async () => {
   const credentialId = await seedHiddenCredential()
   const { workflowId } = await seedWorkflow(credentialId)
   const source = await getSource(reader, workflowId)
