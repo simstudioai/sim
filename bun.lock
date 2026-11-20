@@ -314,6 +314,7 @@
         "@sim/realtime-protocol": "workspace:*",
         "@sim/runtime-secrets": "workspace:*",
         "@sim/security": "workspace:*",
+        "@sim/table-cells": "workspace:*",
         "@sim/terminal-protocol": "workspace:*",
         "@sim/utils": "workspace:*",
         "@sim/workflow-code": "workspace:*",
@@ -803,6 +804,19 @@
         "vitest": "^5.1.0",
       },
     },
+    "packages/table-cells": {
+      "name": "@sim/table-cells",
+      "version": "0.1.0",
+      "dependencies": {
+        "@sim/utils": "workspace:*",
+        "zod": "4.3.6",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "typescript": "^7.0.2",
+        "vitest": "^5.1.0",
+      },
+    },
     "packages/terminal-protocol": {
       "name": "@sim/terminal-protocol",
       "version": "0.1.0",
@@ -863,6 +877,7 @@
       },
       "devDependencies": {
         "@babel/types": "7.29.8",
+        "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "@xyflow/react": "12.12.1",
         "fast-check": "3.23.2",
@@ -955,12 +970,13 @@
       "version": "0.1.0",
       "dependencies": {
         "@babel/parser": "7.29.9",
+        "@sim/table-cells": "workspace:*",
         "@sim/utils": "workspace:*",
         "@sim/workflow-code": "workspace:*",
-        "zod": "4.3.6",
       },
       "devDependencies": {
         "@babel/types": "7.29.8",
+        "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "@types/js-yaml": "4.0.9",
         "fast-check": "3.23.2",
@@ -2129,6 +2145,8 @@
     "@sim/runtime-secrets": ["@sim/runtime-secrets@workspace:packages/runtime-secrets"],
 
     "@sim/security": ["@sim/security@workspace:packages/security"],
+
+    "@sim/table-cells": ["@sim/table-cells@workspace:packages/table-cells"],
 
     "@sim/terminal-protocol": ["@sim/terminal-protocol@workspace:packages/terminal-protocol"],
 

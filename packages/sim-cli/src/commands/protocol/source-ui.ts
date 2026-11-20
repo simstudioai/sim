@@ -4,8 +4,9 @@
  * write nobody confirmed, and an API refusal re-thrown with the exit status a script branches on.
  */
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { boundFindingText, type RefusalClass } from '@sim/workflow-code/diagnostics'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
-import { type FlatDiagnostic, type RefusalClass, refusalClass } from '@sim/workspace-code'
+import { type FlatDiagnostic, refusalClass } from '@sim/workspace-code'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { askLine } from '#sim-cli/terminal/line-input'
@@ -23,6 +24,7 @@ import type {
   ApplyWorkspaceSourceResponse,
 } from '../../generated/v2-api'
 import { noAnswer, REQUEST_CANCELLED, SimApiError } from '../../http/client'
+import { LocalRefusal } from './local-errors'
 
 /** One finding of a source write, as the workflow and workspace answers both carry it. */
 type WorkflowDiagnostic = ApplyWorkflowSourceResponse['data']['diagnostics'][number]
@@ -192,7 +194,11 @@ export interface FindingsOutput {
   result(diagnostics: readonly Diagnostic[]): { diagnostics?: ResultDiagnostic[] }
 }
 
-/** The {@link FindingsOutput} of `format`; `verbose` keeps info findings in a machine result. */
+/**
+ * The {@link FindingsOutput} of `format`; `verbose` keeps info findings in a machine result. It is
+ * the CLI's output edge, where each finding's message and hint are cut (`boundFindingText`): a
+ * finding an offline check made is as long as its source made it until here.
+ */
 export function findingsOutput(format: OutputFormat, verbose = false): FindingsOutput {
   const printed = new Set<string>()
   const machine = isMachine(format)
@@ -200,9 +206,14 @@ export function findingsOutput(format: OutputFormat, verbose = false): FindingsO
     machine,
     print(diagnostics) {
       const unseen = diagnostics.filter((diagnostic) => fresh(printed, findingKey(diagnostic)))
-      if (!machine) printDiagnostics(unseen)
+      if (!machine) printDiagnostics(unseen.map((diagnostic) => boundFindingText(diagnostic)))
     },
-    result: (diagnostics) => resultDiagnostics(format, diagnostics, verbose),
+    result: (diagnostics) =>
+      resultDiagnostics(
+        format,
+        diagnostics.map((diagnostic) => boundFindingText(diagnostic)),
+        verbose
+      ),
   }
 }
 
@@ -277,6 +288,7 @@ const LOST_ANSWER_STATUSES = new Set([502, 504])
  * that gave up, a cancellation), so it may or may not have been stored.
  */
 function answerLost(error: SimApiError): boolean {
+  if (error instanceof LocalRefusal) return false
   return noAnswer(error, LOST_ANSWER_STATUSES) || error.code === REQUEST_CANCELLED
 }
 

@@ -29,8 +29,7 @@ import { buildChatDeploymentUrl } from '@/lib/chat-deployments/urls'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { resolveCopilotSecretReference } from '@/lib/core/application/environment-reference'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { expectedDraft } from '@/lib/workflows/application/deployments'
-import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
+import { withExpectedDraft } from '@/lib/workflows/application/deployments'
 import { performChatDeploy, performChatUndeploy } from '@/lib/workflows/orchestration'
 import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-check'
 
@@ -272,38 +271,32 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
-    const draftCheck =
-      input.expectedDraftFingerprint !== undefined
-        ? expectedDraft(
-            principal,
-            await resolvePrincipalWorkflowContext({
-              principal,
-              input: { workflowId: context.workflowId },
-            }),
-            input.expectedDraftFingerprint
-          )
-        : undefined
-    const result = await performChatDeploy({
-      workflowId: context.workflowId,
-      userId: attribution.attributedUserId,
-      actorId: attribution.attributedUserId,
-      actor: toPrincipalActor(principal),
-      identifier: input.identifier,
-      title: input.title,
-      description: input.description ?? '',
-      customizations,
-      authType,
-      password,
-      allowedEmails,
-      outputConfigs,
-      includeThinking: input.includeThinking ?? false,
-      includeToolCalls: input.includeToolCalls ?? false,
-      workspaceId: context.workspaceId,
-      requestId: input.requestId,
-      projectLegacyAudit: false,
-      ...(draftCheck ? { admitDraft: draftCheck.admitDraft } : {}),
-    }).catch(chatIdentifierUniquenessConflict(input.identifier))
-    draftCheck?.assertAdmitted()
+    const result = await withExpectedDraft(
+      principal,
+      context,
+      input.expectedDraftFingerprint,
+      (admission) =>
+        performChatDeploy({
+          workflowId: context.workflowId,
+          userId: attribution.attributedUserId,
+          actorId: attribution.attributedUserId,
+          actor: toPrincipalActor(principal),
+          identifier: input.identifier,
+          title: input.title,
+          description: input.description ?? '',
+          customizations,
+          authType,
+          password,
+          allowedEmails,
+          outputConfigs,
+          includeThinking: input.includeThinking ?? false,
+          includeToolCalls: input.includeToolCalls ?? false,
+          workspaceId: context.workspaceId,
+          requestId: input.requestId,
+          projectLegacyAudit: false,
+          ...admission,
+        }).catch(chatIdentifierUniquenessConflict(input.identifier))
+    )
 
     if (!result.success) {
       /**

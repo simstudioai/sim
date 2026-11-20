@@ -6,7 +6,7 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
-import { internalWorkflowErrorPolicies } from '@/lib/workflows/api'
+import { internalWorkflowErrorPolicies, withBoundSourceFindings } from '@/lib/workflows/api'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 
 export const dynamic = 'force-dynamic'
@@ -51,5 +51,5 @@ export const GET = defineInternalJsonRoute({
   }),
   useCase: readWorkflowSource,
   entityTag: (source) => `${source.base.fingerprint}.${sha256Hex(JSON.stringify(source))}`,
-  present: (source) => ({ data: source }),
+  present: (source) => ({ data: withBoundSourceFindings(source) }),
 })

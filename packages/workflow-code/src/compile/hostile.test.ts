@@ -1,12 +1,13 @@
+import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
 import { afterEach, describe, expect, it } from 'vitest'
 import { codeFileReferences } from '../code-files/references'
+import { FINDING_LIMITS } from '../diagnostics/bound'
 import { MAX_ERRORS } from '../diagnostics/codes'
-import { growth, MAX_GROWTH } from '../scaling.test-helpers'
 import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
-import { MAX_INFOS, MAX_WARNINGS, MAX_WARNINGS_PER_CODE, Reporter } from './report'
+import { Reporter } from './report'
 
 /**
  * Hostile sources: compile never executes anything and never throws. Each input must come
@@ -158,7 +159,7 @@ describe('hostile sources produce diagnostics only', () => {
       const text = source(repeats)
       return () => run(text)
     }
-    expect(growth(scan, 12_500)).toBeLessThan(MAX_GROWTH)
+    expectLinearGrowth(scan, 12_500)
     const result = run(source(100_000))
     expect(result.workflow).not.toBeNull()
     expect(codes(result)).not.toContain('W_LITERAL_SECRET')
@@ -195,14 +196,40 @@ describe('hostile sources produce diagnostics only', () => {
       'W_COMMENT_DROPPED',
       'W_FIELD_NOT_APPLICABLE',
     ] as const
-    expect(fillers.length * MAX_WARNINGS_PER_CODE).toBeGreaterThanOrEqual(MAX_WARNINGS)
-    for (let i = 0; i < MAX_WARNINGS; i++) {
-      reporter.report(fillers[Math.floor(i / MAX_WARNINGS_PER_CODE)], `x${i}`, at)
+    expect(fillers.length * FINDING_LIMITS.warningsPerCode).toBeGreaterThanOrEqual(
+      FINDING_LIMITS.perSeverity
+    )
+    for (let i = 0; i < FINDING_LIMITS.perSeverity; i++) {
+      reporter.report(fillers[Math.floor(i / FINDING_LIMITS.warningsPerCode)], `x${i}`, at)
     }
     reporter.report('W_LITERAL_SECRET', 'body holds a literal secret', at)
     const capped = reporter.diagnostics.at(-1)
-    expect(capped?.code).toBe('W_TOO_MANY_WARNINGS')
+    expect(capped?.code).toBe('I_FINDINGS_TRUNCATED')
     expect(capped?.frame).toBeUndefined()
+  })
+
+  it('records one I_FINDINGS_TRUNCATED however many warnings come past the total cap', () => {
+    const reporter = new Reporter()
+    reporter.addFile('w.ts', 'x')
+    const at = { file: 'w.ts', start: 0, end: 1 }
+    // Spread over enough codes that none reaches its own cap before the total cap.
+    const spread = [
+      'W_SUBFLOW_COUNT',
+      'W_FORWARD_REF',
+      'W_VALUE_KIND',
+      'W_OUT_OF_RANGE',
+      'W_UNKNOWN_OPTION',
+      'W_REQUIRED_MISSING',
+      'W_ENV_UNKNOWN',
+      'W_REF_NOT_NORMALIZED',
+    ] as const
+    expect(FINDING_LIMITS.perSeverity / spread.length).toBeLessThan(FINDING_LIMITS.warningsPerCode)
+    for (let i = 0; i < FINDING_LIMITS.perSeverity + 50; i++) {
+      reporter.report(spread[i % spread.length], `x${i}`, at)
+    }
+
+    const markers = reporter.diagnostics.filter((d) => d.code === 'I_FINDINGS_TRUNCATED')
+    expect(markers).toHaveLength(1)
   })
 
   it('checks the precision of a 100 KB numeric literal in linear time', () => {
@@ -212,7 +239,7 @@ describe('hostile sources produce diagnostics only', () => {
       const text = source(zeros)
       return () => run(text)
     }
-    expect(growth(check, 12_500)).toBeLessThan(MAX_GROWTH)
+    expectLinearGrowth(check, 12_500)
     expect(codes(run(source(100_000)))).toContain('W_NUMBER_PRECISION')
   })
 
@@ -231,8 +258,8 @@ describe('hostile sources produce diagnostics only', () => {
     body += `const a150 = api('A150', { url: 'x' })`
     const result = run(wrap(body))
     expect(result.workflow).not.toBeNull()
-    expect(result.diagnostics).toHaveLength(MAX_WARNINGS_PER_CODE + 1)
-    expect(result.diagnostics.at(-1)?.code).toBe('W_TOO_MANY_WARNINGS')
+    expect(result.diagnostics).toHaveLength(FINDING_LIMITS.warningsPerCode + 1)
+    expect(result.diagnostics.at(-1)?.code).toBe('I_FINDINGS_TRUNCATED')
   })
 
   it('never computes the did-you-mean of a warning past the cap', () => {
@@ -252,7 +279,7 @@ describe('hostile sources produce diagnostics only', () => {
         }
       )
     }
-    expect(computed).toBe(MAX_WARNINGS_PER_CODE)
+    expect(computed).toBe(FINDING_LIMITS.warningsPerCode)
     expect(reporter.diagnostics[0]?.hint).toBe('Did you mean y?')
   })
 
@@ -274,22 +301,25 @@ describe('hostile sources produce diagnostics only', () => {
         }
       )
     }
-    expect(reporter.withheld).toHaveLength(1_000 - MAX_WARNINGS_PER_CODE)
-    expect(computed).toBe(MAX_WARNINGS_PER_CODE)
+    expect(reporter.withheld).toHaveLength(1_000 - FINDING_LIMITS.warningsPerCode)
+    expect(computed).toBe(FINDING_LIMITS.warningsPerCode)
     expect({ ...reporter.withheld[0] }.hint).toBe('Did you mean y?')
-    expect(computed).toBe(MAX_WARNINGS_PER_CODE + 1)
+    expect(computed).toBe(FINDING_LIMITS.warningsPerCode + 1)
   })
 
   it('keeps infos from crowding out a warning', () => {
     const reporter = new Reporter()
     reporter.addFile('w.ts', 'x')
     const at = { file: 'w.ts', start: 0, end: 1 }
-    for (let i = 0; i < MAX_WARNINGS + 50; i++) reporter.report('I_SCHEDULE_UTC', `x${i}`, at)
+    for (let i = 0; i < FINDING_LIMITS.perSeverity + 50; i++)
+      reporter.report('I_SCHEDULE_UTC', `x${i}`, at)
     reporter.report('W_LITERAL_SECRET', 'apiKey holds a literal secret', at)
     const listed = reporter.diagnostics.map((d) => d.code)
     expect(listed).toContain('W_LITERAL_SECRET')
-    expect(listed).not.toContain('W_TOO_MANY_WARNINGS')
-    expect(listed.filter((code) => code === 'I_SCHEDULE_UTC')).toHaveLength(MAX_INFOS)
+    expect(listed).not.toContain('I_FINDINGS_TRUNCATED')
+    expect(listed.filter((code) => code === 'I_SCHEDULE_UTC')).toHaveLength(
+      FINDING_LIMITS.perSeverity
+    )
   })
 
   it('caps a diagnostic message that quotes a huge name', () => {

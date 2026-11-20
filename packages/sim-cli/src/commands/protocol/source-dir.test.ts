@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { type EmbedContext, embedStore } from '../../embed-context'
 import { EmbeddedOutput } from '../../embed-output'
 import {
+  readSourceText,
   SOURCE_DIR_LOCK,
   SOURCE_WRITTEN_FILE,
   takeOverStaleLock,
@@ -52,6 +53,21 @@ describe('updateSourceDir', () => {
     ).rejects.toThrow()
 
     for (const path of records) expect(readFileSync(join(dir, path), 'utf8')).toBe('old')
+  })
+
+  it('in an embedded run, a read the run stopped during throws instead of reading as a missing file', async () => {
+    const stopped = new AbortController()
+    const host: EmbedContext = {
+      identity: { endpoint: 'http://localhost', apiKey: 'test', signal: stopped.signal },
+      stdout: new EmbeddedOutput(),
+      stderr: new EmbeddedOutput(),
+      readFile: async () => {
+        stopped.abort()
+        return 'text'
+      },
+    }
+
+    await expect(embedStore.run(host, () => readSourceText(dir, 'workflow.ts'))).rejects.toThrow()
   })
 
   it('in an embedded run, writes the records after every file, fetched blobs included', async () => {
@@ -132,9 +148,44 @@ describe('withSourceDirLock', () => {
     expect(existsSync(lock)).toBe(false)
   })
 
+  it('a failed command on a missing nested directory leaves none of the folders the lock created', async () => {
+    mkdirSync(join(dir, 'out'))
+    writeFileSync(join(dir, 'out', 'kept.txt'), 'kept')
+
+    await expect(
+      withSourceDirLock(join(dir, 'out', 'a', 'b'), async () => {
+        throw new Error('not found')
+      })
+    ).rejects.toThrow('not found')
+
+    expect(existsSync(join(dir, 'out', 'a'))).toBe(false)
+    expect(readFileSync(join(dir, 'out', 'kept.txt'), 'utf8')).toBe('kept')
+  })
+
+  it('keeps an empty folder that was there before the lock created the ones under it', async () => {
+    mkdirSync(join(dir, 'out'))
+
+    expect(await withSourceDirLock(join(dir, 'out', 'a', 'b'), async () => 'ran')).toBe('ran')
+
+    expect(existsSync(join(dir, 'out', 'a'))).toBe(false)
+    expect(existsSync(join(dir, 'out'))).toBe(true)
+  })
+
+  it('removes the folders it created and keeps an empty one it did not, through a path holding ..', async () => {
+    mkdirSync(join(dir, 'ws', 'a', 'keep'), { recursive: true })
+
+    expect(
+      await withSourceDirLock(`${join(dir, 'ws', 'a', 'new')}/../keep/leaf`, async () => 'ran')
+    ).toBe('ran')
+
+    expect(existsSync(join(dir, 'ws', 'a', 'keep'))).toBe(true)
+    expect(existsSync(join(dir, 'ws', 'a', 'keep', 'leaf'))).toBe(false)
+    expect(existsSync(join(dir, 'ws', 'a', 'new'))).toBe(false)
+  })
+
   it('releases the lock when an interrupt ends the command holding it', () => {
     const script = `
-      import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir.ts'))}
+      import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir/index.ts'))}
       await withSourceDirLock(process.env.SOURCE_DIR, async () => {
         process.kill(process.pid, 'SIGINT')
         await new Promise(() => {})
@@ -159,7 +210,7 @@ describe('withSourceDirLock', () => {
       import { writeFileSync } from 'node:fs'
       import { join } from 'node:path'
       import { setTimeout as sleep } from 'node:timers/promises'
-      import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir.ts'))}
+      import { withSourceDirLock } from ${JSON.stringify(join(import.meta.dirname, 'source-dir/index.ts'))}
       import { deferInterrupts } from ${JSON.stringify(join(import.meta.dirname, '../../terminal/interrupts.ts'))}
       await withSourceDirLock(process.env.SOURCE_DIR, async () => {
         await deferInterrupts(

@@ -1,21 +1,11 @@
 import { join } from 'node:path'
 import { toRecord } from '@sim/utils/object'
-import { KIND_DIRS } from '@sim/workspace-code'
+import { KIND_DIRS, WORKSPACE_ANSWER_BOUND } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
 import { profileFrom } from '../../context'
-import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
-import {
-  absoluteDirOption,
-  directoryWorkspace,
-  readSourceJson,
-  SOURCE_DIR_BUSY_HELP,
-  withSourceDirLock,
-} from './source-dir'
-import { credentialRefused, unreachableReason } from './source-status'
-import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
-import { verboseFlag } from './source-ui'
+import { CliUsageError, SourceDirError } from './local-errors'
 import {
   type CheckFinding,
   checkWorkflowDir,
@@ -29,7 +19,17 @@ import {
   withWorkflowInputs,
   workspaceWorkflowInputs,
   workspaceWorkflowKeys,
-} from './workflow-source-check'
+} from './source-check'
+import {
+  absoluteDirOption,
+  directoryWorkspace,
+  readSourceJson,
+  SOURCE_DIR_BUSY_HELP,
+  withSourceDirLock,
+} from './source-dir'
+import { credentialRefused, unreachableReason } from './source-status'
+import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
+import { verboseFlag } from './source-ui'
 import { assertWorkspaceDir, readWorkspaceDeclarations } from './workspace-source-dir'
 
 const CHECK_HELP = `
@@ -77,10 +77,9 @@ async function fetchedCatalog(
     // leaves the catalog uncached, which the get that caches it fixes once the server answers.
     const reason = credentialRefused(error) ? null : unreachableReason(error)
     if (reason === null) throw error
-    throw new SimApiError(
+    throw new SourceDirError(
       `No block catalog is cached for workspace ${workspaceId}, and downloading it failed: ${reason} Run \`sim workspaces source get --dir ${dir}\` once the server can be reached, then check again.`,
-      0,
-      'CATALOG_NOT_CACHED'
+      { code: 'CATALOG_NOT_CACHED' }
     )
   }
 }
@@ -119,9 +118,8 @@ export function attachWorkspaceSourceCheck(source: Command): void {
           (from) => `Run it without --workspace to check it against the catalog of ${from}.`
         )
         if (!workspaceId) {
-          throw new SimApiError(
-            `${options.dir} has no ${WORKSPACE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`,
-            0
+          throw new CliUsageError(
+            `${options.dir} has no ${WORKSPACE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`
           )
         }
         await withSourceDirLock(options.dir, async () => {
@@ -174,7 +172,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
             profile.output,
             findings,
             { workflows: keys.length, catalogHash: catalog.hash },
-            options.verbose
+            { verbose: options.verbose === true, bound: WORKSPACE_ANSWER_BOUND }
           )
         })
       }

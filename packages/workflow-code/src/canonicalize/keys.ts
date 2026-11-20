@@ -5,6 +5,7 @@ import {
   type Variable,
 } from '@sim/workflow-types/workflow'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
+import { diagnostic } from '../diagnostics/factory'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { BlockKey, VarKey } from '../model'
 import type { VariableEntry } from './context'
@@ -49,24 +50,30 @@ export function assignBlockKeys(
     if (winnerByName.get(normalized) === id) {
       keyById.set(id, normalized)
       if (isReservedWorkflowBlockName(normalized)) {
-        diagnostics.push({
-          code: 'W_CANON_RESERVED_NAME',
-          severity: 'warning',
-          message: `Block name "${block.name}" normalizes to the reserved reference prefix "${normalized}"`,
-          blockKey: normalized,
-        })
+        diagnostics.push(
+          diagnostic(
+            'W_CANON_RESERVED_NAME',
+            `Block name "${block.name}" normalizes to the reserved reference prefix "${normalized}"`,
+            {
+              blockKey: normalized,
+            }
+          )
+        )
       }
       continue
     }
     const key = smallestFreeSuffix(normalized, taken)
     taken.add(key)
     keyById.set(id, key)
-    diagnostics.push({
-      code: 'E_CANON_LEGACY_NAME_COLLISION',
-      severity: 'error',
-      message: `Block name "${block.name}" normalizes to "${normalized}", which "${blocks[winnerByName.get(normalized) ?? id].name}" already resolves to; keyed "${key}" until renamed`,
-      blockKey: key,
-    })
+    diagnostics.push(
+      diagnostic(
+        'E_CANON_LEGACY_NAME_COLLISION',
+        `Block name "${block.name}" normalizes to "${normalized}", which "${blocks[winnerByName.get(normalized) ?? id].name}" already resolves to; keyed "${key}" until renamed`,
+        {
+          blockKey: key,
+        }
+      )
+    )
   }
 
   return { keyById, referenceableKeys: new Set(winnerByName.keys()) }
@@ -93,11 +100,12 @@ export function assignVariableKeys(
     if (claimed.has(normalizedName)) {
       key = smallestFreeSuffix(normalizedName, taken)
       taken.add(key)
-      diagnostics.push({
-        code: 'E_CANON_LEGACY_NAME_COLLISION',
-        severity: 'error',
-        message: `Variable name "${variable.name}" normalizes to "${normalizedName}", which another variable already uses; keyed "${key}" until renamed`,
-      })
+      diagnostics.push(
+        diagnostic(
+          'E_CANON_LEGACY_NAME_COLLISION',
+          `Variable name "${variable.name}" normalizes to "${normalizedName}", which another variable already uses; keyed "${key}" until renamed`
+        )
+      )
     }
     claimed.add(normalizedName)
     entries.push({ id: variable.id, key, normalizedName })

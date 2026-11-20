@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
 import { closest } from '../compile/hints'
+import { diagnostic } from '../diagnostics/factory'
 import {
   type BlockKey,
   type CanonicalBlock,
@@ -116,26 +117,28 @@ function unliftNode(node: SimNode, context: MaterializeContext, location: ValueL
       const id = context.variableIdByKey.get(node.key)
       if (id !== undefined) return id
       const hint = variableHint(node.key, [...context.variableIdByKey.keys()])
-      context.diagnostics.push({
-        code: 'E_MAT_UNKNOWN_VARIABLE',
-        severity: 'error',
-        message: `Variable "${node.key}" does not exist in this workflow`,
-        hint,
-        ...location,
-      })
+      context.diagnostics.push(
+        diagnostic(
+          'E_MAT_UNKNOWN_VARIABLE',
+          `Variable "${node.key}" does not exist in this workflow`,
+          {
+            hint,
+            ...location,
+          }
+        )
+      )
       return node.key
     }
     case 'resource': {
       const id = context.resources?.toId(node.kind, node.key) ?? null
       if (id !== null) return id
       const hint = availableKeysHint(node.kind, context.resources?.keysOf?.(node.kind), node.key)
-      context.diagnostics.push({
-        code: 'E_MAT_UNKNOWN_RESOURCE',
-        severity: 'error',
-        message: `No ${node.kind} "${node.key}" in this workspace`,
-        ...(hint !== undefined ? { hint } : {}),
-        ...location,
-      })
+      context.diagnostics.push(
+        diagnostic('E_MAT_UNKNOWN_RESOURCE', `No ${node.kind} "${node.key}" in this workspace`, {
+          ...(hint !== undefined ? { hint } : {}),
+          ...location,
+        })
+      )
       return node.key
     }
   }

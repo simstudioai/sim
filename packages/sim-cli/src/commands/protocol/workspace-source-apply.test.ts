@@ -714,6 +714,30 @@ describe('workspaces source apply', () => {
     expect(Object.keys(written)).not.toContain('workflows/ingest/functions/old.js')
   })
 
+  it('never prunes a lock entry that names the functions folder rather than a function file', async () => {
+    const lock = (codeFiles: string[]) =>
+      `${JSON.stringify({ version: 1, blocks: Object.fromEntries(codeFiles.map((file, index) => [`b${index}`, { id: `blk_${index}`, codeFile: file }])), variables: {} })}\n`
+    write('workflows/ingest/.sim/lock.json', lock(['functions/', 'functions/score.js']))
+    write('workflows/ingest/functions/score.js', 'return 1\n')
+    write('workflows/ingest/functions/mine.js', 'return 3\n')
+    request.mockResolvedValue(
+      answer({
+        applied: [{ kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' }],
+        files: {
+          'workflows/ingest/workflow.ts': INGEST,
+          'workflows/ingest/functions/score.js': 'return 1\n',
+          'workflows/ingest/.sim/lock.json': lock(['functions/score.js']),
+          'workflows/ingest/.sim/base.json': '{}\n',
+        },
+      })
+    )
+
+    await apply('--yes')
+
+    expect(readFileSync(join(dir, 'workflows/ingest/functions/mine.js'), 'utf8')).toBe('return 3\n')
+    expect(existsSync(join(dir, 'workflows/ingest/functions/score.js'))).toBe(true)
+  })
+
   it('keeps every function file of a workflow whose new lock does not read as one', async () => {
     write(
       'workflows/ingest/.sim/lock.json',

@@ -17,11 +17,16 @@ import {
   SOURCE_LOCAL_CHANGES_EXIT_CODE,
   SOURCE_TOO_LARGE_EXIT_CODE,
 } from '../../exit-codes'
+import type { ApplyWorkspaceSourceResponse } from '../../generated/v2-api'
 import { noAnswer, SimApiError } from '../../http/client'
 import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
+import { CliUsageError, LocalRefusal } from './local-errors'
 import { type Diagnostic, findingsOutput } from './source-ui'
+
+/** One change of a workspace apply's plan. */
+type WorkspacePlanChange = ApplyWorkspaceSourceResponse['data']['plan'][number]
 
 /** Whether the server was asked: `checked`, `unreachable` (degraded to local), or `offline`. */
 export type ServerCheck = 'checked' | 'unreachable' | 'offline'
@@ -111,7 +116,7 @@ export function credentialRefused(error: unknown): boolean {
  * cancelled request included), which a status reports rather than hides.
  */
 export function unreachableReason(error: unknown): string | null {
-  if (!(error instanceof SimApiError)) return null
+  if (!(error instanceof SimApiError) || error instanceof LocalRefusal) return null
   if (!noAnswer(error, UNREACHABLE_STATUSES) && !credentialRefused(error)) return null
   return /[.!?]$/.test(error.message) ? error.message : `${error.message}.`
 }
@@ -382,10 +387,9 @@ export function pathFilter(
         }
         if (unmatched.size === 0) return
       }
-      throw new SimApiError(
+      throw new CliUsageError(
         `${[...unmatched].map((filter) => `"${sanitize(filter)}"`).join(', ')} selects no file in ${sanitize(dir)}; name a file or folder relative to --dir, or a path from the current directory inside it.`,
-        0,
-        'SOURCE_PATH_UNMATCHED'
+        { code: 'SOURCE_PATH_UNMATCHED' }
       )
     },
   }
@@ -479,4 +483,12 @@ export async function readPlan<T>(plan: () => Promise<T>, dryRun: () => Promise<
     if (!(error instanceof SimApiError) || error.status !== 404) throw error
     return dryRun()
   }
+}
+
+/** The changes that delete something (a resource, rows, documents, columns, a deployment). */
+export function destructiveChanges(
+  changes: ReadonlyArray<Pick<WorkspacePlanChange, 'action' | 'destructive'>>
+): number {
+  return changes.filter((change) => change.action === 'delete' || change.destructive !== undefined)
+    .length
 }

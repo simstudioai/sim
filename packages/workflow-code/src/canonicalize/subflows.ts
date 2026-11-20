@@ -1,4 +1,5 @@
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
+import { diagnostic } from '../diagnostics/factory'
 import {
   type BlockKey,
   isLoopType,
@@ -78,12 +79,7 @@ function jsonField(value: unknown, context: CanonContext): Json | undefined {
 }
 
 function repaired(context: CanonContext, blockKey: BlockKey, message: string) {
-  context.diagnostics.push({
-    code: 'W_CANON_SUBFLOW_REPAIRED',
-    severity: 'warning',
-    message,
-    blockKey,
-  })
+  context.diagnostics.push(diagnostic('W_CANON_SUBFLOW_REPAIRED', message, { blockKey }))
 }
 
 /**

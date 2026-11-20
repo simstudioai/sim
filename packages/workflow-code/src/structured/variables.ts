@@ -6,6 +6,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { CanonContext } from '../canonicalize/context'
 import { toValue } from '../canonicalize/values'
+import { diagnostic } from '../diagnostics/factory'
 import type { BlockKey, Value } from '../model'
 import { setOwn } from '../records'
 import { compilePlain, encodePlain, noLockItems, printPlain, type StructuredCodec } from './codec'
@@ -33,13 +34,16 @@ function liftVariableAssignments(
       if (variableKey !== undefined) {
         setOwn(result, key, { $sim: 'var', key: variableKey })
       } else {
-        context.diagnostics.push({
-          code: 'W_CANON_UNRESOLVED_ID',
-          severity: 'warning',
-          message: `Variable assignment names unknown variable id "${member}"; kept verbatim`,
-          blockKey,
-          param,
-        })
+        context.diagnostics.push(
+          diagnostic(
+            'W_CANON_UNRESOLVED_ID',
+            `Variable assignment names unknown variable id "${member}"; kept verbatim`,
+            {
+              blockKey,
+              param,
+            }
+          )
+        )
         setOwn(result, key, { $sim: 'unresolved', kind: 'var', id: member })
       }
       continue

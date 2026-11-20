@@ -1,9 +1,4 @@
-export {
-  type RefusalClass,
-  refusalClass,
-  severityOf,
-  type WorkspaceDiagnosticCode,
-} from './codes'
+export { refusalClass, type WorkspaceDiagnosticCode } from './codes'
 export {
   diagnostic,
   type FindingResource,
@@ -13,6 +8,7 @@ export {
   MAX_FINDINGS_PER_FILE,
   resourceOf,
   sourceLocator,
+  WORKSPACE_ANSWER_BOUND,
   type WorkspaceDiagnostic,
   wholeFile,
 } from './finding'

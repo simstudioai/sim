@@ -164,32 +164,35 @@ export class WorkflowDraftChangedError extends OrchestrationError {
   }
 }
 
+/** The draft gate a publish takes: absent when the caller holds no expected fingerprint. */
+interface DraftAdmission {
+  admitDraft?: (draft: WorkflowState) => Promise<string | null>
+}
+
 /**
- * A publish's draft check: the snapshot it publishes must print with `expected`, the fingerprint
- * of the draft the caller reviewed or wrote. Every path that may publish a draft for a caller
- * holding such a fingerprint (a deploy, a chat write that redeploys) admits its snapshot through
- * `admitDraft`; after a failed publish, `assertAdmitted` throws {@link WorkflowDraftChangedError}
- * when this check is what refused it.
+ * Runs a publish under a draft check: the snapshot it publishes must print with `expected`, the
+ * fingerprint of the draft the caller reviewed or wrote. Every path that may publish a draft for a
+ * caller holding such a fingerprint (a deploy, a chat write that redeploys) spreads the admission
+ * into its publish. Returns the publish's result, and throws {@link WorkflowDraftChangedError}
+ * when this check is what refused it. With no `expected`, the publish runs unchecked.
  */
-export function expectedDraft(
+export async function withExpectedDraft<R>(
   principal: Principal,
   context: ActiveWorkflowApplicationContext,
-  expected: string
-): {
-  admitDraft: (draft: WorkflowState) => Promise<string | null>
-  assertAdmitted: () => void
-} {
+  expected: string | undefined,
+  publish: (admission: DraftAdmission) => Promise<R>
+): Promise<R> {
+  if (expected === undefined) return publish({})
   let refused = false
-  return {
+  const result = await publish({
     async admitDraft(draft) {
       if ((await draftSourceFingerprint(principal, context, draft)) === expected) return null
       refused = true
       return new WorkflowDraftChangedError().message
     },
-    assertAdmitted() {
-      if (refused) throw new WorkflowDraftChangedError()
-    },
-  }
+  })
+  if (refused) throw new WorkflowDraftChangedError()
+  return result
 }
 
 export const deployWorkflow = defineAuthorizedWorkflowUseCase({
@@ -200,23 +203,24 @@ export const deployWorkflow = defineAuthorizedWorkflowUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
-    const draftCheck =
-      input.expectedDraftFingerprint !== undefined
-        ? expectedDraft(principal, context, input.expectedDraftFingerprint)
-        : undefined
-    const result = await performFullDeploy({
-      workflowId: context.workflowId,
-      userId: attribution.attributedUserId,
-      actorId: attribution.attributedUserId,
-      actor: toPrincipalActor(principal),
-      ...(principal.kind === 'delegated' ? { captureAnalytics: false as const } : {}),
-      versionName: input.name,
-      versionDescription: input.description,
-      requestId: input.requestId,
-      idempotencyKey: input.idempotencyKey,
-      ...(draftCheck ? { admitDraft: draftCheck.admitDraft } : {}),
-    })
-    draftCheck?.assertAdmitted()
+    const result = await withExpectedDraft(
+      principal,
+      context,
+      input.expectedDraftFingerprint,
+      (admission) =>
+        performFullDeploy({
+          workflowId: context.workflowId,
+          userId: attribution.attributedUserId,
+          actorId: attribution.attributedUserId,
+          actor: toPrincipalActor(principal),
+          ...(principal.kind === 'delegated' ? { captureAnalytics: false as const } : {}),
+          versionName: input.name,
+          versionDescription: input.description,
+          requestId: input.requestId,
+          idempotencyKey: input.idempotencyKey,
+          ...admission,
+        })
+    )
     if (!result.success) throwDeploymentFailure(result, 'Failed to deploy workflow')
     const lint =
       input.lintDeployedVersion && result.deploymentVersionId

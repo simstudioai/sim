@@ -120,6 +120,23 @@ describe('GET /api/v2/workflows/{workflowId}/source', () => {
     expect(mocks.read).not.toHaveBeenCalled()
   })
 
+  it('answers a stored draft whose canonicalize floods one warning with 20 of them and one I_FINDINGS_TRUNCATED', async () => {
+    const flood = Array.from({ length: 120 }, (_, index) => ({
+      code: 'W_CANON_UNRESOLVED_ID' as const,
+      severity: 'warning' as const,
+      message: `Table gone-${index} no longer exists.`,
+    }))
+    mocks.read.mockResolvedValue({ ...source, diagnostics: flood })
+
+    const response = await GET(request(), context)
+    const { data } = await response.json()
+
+    expect(response.status).toBe(200)
+    const codes = data.diagnostics.map((finding: { code: string }) => finding.code)
+    expect(codes.filter((code: string) => code === 'W_CANON_UNRESOLVED_ID')).toHaveLength(20)
+    expect(codes.filter((code: string) => code === 'I_FINDINGS_TRUNCATED')).toHaveLength(1)
+  })
+
   it('passes functionCode through, omitting it when absent', async () => {
     await GET(request('?functionCode=inline'), context)
     await GET(request(), context)
@@ -217,6 +234,49 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
 
     expect(response.status).toBe(400)
     expect(body.error.details).toEqual({ code: 'SOURCE_REJECTED', diagnostics: [diagnostic] })
+  })
+
+  it('answers a flood of one warning as 20 of them and one I_FINDINGS_TRUNCATED, in place of the compile’s', async () => {
+    const flood = Array.from({ length: 120 }, (_, index) => ({
+      code: 'W_CANON_UNRESOLVED_ID' as const,
+      severity: 'warning' as const,
+      message: `Table gone-${index} no longer exists.`,
+    }))
+    const compileMarker = {
+      code: 'I_FINDINGS_TRUNCATED' as const,
+      severity: 'info' as const,
+      message: 'Listed 20 W_UNRESOLVED_REF warnings; the rest of them are omitted.',
+    }
+    mocks.apply.mockResolvedValue({ ...applied, diagnostics: [compileMarker, ...flood] })
+
+    const response = await POST(applyRequest(applyBody), context)
+    const { data } = await response.json()
+
+    expect(response.status).toBe(200)
+    const codes = data.diagnostics.map((finding: { code: string }) => finding.code)
+    expect(codes.filter((code: string) => code === 'W_CANON_UNRESOLVED_ID')).toHaveLength(20)
+    expect(codes.filter((code: string) => code === 'I_FINDINGS_TRUNCATED')).toHaveLength(1)
+    expect(data.diagnostics.at(-1).message).toContain('There are 120 findings; 100 more')
+  })
+
+  it('answers a refusal with more errors than one answer lists as the first 100 and one that counts the rest', async () => {
+    const errors = Array.from({ length: 150 }, (_, index) => ({
+      code: 'E_UNKNOWN_IDENTIFIER' as const,
+      severity: 'error' as const,
+      message: `Unknown identifier t${index}.`,
+    }))
+    mocks.apply.mockRejectedValue(new WorkflowSourceRejectedError(errors))
+
+    const response = await POST(applyRequest(applyBody), context)
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    const listed = body.error.details.diagnostics
+    expect(listed).toHaveLength(101)
+    expect(listed.at(-1)).toMatchObject({
+      code: 'I_FINDINGS_TRUNCATED',
+      message: expect.stringContaining('50 more (50 of them errors)'),
+    })
   })
 
   it('answers 409 with the current fingerprint when the draft moved', async () => {

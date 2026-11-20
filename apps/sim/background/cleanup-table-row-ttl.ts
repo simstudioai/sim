@@ -1,7 +1,7 @@
 import { dbFor } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { TTL_TIMESTAMP_VALIDATION } from '@sim/workspace-code/table-cells/ttl'
+import { TTL_TIMESTAMP_VALIDATION } from '@sim/table-cells/ttl'
 import { task } from '@trigger.dev/sdk'
 import { type SQL, sql } from 'drizzle-orm'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'

@@ -20,6 +20,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { isIdentifierName } from './code-files/ref-path'
 import type { LockDiagnosticCode } from './diagnostics/codes'
+import { diagnostic } from './diagnostics/factory'
 import type { Diagnostic } from './diagnostics/frame'
 import type { BlockKey, BranchKey, Json, SubBlockId, VarKey } from './model'
 import { SDK_RESERVED_IDENTIFIERS } from './sdk'
@@ -260,7 +261,7 @@ class LockReader {
   readonly diagnostics: LockDiagnostic[] = []
 
   report(code: LockDiagnostic['code'], segments: readonly string[], message: string): void {
-    this.diagnostics.push({ code, severity: 'error', message, path: pointer(segments) })
+    this.diagnostics.push(diagnostic(code, message, { path: pointer(segments) }))
   }
 
   /**

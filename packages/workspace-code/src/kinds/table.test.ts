@@ -1,4 +1,4 @@
-import { growth, MAX_GROWTH } from '@sim/workflow-code/scaling.test-helpers'
+import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { refusalClass } from '../diagnostics'
@@ -188,7 +188,7 @@ describe('createTableCodec', () => {
     expect(parse(20_000)().diagnostics).toMatchObject([
       { code: 'E_TABLE_OPTIONS', message: expect.stringContaining('20000 options') },
     ])
-    expect(growth(parse, 5_000)).toBeLessThan(MAX_GROWTH)
+    expectLinearGrowth(parse, 5_000)
   })
 
   it('pins a duplicate column name to the second column, not the whole table', () => {

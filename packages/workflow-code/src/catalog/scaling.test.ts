@@ -1,9 +1,10 @@
 /**
  * Catalog lookups grow linearly with the block (see `growth` for how a case is measured).
  */
+
+import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
 import { describe, expect, it } from 'vitest'
 import { TEST_CATALOG } from '../compile/catalog.test-helpers'
-import { growth, MAX_GROWTH } from '../scaling.test-helpers'
 import { buildFieldIndex } from './surface'
 import type { CatalogBlock, CatalogSubBlock } from './types'
 import { catalogBlock } from './view'
@@ -32,7 +33,6 @@ function pairedBlock(pairs: number): CatalogBlock {
 
 describe('catalog scaling', () => {
   it('indexes the fields of a block with many basic/advanced pairs in linear time', () => {
-    const ratio = growth((n) => () => buildFieldIndex(pairedBlock(n), false, new Set()), 1_000)
-    expect(ratio).toBeLessThan(MAX_GROWTH)
+    expectLinearGrowth((n) => () => buildFieldIndex(pairedBlock(n), false, new Set()), 1_000)
   })
 })

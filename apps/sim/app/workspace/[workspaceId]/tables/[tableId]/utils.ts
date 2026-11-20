@@ -1,8 +1,5 @@
+import { formatDateCellDisplay, normalizeDateCellValue } from '@sim/table-cells/dates'
 import { getWallClockParts } from '@sim/utils/timezone'
-import {
-  formatDateCellDisplay,
-  normalizeDateCellValue,
-} from '@sim/workspace-code/table-cells/dates'
 import type { ColumnDefinition, JsonValue } from '@/lib/table'
 import type { ColumnType } from '@/lib/table/column-types'
 import { columnTypeById, columnTypeOf } from '@/lib/table/column-types'

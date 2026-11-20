@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import * as exitCodes from '../../exit-codes'
-import { WORKFLOW_TREE } from './workflow-source-get'
+import { sourceExitCodesHelp } from './source-exit-codes'
+import { WORKFLOW_TREE } from './workflow-dir'
 import { WORKSPACE_TREE } from './workspace-source-dir'
 
 /**
@@ -32,4 +33,15 @@ describe('the exit-code tables an agent or a reader relies on', () => {
     const listed = [...text.matchAll(/^\| (\d+) \|/gm)].map((match) => Number(match[1]))
     expect(listed).toEqual(SOURCE_EXIT_CODES)
   })
+})
+
+describe('the exit codes a get names in its --help', () => {
+  it.each(['workflows source get', 'workspaces source get'] as const)(
+    '%s names exit 13 for a missing or refused login',
+    (command) => {
+      expect(sourceExitCodesHelp(command).replace(/\s+/g, ' ')).toContain(
+        `${exitCodes.AUTH_REQUIRED_EXIT_CODE} not logged in`
+      )
+    }
+  )
 })

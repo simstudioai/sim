@@ -4,6 +4,7 @@ import type { CanonicalModeOverrides } from '../catalog/canonical-index'
 import { isConditionClause } from '../catalog/conditions'
 import type { CatalogBlock, CatalogCondition, CatalogSubBlock } from '../catalog/types'
 import { declarationsOf } from '../catalog/view'
+import { diagnostic } from '../diagnostics/factory'
 import type { BlockKey, CanonicalParam, SubBlockId, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
 import { structuredCodec } from '../structured'
@@ -76,13 +77,16 @@ function decodeStructured(
   if (typeof raw !== 'string' || raw.trim() === '') return raw
   const parsed = parseJsonContainer(raw)
   if (parsed) return parsed
-  context.diagnostics.push({
-    code: 'W_CANON_UNDECODABLE_JSON',
-    severity: 'warning',
-    message: `Stored ${param} is not a JSON list or object; kept as text`,
-    blockKey,
-    param,
-  })
+  context.diagnostics.push(
+    diagnostic(
+      'W_CANON_UNDECODABLE_JSON',
+      `Stored ${param} is not a JSON list or object; kept as text`,
+      {
+        blockKey,
+        param,
+      }
+    )
+  )
   return raw
 }
 
@@ -154,13 +158,16 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
 
     const declaration = surfaceDeclaration(catalog, id, triggerMode)
     if (typeof subBlock.id === 'string' && subBlock.id !== id) {
-      context.diagnostics.push({
-        code: 'W_CANON_SUBBLOCK_TYPE_DRIFT',
-        severity: 'warning',
-        message: `Stored subBlock "${id}" carries id "${subBlock.id}"; the map key wins`,
-        blockKey,
-        param: id,
-      })
+      context.diagnostics.push(
+        diagnostic(
+          'W_CANON_SUBBLOCK_TYPE_DRIFT',
+          `Stored subBlock "${id}" carries id "${subBlock.id}"; the map key wins`,
+          {
+            blockKey,
+            param: id,
+          }
+        )
+      )
     }
     if (
       catalog &&
@@ -168,13 +175,16 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
       declarationsOf(catalog, id).length > 0 &&
       !declarationsOf(catalog, id).some((candidate) => candidate.type === subBlock.type)
     ) {
-      context.diagnostics.push({
-        code: 'W_CANON_SUBBLOCK_TYPE_DRIFT',
-        severity: 'warning',
-        message: `Stored subBlock "${id}" has type "${subBlock.type}"; the catalog type "${declaration?.type}" wins`,
-        blockKey,
-        param: id,
-      })
+      context.diagnostics.push(
+        diagnostic(
+          'W_CANON_SUBBLOCK_TYPE_DRIFT',
+          `Stored subBlock "${id}" has type "${subBlock.type}"; the catalog type "${declaration?.type}" wins`,
+          {
+            blockKey,
+            param: id,
+          }
+        )
+      )
     }
 
     const decoded = shouldDecode(declaration)

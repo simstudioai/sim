@@ -27,7 +27,7 @@ import {
   WorkflowSourceNameTakenError,
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
-import type { SourcePlan } from '@/lib/workflows/application/source-evaluate'
+import type { SourcePlan } from '@/lib/workflows/application/source-pipeline'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import { assertLockedBlocksPreserved } from '@/lib/workflows/code/apply/locked'
 import { type StoredSource, storedSourceFingerprint } from '@/lib/workflows/code/print-stored'
@@ -69,19 +69,26 @@ interface CommitScope {
 }
 
 /**
+ * Refuses a workflow created from source under a name already taken in its folder, as the create
+ * would refuse it ({@link WorkflowSourceNameTakenError}): checked when the create is planned.
+ */
+export async function assertCreateNameFree(
+  plan: SourcePlan,
+  target: { workspaceId: string; folderId: string | null }
+): Promise<void> {
+  if (await workflowNameExistsInFolder({ ...target, name: plan.meta.name })) {
+    throw new WorkflowSourceNameTakenError(plan.meta.name)
+  }
+}
+
+/**
  * What a dry run would store: the plan's graph prepared for persistence, refused when another
- * workflow already stores one of its ids, exactly as the write would refuse it. For a create
- * (`newWorkflow`), a name already taken in the target folder is refused as the create would
- * refuse it ({@link WorkflowSourceNameTakenError}).
+ * workflow already stores one of its ids, exactly as the write would refuse it.
  */
 export async function previewSourceCommit(
   workflowId: string,
-  plan: SourcePlan,
-  newWorkflow?: { workspaceId: string; folderId: string | null }
+  plan: SourcePlan
 ): Promise<CommittedGraph> {
-  if (newWorkflow && (await workflowNameExistsInFolder({ ...newWorkflow, name: plan.meta.name }))) {
-    throw new WorkflowSourceNameTakenError(plan.meta.name)
-  }
   const prepared = prepareWorkflowStateForPersistence({ blocks: plan.blocks, edges: plan.edges })
   await assertWorkflowGraphIdsUnclaimed(db, workflowId, collectWorkflowGraphIds(prepared.state))
   return prepared

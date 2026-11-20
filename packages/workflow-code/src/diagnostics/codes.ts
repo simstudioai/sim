@@ -2,13 +2,18 @@
  * Every diagnostic code `@sim/workflow-code` and the source apply path can emit. CLI output, the
  * copilot and tests match on them, so they freeze at release.
  *
- * The first letter fixes the severity (`E_` error, `W_` warning, `I_` info; see
- * {@link SeverityOf}). The segment after it names the stage that owns the code:
+ * The first letter fixes the severity (`E_` error, `W_` warning, `I_` info; see `SeverityOf` in
+ * `./severity`). The segment after it usually names the stage that owns the code:
  * - no stage segment: compile and print, which share one vocabulary;
  * - `LOCK_`: `parseWorkflowLock`;
+ * - `SOURCE_META_`: `parseSourceMeta`;
  * - `CANON_`: canonicalize;
  * - `MAT_`: materialize and identity resolution;
- * - `APPLY_`: the server apply pipeline and its gates.
+ * - `APPLY_`: the server apply pipeline and its gates. That array also holds the apply's checks
+ *   whose codes name what they check instead (`W_TABLE_UNKNOWN_COLUMN`, `E_NAME_TAKEN`,
+ *   `E_WORKFLOW_META_INVALID`).
+ *
+ * Every code is declared in exactly one array; {@link DiagnosticCode} is `never` if one is not.
  */
 
 /** Syntax, header and file-shape errors from compile. */
@@ -41,12 +46,16 @@ const COMPILE_SYNTAX_CODES = [
    * Fixing the errors listed and compiling again shows the rest.
    */
   'E_TOO_MANY_ERRORS',
-  /**
-   * `MAX_WARNINGS` warnings, or `MAX_WARNINGS_PER_CODE` of one code, were listed; this one sits
-   * where the next was found, and the rest (of that code) are omitted.
-   */
-  'W_TOO_MANY_WARNINGS',
 ] as const
+
+/**
+ * The one truncation marker, in every vocabulary: a list of findings was cut, and this info ends
+ * it. The compile records it where its warning caps (`FINDING_LIMITS`) leave the next warning (of
+ * that code) out; an answer's list it cuts (`boundAnswerFindings`) ends in one that counts what it
+ * left out, in place of the compile's.
+ * Informational: the findings it follows decide whether a write is refused.
+ */
+const TRUNCATION_CODES = ['I_FINDINGS_TRUNCATED'] as const
 
 /** Names, identifiers and scope. */
 const COMPILE_SCOPE_CODES = [
@@ -287,6 +296,7 @@ const REFERENCE_CODES = [
 
 const COMPILE_DIAGNOSTIC_CODES = [
   ...COMPILE_SYNTAX_CODES,
+  ...TRUNCATION_CODES,
   ...COMPILE_SCOPE_CODES,
   ...COMPILE_EDGE_CODES,
   ...COMPILE_CATALOG_CODES,
@@ -299,16 +309,13 @@ export const MAX_ERRORS = 100
 export type CompileDiagnosticCode = (typeof COMPILE_DIAGNOSTIC_CODES)[number]
 
 /**
- * Print emits only reference, comment and code-file fallbacks and literal secrets; every print
- * compiles.
+ * Print emits only compile's reference, comment and code-file fallbacks and literal secrets, so
+ * that whatever it prints compiles back with the same findings.
  */
-const PRINT_DIAGNOSTIC_CODES = [
-  ...REFERENCE_CODES,
-  'W_CODE_FILE_INLINED',
-  'W_RAW_HANDLE',
-  'W_LITERAL_SECRET',
-] as const
-export type PrintDiagnosticCode = (typeof PRINT_DIAGNOSTIC_CODES)[number]
+export type PrintDiagnosticCode = Extract<
+  CompileDiagnosticCode,
+  (typeof REFERENCE_CODES)[number] | 'W_CODE_FILE_INLINED' | 'W_RAW_HANDLE' | 'W_LITERAL_SECRET'
+>
 
 /** `parseWorkflowLock` (lock.ts). */
 const LOCK_DIAGNOSTIC_CODES = [
@@ -532,18 +539,34 @@ export type ApplyDiagnosticCode = (typeof APPLY_DIAGNOSTIC_CODES)[number]
 
 /**
  * Every code, as a value: the wire contracts' enum, so a client matching on a code is checked
- * against the vocabulary. Print's reference codes are compile's too, so a few appear twice.
+ * against the vocabulary.
  */
 export const DIAGNOSTIC_CODES = [
   ...COMPILE_DIAGNOSTIC_CODES,
-  ...PRINT_DIAGNOSTIC_CODES,
   ...LOCK_DIAGNOSTIC_CODES,
   ...SOURCE_META_DIAGNOSTIC_CODES,
   ...CANONICALIZE_DIAGNOSTIC_CODES,
   ...MATERIALIZE_DIAGNOSTIC_CODES,
   ...APPLY_DIAGNOSTIC_CODES,
 ] as const
-export type DiagnosticCode = (typeof DIAGNOSTIC_CODES)[number]
+
+/** Whether a tuple of codes lists one of them twice. */
+export type HasDuplicates<T extends readonly unknown[]> = T extends readonly [
+  infer Head,
+  ...infer Tail,
+]
+  ? Head extends Tail[number]
+    ? true
+    : HasDuplicates<Tail>
+  : false
+
+/**
+ * One of {@link DIAGNOSTIC_CODES}. It is `never`, which fails every use, if a code is declared in
+ * two arrays: each code has one owner and one place in the wire enum.
+ */
+export type DiagnosticCode = HasDuplicates<typeof DIAGNOSTIC_CODES> extends false
+  ? (typeof DIAGNOSTIC_CODES)[number]
+  : never
 
 /**
  * Whether a finding with `code` may carry a code frame. A finding about a literal secret in
@@ -553,12 +576,3 @@ export type DiagnosticCode = (typeof DIAGNOSTIC_CODES)[number]
 export function framesSource(code: DiagnosticCode): boolean {
   return code !== 'W_LITERAL_SECRET'
 }
-
-export type DiagnosticSeverity = 'error' | 'warning' | 'info'
-
-/** The severity a code's prefix fixes. */
-export type SeverityOf<C extends DiagnosticCode> = C extends `E_${string}`
-  ? 'error'
-  : C extends `W_${string}`
-    ? 'warning'
-    : 'info'

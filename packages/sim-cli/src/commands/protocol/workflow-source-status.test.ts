@@ -370,6 +370,16 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBeUndefined()
   })
 
+  it('fails on a refusal of its own directory instead of reporting the server unreachable', async () => {
+    write(root, 'workflow.ts', `${ENTRY}// edited\n`)
+    mkdirSync(join(root, '.sim/sdk/workspace.d.ts'), { recursive: true })
+    write(root, '.sim/sdk/workspace.manifest.json', '{}\n')
+    mockRequest.mockResolvedValue(dryRun())
+
+    await expect(run(root, 'status')).rejects.toMatchObject({ name: 'SourceDirError' })
+    expect(process.exitCode).toBeUndefined()
+  })
+
   it('exits 7 when the server refuses the workflow as too large, as a get does', async () => {
     mockRequest.mockRejectedValue(new SimApiError('Too large', 413, 'PAYLOAD_TOO_LARGE'))
 

@@ -1,4 +1,5 @@
-import type { DiagnosticCode, DiagnosticSeverity } from '@sim/workflow-code'
+import type { DiagnosticCode } from '@sim/workflow-code'
+import type { DiagnosticSeverity } from '@sim/workflow-code/diagnostics'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 /**

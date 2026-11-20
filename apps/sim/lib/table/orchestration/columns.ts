@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { isSupportedCurrencyCode } from '@sim/workspace-code/table-cells/currency'
+import { isSupportedCurrencyCode } from '@sim/table-cells/currency'
 import {
   OrchestrationError,
   type OrchestrationErrorCode,

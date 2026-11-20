@@ -299,28 +299,50 @@ describe('workspace source apply', () => {
         repo: 'git@github.com:acme/flows.git',
       }
 
-      const applied = await apply(workspaceId, STARTER, { provenance })
+      const created = await apply(workspaceId, STARTER, { provenance })
+      const read = await get(workspaceId)
+      const updated = await apply(
+        workspaceId,
+        {
+          ...read.files,
+          'workflows/ingest/workflow.ts': read.files['workflows/ingest/workflow.ts'].replace(
+            "'Save Lead'",
+            "'Store Lead'"
+          ),
+        },
+        { base: read.base, provenance }
+      )
+      expect(updated.applied.map(({ key, action }) => `${action} ${key}`)).toEqual([
+        'update ingest',
+      ])
 
-      await vi.waitFor(async () => {
+      const recorded = async (applyId: string | undefined, workflowAction: string) => {
         const rows = await db
           .select({ action: auditLog.action, metadata: auditLog.metadata })
           .from(auditLog)
           .where(eq(auditLog.workspaceId, workspaceId))
-        const recorded = rows
+        return rows
           .filter(
             (row) =>
               isRecordLike(row.metadata) &&
-              row.metadata.correlationId === applied.applyId &&
-              (row.action === 'workspace.updated' || row.action === 'workflow.created')
+              row.metadata.correlationId === applyId &&
+              (row.action === 'workspace.updated' || row.action === workflowAction)
           )
           .map((row) => row.metadata)
-        expect(recorded).toHaveLength(2)
-        for (const metadata of recorded) {
-          expect(metadata).toMatchObject({
-            client: 'cli',
-            gitSha: '0123abcd',
-            repo: provenance.repo,
-          })
+      }
+      await vi.waitFor(async () => {
+        for (const entries of [
+          await recorded(created.applyId, 'workflow.created'),
+          await recorded(updated.applyId, 'workflow.updated'),
+        ]) {
+          expect(entries).toHaveLength(2)
+          for (const metadata of entries) {
+            expect(metadata).toMatchObject({
+              client: 'cli',
+              gitSha: '0123abcd',
+              repo: provenance.repo,
+            })
+          }
         }
       })
     }

@@ -42,8 +42,8 @@ export const RATE_LIMITED_EXIT_CODE = 9
 
 /**
  * Busy, retry. A `workspaces source apply` refused because another apply is writing the workspace
- * (`409` with `SOURCE_BUSY`), or any `workspaces source` command refused because another one holds
- * the same directory (`SOURCE_DIR_BUSY`): nothing of this one was read or written. Wait for the
+ * (`409` with `SOURCE_BUSY`), or a source command refused because another one holds the same
+ * directory (`SOURCE_DIR_BUSY`): nothing of this one was read or written. Wait for the
  * other to finish, then run it again; a write the other apply made to a resource this directory
  * changes then exits 5.
  */

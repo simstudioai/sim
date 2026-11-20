@@ -1,12 +1,13 @@
 /**
  * Printing grows linearly with the workflow (see `growth` for how a case is measured).
  */
+
+import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
 import { describe, expect, it } from 'vitest'
 import { compareEdges } from '../canonicalize/edges'
 import { compileWorkflow } from '../compile'
 import { TEST_CATALOG } from '../compile/catalog.test-helpers'
 import type { CanonicalBlock, CanonicalEdge, CanonicalWorkflow } from '../model'
-import { growth, MAX_GROWTH } from '../scaling.test-helpers'
 import { type Doc, fill, group, indent, line, printDoc, softline } from './doc'
 import { printWorkflow } from './printer'
 
@@ -57,19 +58,17 @@ function siblingScopes(n: number): CanonicalWorkflow {
 
 describe('print scaling', () => {
   it('fills a long number-only array in linear time', () => {
-    const ratio = growth((n) => {
+    expectLinearGrowth((n) => {
       const doc = numberArray(n)
       return () => printDoc(doc, 80)
     }, 5_000)
-    expect(ratio).toBeLessThan(MAX_GROWTH)
   })
 
   it('wires and orders many sibling scopes in linear time', () => {
-    const ratio = growth((n) => {
+    expectLinearGrowth((n) => {
       const workflow = siblingScopes(n)
       return () =>
         printWorkflow({ workflow, catalog: TEST_CATALOG, options: { functionCode: 'inline' } })
     }, 500)
-    expect(ratio).toBeLessThan(MAX_GROWTH)
   })
 })

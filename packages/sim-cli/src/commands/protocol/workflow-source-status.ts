@@ -51,7 +51,7 @@ import {
 } from './source-status'
 import { refreshWorkflowWorkspaceTypes, withSourceExitCode } from './source-tree'
 import type { Diagnostic } from './source-ui'
-import { readBase, readLock, readSourceFiles } from './workflow-source-apply'
+import { readBase, readLock, readSourceFiles } from './workflow-dir'
 
 type PlanData = PlanWorkflowSourceResponse['data']
 

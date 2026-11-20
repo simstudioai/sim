@@ -1,5 +1,6 @@
 import type { BlockKey, SubBlockId } from '../model'
-import type { DiagnosticCode, SeverityOf } from './codes'
+import type { DiagnosticCode } from './codes'
+import type { SeverityOf } from './severity'
 
 /**
  * A source range. Lines and columns are 1-based and columns count UTF-16 code units, which is

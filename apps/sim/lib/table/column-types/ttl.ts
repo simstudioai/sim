@@ -1,11 +1,11 @@
 import { TypeTtl } from '@sim/emcn/icons'
-import { CELL_RULES } from '@sim/workspace-code/table-cells/rules'
+import { CELL_RULES } from '@sim/table-cells/rules'
 import {
   isTtlTimestamp,
   normalizeTtlTimestamp,
   TTL_FORMAT_ERROR,
   TTL_TIMESTAMP_VALIDATION,
-} from '@sim/workspace-code/table-cells/ttl'
+} from '@sim/table-cells/ttl'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 
 export const ttlColumnType: ColumnTypeDefinition = {

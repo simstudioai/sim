@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { TEST_CATALOG } from '../compile/catalog.test-helpers'
 import { compileWorkflow } from '../compile/index'
-import { MAX_WARNINGS_PER_CODE } from '../compile/report'
+import { FINDING_LIMITS } from './bound'
 import { MAX_ERRORS } from './codes'
 import { type EditedBlocks, refuseEditedFindings } from './refusals'
 
@@ -33,7 +33,7 @@ const START = "const start = trigger.start('Start')"
 describe('refuseEditedFindings', () => {
   it('refuses an edited block’s warning that the per-code cap left out of the listing', () => {
     const flood = Array.from(
-      { length: MAX_WARNINGS_PER_CODE },
+      { length: FINDING_LIMITS.warningsPerCode },
       (_, i) => `q${i} = $ref.start.q${i}`
     )
     const compiled = compile(

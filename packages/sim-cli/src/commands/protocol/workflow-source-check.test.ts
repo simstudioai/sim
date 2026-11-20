@@ -433,6 +433,26 @@ describe('sim workflows source check', () => {
     expect(findingLines()).toContain('W_ENV_UNKNOWN')
   })
 
+  it('lists at most 20 warnings of one code, as a workflow answer does, and counts every one', async () => {
+    cacheCatalog()
+    writeWorkspace()
+    const unknown = Array.from({ length: 25 }, (_, index) => `extra${index}: 'x'`).join(', ')
+    const folder = writeWorkflowFolder(
+      'flood',
+      workspaceWorkflow((source) =>
+        source.replace("data: { email: start.email, status: 'pending' }", `data: { ${unknown} }`)
+      )
+    )
+
+    await checkIn(folder, '--no-strict')
+
+    const answer = result()
+    expect(answer).toMatchObject({ errors: 0, warnings: 25 })
+    const codes = (answer.diagnostics as Array<{ code: string }>).map((finding) => finding.code)
+    expect(codes.filter((code) => code === 'W_TABLE_UNKNOWN_COLUMN')).toHaveLength(20)
+    expect(codes.filter((code) => code === 'I_FINDINGS_TRUNCATED')).toHaveLength(1)
+  })
+
   it('fails a row write naming a column or select option the table does not declare', async () => {
     cacheCatalog()
     writeWorkspace()

@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { toRecord } from '@sim/utils/object'
@@ -336,6 +344,24 @@ describe('sim workflows source apply', () => {
 
     await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
 
+    expect(request.mock.calls.map((call) => call[0])).not.toContainEqual(
+      expect.stringContaining('/source/resources')
+    )
+    expect(readFileSync(join(dir, WORKSPACE_TYPES_FILE), 'utf8')).toBe(
+      '// types the last get wrote\n'
+    )
+  })
+
+  it('neither reads nor rewrites the workspace types on a plan', async () => {
+    setTerminal(false)
+    mkdirSync(join(dir, '.sim/sdk'), { recursive: true })
+    writeFileSync(join(dir, WORKSPACE_TYPES_FILE), '// types the last get wrote\n')
+    writeFileSync(join(dir, '.sim/sdk/workspace.manifest.json'), '{}\n')
+    request.mockResolvedValue(outcome({ dryRun: true }))
+
+    await apply(WORKFLOW_ID, '--dir', dir)
+
+    expect(dryRunFlags()).toEqual([true])
     expect(request.mock.calls.map((call) => call[0])).not.toContainEqual(
       expect.stringContaining('/source/resources')
     )
@@ -1060,6 +1086,47 @@ describe('sim workflows source apply in a workflow folder of a workspace directo
   })
 })
 
+describe('a standalone workflow directory', () => {
+  it('refuses a second apply while the first holds the directory, sending nothing', async () => {
+    setTerminal(false)
+    let second: unknown = null
+    request.mockResolvedValue(outcome())
+    request.mockImplementationOnce(async () => {
+      second = await apply('--dir', dir, '--yes').then(
+        () => null,
+        (error: unknown) => error
+      )
+      return outcome()
+    })
+
+    await apply('--dir', dir, '--yes')
+
+    expect(second).toMatchObject({ code: 'SOURCE_DIR_BUSY', exitCode: 10 })
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(existsSync(join(dir, '.sim/command.lock'))).toBe(false)
+  })
+
+  it('dry-runs and plans a directory no one may write, and refuses to apply it, sending nothing', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true }))
+    for (const path of ['', '.sim']) chmodSync(join(dir, path), 0o555)
+    try {
+      await apply('--dir', dir, '--dry-run')
+      await apply('--dir', dir)
+      expect(dryRunFlags()).toEqual([true, true])
+
+      const refused = await apply('--dir', dir, '--yes').then(
+        () => null,
+        (error: unknown) => error
+      )
+      expect(refused).toMatchObject({ code: 'SOURCE_DIR_UNWRITABLE' })
+      expect(request).toHaveBeenCalledTimes(2)
+    } finally {
+      for (const path of ['', '.sim']) chmodSync(join(dir, path), 0o755)
+    }
+  })
+})
+
 describe('the code files an apply sends', () => {
   function writeFunctions(...names: string[]) {
     mkdirSync(join(dir, 'functions'), { recursive: true })
@@ -1276,6 +1343,22 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
       .map((call) => call[0] as string)
       .filter((path) => path.endsWith('/workflows/source'))
   }
+
+  it('plans a starter without reading or rewriting its workspace types', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const empty = join(dir, 'new')
+    answerStarterAndCreate()
+    await create('--dir', empty)
+    request.mockClear()
+
+    await create('--dir', empty)
+
+    expect(createCalls()).toHaveLength(1)
+    expect(request.mock.calls.map((call) => call[0])).not.toContainEqual(
+      expect.stringContaining('/source/resources')
+    )
+  })
 
   it('records the workspace the starter was typed for and names it in the next step', async () => {
     setTerminal(false)

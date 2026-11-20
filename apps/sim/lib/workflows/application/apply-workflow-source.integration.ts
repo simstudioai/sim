@@ -11,6 +11,7 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import type { Principal } from '@sim/auth/principal'
 import { db, runOutsideTransactionContext } from '@sim/db'
 import {
   auditLog,
@@ -39,6 +40,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike, omit } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
 import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer/dimensions'
@@ -48,6 +50,7 @@ import { isEqual } from 'es-toolkit'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+import { createTableUseCase } from '@/lib/table/application/tables'
 import {
   type ApplyWorkflowSourceInput,
   applyWorkflowSource,
@@ -56,11 +59,18 @@ import {
 } from '@/lib/workflows/application/apply-workflow-source'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
+import {
+  type PendingResource,
+  PlanBindingError,
+  type PlannedSource,
+  workflowSourceUpdate,
+} from '@/lib/workflows/application/source-pipeline'
 import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
 import {
   loadWorkflowDeploymentSnapshot,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
+import { claimResourceKey } from '@/lib/workspaces/resource-keys'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
@@ -1302,7 +1312,22 @@ describe('apply edges: identity, row lock, live triggers', () => {
             isRecordLike(properties) && properties.workflow_id === seeded.workflowId
         )
 
-      await expect(run({ planOnly: true })).rejects.toMatchObject({ code: 'locked' })
+      await expect(
+        withPermissionGroupScope(() =>
+          workflowSourceUpdate.plan.execute({
+            principal: createPersonalApiKeyPrincipal({ userId: ownerId, keyId: generateId() }),
+            input: {
+              workflowId: seeded.workflowId,
+              files: edit(source.files, SCORE_CODE, 'return 24'),
+              lock: source.lock,
+              base: source.base,
+              allowDelete: false,
+              pendingResources: [],
+              loads: {},
+            },
+          })
+        )
+      ).rejects.toMatchObject({ code: 'locked' })
       expect(recorded()).toEqual([])
 
       await expect(run({})).rejects.toMatchObject({ code: 'locked' })
@@ -1696,12 +1721,181 @@ export default workflow('', {}, () => {
     }
   )
 
-  /** A `planOnly` evaluation of `files`, to commit after a concurrent write lands. */
-  async function planned(source: ReadWorkflowSourceResult, files: Record<string, string>) {
-    const plan = await apply(source, files, { planOnly: true })
-    if (!plan.evaluated) throw new Error('The plan was refused')
-    return plan.evaluated
+  /** A workspace apply's plan of `files`, to commit after a concurrent write lands. */
+  async function planned(
+    source: ReadWorkflowSourceResult,
+    files: Record<string, string>,
+    planner: Principal = principal,
+    pendingResources: PendingResource[] = []
+  ) {
+    const plan = await withPermissionGroupScope(() =>
+      workflowSourceUpdate.plan.execute({
+        principal: planner,
+        input: {
+          workflowId: source.workflowId,
+          files,
+          lock: source.lock,
+          base: source.base,
+          allowDelete: false,
+          pendingResources,
+          loads: {},
+        },
+      })
+    )
+    if (plan.kind === 'refused') throw new Error('The plan was refused')
+    return plan
   }
+
+  /** Commits a plan as a workspace apply does. */
+  function commit(plan: PlannedSource, committer: Principal = principal) {
+    return withPermissionGroupScope(() =>
+      workflowSourceUpdate.commit.execute({ principal: committer, input: { planned: plan } })
+    )
+  }
+
+  check(
+    'a plan made in one session is refused when another session of the same user commits it',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const files = edit(source.files, SCORE_CODE, 'return 44')
+      const plan = await planned(source, files)
+      const before = await snapshot(seeded.workflowId)
+
+      expect(
+        await bindingRefusal(
+          commit(plan, createSessionPrincipal({ userId: ownerId, sessionId: generateId() }))
+        )
+      ).toBe('PLAN_PRINCIPAL_MISMATCH')
+      expect(await snapshot(seeded.workflowId)).toEqual(before)
+
+      expect((await commit(plan)).applied).toBe(true)
+    }
+  )
+
+  /** The binding code a commit refused with; fails the check on any other outcome. */
+  async function bindingRefusal(committed: Promise<unknown>): Promise<string> {
+    const error = await committed.then(
+      () => null,
+      (rejection: unknown) => rejection
+    )
+    expect(error).toBeInstanceOf(PlanBindingError)
+    return (error as PlanBindingError).code
+  }
+
+  /**
+   * `source` with an Insert Row block writing the table keyed `key`, and the stand-in an enclosing
+   * workspace apply hands its plan for that table before creating it.
+   */
+  function writingStandInTable(source: ReadWorkflowSourceResult, key: string) {
+    const withImport = Object.fromEntries(
+      Object.entries(source.files).map(([path, text]) => [
+        path,
+        text.replace(
+          /import \{ ([^}]*) \} from '@sim\/workflow-sdk'/,
+          (_, names: string) =>
+            `import { ${[...names.split(', '), 'table'].sort(compareStrings).join(', ')} } from '@sim/workflow-sdk'`
+        ),
+      ])
+    )
+    const files = edit(
+      withImport,
+      '  start.to(score)',
+      `  const save = table.insertRow('Save Order', { tableId: table('${key}'), data: { email: 'a@example.com' } })\n  start.to(score)\n  score.to(save)`
+    )
+    const standIn: PendingResource = {
+      kind: 'table',
+      key,
+      id: generateId(),
+      placeholder: true,
+      name: key,
+      columns: ['email'],
+    }
+    return { files, standIn }
+  }
+
+  /** Creates the table keyed `key`, as the enclosing apply does before the workflows. */
+  async function createKeyedTable(key: string) {
+    const created = await createTableUseCase.execute({
+      principal,
+      input: {
+        workspaceId,
+        name: key,
+        schema: { columns: [{ name: 'email', type: 'string' }] },
+      },
+    })
+    await claimResourceKey({
+      workspaceId,
+      kind: 'table',
+      key,
+      resourceId: created.table.id,
+      origin: 'adopted',
+      createdBy: ownerId,
+    })
+  }
+
+  check(
+    'a plan that resolved a stand-in id is refused, before it is planned again, when another session commits it',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const { files, standIn } = writingStandInTable(source, 'orders')
+      const plan = await planned(source, files, principal, [standIn])
+      expect(plan.replan).toBeDefined()
+      await createKeyedTable('orders')
+      const before = await snapshot(seeded.workflowId)
+
+      expect(
+        await bindingRefusal(
+          commit(plan, createSessionPrincipal({ userId: ownerId, sessionId: generateId() }))
+        )
+      ).toBe('PLAN_PRINCIPAL_MISMATCH')
+      expect(await snapshot(seeded.workflowId)).toEqual(before)
+
+      expect((await commit(plan)).applied).toBe(true)
+    }
+  )
+
+  check(
+    'a plan whose stand-in resource was never created is refused at commit, not written with the stand-in id',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const { files, standIn } = writingStandInTable(source, 'invoices')
+      const plan = await planned(source, files, principal, [standIn])
+      const before = await snapshot(seeded.workflowId)
+
+      await expect(commit(plan)).rejects.toBeInstanceOf(WorkflowSourceRejectedError)
+      expect(await snapshot(seeded.workflowId)).toEqual(before)
+    }
+  )
+
+  check('a dry-run create under a name its folder already holds is refused at plan', async () => {
+    const seeded = await seedWorkflow()
+    const taken = await storedName(seeded.workflowId)
+
+    const created = withPermissionGroupScope(() =>
+      createWorkflowFromSource.execute({
+        principal,
+        input: {
+          workspaceId,
+          name: taken,
+          dryRun: true,
+          files: {
+            'workflow.ts': `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fresh', {}, () => {
+  trigger.start('Start', {})
+})
+`,
+          },
+        },
+      })
+    )
+
+    await expect(created).rejects.toMatchObject({ name: 'WorkflowSourceNameTakenError' })
+  })
 
   check(
     'a source rename committed after a teammate renamed the workflow is a 409 and keeps their name',
@@ -1709,14 +1903,14 @@ export default workflow('', {}, () => {
       const seeded = await seedWorkflow()
       const source = await getSource(seeded.workflowId)
       const files = edit(source.files, `'${await storedName(seeded.workflowId)}'`, "'From source'")
-      const evaluated = await planned(source, files)
+      const plan = await planned(source, files)
       const teammate = `Teammate ${generateId()}`
       await updateWorkflow.execute({
         principal,
         input: { workflowId: seeded.workflowId, name: teammate },
       })
 
-      await expect(apply(source, files, { evaluated })).rejects.toMatchObject({
+      await expect(commit(plan)).rejects.toMatchObject({
         name: 'WorkflowSourceStaleError',
         code: 'conflict',
       })
@@ -1733,14 +1927,14 @@ export default workflow('', {}, () => {
       const name = await storedName(seeded.workflowId)
       const contested = `Contested ${generateId()}`
       const files = edit(edit(source.files, `'${name}'`, `'${contested}'`), SCORE_CODE, 'return 43')
-      const evaluated = await planned(source, files)
+      const plan = await planned(source, files)
       const before = await snapshot(seeded.workflowId)
       await updateWorkflow.execute({
         principal,
         input: { workflowId: other.workflowId, name: contested },
       })
 
-      await expect(apply(source, files, { evaluated })).rejects.toMatchObject({
+      await expect(commit(plan)).rejects.toMatchObject({
         name: 'WorkflowSourceNameTakenError',
         code: 'conflict',
       })

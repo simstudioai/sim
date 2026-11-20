@@ -8,7 +8,7 @@ import type { ResourceKind } from '@sim/workflow-code'
 import { WORKSPACE_KIND_SPECS, type WorkspaceKind } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { DbTransaction } from '@/lib/db/types'
-import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
+import type { PendingResource } from '@/lib/workflows/application/source-pipeline'
 import { reboundFinding } from '@/lib/workspace-source/application/findings'
 import type {
   PlannedChange,

@@ -4,7 +4,7 @@
  * through unparsed would break every query against the column.
  */
 import { describe, expect, it } from 'vitest'
-import { formatCurrencyDisplay, formatCurrencyForInput, parseCurrencyInput } from './currency'
+import { parseCurrencyInput } from './currency'
 
 describe('parseCurrencyInput', () => {
   it('strips symbols, ISO codes, and every flavor of space', () => {
@@ -245,26 +245,5 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('1.234.567')).toBe(1234567)
     expect(parseCurrencyInput('1,234,567.89')).toBe(1234567.89)
     expect(parseCurrencyInput('12,34,567')).toBe(1234567)
-  })
-
-  it('round-trips its own display output', () => {
-    for (const amount of [0, 12, -12.5, 1234.56, 1234567.89]) {
-      const rendered = formatCurrencyDisplay(amount, 'USD', 'en-US')
-      expect(parseCurrencyInput(rendered)).toBe(amount)
-    }
-  })
-})
-
-describe('formatCurrencyDisplay', () => {
-  it('renders an unreadable value verbatim rather than blanking it', () => {
-    // What a string → currency conversion can leave behind.
-    expect(formatCurrencyDisplay('pending', 'USD', 'en-US')).toBe('pending')
-    expect(formatCurrencyDisplay(null, 'USD', 'en-US')).toBe('')
-  })
-})
-
-describe('formatCurrencyForInput', () => {
-  it('keeps unparseable text so an edit does not silently erase it', () => {
-    expect(formatCurrencyForInput('pending')).toBe('pending')
   })
 })

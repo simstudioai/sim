@@ -11,6 +11,7 @@ import { type CanonicalizeResult, canonicalize } from '../canonicalize'
 import type { BlockCatalog } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
+import { diagnostic } from '../diagnostics/factory'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { LockIdentity, LockIdentityBlock, WorkflowLockBlock, WorkflowLockV1 } from '../lock'
 import type {
@@ -308,12 +309,15 @@ export function materialize(
     built.set(key, result)
     if (result.needsLayout) {
       needsLayout.push(key)
-      context.diagnostics.push({
-        code: 'I_MAT_NEEDS_LAYOUT',
-        severity: 'info',
-        message: `Block "${key}" has no stored or lock position; it is placed by autolayout`,
-        blockKey: key,
-      })
+      context.diagnostics.push(
+        diagnostic(
+          'I_MAT_NEEDS_LAYOUT',
+          `Block "${key}" has no stored or lock position; it is placed by autolayout`,
+          {
+            blockKey: key,
+          }
+        )
+      )
     }
   }
 

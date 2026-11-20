@@ -4,6 +4,7 @@ import type {
   SessionPrincipal,
   WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
+import { boundAnswerFindings } from '@sim/workflow-code/diagnostics'
 import { v2CancelWorkflowRunDataSchema } from '@/lib/api/contracts/v2/workflows'
 import {
   createInternalResourceConcealmentPolicy,
@@ -108,7 +109,7 @@ export const v2WorkflowErrorPolicies = {
       if (error instanceof WorkflowSourceRejectedError) {
         return v2ErrorForOrchestration(error.code, error.message, {
           code: 'SOURCE_REJECTED',
-          diagnostics: error.diagnostics,
+          diagnostics: boundAnswerFindings(error.diagnostics),
         })
       }
       if (error instanceof WorkflowSourceStaleError) {
@@ -138,7 +139,7 @@ export const v2WorkflowErrorPolicies = {
       if (error instanceof WorkflowSourceRejectedError) {
         return v2ErrorForOrchestration(error.code, error.message, {
           code: 'SOURCE_REJECTED',
-          diagnostics: error.diagnostics,
+          diagnostics: boundAnswerFindings(error.diagnostics),
         })
       }
       if (error instanceof WorkflowSourceNameTakenError) {

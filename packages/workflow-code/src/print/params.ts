@@ -25,6 +25,7 @@ import {
 } from '../catalog/surface'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
+import { diagnostic } from '../diagnostics/factory'
 import type { ResponseForm } from '../forms/response'
 import { JsonRef, type JsonTree, jsonFieldText, parseJsonField, refValueKind } from '../json-fields'
 import { CODE_FILE_EXTENSIONS, isCodeFilePath, SOURCE_CODE_DIR } from '../limits'
@@ -216,12 +217,15 @@ function printCodeFile(
 ): PrintedValue | null {
   const language: CodeFileLanguage = tag === 'js' ? 'javascript' : tag === 'py' ? 'python' : 'shell'
   const inline = (reason: string): null => {
-    ctx.diagnostics.push({
-      code: 'W_CODE_FILE_INLINED',
-      severity: 'warning',
-      message: `Function code of ${block.name} printed inline: ${reason}.`,
-      blockKey: block.key,
-    })
+    ctx.diagnostics.push(
+      diagnostic(
+        'W_CODE_FILE_INLINED',
+        `Function code of ${block.name} printed inline: ${reason}.`,
+        {
+          blockKey: block.key,
+        }
+      )
+    )
     return null
   }
   const stored = stringParam(block, 'language') ?? 'javascript'

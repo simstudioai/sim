@@ -22,7 +22,6 @@ import {
 import { serverResourceChanges } from '@sim/workspace-code/status'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
-import { DEFERRED_INTERRUPT_BOUND_MS, deferInterrupts } from '#sim-cli/terminal/interrupts'
 import { setSoftExitCode } from '../../embed-context'
 import { SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
 import type {
@@ -34,6 +33,7 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
 import { gitProvenance } from './git-provenance'
+import { SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
@@ -49,20 +49,19 @@ import {
   writtenFiles,
   writtenRecord,
 } from './source-dir'
-import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
+import { SOURCE_WRITE_EXIT_CODES_HELP, sourceExitCodesHelp } from './source-exit-codes'
+import { destructiveChanges } from './source-status'
 import { cachedCatalog } from './source-tree'
 import {
-  confirm,
   createdText,
   findingsOutput,
-  planNext,
   printRefusal,
   refusedExitCode,
   shellWord,
-  stopAtPlan,
   verboseFlag,
   writeMode,
 } from './source-ui'
+import { type NextStep, runSourceWrite } from './source-write'
 import {
   removedWorkflowRecords,
   unrecordedFoldersWarning,
@@ -78,10 +77,11 @@ import {
 import {
   assertWorkspaceDir,
   assertWorkspacePaths,
+  ONLY_KINDS_HELP,
+  parseKinds,
   readWorkspaceDir,
   type WorkspaceSubmission,
 } from './workspace-source-dir'
-import { ONLY_KINDS_HELP, parseKinds } from './workspace-source-get'
 
 type ApplyData = ApplyWorkspaceSourceResponse['data']
 type Change = ApplyData['plan'][number]
@@ -95,27 +95,6 @@ interface ApplyOptions {
   only?: string
   to?: string
 }
-
-const EXIT_CODES_HELP = `
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
-file:line:column with its frame and hint), or changes were held back because they use a declared
-secret the workspace has no value for or a declared credential key nothing binds to (the rest was
-applied: set the secret or connect the credential, then apply again), the directory was read from
-another workspace than the one --workspace names (SOURCE_OTHER_WORKSPACE: drop --workspace, or
-promote it with --to; without --workspace an apply targets the workspace the directory was read
-from), its
-base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the
-command failed; 5 a resource changed or was deleted on the server since the directory was read
-(SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource (a
-workflow or its folder, a table) is locked (a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was
-written is saved into the directory, and applying again continues. An apply a resource refused
-part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6
-or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a
-minute and apply again (binary files already uploaded are not sent again); 10 another apply is
-writing the workspace (SOURCE_BUSY), or another command is using the directory
-(SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished; 14
-without --yes and with no terminal to ask: the plan was printed with no errors and nothing was
-written (run the same command with --yes to apply it).`
 
 const SYMBOLS: Record<Change['action'], string> = {
   create: '+',
@@ -240,12 +219,6 @@ function printPlan(
       `${destructive} change(s) delete data that applying an older directory (a reverted commit) does not bring back: a deleted resource stays deleted, and its rows, documents, run history and webhook URLs are gone.`
     )
   }
-}
-
-/** The changes that delete something (a resource, rows, documents, columns, a deployment). */
-export function destructiveChanges(changes: readonly Change[]): number {
-  return changes.filter((change) => change.action === 'delete' || change.destructive !== undefined)
-    .length
 }
 
 /**
@@ -453,11 +426,9 @@ async function promoted(
   allowDelete: boolean
 ): Promise<Promotion> {
   if (baseWorkspaceOf(submission.base) === target) {
-    throw new SimApiError(
-      `${dir} was read from workspace ${target}; apply it without --to.`,
-      0,
-      'SOURCE_PROMOTE_SAME_WORKSPACE'
-    )
+    throw new SourceDirError(`${dir} was read from workspace ${target}; apply it without --to.`, {
+      code: 'SOURCE_PROMOTE_SAME_WORKSPACE',
+    })
   }
   const recordPath = promotionRecordPath(target)
   const record = recordPath
@@ -469,7 +440,7 @@ async function promoted(
   })
   const targetBase = parseWorkspaceBase(data.base).base
   if (!targetBase) {
-    throw new SimApiError(`Workspace ${target} answered with a base this CLI cannot read.`, 0)
+    throw new SourceDirError(`Workspace ${target} answered with a base this CLI cannot read.`)
   }
   const composed = promotionSubmission({
     files: submission.files,
@@ -664,7 +635,10 @@ export function attachWorkspaceSourceApply(source: Command): void {
     )
     .allowExcessArguments(false)
     .description('Apply a workspace source directory')
-    .addHelpText('after', `${EXIT_CODES_HELP}${SOURCE_WRITE_EXIT_CODES_HELP}`)
+    .addHelpText(
+      'after',
+      `${sourceExitCodesHelp('workspaces source apply')}${SOURCE_WRITE_EXIT_CODES_HELP}`
+    )
     .action(async (options: ApplyOptions) => {
       const mode = writeMode(options)
       const only = parseKinds(options.only)
@@ -775,7 +749,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
           const notSent = notSentFindings(submission.ignored)
           findings.print(notSent)
           /** Prints `data` as the result, with the findings about files the CLI did not send. */
-          const report = (data: ApplyData, next?: { command: string; reason: string }) => {
+          const report = (data: ApplyData, next?: NextStep) => {
             const diagnostics = [...notSent, ...data.diagnostics]
             const result = { ...summarize({ ...data, diagnostics }), ...(next ? { next } : {}) }
             printProtocolResult(
@@ -784,53 +758,48 @@ export function attachWorkspaceSourceApply(source: Command): void {
               { created: createdText(result.created), ...(next ? { next: next.command } : {}) }
             )
           }
-          let preview: ApplyData | null = null
-          if (mode !== 'write') {
-            preview = reported(await send(submission, true))
-            printPlan(preview.plan, preview.diagnostics)
-            findings.print(preview.diagnostics)
-            const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
-            if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
-            if (mode === 'dry-run' || refusesApply(preview)) {
-              report(preview)
-              return
-            }
-            if (mode === 'plan') {
-              stopAtPlan()
-              report(preview, planNext(applyCommand(options)))
-              return
-            }
-            if (!(await confirm(`Apply these changes to workspace ${workspaceId}?`))) {
-              throw new SimApiError('Nothing was applied.', 0, 'CANCELLED')
-            }
-          }
-
-          // Without a preview, stage the blobs the base does not hold as they are.
-          await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
-          const data = await deferInterrupts(
-            async () => {
+          const data = await runSourceWrite<ApplyData>({
+            mode,
+            preview: async () => reported(await send(submission, true)),
+            show: (preview) => {
+              printPlan(preview.plan, preview.diagnostics)
+              findings.print(preview.diagnostics)
+            },
+            refuses: refusesApply,
+            // Without a preview, stage the blobs the base does not hold as they are.
+            beforeCommit: (preview) =>
+              stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission)),
+            commit: async () => {
               const answer = reported(await send(submission, false))
               findings.print(answer.diagnostics)
+              return answer
+            },
+            save: async (answer) => {
               // A promotion leaves the directory bound to the workspace it was read from, and
               // records what it left in the target for the next promotion to compare with.
               if (promotion) {
                 await savePromotion(options.dir, promotion.target, promotion, answer)
-              } else {
-                const workspaceCatalog = cachedCatalog(workspaceId)
-                const { records, unrecorded } = workspaceCatalog
-                  ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, answer.files)
-                  : { records: [], unrecorded: [] }
-                await saveApplied(options.dir, answer, submission, written, records)
-                const unrecordedWarning = unrecordedFoldersWarning(unrecorded)
-                if (unrecordedWarning) printError(unrecordedWarning)
+                return
               }
-              return answer
+              const workspaceCatalog = cachedCatalog(workspaceId)
+              const { records, unrecorded } = workspaceCatalog
+                ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, answer.files)
+                : { records: [], unrecorded: [] }
+              await saveApplied(options.dir, answer, submission, written, records)
+              const unrecordedWarning = unrecordedFoldersWarning(unrecorded)
+              if (unrecordedWarning) printError(unrecordedWarning)
             },
-            {
-              waiting: `Interrupted: the apply was already sent. Waiting up to ${DEFERRED_INTERRUPT_BOUND_MS / 1000}s for its answer and saving it into ${options.dir}, so the directory matches the workspace; press Ctrl-C again to stop now.`,
-              abandoned: `Stopped before the apply answered. ${answerLostHint(options.dir)}`,
-            }
-          )
+            report,
+            question: `Apply these changes to workspace ${workspaceId}?`,
+            command: applyCommand(options),
+            interrupt: {
+              verb: 'apply',
+              dir: options.dir,
+              noun: 'workspace',
+              ifAnswerLost: answerLostHint(options.dir),
+            },
+          })
+          if (!data) return
           if (data.failed) {
             printError('The apply stopped part-way; each planned change:')
             printPlan(data.plan, data.diagnostics, data)

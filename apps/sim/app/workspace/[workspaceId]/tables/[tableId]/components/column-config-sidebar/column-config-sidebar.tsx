@@ -13,14 +13,11 @@ import {
   toast,
 } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
+import { DEFAULT_CURRENCY_CODE, resolveCurrencyCode } from '@sim/table-cells/currency'
 import { toError } from '@sim/utils/errors'
-import {
-  DEFAULT_CURRENCY_CODE,
-  getCurrencyOptions,
-  resolveCurrencyCode,
-} from '@sim/workspace-code/table-cells/currency'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
+import { getCurrencyOptions } from '@/lib/table/currency-format'
 import {
   FieldError,
   RequiredLabel,

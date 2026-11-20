@@ -18,6 +18,10 @@
  * column-type registry and makes the codec with {@link createTableCodec}, so the types, what
  * metadata each owns, which may be unique and how many one table holds all come from the registry.
  */
+
+import { isSupportedCurrencyCode } from '@sim/table-cells/currency'
+import { type BatchRowErrors, coerceRowCells, refusedRows } from '@sim/table-cells/rows'
+import type { CellColumn, CellRow } from '@sim/table-cells/types'
 import type { Json } from '@sim/workflow-code'
 import {
   asDeclared,
@@ -46,8 +50,6 @@ import { diagnostic, resourceOf, type WorkspaceDiagnostic, wholeFile } from '../
 import { KIND_DIRS, type KindCodec, type KindLayout } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
-import { type BatchRowErrors, coerceRowCells, refusedRows } from '../table-cells/rows'
-import type { CellColumn, CellRow } from '../table-cells/types'
 import { groupByFile } from './group'
 import {
   parseTableRows,
@@ -127,22 +129,6 @@ export const TABLE_TEXT_RULES = {
   maxColumnName: 50,
   maxDescription: 500,
 } as const
-const CURRENCY_CODE = /^[A-Za-z]{3}$/
-
-/**
- * Whether `code` is an ISO 4217 code this runtime knows, in any letter case, as the server's
- * currency column checks it (`isSupportedCurrencyCode`); a runtime that cannot list currencies
- * checks the shape alone.
- */
-function isSupportedCurrencyCode(code: string): boolean {
-  if (!CURRENCY_CODE.test(code)) return false
-  try {
-    return Intl.supportedValuesOf('currency').includes(code.toUpperCase())
-  } catch {
-    return true
-  }
-}
-
 const CALLEE = 'defineTable'
 
 /**

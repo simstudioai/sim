@@ -20,7 +20,7 @@
  */
 
 import type React from 'react'
-import { CELL_TYPES } from '@sim/workspace-code/table-cells/rules'
+import { CELL_TYPES } from '@sim/table-cells/rules'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 /**

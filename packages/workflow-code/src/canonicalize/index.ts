@@ -11,6 +11,7 @@ import {
 import type { BlockCatalog } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
+import { diagnostic } from '../diagnostics/factory'
 import type { Diagnostic } from '../diagnostics/frame'
 import { BLOCK_LAYOUT_DATA_FIELDS, layoutOf } from '../layout'
 import type { LockIdentity, LockIdentityBlock, LockLayout } from '../lock'
@@ -153,12 +154,15 @@ export function canonicalize(
     const catalog = catalogBlock(context.catalog, block.type)
     const isContainer = isSubflowType(block.type)
     if (!catalog && !isContainer) {
-      context.diagnostics.push({
-        code: 'W_CANON_UNKNOWN_BLOCK_TYPE',
-        severity: 'warning',
-        message: `Block type "${block.type}" is not in the catalog; params kept verbatim`,
-        blockKey: key,
-      })
+      context.diagnostics.push(
+        diagnostic(
+          'W_CANON_UNKNOWN_BLOCK_TYPE',
+          `Block type "${block.type}" is not in the catalog; params kept verbatim`,
+          {
+            blockKey: key,
+          }
+        )
+      )
     }
 
     const extraFields: Record<string, Json> = {}
@@ -166,12 +170,15 @@ export function canonicalize(
     const parent = parentId !== undefined ? (keyById.get(parentId) ?? null) : null
     if (data.parentId != null && (parentId === undefined || parent === null)) {
       extraFields.parentId = toJson(data.parentId)
-      context.diagnostics.push({
-        code: 'W_CANON_DANGLING_PARENT',
-        severity: 'warning',
-        message: `Block "${key}" names parent "${String(data.parentId)}", which is not a block; placed at the root`,
-        blockKey: key,
-      })
+      context.diagnostics.push(
+        diagnostic(
+          'W_CANON_DANGLING_PARENT',
+          `Block "${key}" names parent "${String(data.parentId)}", which is not a block; placed at the root`,
+          {
+            blockKey: key,
+          }
+        )
+      )
     }
 
     const overrides = parseModeMap(data.canonicalModes)
