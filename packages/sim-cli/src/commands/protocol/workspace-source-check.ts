@@ -135,10 +135,18 @@ export function attachWorkspaceSourceCheck(source: Command): void {
           )
           findings.push(...checked.findings)
         }
-        for (const { code, message, hint, file, line, column } of declarations.rowFindings) {
+        for (const {
+          code,
+          severity,
+          message,
+          hint,
+          file,
+          line,
+          column,
+        } of declarations.rowFindings) {
           findings.push({
             code,
-            severity: 'error',
+            severity,
             message,
             ...(hint !== undefined ? { hint } : {}),
             file,

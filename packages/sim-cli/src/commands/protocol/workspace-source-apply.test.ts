@@ -1080,6 +1080,29 @@ describe('workspaces source apply', () => {
     expect(warned).not.toContain('files/.gitkeep')
   })
 
+  it('names each file it does not send in its own warning, in the JSON result and its count', async () => {
+    write('files/a:b.txt', 'x')
+    write('files/q?.txt', 'x')
+    write('workflows/.hidden-wf/workflow.ts', INGEST)
+    request.mockResolvedValue(answer())
+
+    await apply('--yes')
+
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    const notSent = summary.diagnostics.filter(
+      (finding: { code: string }) => finding.code === 'W_PATH_NOT_SENT'
+    )
+    expect(notSent.map((finding: { file: string }) => finding.file).sort()).toEqual([
+      'files/a:b.txt',
+      'files/q?.txt',
+      'workflows/.hidden-wf/workflow.ts',
+    ])
+    expect(notSent.every((finding: { severity: string }) => finding.severity === 'warning')).toBe(
+      true
+    )
+    expect(summary.warnings).toBe(3)
+  })
+
   it('sends secrets.ts and credentials.ts as their kinds, and no other root file', async () => {
     const secrets =
       "// @sim-sdk 1\nexport default defineSecrets({ OPENAI_API_KEY: { description: 'Models' } })\n"

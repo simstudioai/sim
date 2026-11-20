@@ -100,11 +100,17 @@ import type {
 interface RowsPlan {
   /** The rows the reshape writes (only those that differ); absent leaves the rows alone. */
   write?: ReshapeRows
-  /** The managed mark to set, by key column name, or `null` to clear it; absent leaves it. */
-  mark?: { mode: 'managed'; keyColumn: string } | null
+  /**
+   * The rows mark to set (managed rows by key column name, or seed rows), or `null` to clear it;
+   * absent leaves it.
+   */
+  mark?: RowsMark | null
   /** The row version the plan read the stored rows at; the apply refuses one that moved. */
   version?: number
 }
+
+/** How a declaration opts its rows in, as the table's mark records it. */
+type RowsMark = { mode: 'managed'; keyColumn: string } | { mode: 'seed' }
 
 /** What the apply carries out for one table, decided at plan time. */
 export interface TablePlan {
@@ -220,8 +226,9 @@ function withKeys(
   }
 }
 
-/** The managed mark a declaration asks for, by its key column's stored name. */
-function markOf(decl: TableDecl): { mode: 'managed'; keyColumn: string } | null {
+/** The rows mark a declaration asks for: managed rows by their key column's stored name, or seed. */
+function markOf(decl: TableDecl): RowsMark | null {
+  if (decl.rows?.mode === 'seed') return { mode: 'seed' }
   const key = decl.rows?.mode === 'managed' ? decl.rows.key : undefined
   const column = key !== undefined ? decl.columns[key] : undefined
   return key !== undefined && column
@@ -235,7 +242,7 @@ function rowsWrite(decl: TableDecl, allowDelete: boolean): ReshapeRows | undefin
   if (!rows) return undefined
   const named = namedRows(rows, namesByKey(decl))
   const mark = markOf(decl)
-  return rows.mode === 'managed' && mark
+  return rows.mode === 'managed' && mark?.mode === 'managed'
     ? {
         mode: 'managed',
         keyColumn: mark.keyColumn,
@@ -343,9 +350,16 @@ async function planRows(
   const { decl: storedDecl, keyById } = tableAsDecl(state, entry?.columns)
   const storedKey = storedDecl.rows?.key
   if (rows?.mode !== 'managed') {
-    if (storedKey !== undefined) {
-      outcome.plan = { mark: null }
-      outcome.fields.push('rows (no longer managed)')
+    const storedMode = storedDecl.rows?.mode
+    if (storedMode !== rows?.mode) {
+      outcome.plan = { mark: markOf(decl) }
+      outcome.fields.push(
+        storedMode === 'managed'
+          ? 'rows (no longer managed)'
+          : rows
+            ? 'rows (seed)'
+            : 'rows (no longer seeded)'
+      )
     }
     if (rows?.mode === 'seed' && rows.data.length > 0 && !entry) {
       if (state.table.rowCount === 0) {
@@ -515,7 +529,9 @@ async function planTable(
     const settled = planned.settled
     const resource = resolution.action === 'noop' ? resolution.stored : undefined
     if (!resource || settled.action !== 'noop') return settled
-    if (!decl.rows) return withKeys(settled, resource.state, decl, entry)
+    if (!decl.rows && !resource.state.table.metadata?.sourceRows) {
+      return withKeys(settled, resource.state, decl, entry)
+    }
     const rows = await planRows(key, decl, resource.state, entry, ctx)
     const renamed = rows.plan?.write ? columnsRenamedOnServer(decl, resource.state, entry) : []
     if (renamed.length > 0) {

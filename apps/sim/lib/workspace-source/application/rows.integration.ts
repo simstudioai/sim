@@ -745,8 +745,10 @@ export default defineTable({
     expect(again.applied).toEqual([])
     expect((await storedRows(workspaceId))[0]).toMatchObject({ seats: 5 })
 
-    // A get leaves seed rows out: they were never the table's identity.
+    // A get keeps the declaration of seed rows but leaves the rows out: the directory holds them,
+    // and they were never the table's identity.
     const read = await runner.get(workspaceId)
+    expect(read.files['tables/plans.ts']).toContain("rows: { mode: 'seed' }")
     expect(read.files['tables/plans.rows.jsonl']).toBeUndefined()
     expect((await apply(workspaceId, read.files, { base: read.base })).applied).toEqual([])
 
@@ -755,6 +757,43 @@ export default defineTable({
     expect(codes(adopted.diagnostics, 'info')).toContain('I_TABLE_SEED_SKIPPED')
     expect(await storedRows(workspaceId)).toHaveLength(2)
   })
+
+  check(
+    'a declaration that stops seeding rows clears it, and one that starts records it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const seeded = await apply(workspaceId, {
+        'tables/plans.ts': SEED,
+        'tables/plans.rows.jsonl': ROWS,
+      })
+      const unseeded = PLANS('undefined').replace('  rows: undefined,\n', '')
+
+      const dropped = await apply(
+        workspaceId,
+        { 'tables/plans.ts': unseeded },
+        { base: seeded.base }
+      )
+      expect(dropped.applied).toMatchObject([
+        { key: 'plans', action: 'update', fields: ['rows (no longer seeded)'] },
+      ])
+      expect((await runner.get(workspaceId)).files['tables/plans.ts']).not.toContain('rows:')
+
+      const read = await runner.get(workspaceId)
+      const again = await apply(
+        workspaceId,
+        { 'tables/plans.ts': SEED, 'tables/plans.rows.jsonl': ROWS },
+        { base: read.base }
+      )
+      expect(again.applied).toMatchObject([
+        { key: 'plans', action: 'update', fields: ['rows (seed)'] },
+      ])
+      expect(codes(again.diagnostics, 'info')).not.toContain('I_TABLE_SEED_SKIPPED')
+      expect((await runner.get(workspaceId)).files['tables/plans.ts']).toContain(
+        "rows: { mode: 'seed' }"
+      )
+      expect(await storedRows(workspaceId)).toHaveLength(2)
+    }
+  )
 
   check('makes an existing column required in the apply whose managed rows fill it', async () => {
     const workspaceId = await newWorkspace()

@@ -209,7 +209,7 @@ describe('knowledgeCodec', () => {
     }
     expect(Object.fromEntries(counts)).toEqual({
       E_DECL_SHAPE: 100,
-      E_LIMIT_EXCEEDED: 1,
+      I_FINDINGS_TRUNCATED: 1,
       E_DECL_UNKNOWN_FIELD: 1,
     })
     expect(parsed.diagnostics.at(-1)).toMatchObject({

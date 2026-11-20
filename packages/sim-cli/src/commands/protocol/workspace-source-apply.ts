@@ -574,13 +574,15 @@ export function attachWorkspaceSourceApply(source: Command): void {
             ? await promoted(client, options.dir, read, options.to, options.allowDelete === true)
             : null
           const submission = promotion?.submission ?? read
-          if (submission.ignored.length > 0) {
-            printError(
-              `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
-            )
-          }
           // The apply repeats findings the preview already showed.
           const printed = new Set<string>()
+          const notSent = notSentFindings(submission.ignored)
+          printNewDiagnostics(notSent, printed)
+          /** `data` with the findings about files the CLI did not send, which it reports too. */
+          const withNotSent = (data: ApplyData): ApplyData => ({
+            ...data,
+            diagnostics: [...notSent, ...data.diagnostics],
+          })
           let preview: ApplyData | null = null
           if (options.dryRun || !options.yes) {
             preview = await send(submission, true)
@@ -590,8 +592,8 @@ export function attachWorkspaceSourceApply(source: Command): void {
             if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
             if (options.dryRun || refusesApply(preview)) {
               printProtocolResult(profile.output, {
-                ...summarize(preview),
-                ...resultDiagnostics(profile.output, preview.diagnostics),
+                ...summarize(withNotSent(preview)),
+                ...resultDiagnostics(profile.output, withNotSent(preview).diagnostics),
               })
               return
             }
@@ -632,8 +634,8 @@ export function attachWorkspaceSourceApply(source: Command): void {
             setSoftExitCode(failedExitCode(data.failed))
           }
           printProtocolResult(profile.output, {
-            ...summarize(data),
-            ...resultDiagnostics(profile.output, data.diagnostics),
+            ...summarize(withNotSent(data)),
+            ...resultDiagnostics(profile.output, withNotSent(data).diagnostics),
           })
         },
         {
@@ -645,6 +647,20 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
       )
     })
+}
+
+/**
+ * A `W_PATH_NOT_SENT` warning for each file under a kind folder the CLI does not send: a hidden
+ * name, or a character no workspace path holds.
+ */
+function notSentFindings(paths: readonly string[]): ApplyData['diagnostics'] {
+  return paths.map((path) => ({
+    code: 'W_PATH_NOT_SENT' as const,
+    severity: 'warning' as const,
+    message: `${path} is not sent: a hidden name, or a character no workspace path holds. The apply writes and deletes nothing for it.`,
+    hint: 'Rename it to send it, or move it out of the kind folder.',
+    file: path,
+  }))
 }
 
 /**

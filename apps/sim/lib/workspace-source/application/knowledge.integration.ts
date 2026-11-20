@@ -517,6 +517,27 @@ describe('knowledge bases as workspace source', () => {
     }
   )
 
+  check(
+    'a chunking change counts only the stored documents that keep their chunks, not the ones it replaces',
+    async () => {
+      const { workspaceId, read } = await setUp()
+
+      const planned = await apply(
+        workspaceId,
+        {
+          files: {
+            [POLICIES_FILE]: declaration('Policies', '\n  chunking: { maxSize: 512 },'),
+          },
+          docs: { ...POLICIES.docs, [REFUNDS]: Buffer.from('# Refunds\nWithin 60 days.\n') },
+        },
+        { base: read.base, dryRun: true, carry: 'none' }
+      )
+
+      const chunking = planned.diagnostics.find((finding) => finding.code === 'I_KB_CHUNKING')
+      expect(chunking?.message).toContain('1 stored document(s) keep their chunks')
+    }
+  )
+
   check('a get reproduces the apply, and re-applying it changes nothing', async () => {
     const workspaceId = await newWorkspace()
     const created = await apply(workspaceId, POLICIES)

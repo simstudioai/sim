@@ -79,7 +79,7 @@ export interface ReshapeTableInput {
    * Marks the rows as managed by workspace source, matched by the column named `keyColumn` as the
    * reshape leaves the columns (`null` clears the mark); absent leaves it alone.
    */
-  sourceRows?: { mode: 'managed'; keyColumn: string } | null
+  sourceRows?: { mode: 'managed'; keyColumn: string } | { mode: 'seed' } | null
   /**
    * Records each source column's key, by column name as the reshape leaves the columns
    * (`metadata.sourceColumnKeys`, replaced whole); absent leaves the record alone.
@@ -132,6 +132,7 @@ function sourceRowsMark(
   idByName: ReadonlyMap<string, string>
 ): TableSourceRows | null {
   if (!input) return null
+  if (input.mode === 'seed') return input
   const keyColumnId = idByName.get(input.keyColumn)
   if (!keyColumnId) {
     throw new OrchestrationError('validation', `Column "${input.keyColumn}" does not exist`)

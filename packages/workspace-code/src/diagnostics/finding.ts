@@ -41,7 +41,7 @@ export type WorkspaceDiagnostic<C extends WorkspaceDiagnosticCode = WorkspaceDia
 type DiagnosticExtras = Omit<DiagnosticFields, 'message'> & ResourceFields
 
 /**
- * Findings one declaration file lists; past it the file gets one `E_LIMIT_EXCEEDED` and the rest
+ * Findings one declaration file lists; past it the file gets one `I_FINDINGS_TRUNCATED` and the rest
  * are dropped, so a file of bad values costs no more than its first hundred.
  */
 export const MAX_FINDINGS_PER_FILE = 100
@@ -51,7 +51,7 @@ const MAX_MESSAGE_LENGTH = 1_000
 /** The finding that ends a file's list at {@link MAX_FINDINGS_PER_FILE}. */
 export function findingLimitReached(extras: DiagnosticExtras = {}): WorkspaceDiagnostic {
   return diagnostic(
-    'E_LIMIT_EXCEEDED',
+    'I_FINDINGS_TRUNCATED',
     `Stopped after ${MAX_FINDINGS_PER_FILE} findings in this file.`,
     { ...extras, hint: 'Fix these and apply again to see the rest.' }
   )

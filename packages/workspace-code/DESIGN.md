@@ -138,7 +138,10 @@ apart from the declarations').
 
 - `{ mode: 'seed' }` writes the rows into a table the apply creates, or adopts while it holds no
   rows and the base has no entry for it (`I_TABLE_SEED_SKIPPED` otherwise). Seed rows are outside
-  every fingerprint, and a get never prints them.
+  every fingerprint, and a get never prints them: they are the directory's. The table's
+  `metadata.sourceRows` records `{ mode: 'seed' }`, so a get prints the declaration's `rows` and
+  the CLI keeps the rows file it finds beside it (`seedRowsFiles`), and a promotion from a
+  re-read directory still seeds the tables it creates.
 - `{ mode: 'managed', key }` makes the file the table's whole content, each row matched to its
   stored row by the unique `key` column. The table's `canonical()` carries only `{ mode, key }` (so
   tables without managed rows fingerprint as before); the rows have their own fingerprint

@@ -125,6 +125,25 @@ describe('workspaces source get', () => {
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// server\n`)
   })
 
+  it('keeps the seed rows file of a table the answer declares seed rows for, which no read prints', async () => {
+    const seeded = (name: string) =>
+      `// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\n\nexport default defineTable({ name: '${name}', columns: { code: column.string() }, rows: { mode: 'seed' } })\n`
+    const rows = '{"code":"a"}\n'
+    serve({
+      'tables/leads.ts': seeded('leads'),
+      'tables/leads.rows.jsonl': rows,
+      'tables/accounts.ts': seeded('accounts'),
+      'tables/accounts.rows.jsonl': rows,
+    })
+    await get()
+
+    serve({ 'tables/leads.ts': seeded('leads'), 'tables/accounts.ts': ACCOUNTS })
+    await get()
+
+    expect(readFileSync(join(dir, 'tables/leads.rows.jsonl'), 'utf8')).toBe(rows)
+    expect(existsSync(join(dir, 'tables/accounts.rows.jsonl'))).toBe(false)
+  })
+
   it('refuses to restore a file deleted since the CLI wrote it, a pending delete', async () => {
     serve({ 'tables/leads.ts': LEADS, 'tables/accounts.ts': ACCOUNTS })
     await get()

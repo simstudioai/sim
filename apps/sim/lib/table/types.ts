@@ -299,8 +299,10 @@ export interface TableMetadata {
    */
   hiddenColumns?: string[]
   /**
-   * Set while workspace source manages the table's rows (`rows: { mode: 'managed' }`), so reading
-   * the workspace as source prints them. Written only by the reshape that applies them.
+   * Set while a workspace source declaration opts the table's rows in (`rows: { mode: 'managed' }`
+   * or `{ mode: 'seed' }`), so reading the workspace as source prints them, or for seed rows (which
+   * the directory keeps) the declaration that keeps its rows file. Written only by the reshape that
+   * applies them.
    */
   sourceRows?: TableSourceRows
   /**
@@ -312,12 +314,18 @@ export interface TableMetadata {
   sourceColumnKeys?: Record<string, string>
 }
 
-/** Rows workspace source manages: the whole table, each row matched by its key column. */
-export interface TableSourceRows {
-  mode: 'managed'
-  /** The id (`getColumnId`) of the unique column each row is matched by. */
-  keyColumnId: string
-}
+/**
+ * Rows a workspace source declaration opts in: `managed`, the whole table, each row matched by its
+ * key column; `seed`, rows written into the table when source created it, which the directory
+ * keeps and the server does not.
+ */
+export type TableSourceRows =
+  | {
+      mode: 'managed'
+      /** The id (`getColumnId`) of the unique column each row is matched by. */
+      keyColumnId: string
+    }
+  | { mode: 'seed' }
 
 /**
  * The saved shape of a table view: everything `TableMetadata` covers plus the

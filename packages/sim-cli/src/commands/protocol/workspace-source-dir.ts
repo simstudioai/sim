@@ -18,6 +18,7 @@ import {
 import {
   APPLY_ORDER,
   type BlobEntry,
+  type FlatDiagnostic,
   isFileKind,
   KIND_DIRS,
   WORKSPACE_KIND_SPECS,
@@ -278,9 +279,13 @@ export interface WorkspaceDeclarations {
   workflowInputs?: ReadonlyMap<string, readonly WorkflowInput[] | null>
 }
 
-/** A finding about a line of a table's rows file (`E_TABLE_ROWS`, an error). */
+/**
+ * A finding about a line of a table's rows file: `E_TABLE_ROWS`, an error, or the
+ * `I_FINDINGS_TRUNCATED` that ends a long list.
+ */
 interface RowFinding {
   code: WorkspaceDiagnosticCode
+  severity: FlatDiagnostic['severity']
   message: string
   hint?: string
   file: string
@@ -348,8 +353,9 @@ function tableRowFindings(key: string, decl: TableDecl, text: string | undefined
   if (!rows || text === undefined) return []
   const parsed = parseTableRows(key, text, rows, new Set(Object.keys(decl.columns)))
   const read = parsed.diagnostics.map(
-    ({ code, message, hint, span }): RowFinding => ({
+    ({ code, severity, message, hint, span }): RowFinding => ({
       code,
+      severity,
       message,
       ...(hint ? { hint } : {}),
       file,
@@ -360,6 +366,7 @@ function tableRowFindings(key: string, decl: TableDecl, text: string | undefined
   const refused = refusedTableRows(decl, parsed.data).map(
     ({ row, errors }): RowFinding => ({
       code: 'E_TABLE_ROWS',
+      severity: 'error',
       message: `Line ${parsed.lines[row] ?? 1} does not fit the declared columns: ${errors.join('; ')}.`,
       hint: `Write a value each column of ${KIND_DIRS.table}/${key}${DECLARATION_EXTENSION} holds (a select cell names one of its options), fill every required column, and keep unique values unique.`,
       file,
@@ -405,6 +412,26 @@ function declaredTable(
     maxOptions: Number.MAX_SAFE_INTEGER,
   })
   return codec.parse(key, text, [])
+}
+
+/**
+ * The rows files of the tables `files` (a get's answer) declares seed rows for. A server read
+ * prints a seed table's `rows` but never its rows, which only the directory holds, so a get keeps
+ * the file it finds there.
+ */
+export function seedRowsFiles(files: Readonly<Record<string, string>>): Set<string> {
+  const kept = new Set<string>()
+  const paths = Object.keys(files).filter((path) => kindOfPath(path) === 'table')
+  for (const [key, tablePaths] of KIND_LAYOUTS.table.group(paths).groups) {
+    const rowsPath = tableRowsPath(key)
+    const { decl } = declaredTable(
+      key,
+      tablePaths.filter((path) => path !== rowsPath),
+      files
+    )
+    if (decl?.rows?.mode === 'seed') kept.add(rowsPath)
+  }
+  return kept
 }
 
 /** A table declaration's columns by stored name, as a workflow's row writes name them. */

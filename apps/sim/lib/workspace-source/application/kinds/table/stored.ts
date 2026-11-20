@@ -99,15 +99,20 @@ export function tableAsDecl(
     const key = keyById.get(getColumnId(column)) ?? column.name
     setOwn(columns, key, columnDecl(column, key))
   }
-  // Rows source manages print as `rows`, keyed by the column the marker names while it exists.
+  // Rows source manages print as `rows`, keyed by the column the marker names while it exists;
+  // seed rows print as their `rows` alone, since the directory keeps their file.
   const marker = state.table.metadata?.sourceRows
-  const rowsKey = marker ? keyById.get(marker.keyColumnId) : undefined
+  const rowsKey = marker?.mode === 'managed' ? keyById.get(marker.keyColumnId) : undefined
   const decl: TableDecl = {
     name: state.table.name,
     ...(state.table.description ? { description: state.table.description } : {}),
     ...(state.folderPath !== '/' ? { folder: state.folderPath } : {}),
     columns,
-    ...(rowsKey !== undefined ? { rows: { mode: 'managed', key: rowsKey, data: [] } } : {}),
+    ...(rowsKey !== undefined
+      ? { rows: { mode: 'managed', key: rowsKey, data: [] } }
+      : marker?.mode === 'seed'
+        ? { rows: { mode: 'seed', data: [] } }
+        : {}),
   }
   return { decl, keyById, fingerprint: fingerprintOf(tableCodec.canonical(decl)) }
 }
@@ -145,7 +150,7 @@ export function printStoredTable(
   const { decl, keyById, fingerprint } = tableAsDecl(state, bindings)
   let rowsEntry: BaseRows | undefined
   if (rows && 'seed' in rows) {
-    if (!decl.rows) decl.rows = rows.seed
+    if (decl.rows?.mode !== 'managed') decl.rows = rows.seed
   } else if (decl.rows && rows) {
     decl.rows = { ...decl.rows, data: rows.data }
     rowsEntry = baseRows(decl.rows, rows.version)
