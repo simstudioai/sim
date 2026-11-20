@@ -6,6 +6,7 @@ import {
   parseWorkflowLock,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
+import { diagnostic } from '@sim/workflow-code/diagnostics'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
 import { createLocator, hasErrors } from '@/lib/workflows/application/source-locate'
@@ -69,13 +70,15 @@ export function compileSubmission(
   if (!compiledWorkflow || hasErrors(compiled.diagnostics)) {
     const refused: Diagnostic[] = [...compiled.diagnostics]
     if (input.base && input.base.catalogHash !== catalog.hash) {
-      refused.push({
-        code: 'W_APPLY_CATALOG_MOVED',
-        severity: 'warning',
-        message:
+      refused.push(
+        diagnostic(
+          'W_APPLY_CATALOG_MOVED',
           'The block catalog changed since this source was read, which can explain these errors.',
-        hint: 'Get the source again to print it against the current catalog, then reapply your edit.',
-      })
+          {
+            hint: 'Get the source again to print it against the current catalog, then reapply your edit.',
+          }
+        )
+      )
     }
     return { refused: refused.map(createLocator(files, compiled.spans, new Map())) }
   }

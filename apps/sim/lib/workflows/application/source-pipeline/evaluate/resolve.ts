@@ -16,6 +16,7 @@ import {
   type WorkflowLockBlock,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
+import { diagnostic } from '@sim/workflow-code/diagnostics'
 import { and, inArray, ne } from 'drizzle-orm'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
@@ -202,13 +203,16 @@ export async function resolveSubmission(
       lock
     )
   }
-  const keptDiagnostics: Diagnostic[] = kept.map(({ key, blockKey }) => ({
-    code: 'W_APPLY_CREDENTIAL_KEPT',
-    severity: 'warning',
-    message: `credential(${JSON.stringify(key)}) stands where the workflow stores a credential you cannot see, so that credential is kept as stored.`,
-    hint: 'Name a credential you can see to change it, or ask a member who can see the stored one.',
-    blockKey,
-  }))
+  const keptDiagnostics: Diagnostic[] = kept.map(({ key, blockKey }) =>
+    diagnostic(
+      'W_APPLY_CREDENTIAL_KEPT',
+      `credential(${JSON.stringify(key)}) stands where the workflow stores a credential you cannot see, so that credential is kept as stored.`,
+      {
+        hint: 'Name a credential you can see to change it, or ask a member who can see the stored one.',
+        blockKey,
+      }
+    )
+  )
 
   resources = withPendingResources(resources, input.pendingResources ?? [])
 
@@ -274,12 +278,13 @@ export async function resolveSubmission(
     const blocks: Record<string, WorkflowLockBlock> = {}
     for (const [key, entry] of Object.entries(lock.blocks)) {
       if (claimed.has(entry.id)) {
-        claimedDiagnostics.push({
-          code: 'W_MAT_LOCK_ID_CLAIMED',
-          severity: 'warning',
-          message: `The lock id for block "${key}" belongs to another workflow; a new id was minted`,
-          blockKey: key,
-        })
+        claimedDiagnostics.push(
+          diagnostic(
+            'W_MAT_LOCK_ID_CLAIMED',
+            `The lock id for block "${key}" belongs to another workflow; a new id was minted`,
+            { blockKey: key }
+          )
+        )
       } else {
         blocks[key] = entry
       }

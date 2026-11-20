@@ -14,6 +14,7 @@ import {
   replacedBetween,
   type SourceSpan,
 } from '@sim/workflow-code'
+import { diagnostic } from '@sim/workflow-code/diagnostics'
 import { isEqual } from 'es-toolkit'
 import {
   V2_WORKFLOW_DESCRIPTION_MAX_LENGTH,
@@ -95,15 +96,16 @@ function variableDeleteRefusal(
     removed.length === 1 && added.length === 1 && former.type === next.type
       ? `If ${next.name} renames ${former.name}, apply the new key with the value ${former.name} holds first and change the value in a second apply, so the variable keeps its id; or pass --allow-delete (allowDelete=true) to replace it.`
       : undefined
-  return {
-    code: 'E_APPLY_VARIABLE_DELETE',
-    severity: 'error',
-    message: `This apply deletes ${names.length} variable${names.length === 1 ? '' : 's'} the source no longer declares: ${listNames(names)}.`,
-    hint:
-      rename ??
-      'Pass --allow-delete (allowDelete=true) to delete them, or declare them again in workflow(name, { variables }) to keep them.',
-    ...withSpan(span),
-  }
+  return diagnostic(
+    'E_APPLY_VARIABLE_DELETE',
+    `This apply deletes ${names.length} variable${names.length === 1 ? '' : 's'} the source no longer declares: ${listNames(names)}.`,
+    {
+      hint:
+        rename ??
+        'Pass --allow-delete (allowDelete=true) to delete them, or declare them again in workflow(name, { variables }) to keep them.',
+      ...withSpan(span),
+    }
+  )
 }
 
 /**
@@ -139,20 +141,20 @@ function blockDeleteRefusal(
   const removedTypes = new Set(removed.map((block) => block.type))
   const lookalikes = added.filter((block) => removedTypes.has(block.type))
   const deletes = `This apply deletes ${removed.length} block${removed.length === 1 ? '' : 's'} the source no longer declares: ${listNames(removed.map((block) => block.name))}.`
-  return {
-    code: 'E_APPLY_BLOCK_DELETE',
-    severity: 'error',
-    ...(lookalikes.length > 0
-      ? {
-          message: `${deletes} It adds ${listNames(lookalikes.map((block) => block.name))} of the same type: if those are the same blocks renamed, both their name and const changed, so nothing ties them to the stored blocks and they would get new ids.`,
-          hint: 'To rename a block and keep its id, keep its const name in this apply (change it in the next), or rename the references to it with it; to replace it with a new block, pass --allow-delete.',
-        }
-      : {
-          message: deletes,
-          hint: 'Pass --allow-delete (allowDelete=true) to delete them, or declare them again to keep them.',
-        }),
-    ...withSpan(span),
+  if (lookalikes.length > 0) {
+    return diagnostic(
+      'E_APPLY_BLOCK_DELETE',
+      `${deletes} It adds ${listNames(lookalikes.map((block) => block.name))} of the same type: if those are the same blocks renamed, both their name and const changed, so nothing ties them to the stored blocks and they would get new ids.`,
+      {
+        hint: 'To rename a block and keep its id, keep its const name in this apply (change it in the next), or rename the references to it with it; to replace it with a new block, pass --allow-delete.',
+        ...withSpan(span),
+      }
+    )
   }
+  return diagnostic('E_APPLY_BLOCK_DELETE', deletes, {
+    hint: 'Pass --allow-delete (allowDelete=true) to delete them, or declare them again to keep them.',
+    ...withSpan(span),
+  })
 }
 
 /**
@@ -168,7 +170,7 @@ function metaLimitRefusals(
   const refuse = (field: keyof CanonicalWorkflowMeta, message: string, hint: string) =>
     refusals.push({
       field,
-      refusal: { code: 'E_WORKFLOW_META_INVALID', severity: 'error', message, hint },
+      refusal: diagnostic('E_WORKFLOW_META_INVALID', message, { hint }),
     })
   if (fields.includes('name') && meta.name.trim() === '') {
     refuse('name', 'The workflow name is empty.', "Name the workflow: workflow('Name', ...).")
@@ -283,13 +285,16 @@ export async function sourceRefusals(
       excludeWorkflowId: scope.workflowId,
     }))
   ) {
-    refusals.push({
-      code: 'E_NAME_TAKEN',
-      severity: 'error',
-      message: `Another workflow in this workflow's folder is named ${JSON.stringify(meta.name)}.`,
-      hint: `Choose another name, or keep workflow(${JSON.stringify(storedMeta.name)}, ...).`,
-      ...withSpan(metaSpan('name')),
-    })
+    refusals.push(
+      diagnostic(
+        'E_NAME_TAKEN',
+        `Another workflow in this workflow's folder is named ${JSON.stringify(meta.name)}.`,
+        {
+          hint: `Choose another name, or keep workflow(${JSON.stringify(storedMeta.name)}, ...).`,
+          ...withSpan(metaSpan('name')),
+        }
+      )
+    )
   }
   refusals.push(
     ...metaLimitRefusals(meta, isNew ? META_FIELDS : metaChanged).map(({ field, refusal }) => ({
@@ -329,13 +334,15 @@ export async function sourceRefusals(
   }
   const renameWarnings = input.allowDelete
     ? probableRenames(removedBlocks, addedBlocks).map(
-        ({ removed, added }): Diagnostic => ({
-          code: 'W_APPLY_PROBABLE_RENAME',
-          severity: 'warning',
-          message: `${removed.name} (${removed.type}) is deleted and ${added.name} (${added.type}) added: probably a rename, but its name and const both changed, so it gets a new id and loses its run history and webhook URL.`,
-          hint: `To keep the id, apply ${added.name} under the const or name ${removed.name} had first, then change the other.`,
-          blockKey: added.key,
-        })
+        ({ removed, added }): Diagnostic =>
+          diagnostic(
+            'W_APPLY_PROBABLE_RENAME',
+            `${removed.name} (${removed.type}) is deleted and ${added.name} (${added.type}) added: probably a rename, but its name and const both changed, so it gets a new id and loses its run history and webhook URL.`,
+            {
+              hint: `To keep the id, apply ${added.name} under the const or name ${removed.name} had first, then change the other.`,
+              blockKey: added.key,
+            }
+          )
       )
     : []
 

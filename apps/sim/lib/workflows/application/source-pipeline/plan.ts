@@ -5,6 +5,7 @@ import type {
   SourceFingerprint,
   WorkflowLockV1,
 } from '@sim/workflow-code'
+import { diagnostic } from '@sim/workflow-code/diagnostics'
 import { isEqual } from 'es-toolkit'
 import { withCatalogBlockScope } from '@/lib/catalog/application/context'
 import { assertCreateNameFree } from '@/lib/workflows/application/source-commit'
@@ -119,26 +120,20 @@ export async function planSource(
 
     if (target.kind === 'existing' && target.base.workflowId !== scope.workflowId) {
       return refuse([
-        {
-          code: 'E_APPLY_WORKFLOW_MISMATCH',
-          severity: 'error',
-          message: `This source was read from workflow ${target.base.workflowId}, not ${scope.workflowId}; applying it here would overwrite a different workflow.`,
-          hint: 'Apply it to the workflow it was read from, or get this workflow’s source into its own directory.',
-          path: '/base/workflowId',
-        },
+        diagnostic(
+          'E_APPLY_WORKFLOW_MISMATCH',
+          `This source was read from workflow ${target.base.workflowId}, not ${scope.workflowId}; applying it here would overwrite a different workflow.`,
+          {
+            hint: 'Apply it to the workflow it was read from, or get this workflow’s source into its own directory.',
+            path: '/base/workflowId',
+          }
+        ),
       ])
     }
     if (target.kind === 'existing' && storedFingerprint !== target.base.fingerprint) {
-      return refuse(
-        [
-          {
-            code: 'E_APPLY_STALE',
-            severity: 'error',
-            message: workflowSourceStaleMessage(stored.meta.name),
-          },
-        ],
-        { stale: { currentFingerprint: storedFingerprint, workflowName: stored.meta.name } }
-      )
+      return refuse([diagnostic('E_APPLY_STALE', workflowSourceStaleMessage(stored.meta.name))], {
+        stale: { currentFingerprint: storedFingerprint, workflowName: stored.meta.name },
+      })
     }
 
     const evaluation = await evaluateSource({
