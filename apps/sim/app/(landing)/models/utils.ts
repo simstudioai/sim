@@ -235,9 +235,15 @@ export function formatCapabilityBoolean(
   return value ? positive : negative
 }
 
-/** Evaluation models answer native questions and reject a response format. */
-function supportsCatalogStructuredOutputs(capabilities: ModelCapabilities): boolean {
-  return !capabilities.evaluation
+/**
+ * A retired model accepts no requests, and evaluation models answer native questions and reject a
+ * response format.
+ */
+function supportsCatalogStructuredOutputs(
+  capabilities: ModelCapabilities,
+  retired: boolean
+): boolean {
+  return !retired && !capabilities.evaluation
 }
 
 export function getEffectiveMaxOutputTokens(capabilities: ModelCapabilities): number | null {
@@ -386,7 +392,7 @@ function formatModelDisplayName(providerId: string, modelId: string): string {
   return displayName.replace(/^GPT (\d[\w.]*)/i, 'GPT-$1').replace(/\bGpt\b/g, 'GPT')
 }
 
-function buildCapabilityTags(capabilities: ModelCapabilities): string[] {
+function buildCapabilityTags(capabilities: ModelCapabilities, retired: boolean): string[] {
   const tags: string[] = []
 
   if (capabilities.temperature) {
@@ -397,7 +403,7 @@ function buildCapabilityTags(capabilities: ModelCapabilities): string[] {
     tags.push('Tool choice')
   }
 
-  if (supportsCatalogStructuredOutputs(capabilities)) {
+  if (supportsCatalogStructuredOutputs(capabilities, retired)) {
     tags.push('Structured outputs')
   }
 
@@ -495,12 +501,13 @@ function compareModelsByRelevance(a: CatalogModel, b: CatalogModel): number {
 const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
   const providerSlug = slugify(provider.id)
   const providerDisplayName = provider.name
-  const providerCapabilityTags = buildCapabilityTags(provider.capabilities ?? {})
+  const providerCapabilityTags = buildCapabilityTags(provider.capabilities ?? {}, false)
 
   const models: CatalogModel[] = provider.models.map((model) => {
     const shortId = stripProviderPrefix(provider.id, model.id)
     const mergedCapabilities = { ...provider.capabilities, ...model.capabilities }
-    const capabilityTags = buildCapabilityTags(mergedCapabilities)
+    const retired = model.sunset?.status === 'deprecated'
+    const capabilityTags = buildCapabilityTags(mergedCapabilities, retired)
     const bestFor = buildBestForLine({
       pricing: model.pricing,
       capabilities: mergedCapabilities,
@@ -522,7 +529,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
       contextWindow: model.contextWindow ?? null,
       releaseDate: model.releaseDate ?? null,
       deprecated: !!model.sunset,
-      retired: model.sunset?.status === 'deprecated',
+      retired,
       featured: model.featured ?? false,
       recommended: model.recommended ?? false,
       pricing: model.pricing,
@@ -817,7 +824,7 @@ export function buildModelFaqs(provider: CatalogProvider, model: CatalogModel): 
 
 export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[] {
   const { capabilities } = model
-  const supportsStructuredOutputs = supportsCatalogStructuredOutputs(capabilities)
+  const supportsStructuredOutputs = supportsCatalogStructuredOutputs(capabilities, model.retired)
 
   return [
     {
