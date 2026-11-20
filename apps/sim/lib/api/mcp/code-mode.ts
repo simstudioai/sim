@@ -32,6 +32,8 @@ const MAX_CALLS_PER_RUN = 200
 /** Calls one program may have in flight at once, so a `Promise.all` cannot fan out a whole page of requests. */
 const MAX_CONCURRENT_CALLS = 8
 const MAX_CODE_CHARS = 100_000
+/** Slack past the isolate's own timeout, so a run that never queued still ends with the isolate's TimeoutError. */
+const DEADLINE_GRACE_MS = 1000
 const NOT_SENT = 'The program ended before this call was sent.'
 
 export const codeModeInput = z
@@ -258,6 +260,9 @@ export async function runCodeMode(
     }
   }
 
+  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  /** Bounds the whole run, time spent waiting for a sandbox worker included, so the caller hears back within its timeout. */
+  const deadline = AbortSignal.timeout(timeoutMs + DEADLINE_GRACE_MS)
   let bytes: Buffer | undefined
   let runError: unknown
   try {
@@ -267,8 +272,8 @@ export async function runCodeMode(
       {
         ownerKey,
         callSimApi,
-        signal: context.signal,
-        timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        signal: AbortSignal.any([context.signal, deadline]),
+        timeoutMs,
       }
     )
   } catch (error) {
@@ -288,6 +293,16 @@ export async function runCodeMode(
     if (context.signal.aborted) {
       summary('cancelled')
       return failure({ name: 'AbortError', message: 'The program was cancelled.' }, calls)
+    }
+    if (deadline.aborted) {
+      summary('timeout')
+      return failure(
+        {
+          name: 'TimeoutError',
+          message: `The program did not finish within ${timeoutMs}ms, including time spent waiting for a sandbox.`,
+        },
+        calls
+      )
     }
     if (runError instanceof SandboxUserCodeError) {
       summary(runError.name === 'TimeoutError' ? 'timeout' : 'error')
