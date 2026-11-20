@@ -83,6 +83,25 @@ describe('refuseEditedFindings', () => {
     expect(errors(refuseEditedFindings(compiled, edited('call')))).toEqual([])
   })
 
+  it('refuses a path no output has in an edited code file, and only there', () => {
+    const compiled = compile(
+      [
+        START,
+        "const call = api('Call', { url: 'https://x' })",
+        "const next = fn('Next', { code: codeFile('./functions/next.js') })",
+        'start.to(call)',
+        'call.to(next)',
+      ],
+      { 'functions/next.js': 'return $ref.call.dat' }
+    )
+    const changedOnly: EditedBlocks = { changed: (key) => key === 'next', codeEdited: () => false }
+
+    expect(errors(refuseEditedFindings(compiled, edited('next')))).toEqual([
+      'E_APPLY_UNRESOLVED_REF next',
+    ])
+    expect(errors(refuseEditedFindings(compiled, changedOnly))).toEqual([])
+  })
+
   it('refuses an iteration field read outside its container in an unedited code file of a changed block', () => {
     const compiled = compile(
       [

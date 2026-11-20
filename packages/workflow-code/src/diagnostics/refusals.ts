@@ -42,10 +42,12 @@ const ENTRY_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
 
 /**
  * In a function code file whose text the edit changed: a `$ref` naming no block or variable, or a
- * `$ref`/`$env` in a Python or shell file, which runs as text.
+ * path no output of its block has, or a `$ref`/`$env` in a Python or shell file, which runs as
+ * text.
  */
 const CODE_FILE_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_UNRESOLVED_REF', 'E_APPLY_UNRESOLVED_REF'],
+  ['W_UNKNOWN_OUTPUT_PATH', 'E_APPLY_UNRESOLVED_REF'],
   ['W_CODE_FILE_REF_SYNTAX', 'E_APPLY_CODE_FILE_REF_SYNTAX'],
 ])
 
