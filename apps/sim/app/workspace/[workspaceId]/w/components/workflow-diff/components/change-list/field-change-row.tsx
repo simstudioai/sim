@@ -26,31 +26,33 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { formatParameterLabel } from '@/tools/params'
 
 /** Code languages blocks offer, as the highlighter names them. */
-const CODE_DIFF_LANGUAGES: Record<string, string> = {
-  javascript: 'javascript',
-  typescript: 'typescript',
-  python: 'python',
-  shell: 'bash',
-  json: 'json',
-}
+const CODE_DIFF_LANGUAGES = new Map([
+  ['javascript', 'javascript'],
+  ['typescript', 'typescript'],
+  ['python', 'python'],
+  ['shell', 'bash'],
+  ['json', 'json'],
+])
 
 /**
- * The syntax a text diff highlights as: JSON for structured values, a code field's language
- * (the block's own `language` setting first, as the editor does), and plain text for prose.
+ * The syntax a text diff highlights as: JSON for structured values, plain text for prose, and
+ * for code the first language that names one the highlighter knows: the block's `language`
+ * setting after the change, then before it (a removed block has only that), then the field's
+ * own default.
  */
 function diffLanguage(
   config: SubBlockConfig | undefined,
   kind: ValueKind,
-  values: Record<string, unknown>
+  targetValues: Record<string, unknown>,
+  baseValues: Record<string, unknown>
 ): string {
   if (kind === 'json') return 'json'
   if (config?.type !== 'code') return 'text'
-  const selected = typeof values.language === 'string' ? values.language : undefined
-  return (
-    (selected && CODE_DIFF_LANGUAGES[selected]) ??
-    CODE_DIFF_LANGUAGES[config.language ?? 'javascript'] ??
-    'javascript'
-  )
+  for (const value of [targetValues.language, baseValues.language, config.language]) {
+    const language = typeof value === 'string' ? CODE_DIFF_LANGUAGES.get(value) : undefined
+    if (language) return language
+  }
+  return 'javascript'
 }
 
 interface FieldChangeRowProps {
@@ -150,7 +152,7 @@ export function FieldChangeRow({
         <TextDiff
           oldText={oldText}
           newText={newText}
-          language={diffLanguage(config, kind, targetValues)}
+          language={diffLanguage(config, kind, targetValues, baseValues)}
         />
       )}
       {scalar &&
