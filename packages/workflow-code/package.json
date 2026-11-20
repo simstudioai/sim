@@ -14,10 +14,6 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
-    "./scaling.test-helpers": {
-      "types": "./src/scaling.test-helpers.ts",
-      "default": "./src/scaling.test-helpers.ts"
-    },
     "./diagnostics/codes": {
       "types": "./src/diagnostics/codes.ts",
       "default": "./src/diagnostics/codes.ts"
@@ -84,6 +80,7 @@
   },
   "devDependencies": {
     "@babel/types": "7.29.8",
+    "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@xyflow/react": "12.12.1",
     "fast-check": "3.23.2",

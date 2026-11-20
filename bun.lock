@@ -876,6 +876,7 @@
       },
       "devDependencies": {
         "@babel/types": "7.29.8",
+        "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "@xyflow/react": "12.12.1",
         "fast-check": "3.23.2",
@@ -974,6 +975,7 @@
       },
       "devDependencies": {
         "@babel/types": "7.29.8",
+        "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "@types/js-yaml": "4.0.9",
         "fast-check": "3.23.2",

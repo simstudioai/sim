@@ -1,4 +1,4 @@
-import { growth, MAX_GROWTH } from '@sim/workflow-code/scaling.test-helpers'
+import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
 import { describe, expect, it } from 'vitest'
 import { localResourceChanges } from './status'
 
@@ -16,6 +16,6 @@ describe('localResourceChanges', () => {
       const files = changedFiles(count)
       return () => localResourceChanges(files)
     }
-    expect(growth(grouped, 10_000)).toBeLessThan(MAX_GROWTH)
+    expectLinearGrowth(grouped, 10_000)
   })
 })

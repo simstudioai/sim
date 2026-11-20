@@ -1,7 +1,7 @@
+import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
 import { afterEach, describe, expect, it } from 'vitest'
 import { codeFileReferences } from '../code-files/references'
 import { MAX_ERRORS } from '../diagnostics/codes'
-import { growth, MAX_GROWTH } from '../scaling.test-helpers'
 import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
@@ -158,7 +158,7 @@ describe('hostile sources produce diagnostics only', () => {
       const text = source(repeats)
       return () => run(text)
     }
-    expect(growth(scan, 12_500)).toBeLessThan(MAX_GROWTH)
+    expectLinearGrowth(scan, 12_500)
     const result = run(source(100_000))
     expect(result.workflow).not.toBeNull()
     expect(codes(result)).not.toContain('W_LITERAL_SECRET')
@@ -212,7 +212,7 @@ describe('hostile sources produce diagnostics only', () => {
       const text = source(zeros)
       return () => run(text)
     }
-    expect(growth(check, 12_500)).toBeLessThan(MAX_GROWTH)
+    expectLinearGrowth(check, 12_500)
     expect(codes(run(source(100_000)))).toContain('W_NUMBER_PRECISION')
   })
 
