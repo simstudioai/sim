@@ -238,8 +238,6 @@ export interface BuilderTypes {
   paramsName: string
   /** The params as facts. */
   facts: ParamFacts
-  /** What a call returns: `Block<…>` of the output type. */
-  returns: string
 }
 
 /**
@@ -524,7 +522,6 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
     summary: [block.name, label].filter(Boolean).join(': '),
     paramsName,
     facts: paramFacts(params, gate, candidates, context.pinned),
-    returns: `Block<${outputType}>`,
   }
 }
 

@@ -73,10 +73,9 @@ export function describeBuilder(catalog: BlockCatalog, key: string): BuilderRefe
   const entry = builderEntry(catalog, key)
   if (!entry) return null
   const types = builderTypes(catalog, entry)
-  const call = entry.special ? key : (types.signature.at(-1) ?? '')
   const signature = entry.special
-    ? `${call}(name: string, params: ${types.paramsName}, meta?: BlockMeta): ${types.returns}`
-    : `${entry.path.slice(0, -1).join('.')}.${call.replace(/^export function /, '')}`.replace(
+    ? coreSignatures(key)
+    : `${entry.path.slice(0, -1).join('.')}.${(types.signature.at(-1) ?? '').replace(/^export function /, '')}`.replace(
         /^\./,
         ''
       )
@@ -126,22 +125,15 @@ export function lookupBuilder(catalog: BlockCatalog, query: string): BuilderLook
 
 const MAX_CORE_LINES = 80
 
-/**
- * Every top-level declaration of `name` in `core.d.ts` (overloads included) with the doc comment
- * above it, as the file holds it: what a construct the catalog does not generate takes.
- */
-function coreDeclaration(name: string): string {
+/** Each top-level declaration of `name` in `core.d.ts` (overloads included): its line range. */
+function coreDeclarationRanges(name: string): Array<{ start: number; end: number }> {
   const lines = CORE_DTS.split('\n')
   const start = new RegExp(
     `^export (?:declare )?(?:const|function|namespace|interface|type) ${name}\\b`
   )
-  const out: string[] = []
+  const declarations: Array<{ start: number; end: number }> = []
   for (let index = 0; index < lines.length; index++) {
     if (!start.test(lines[index])) continue
-    let first = index
-    if (lines[index - 1]?.trim().endsWith('*/')) {
-      while (first > 0 && !lines[first].trim().startsWith('/**')) first--
-    }
     let depth = 0
     let end = index
     for (; end < lines.length; end++) {
@@ -152,9 +144,46 @@ function coreDeclaration(name: string): string {
       const continues = /[=:,|&]\s*$/.test(lines[end]) || /^\s+[?:|&]/.test(lines[end + 1] ?? '')
       if (depth <= 0 && !continues) break
     }
-    if (out.length > 0) out.push('')
-    out.push(...lines.slice(first, end + 1))
+    declarations.push({ start: index, end: end + 1 })
     index = end
+  }
+  return declarations
+}
+
+/**
+ * A special builder's call as `core.d.ts` declares it (`condition` takes its branches, `note`
+ * returns an `Annotation`), one line per overload.
+ */
+function coreSignatures(name: string): string {
+  const lines = CORE_DTS.split('\n')
+  return coreDeclarationRanges(name)
+    .map(({ start, end }) =>
+      lines
+        .slice(start, end)
+        .join(' ')
+        .replace(/^export (?:declare )?function /, '')
+        .replace(/\s+/g, ' ')
+        .replace(/([(<]) /g, '$1')
+        .replace(/,? ([)>])/g, '$1')
+        .trim()
+    )
+    .join('\n')
+}
+
+/**
+ * Every top-level declaration of `name` in `core.d.ts` (overloads included) with the doc comment
+ * above it, as the file holds it: what a construct the catalog does not generate takes.
+ */
+function coreDeclaration(name: string): string {
+  const lines = CORE_DTS.split('\n')
+  const out: string[] = []
+  for (const { start, end } of coreDeclarationRanges(name)) {
+    let first = start
+    if (lines[start - 1]?.trim().endsWith('*/')) {
+      while (first > 0 && !lines[first].trim().startsWith('/**')) first--
+    }
+    if (out.length > 0) out.push('')
+    out.push(...lines.slice(first, end))
   }
   return out.slice(0, MAX_CORE_LINES).join('\n')
 }
@@ -177,9 +206,9 @@ function exampleValue(type: string): string {
   if (/^TableData\b/.test(type)) return "{ column: '…' }"
   if (/^KnowledgeBaseRef\b/.test(type)) return "knowledgeBase('<key>')"
   if (/^WorkflowRef\b/.test(type)) return "childWorkflow('<key>')"
-  if (/^(?:Template|string|Value<string>)\b/.test(type)) return "'…'"
-  if (/^(?:number|Value<number>)\b/.test(type)) return '1'
-  if (/^(?:boolean|Value<boolean>)\b/.test(type)) return 'true'
+  if (/^(?:Template|string|Value<string)\b/.test(type)) return "'…'"
+  if (/^(?:number|Value<number)\b/.test(type)) return '1'
+  if (/^(?:boolean|Value<boolean)\b/.test(type)) return 'true'
   if (/^(?:Array<|[\w<>]+\[\])/.test(type)) return '[]'
   return `<${shortType(type.split(' | ')[0] ?? type)}>`
 }
