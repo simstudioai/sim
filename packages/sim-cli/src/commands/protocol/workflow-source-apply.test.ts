@@ -11,7 +11,7 @@ import { buildGeneratedCommands } from '../../runtime/build'
 import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { digest } from './source-dir'
-import { TSCONFIG_MARKER } from './source-tree'
+import { TSCONFIG_MARKER, WORKSPACE_TYPES_FILE } from './source-tree'
 import { attachWorkflowSourceApply, attachWorkflowSourceCreate } from './workflow-source-apply'
 
 const prompt = vi.hoisted(() => ({
@@ -312,6 +312,22 @@ describe('sim workflows source apply', () => {
     expect(dryRunFlags()).toEqual([true])
     expect(prompt.question).not.toHaveBeenCalled()
     expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(ENTRY)
+  })
+
+  it('neither reads nor rewrites the workspace types on a dry run', async () => {
+    mkdirSync(join(dir, '.sim/sdk'), { recursive: true })
+    writeFileSync(join(dir, WORKSPACE_TYPES_FILE), '// types the last get wrote\n')
+    writeFileSync(join(dir, '.sim/sdk/workspace.manifest.json'), '{}\n')
+    request.mockResolvedValue(outcome({ dryRun: true }))
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(request.mock.calls.map((call) => call[0])).not.toContainEqual(
+      expect.stringContaining('/source/resources')
+    )
+    expect(readFileSync(join(dir, WORKSPACE_TYPES_FILE), 'utf8')).toBe(
+      '// types the last get wrote\n'
+    )
   })
 
   it('at a terminal, shows the dry run and applies once the person confirms', async () => {

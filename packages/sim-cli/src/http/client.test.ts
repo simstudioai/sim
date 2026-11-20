@@ -551,6 +551,21 @@ describe('rate limiting', () => {
     ).rejects.toMatchObject({ status: 429, retryAfterMs: 30_000 })
   })
 
+  it('never resends a GET whose caller opted out, so an optional read never waits on a limit', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const fetch = vi.fn().mockResolvedValue(limited())
+    vi.stubGlobal('fetch', fetch)
+
+    const outcome = await settle(
+      client().request('/api/v2/workspaces/ws_1/workflows/source/resources', {
+        retryRateLimited: false,
+      })
+    )
+
+    expect(outcome.status).toBe('rejected')
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it('resends a write that declared itself safe to resend after a 429', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const fetch = vi

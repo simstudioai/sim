@@ -487,13 +487,13 @@ describe('the workspace-scoped source reads', () => {
 })
 
 describe('catalog and declarations', () => {
-  it('types a workflow created since the get once an apply or its dry run talks to the server', async () => {
+  it('types a workflow created since the get once an apply talks to the server', async () => {
     await get()
     expect(read('.sim/sdk/workspace.d.ts')).not.toContain("'handbook-answer'")
     const child = { key: 'handbook-answer', id: 'wf-child', name: 'Handbook Answer', inputs: [] }
     server.manifest = () => json({ data: { ...MANIFEST, workflows: [child] } })
 
-    await sim('workflows', 'source', 'apply', WORKFLOW_ID, '--dir', dir, '--dry-run')
+    await sim('workflows', 'source', 'apply', WORKFLOW_ID, '--dir', dir, '--yes')
 
     expect(read('.sim/sdk/workspace.d.ts')).toContain("'handbook-answer'")
     expect(JSON.parse(read('.sim/sdk/workspace.manifest.json')).workflows).toHaveProperty(

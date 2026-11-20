@@ -74,7 +74,8 @@ export interface RequestOptions {
   /**
    * Resend a write the server answered `429`, as every GET is. Only for a route that rate limits
    * before it acts: a v2 route charges its bucket at admission, ahead of the use case, so the
-   * refused request did nothing and sending it again is sending it for the first time.
+   * refused request did nothing and sending it again is sending it for the first time. `false`
+   * never resends, a GET included: for an optional read a caller would rather skip than wait on.
    */
   retryRateLimited?: boolean
 }
@@ -393,7 +394,7 @@ const RATE_LIMIT_RETRY_AFTER_MAX_MS = 60_000
 
 /** Whether a request answered `429` may be sent again: a GET, or a write that opted in. */
 function resendsRateLimited(method: string, options: RequestOptions): boolean {
-  return method === 'GET' || options.retryRateLimited === true
+  return options.retryRateLimited ?? method === 'GET'
 }
 
 /** The rate-limit refusal a command exits with, saying what to do about it. */
