@@ -2,7 +2,8 @@
  * `selectedOutputs` on a deployed run of a workflow that calls a child workflow, against real
  * PostgreSQL through the execute use case. A selector naming a parent block must reach the
  * executor in its internal form, so the child-workflow block never mistakes `block.path` for a
- * `workflow.block` selector; a selector that targets the child but names nothing there must not
+ * `workflow.block` selector; a selector that targets a child block returns that block's output
+ * under the caller's selector; one that targets the child but names nothing there must not
  * fail a run that otherwise succeeded; and a selector naming no parent block is refused before
  * the run starts, so it is never executed or billed.
  */
@@ -206,13 +207,28 @@ describe('selectedOutputs on a run that calls a child workflow', () => {
     })
   })
 
-  it('completes when a selector targets the child workflow', async () => {
-    const result = await run([`${childWorkflowId}.childdone.data`, 'done.data'])
+  it('returns a child block output selected by child workflow, block name, and path', async () => {
+    const childSelector = `${childWorkflowId}.childdone.data`
+    const result = await run([childSelector, 'done.data'])
 
     expect(result).toMatchObject({
       ok: true,
       status: 'completed',
-      blockOutputs: { 'done.data': { answer: 'from child' } },
+      blockOutputs: {
+        [childSelector]: { answer: 'from child' },
+        'done.data': { answer: 'from child' },
+      },
+    })
+  })
+
+  it('returns a child block output selected by child block ID', async () => {
+    const childSelector = `${childWorkflowId}.${blockIds.childDone}.data.answer`
+    const result = await run([childSelector])
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: 'completed',
+      blockOutputs: { [childSelector]: 'from child' },
     })
   })
 
