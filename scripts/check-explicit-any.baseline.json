@@ -1576,7 +1576,6 @@
     "apps/sim/lib/slack-search/assistant-stream.ts": 2,
     "apps/sim/lib/table/column-keys.test.ts": 4,
     "apps/sim/lib/table/column-types/registry.server.ts": 7,
-    "apps/sim/lib/table/columns/service.ts": 1,
     "apps/sim/lib/table/dispatcher.ts": 2,
     "apps/sim/lib/table/jobs/service.test.ts": 1,
     "apps/sim/lib/table/query-builder/predicate.ts": 1,
