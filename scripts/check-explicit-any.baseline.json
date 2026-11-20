@@ -1687,7 +1687,7 @@
     "apps/sim/providers/conversation-prompt-identity.test.ts": 1,
     "apps/sim/providers/conversation-summary.test.ts": 21,
     "apps/sim/providers/custom-block-tool.test.ts": 10,
-    "apps/sim/providers/gemini/core.ts": 2,
+    "apps/sim/providers/gemini/core.ts": 1,
     "apps/sim/providers/gemini/streaming-tool-loop.ts": 1,
     "apps/sim/providers/index.test.ts": 8,
     "apps/sim/providers/index.ts": 2,
