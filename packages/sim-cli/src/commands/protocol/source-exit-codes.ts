@@ -70,7 +70,9 @@ function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRow[] {
     {
       code: 1,
       meaning:
-        'The source has errors (each printed as `file:line:column` with a hint), a locked block (`E_APPLY_LOCKED_BLOCK`), a name another workflow holds (`SOURCE_NAME_TAKEN`), a cancelled prompt, or the command failed',
+        prefix === 'sim workspaces source'
+          ? 'The source has errors (each printed as `file:line:column` with a hint), a locked block (`E_APPLY_LOCKED_BLOCK`), a name another resource holds (`E_NAME_TAKEN`), a cancelled prompt, or the command failed'
+          : 'The source has errors (each printed as `file:line:column` with a hint), a locked block (`E_APPLY_LOCKED_BLOCK`), a name another workflow holds (`SOURCE_NAME_TAKEN`), a cancelled prompt, or the command failed',
       next: 'Fix what it printed and run it again',
       help: {
         'workflows source apply':

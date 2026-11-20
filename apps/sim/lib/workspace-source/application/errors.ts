@@ -1,5 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { refusalClass, type WorkspaceKind } from '@sim/workspace-code'
+import { workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { KnowledgeBaseConflictError } from '@/lib/knowledge/service'
 import { TableRowsChangedError } from '@/lib/table/application/errors'
@@ -113,11 +115,26 @@ export function refusalDiagnostic(
   ) {
     return finding('E_APPLY_STALE', getErrorMessage(error), { hint: GET_HINT, ...resource })
   }
+  if (error instanceof WorkflowSourceNameTakenError && resource.key !== undefined) {
+    // Workflow folders are not placed in a folder by source, so the use case's "or in another
+    // folder" is advice a directory cannot follow.
+    const file = `${workflowFolder(resource.key)}/${SOURCE_ENTRY_FILE}`
+    return finding(
+      'E_NAME_TAKEN',
+      `A workflow named ${JSON.stringify(error.workflowName)} already exists in this workspace.`,
+      {
+        hint: `Rename the workflow in ${file}, or rename or delete the one that holds the name in Sim.`,
+        file,
+        ...resource,
+      }
+    )
+  }
   if (error instanceof ResourceKeyTakenError || isNameTaken(error)) {
     return finding('E_NAME_TAKEN', error.message, {
-      ...(error instanceof ResourceKeyTakenError
-        ? { hint: 'Rename the key, or delete the resource that holds it.' }
-        : {}),
+      hint:
+        error instanceof ResourceKeyTakenError
+          ? 'Rename the key, or delete the resource that holds it.'
+          : 'Rename it in its declaration, or rename or delete the resource that holds the name in Sim.',
       ...resource,
     })
   }

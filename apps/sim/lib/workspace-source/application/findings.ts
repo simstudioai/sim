@@ -145,7 +145,7 @@ export function missingFolderFinding(
     kind === 'table' ? 'E_TABLE_FOLDER' : 'E_KB_FOLDER',
     `The folder ${folder} does not exist in this workspace.`,
     {
-      hint: `Create the folder first, or drop \`folder\` to keep the ${WORKSPACE_KIND_SPECS[kind].noun} at the root.`,
+      hint: `Create it first (\`sim ${kind === 'table' ? 'tables' : 'knowledge'} folders create "${folder.replace(/^\//, '')}"\`), or drop \`folder\` to keep the ${WORKSPACE_KIND_SPECS[kind].noun} at the root.`,
     }
   )
 }

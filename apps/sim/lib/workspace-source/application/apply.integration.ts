@@ -2255,6 +2255,15 @@ export default workflow('Probe', {}, () => {
         key: 'ingest',
         file: entry,
       })
+      const created = 'workflows/copy/workflow.ts'
+      const createTaken = await apply(
+        workspaceId,
+        { ...read.files, [created]: INGEST.replace("workflow('Ingest'", "workflow('Intake'") },
+        { base: read.base, dryRun: true }
+      )
+      expect(
+        createTaken.diagnostics.find((finding) => finding.code === 'E_NAME_TAKEN')
+      ).toMatchObject({ kind: 'workflow', key: 'copy', file: created, hint: expect.any(String) })
 
       const result = await apply(workspaceId, renamedTo('Ingest v2'), { base: read.base })
       expect(result.failed).toBeUndefined()
