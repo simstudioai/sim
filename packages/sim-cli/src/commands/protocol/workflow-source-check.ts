@@ -121,7 +121,14 @@ export function attachWorkflowSourceCheck(source: Command): void {
             { incremental: true }
           )
         }
-        reportCheck(profile.output, findings, { catalogHash: catalog.hash }, options.verbose)
+        reportCheck(
+          profile.output,
+          findings,
+          { catalogHash: catalog.hash },
+          {
+            verbose: options.verbose === true,
+          }
+        )
       }
     )
 }

@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { toRecord } from '@sim/utils/object'
-import { KIND_DIRS } from '@sim/workspace-code'
+import { KIND_DIRS, WORKSPACE_ANSWER_BOUND } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
 import { profileFrom } from '../../context'
@@ -172,7 +172,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
             profile.output,
             findings,
             { workflows: keys.length, catalogHash: catalog.hash },
-            options.verbose
+            { verbose: options.verbose === true, bound: WORKSPACE_ANSWER_BOUND }
           )
         })
       }

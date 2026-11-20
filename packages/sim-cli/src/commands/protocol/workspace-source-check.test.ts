@@ -341,6 +341,39 @@ describe('sim workspaces source check', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('lists at most the 1000 findings a server answer would, ending in one I_FINDINGS_TRUNCATED, and counts every error', async () => {
+    const tables = 11
+    for (let index = 0; index < tables; index++) {
+      writeFile(
+        `tables/plans${index}.ts`,
+        [
+          '// @sim-sdk 1',
+          "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+          'export default defineTable({',
+          `  name: 'plans${index}',`,
+          '  columns: { code: column.string({ required: true, unique: true }) },',
+          "  rows: { mode: 'managed', key: 'code' },",
+          '})',
+          '',
+        ].join('\n')
+      )
+      writeFile(
+        `tables/plans${index}.rows.jsonl`,
+        `${Array.from({ length: 150 }, () => '{').join('\n')}\n`
+      )
+    }
+
+    await check()
+
+    const answer = stdoutJson()
+    const found = answer.diagnostics as Array<{ code: string; severity: string }>
+    expect(found).toHaveLength(1_001)
+    expect(found.filter((finding) => finding.code === 'I_FINDINGS_TRUNCATED')).toHaveLength(1)
+    expect(found.at(-1)).toMatchObject({ code: 'I_FINDINGS_TRUNCATED', severity: 'info' })
+    expect(answer.errors).toBe(tables * 100)
+    expect(process.exitCode).toBe(1)
+  })
+
   it('accepts seed rows the columns hold, coercing a numeric string as the write does', async () => {
     writeFile(
       'tables/seeds.ts',

@@ -25,6 +25,7 @@ import {
   type Value,
   type WorkflowInput,
 } from '@sim/workflow-code'
+import { type AnswerBound, boundAnswerFindings } from '@sim/workflow-code/diagnostics'
 import { SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS } from '@sim/workspace-code'
 import { KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
@@ -579,17 +580,19 @@ export async function checkWorkflowDir(
 }
 
 /**
- * Prints a check's findings and result, and exits 1 on any error. `verbose` keeps info findings in
- * a machine result.
+ * Prints a check's findings and result, and exits 1 on any error. The findings are bounded as the
+ * server bounds an answer of the same source (`bound`, the workflow answer's by default), while
+ * `errors` and `warnings` count every one. `verbose` keeps info findings in a machine result.
  */
 export function reportCheck(
   output: Parameters<typeof printProtocolResult>[0],
   findings: CheckFinding[],
   result: Record<string, unknown>,
-  verbose = false
+  options: { verbose?: boolean; bound?: AnswerBound } = {}
 ): void {
-  const shown = findingsOutput(output, verbose)
-  shown.print(findings)
+  const shown = findingsOutput(output, options.verbose)
+  const listed = boundAnswerFindings(findings, options.bound)
+  shown.print(listed)
   const errors = findings.filter((finding) => finding.severity === 'error').length
   if (errors > 0) setSoftExitCode(1)
   printProtocolResult(output, {
@@ -597,7 +600,7 @@ export function reportCheck(
     errors,
     warnings: findings.filter((finding) => finding.severity === 'warning').length,
     ...result,
-    ...shown.result(findings),
+    ...shown.result(listed),
   })
 }
 
