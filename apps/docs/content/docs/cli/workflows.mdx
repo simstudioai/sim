@@ -1317,7 +1317,7 @@ sim workflows source get <workflowId> [options]
 
 </CommandTable>
 
-Exit codes with --dir: 0 written; 1 the command failed, the directory is a workspace source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workflow is too large to print as source; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished.
+Exit codes with --dir: 0 written; 1 the command failed, the directory is a workspace source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workflow is too large to print as source; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was read or written, run `sim login` and the get again.
 
 API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
 
