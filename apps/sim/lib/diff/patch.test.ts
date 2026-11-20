@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { parsePatchFiles } from '@pierre/diffs'
 import { describe, expect, it } from 'vitest'
 import { toFileDiffs } from '@/lib/diff/patch'
 import { parseUnifiedDiff } from '@/lib/diff/unified'
@@ -19,6 +20,8 @@ const agentEdit = `--- sim:file/onboarding
 @@
 -Old footer.
 +New footer.`
+
+type Hunk = ReturnType<typeof render>[number]['hunks'][number]
 
 function render(source: string) {
   return toFileDiffs(parseUnifiedDiff(source), 'notes.md')
@@ -87,6 +90,27 @@ describe('toFileDiffs', () => {
 +export const b = 2`)
     expect(file.hunks[0]).toMatchObject({ deletionCount: 0, additionCount: 2, additionStart: 1 })
     expect(file.additionLines).toHaveLength(2)
+  })
+
+  it.each([
+    [
+      'a pure insertion',
+      '--- a/big.ts\n+++ b/big.ts\n@@ -100,0 +101,2 @@ function tail() {\n+const a = 1\n+const b = 2',
+    ],
+    [
+      'a pure deletion',
+      '--- a/big.ts\n+++ b/big.ts\n@@ -40,2 +39,0 @@\n-const a = 1\n-const b = 2',
+    ],
+  ])('places %s where its header says, as Pierre reads the original patch', (_, source) => {
+    const [original] = parsePatchFiles(source)[0].files
+    const [file] = render(source)
+    const position = ({ deletionStart, deletionCount, additionStart, additionCount }: Hunk) => ({
+      deletionStart,
+      deletionCount,
+      additionStart,
+      additionCount,
+    })
+    expect(position(file.hunks[0])).toEqual(position(original.hunks[0]))
   })
 
   it('splits a multi-file git diff into one diff per file', () => {
