@@ -31,6 +31,7 @@ import type {
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
+import { searchTasks } from '../search'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
@@ -467,6 +468,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
   ])
   absoluteDirOption(command)
   verboseFlag(command)
+  searchTasks(command, [
+    'promote dev to prod',
+    'copy every workflow from a dev workspace into a prod workspace (--to)',
+    'save bulk edits to every workflow',
+  ])
   command
     .option('--dir <dir>', 'Workspace source directory written by `workspaces source get`', '.')
     .option('--dry-run', 'Plan and check without writing anything')

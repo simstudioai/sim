@@ -20,6 +20,7 @@ import type {
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
+import { searchTasks } from '../search'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
@@ -535,6 +536,12 @@ export function attachWorkflowSourceCreate(source: Command): void {
   ])
   absoluteDirOption(command)
   verboseFlag(command)
+  searchTasks(command, [
+    'build a new workflow',
+    'create a new workflow as code',
+    'author or write a workflow in TypeScript',
+    'build a workflow that answers questions with an agent over a knowledge base, table or integration',
+  ])
   command
     .requiredOption(
       '--dir <dir>',

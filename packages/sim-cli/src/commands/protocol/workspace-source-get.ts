@@ -20,6 +20,7 @@ import { printError } from '#sim-cli/output/io'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
+import { searchTasks } from '../search'
 import { removeStagingOnSignal } from './files-get'
 import {
   absoluteDirOption,
@@ -376,6 +377,11 @@ export function attachWorkspaceSourceGet(source: Command): void {
     'downloadKnowledgeDocument',
   ])
   absoluteDirOption(command)
+  searchTasks(command, [
+    'change the model in every agent block',
+    'bulk edit every workflow in the workspace',
+    'edit all workflows, tables and skills as code',
+  ])
   command
     .requiredOption('--dir <dir>', 'Directory to write the workspace source into')
     .option('--only <kinds>', `Read only these kinds (${ONLY_KINDS_HELP})`)

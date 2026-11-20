@@ -6,6 +6,7 @@ import { COOKBOOK_EXAMPLES } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
+import { buildProgram } from '../../program'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
 import { digest } from './source-dir'
@@ -86,6 +87,13 @@ function typecheck(project: string): string {
 function tsconfigInclude(project: string): string[] {
   const [, ...json] = readFileSync(join(outDir, project), 'utf8').split('\n')
   return JSON.parse(json.join('\n')).include
+}
+
+/** `command`'s parents, nearest first. */
+function ancestorsOf(command: Command): Command[] {
+  const ancestors: Command[] = []
+  for (let at = command.parent; at; at = at.parent) ancestors.push(at)
+  return ancestors
 }
 
 async function get(...argv: string[]): Promise<void> {
@@ -176,6 +184,39 @@ describe('sim workflows source get --dir', () => {
     expect(primer).toContain('- `gmail.sendEmail` (Gmail: Send Email)')
     expect(primer).not.toContain('`slack.sendMessage`')
   })
+
+  it.each(['workflow', 'workspace'] as const)(
+    'names in the %s primer only commands and flags this CLI has',
+    (kind) => {
+      const program = buildProgram()
+      const named = [...sourcePrimer(kind).matchAll(/`(sim [^`]+)`/g)].map((match) => match[1])
+      expect(named.length).toBeGreaterThan(0)
+      for (const line of named) {
+        let command: Command = program
+        const words = line.split(/\s+/).slice(1)
+        for (const word of words) {
+          if (word.startsWith('-') || word.startsWith('<') || /^['"{.]/.test(word)) break
+          const next = command.commands.find(
+            (child) => child.name() === word || child.aliases().includes(word)
+          )
+          if (!next) break
+          command = next
+        }
+        expect(command.commands.length, `${line} names a command`).toBe(0)
+        const flags = new Set(
+          [command, ...ancestorsOf(command)].flatMap((at) =>
+            at.options.map((option) => option.long)
+          )
+        )
+        for (const flag of line.match(/--[a-z-]+/g) ?? []) {
+          expect(
+            flags.has(flag) || flags.has(flag.replace(/^--no-/, '--')),
+            `${line}: ${flag}`
+          ).toBe(true)
+        }
+      }
+    }
+  )
 
   it('keeps the primer without snippets within its byte budget for both directory kinds', () => {
     for (const kind of ['workflow', 'workspace'] as const) {

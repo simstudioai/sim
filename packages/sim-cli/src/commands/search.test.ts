@@ -30,6 +30,15 @@ describe('sim cli search', () => {
     ['switch workspace', 'sim configure'],
     ['edit workflow blocks', 'sim workflows operations apply'],
     ['how much have i spent', 'sim billing status'],
+    ['build a workflow', 'sim workflows source create'],
+    ['create a new workflow', 'sim workflows source create'],
+    [
+      'build a workflow that answers questions from a knowledge base',
+      'sim workflows source create',
+    ],
+    ['change the model in every agent block', 'sim workspaces source get'],
+    ['promote dev to prod', 'sim workspaces source apply'],
+    ['promote a dev workspace to a prod workspace', 'sim workspaces source apply'],
   ])('ranks the intended command first for "%s"', (query, expected) => {
     expect(searchReal(query)[0]?.command).toBe(expected)
   })
