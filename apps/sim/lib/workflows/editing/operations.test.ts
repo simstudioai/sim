@@ -1776,6 +1776,40 @@ describe('moving an existing block with edit params.parentId', () => {
     ])
   })
 
+  it('refuses to insert an existing container into a container nested inside it', () => {
+    const OUTER = '7c7c7c7c-7c7c-4c7c-8c7c-7c7c7c7c7c7c'
+    const INNER = '8d8d8d8d-8d8d-4d8d-8d8d-8d8d8d8d8d8d'
+    const workflow = workflowWithLoop()
+    const loop = workflow.blocks['loop-1']
+    const blocks = {
+      [OUTER]: { ...loop, id: OUTER, name: 'outer' },
+      [INNER]: {
+        ...loop,
+        id: INNER,
+        name: 'inner',
+        data: { loopType: 'for', count: 2, parentId: OUTER, extent: 'parent' },
+        position: { x: 5, y: 5 },
+      },
+    }
+    const { state, skippedItems } = applyOperationsToWorkflowState({ ...workflow, blocks }, [
+      {
+        operation_type: 'insert_into_subflow',
+        block_id: OUTER,
+        params: { subflowId: INNER, type: 'loop', name: 'outer' },
+      },
+    ])
+
+    expect(state.blocks[OUTER].data?.parentId).toBeUndefined()
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'invalid_subflow_parent',
+        operationType: 'insert_into_subflow',
+        blockId: OUTER,
+        reason: expect.stringContaining('inside itself'),
+      }),
+    ])
+  })
+
   it('moves a block into a loop the same batch adds, through its normalized id', () => {
     const { state, skippedItems } = applyOperationsToWorkflowState(workflowWithLoop(), [
       {

@@ -773,18 +773,31 @@ function moveToParent(
     return
   }
   if (parentId === currentParent) return
-  if (isSelfOrDescendant(parentId, blockId, ctx.modifiedState.blocks)) {
-    logSkippedItem(ctx.skippedItems, {
-      type: 'invalid_subflow_parent',
-      operationType: 'edit',
-      blockId,
-      reason: `Cannot place block "${blockId}" in "${parentId}" - that would place the block inside itself`,
-      details: { parentId },
-    })
-    return
-  }
+  if (nestsInItself(blockId, parentId, 'edit', ctx)) return
   if (!subflowContainer(parentId, blockId, 'edit', ctx)) return
   placeInSubflow(block, parentId)
+}
+
+/**
+ * Whether placing existing block `blockId` in container `parentId` would put it inside itself
+ * (`parentId` is the block or sits anywhere inside it, a parent cycle), after recording why
+ * `operationType` skips it.
+ */
+function nestsInItself(
+  blockId: string,
+  parentId: string,
+  operationType: string,
+  ctx: OperationContext
+): boolean {
+  if (!isSelfOrDescendant(parentId, blockId, ctx.modifiedState.blocks)) return false
+  logSkippedItem(ctx.skippedItems, {
+    type: 'invalid_subflow_parent',
+    operationType,
+    blockId,
+    reason: `Cannot place block "${blockId}" in "${parentId}" - that would place the block inside itself`,
+    details: { parentId },
+  })
+  return true
 }
 
 /**
@@ -940,6 +953,7 @@ export function handleInsertIntoSubflowOperation(
       })
       return
     }
+    if (nestsInItself(block_id, subflowId, 'insert_into_subflow', ctx)) return
 
     placeInSubflow(existingBlock, subflowId)
 
