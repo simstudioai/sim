@@ -180,11 +180,18 @@ export async function loadWorkflowsFromNormalizedTablesRaw(
 }
 
 /**
+ * The order a workflow's edge rows load in, which the executor reads for a condition or router
+ * edge with no handle: creation order. A save writes its edges together, each a microsecond after
+ * the one before, so this is the order the state listed them in; rows written in one statement
+ * with one timestamp (older saves, a duplicate) keep the order they were inserted in.
+ */
+export const EDGE_LOAD_ORDER = [asc(workflowEdges.createdAt), sql`ctid`] as const
+
+/**
  * The block, edge and subflow rows of `workflowIds`: a list, or a query of ids that each graph
- * query embeds as a subquery. Each table's rows come in creation order, ties by id, so the
- * assembled graph's block and edge order (which the executor reads, e.g. a router's or
- * condition's first matching edge) is a fact of the stored rows, not of where an update left
- * them in the heap.
+ * query embeds as a subquery. Blocks and subflows come in creation order, ties by id, and edges
+ * in {@link EDGE_LOAD_ORDER}, so the assembled graph's order is a fact of the stored rows, not of
+ * where an update left them in the heap.
  */
 async function selectGraphRows(tx: DbOrTx, workflowIds: string[] | (() => SQLWrapper)) {
   const ids = () => (typeof workflowIds === 'function' ? workflowIds() : workflowIds)
@@ -201,7 +208,7 @@ async function selectGraphRows(tx: DbOrTx, workflowIds: string[] | (() => SQLWra
       .select()
       .from(workflowEdges)
       .where(inArray(workflowEdges.workflowId, ids()))
-      .orderBy(asc(workflowEdges.createdAt), asc(workflowEdges.id)),
+      .orderBy(...EDGE_LOAD_ORDER),
     tx
       .select()
       .from(workflowSubflows)

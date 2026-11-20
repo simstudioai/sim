@@ -329,6 +329,45 @@ describe('saveWorkflowToNormalizedTables', () => {
     expect(loaded?.edges.map((edge) => edge.id)).toEqual([edges[0].id, edges[1].id, added.id])
   })
 
+  it('loads edges saved together in the order the state listed them, not by id', async () => {
+    const workflowId = await insertWorkflow()
+    const blocks = ['b1', 'b2', 'b3'].map((id, index) =>
+      functionBlock(`${workflowId}-${id}`, `Block ${index}`, index * 100)
+    )
+    const [first, second, third] = blocks.map((block) => block.id)
+    const edges = [
+      { id: `${workflowId}-z`, source: first, target: second },
+      { id: `${workflowId}-a`, source: first, target: third },
+    ]
+    expect(await saveWorkflowToNormalizedTables(workflowId, stateOf(blocks, edges))).toEqual({
+      success: true,
+    })
+
+    const loaded = await loadWorkflowFromNormalizedTablesRaw(workflowId)
+
+    expect(loaded?.edges.map((edge) => edge.id)).toEqual(edges.map((edge) => edge.id))
+  })
+
+  it('loads edges an older save wrote with one timestamp in the order they were inserted', async () => {
+    const workflowId = await insertWorkflow()
+    const blocks = ['b1', 'b2', 'b3'].map((id, index) =>
+      functionBlock(`${workflowId}-${id}`, `Block ${index}`, index * 100)
+    )
+    const [first, second, third] = blocks.map((block) => block.id)
+    expect(await saveWorkflowToNormalizedTables(workflowId, stateOf(blocks, []))).toEqual({
+      success: true,
+    })
+    const createdAt = new Date()
+    await db.insert(workflowEdges).values([
+      { id: `${workflowId}-z`, workflowId, sourceBlockId: first, targetBlockId: second, createdAt },
+      { id: `${workflowId}-a`, workflowId, sourceBlockId: first, targetBlockId: third, createdAt },
+    ])
+
+    const loaded = await loadWorkflowFromNormalizedTablesRaw(workflowId)
+
+    expect(loaded?.edges.map((edge) => edge.id)).toEqual([`${workflowId}-z`, `${workflowId}-a`])
+  })
+
   it('refuses a block id another workflow owns and leaves the stored graph as it was', async () => {
     const owner = await insertWorkflow()
     const workflowId = await insertWorkflow()

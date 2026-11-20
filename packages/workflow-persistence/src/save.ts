@@ -10,6 +10,7 @@ import {
 import type { InferInsertModel, SQL } from 'drizzle-orm'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { PgInsertValue } from 'drizzle-orm/pg-core'
+import { EDGE_LOAD_ORDER } from './load'
 import { pruneWorkflowSourceMeta } from './source-meta'
 import { generateLoopBlocks, generateParallelBlocks } from './subflow-helpers'
 import type { DbOrTx } from './types'
@@ -148,13 +149,6 @@ const BLOCK_UPDATE_SET = {
   updatedAt: sql`now()`,
 } as const
 
-const EDGE_UPDATE_SET = {
-  sourceBlockId: sql`excluded.source_block_id`,
-  targetBlockId: sql`excluded.target_block_id`,
-  sourceHandle: sql`excluded.source_handle`,
-  targetHandle: sql`excluded.target_handle`,
-} as const
-
 const SUBFLOW_UPDATE_SET = {
   type: sql`excluded.type`,
   config: sql`excluded.config`,
@@ -196,9 +190,12 @@ async function deleteRows(
 /**
  * Makes the workflow's normalized block, edge and subflow rows match `state`, leaving the rows a
  * delete-all and re-insert would leave; a state with an edge to a block it does not hold is
- * refused before anything is written, as that re-insert's foreign keys refused it. Only the difference is written: rows whose stored columns
- * already match are untouched (keeping their timestamps), changed rows are rewritten, and missing
- * or extra rows are inserted or deleted, so an edit costs its size rather than the graph's.
+ * refused before anything is written, as that re-insert's foreign keys refused it. Only the
+ * difference is written for blocks and subflows: rows whose stored columns already match are
+ * untouched (keeping their timestamps), changed rows are rewritten, and missing or extra rows are
+ * inserted or deleted, so an edit costs its size rather than the graph's. Edges, which nothing
+ * references, are left alone when unchanged and in order, and otherwise rewritten whole in the
+ * state's order (see `EDGE_LOAD_ORDER`).
  *
  * The stored rows are read `FOR UPDATE`, the rows a delete-all would lock. Writes run in
  * foreign-key order: an edge is retargeted before the block it left is deleted, so that block's
@@ -240,7 +237,12 @@ export async function saveWorkflowToNormalizedTables(
         .from(workflowBlocks)
         .where(eq(workflowBlocks.workflowId, workflowId))
         .for('update'),
-      tx.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)).for('update'),
+      tx
+        .select()
+        .from(workflowEdges)
+        .where(eq(workflowEdges.workflowId, workflowId))
+        .orderBy(...EDGE_LOAD_ORDER)
+        .for('update'),
       tx
         .select()
         .from(workflowSubflows)
@@ -250,15 +252,33 @@ export async function saveWorkflowToNormalizedTables(
     const blocks = planRows(storedBlocks, desiredBlocks)
     const edges = planRows(storedEdges, desiredEdges)
     const subflows = planRows(storedSubflows, desiredSubflows)
+    // Edges are rewritten whole, in the state's order, whenever any of them or their order
+    // changes: the executor reads a handle-less condition or router edge by its position.
+    const rewriteEdges =
+      edges.inserts.length + edges.updates.length + edges.deleteIds.length > 0 ||
+      storedEdges.some((edge, index) => edge.id !== desiredEdges[index]?.id)
 
-    await deleteRows(tx, workflowEdges, workflowId, edges.deleteIds)
+    if (rewriteEdges) {
+      await deleteRows(
+        tx,
+        workflowEdges,
+        workflowId,
+        storedEdges.map((edge) => edge.id)
+      )
+    }
     await deleteRows(tx, workflowSubflows, workflowId, subflows.deleteIds)
 
     if (blocks.inserts.length > 0) await tx.insert(workflowBlocks).values(blocks.inserts)
     await updateRows(tx, workflowBlocks, workflowId, blocks.updates, BLOCK_UPDATE_SET)
 
-    if (edges.inserts.length > 0) await tx.insert(workflowEdges).values(edges.inserts)
-    await updateRows(tx, workflowEdges, workflowId, edges.updates, EDGE_UPDATE_SET)
+    if (rewriteEdges && desiredEdges.length > 0) {
+      await tx.insert(workflowEdges).values(
+        desiredEdges.map((edge, index) => ({
+          ...edge,
+          createdAt: sql`now() + ${index} * interval '1 microsecond'`,
+        }))
+      )
+    }
 
     await deleteRows(tx, workflowBlocks, workflowId, blocks.deleteIds)
 
