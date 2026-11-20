@@ -743,7 +743,7 @@ export async function executeWorkflowService(
           workflow,
           processedInput,
           workflowVariables,
-          selectedOutputs
+          resolvedSelectedOutputs
         )
 
         const result = await executeWorkflowCore({
