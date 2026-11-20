@@ -2775,6 +2775,39 @@ describe('Function execution request', () => {
       expect(data.error).toContain('File secret provenance is unavailable')
       expect(JSON.stringify(data)).not.toContain('private file content')
     })
+
+    it('tells user code how large a referenced value is when it is too large to load', async () => {
+      const ref = {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_loopresult01',
+        kind: 'array',
+        size: 28 * 1024 * 1024,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_loopresult01.json',
+        executionId: 'execution-1',
+      }
+      mockExecuteInIsolatedVM.mockImplementationOnce(async (_input, options) => ({
+        result: await options.brokers['sim.values.read']({ ref }).catch(
+          (error: Error) => error.message
+        ),
+        stdout: '',
+      }))
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'return 1',
+          language: 'javascript',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        })
+      )
+
+      const data = await response.json()
+      expect(data.output.result).toBe(
+        'Execution memory limit exceeded: a value is 28.0 MB, more than the 16.0 MB limit. Reference a smaller field, or have the blocks that produce it output less.'
+      )
+    })
   })
 
   describe('Template Variable Resolution', () => {

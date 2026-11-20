@@ -17,29 +17,15 @@ describe('getRedisBudgetKeys', () => {
 
   /**
    * These keys are shared with counters written before this module existed, so the
-   * layout is a wire contract: a change here strands every counter in flight.
+   * execution layout is a wire contract: a change here strands every counter in flight.
    */
-  it('separates owner kinds without disturbing the execution key layout', () => {
+  it('gives a stream its own owner and user counters', () => {
     expect(
       getRedisBudgetKeys({ kind: 'copilot_stream', id: 'stream-1', userId: 'user-1' })
     ).toEqual([
       'execution:redis-budget:copilot_stream:stream-1',
-      'execution:redis-budget:user:user-1',
+      'execution:redis-budget:copilot_stream_user:user-1',
     ])
-  })
-
-  it('shares one user ceiling across owner kinds', () => {
-    const [, executionUserKey] = getRedisBudgetKeys({
-      kind: 'execution',
-      id: 'exec-1',
-      userId: 'user-1',
-    })
-    const [, streamUserKey] = getRedisBudgetKeys({
-      kind: 'copilot_stream',
-      id: 'stream-1',
-      userId: 'user-1',
-    })
-    expect(streamUserKey).toBe(executionUserKey)
   })
 })
 

@@ -142,7 +142,7 @@ export async function clearBuffer(streamId: string, operation = 'clear_outbox'):
     its reservation already erased. One variadic DEL is a single atomic command, so no script
     is needed to get that.
 
-    The shared user counter is deliberately untouched: an owner id is not proof of who wrote
+    The user's stream counter is deliberately untouched: an owner id is not proof of who wrote
     the bytes, so crediting it here would let anyone able to name a stream decrement a ceiling
     they never charged — and a counter driven down grants writes rather than denying them. Its
     fixed window settles it instead, over-counting in the safe direction meanwhile.

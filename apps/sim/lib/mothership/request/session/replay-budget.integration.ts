@@ -867,6 +867,25 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     ])
   }, 180_000)
 
+  it("is not refused for bytes the user's workflow runs hold", async () => {
+    const [, executionUserKey] = getRedisBudgetKeys({
+      kind: 'execution',
+      id: generateId(),
+      userId,
+    })
+    await redis().set(executionUserKey, getRedisBudgetLimits('execution').maxUserBytes, 'EX', 300)
+    try {
+      const { runId, frames } = await runTurn([text('The digest is ready.')])
+
+      expect(frames.map((frame) => frame.type)).not.toContain('error')
+      expect(frames.at(-1)).toMatchObject({ type: 'complete', payload: { status: 'complete' } })
+      const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+      expect(stored.status).toBe('complete')
+    } finally {
+      await redis().del(executionUserKey)
+    }
+  })
+
   /**
    * An unfinished run with no live controller whose ring a byte trim has advanced past
    * its head: seqs 1–2 are gone and 3–4 remain.
