@@ -6,61 +6,11 @@ import { workflowCodec, workflowFolder } from '@sim/workspace-code/kinds/workflo
 import { kindOfPath } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
-import type { ApplicationOperation, AuthorizingUseCase } from '@/lib/core/application'
+import { renderSourceSlotBusy } from '@/lib/workflows/api/source-slots'
 import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import { WorkspaceSourceBusyError } from '@/lib/workspace-source/lease/store'
 import { SourceStagingFullError } from '@/lib/workspace-source/staging/store'
-import {
-  v2CaughtOrchestrationError,
-  v2Error,
-  v2ErrorForOrchestration,
-} from '@/app/api/v2/lib/response'
-
-/** Workspace source requests of one lane this server process runs at once. */
-const MAX_CONCURRENT_SOURCE_REQUESTS = { read: 4, apply: 4 } as const
-
-type SourceLane = keyof typeof MAX_CONCURRENT_SOURCE_REQUESTS
-
-const runningSourceRequests: Record<SourceLane, number> = { read: 0, apply: 0 }
-
-/** Seconds a request refused for want of a slot is told to wait. */
-const SOURCE_BUSY_RETRY_AFTER_SECONDS = 5
-
-/** A workspace source request refused because this process already runs as many as it may. */
-class SourceSlotBusyError extends Error {
-  constructor(readonly lane: SourceLane) {
-    super(
-      `This server is already running ${MAX_CONCURRENT_SOURCE_REQUESTS[lane]} workspace source ${lane === 'read' ? 'gets' : 'applies'}; retry shortly.`
-    )
-    this.name = 'SourceSlotBusyError'
-  }
-}
-
-/**
- * `useCase`, run in one of its lane's slots: a get or an apply (each holds a directory's worth of
- * text, stored state and canonical forms in memory) waits for nothing, and is refused with
- * {@link SourceSlotBusyError} (`429` with `Retry-After`) when the process already runs
- * {@link MAX_CONCURRENT_SOURCE_REQUESTS} of them, so a burst cannot run the process out of memory.
- */
-export function withSourceSlot<O extends ApplicationOperation, I, R>(
-  useCase: AuthorizingUseCase<O, I, R>,
-  lane: SourceLane
-): AuthorizingUseCase<O, I, R> {
-  return {
-    ...useCase,
-    async execute(args) {
-      if (runningSourceRequests[lane] >= MAX_CONCURRENT_SOURCE_REQUESTS[lane]) {
-        throw new SourceSlotBusyError(lane)
-      }
-      runningSourceRequests[lane] += 1
-      try {
-        return await useCase.execute(args)
-      } finally {
-        runningSourceRequests[lane] -= 1
-      }
-    },
-  }
-}
+import { v2CaughtOrchestrationError, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
 /**
  * Workspace source routes conceal an unreachable workspace as absent. A refused apply answers its
@@ -73,11 +23,8 @@ export function withSourceSlot<O extends ApplicationOperation, I, R>(
 export const v2WorkspaceSourceErrorPolicy = createV2ResourceConcealmentPolicy({
   notFoundMessage: 'Workspace not found',
   render(error) {
-    if (error instanceof SourceSlotBusyError) {
-      return v2Error('RATE_LIMITED', error.message, {
-        headers: { 'Retry-After': String(SOURCE_BUSY_RETRY_AFTER_SECONDS) },
-      })
-    }
+    const busy = renderSourceSlotBusy(error)
+    if (busy) return busy
     if (error instanceof WorkspaceSourceRejectedError) {
       return v2ErrorForOrchestration(error.code, error.message, {
         code: error.stale ? 'SOURCE_STALE' : 'SOURCE_REJECTED',

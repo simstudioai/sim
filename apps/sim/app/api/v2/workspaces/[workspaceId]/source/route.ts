@@ -4,9 +4,9 @@ import {
   v2GetWorkspaceSourceContract,
 } from '@/lib/api/contracts/v2/workspace-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { withSourceSlot } from '@/lib/workflows/api'
 import {
   v2WorkspaceSourceErrorPolicy,
-  withSourceSlot,
   workspaceApplyRateCost,
 } from '@/lib/workspace-source/api/route-policies'
 import { applyWorkspaceSource } from '@/lib/workspace-source/application/apply-workspace-source'

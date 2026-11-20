@@ -23,6 +23,7 @@ import { apiKeyPrincipal } from '@/lib/api-key/principal'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
+import { renderSourceSlotBusy } from '@/lib/workflows/api/source-slots'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 import { WorkflowImportError } from '@/lib/workflows/application/import-error'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
@@ -79,11 +80,14 @@ export const v2WorkflowErrorPolicies = {
    * diagnostics, stale
    * source answers `409` with the current fingerprint, and a source rename onto
    * a name taken meanwhile answers `409` with `SOURCE_NAME_TAKEN`, so a pipeline
-   * can act on each without a second request.
+   * can act on each without a second request. A source plan refused for want of a
+   * slot answers `429` with `Retry-After`.
    */
   concealWorkflowGraphAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workflow not found',
     render(error) {
+      const busy = renderSourceSlotBusy(error)
+      if (busy) return busy
       if (error instanceof WorkflowOperationsNotAppliedError) {
         return v2ErrorForOrchestration(error.code, error.message, {
           code: 'OPERATIONS_NOT_APPLIED',

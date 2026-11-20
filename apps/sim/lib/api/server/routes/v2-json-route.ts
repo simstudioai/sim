@@ -184,6 +184,18 @@ const V2_SOURCE_READ_RATE_LIMIT: TokenBucketConfig = {
 }
 
 /**
+ * Planning source (`sim workflows source status`, `sim workspaces source status`): a plan runs
+ * the apply's whole pipeline without writing, so it is charged like one, one unit per workflow it
+ * evaluates, on a bucket of its own so a status loop never spends the write budget an apply needs
+ * and never runs at the generic budget's rate.
+ */
+const V2_SOURCE_PLAN_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 60,
+  refillRate: 30,
+  refillIntervalMs: 60_000,
+}
+
+/**
  * Staging the binary files of a workspace source apply: each request carries up to 24 MB, so a
  * 1 GB directory stages in about 45 requests. Its own bucket, so staging never spends the
  * applies that follow it.
@@ -222,6 +234,13 @@ export const v2RateLimits = {
   sourceRead: {
     async enforce(request, auth) {
       return enforceV2Buckets(request, auth, 'workspaces.source.read', V2_SOURCE_READ_RATE_LIMIT, 1)
+    },
+  } satisfies V2RateLimitPolicy,
+  /** {@link V2_SOURCE_PLAN_RATE_LIMIT}, one bucket shared by workflow and workspace plans. */
+  sourcePlan: {
+    maxCost: V2_SOURCE_PLAN_RATE_LIMIT.maxTokens,
+    async enforce(request, auth, _operation, cost = 1) {
+      return enforceV2Buckets(request, auth, 'source.plan', V2_SOURCE_PLAN_RATE_LIMIT, cost)
     },
   } satisfies V2RateLimitPolicy,
   /** {@link V2_SOURCE_BLOB_STAGE_RATE_LIMIT}, shared by staging and asking what is staged. */
