@@ -208,14 +208,14 @@ jobs:
   # All groups reuse the production build; compiling routes is not part of HTTP acceptance.
   # Starts beside build (e2e) rather than after it: checkout, install, services and migrations
   # (about a minute on a hosted runner) overlap the build, and the job then waits for the build's
-  # artifact. The bound adds the four minutes that wait can take at the build's p95, so the suite's
-  # own share of it is unchanged.
+  # artifact. The wait and the suite each carry their own bound, so a slow build never shortens
+  # the suite's: the job's bound is their sum plus setup.
   e2e:
     name: e2e (${{ matrix.group }})
     needs: changes
     if: needs.changes.outputs.http == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 24
+    timeout-minutes: 48
     permissions:
       contents: read
       actions: read
@@ -272,7 +272,9 @@ jobs:
         run: bun run db:migrate
 
       # A failed or cancelled build fails this job here instead of leaving it waiting.
+      # build (e2e)'s own bound.
       - name: Wait for the production build
+        timeout-minutes: 25
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/scripts/wait-for-e2e-build.sh
@@ -310,9 +312,10 @@ jobs:
         if: matrix.group == 'scim'
         run: printf '127.0.0.1 scim-e2e.sim.ai\n' | sudo tee -a /etc/hosts
 
-      # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
-      # short of writing its report.
+      # The former 20-minute job bound less its setup; its slowest passing run took 18.3 minutes.
+      # Cut short, it fails the step, so the report and server-log uploads below still run.
       - name: Run end-to-end suites
+        timeout-minutes: 19
         working-directory: apps/sim
         run: bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
 
