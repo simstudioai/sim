@@ -25,6 +25,10 @@
       "task": "ci:e2e-organization-search"
     },
     {
+      "group": "search-permissions",
+      "task": "ci:e2e-search-permissions"
+    },
+    {
       "group": "browser-extension-navigation",
       "task": "ci:e2e-browser-extension"
     },
