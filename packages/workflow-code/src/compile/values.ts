@@ -1062,7 +1062,7 @@ function formerBlockHint(
   const lead = `${spell([{ kind: 'name', name: formerKey }])} is a block this workflow had that ${SOURCE_ENTRY_FILE} no longer declares under that key`
   const [only] = unbound
   return unbound.length === 1 && only
-    ? `${lead}: if ${only.name} is it renamed, write ${rewritten(only.key)}.`
+    ? `${lead}: if it was renamed to ${only.name}, an apply that keeps its id rewrites this reference to ${rewritten(only.key)}, so no edit is needed.`
     : `${lead}: if you renamed it, write ${spell([{ kind: 'name', name: 'newkey' }])}, where newkey is its display name lowercased with whitespace and dots removed.`
 }
 

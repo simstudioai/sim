@@ -1159,7 +1159,7 @@ describe('errors, each with its code, location and hint', () => {
 
     const finding = result.diagnostics.find((d) => d.code === 'W_UNRESOLVED_REF')
     expect(finding?.hint).toBe(
-      '$ref.lookup is a block this workflow had that workflow.ts no longer declares under that key: if Fetch Page is it renamed, write $ref.fetchpage.data.'
+      '$ref.lookup is a block this workflow had that workflow.ts no longer declares under that key: if it was renamed to Fetch Page, an apply that keeps its id rewrites this reference to $ref.fetchpage.data, so no edit is needed.'
     )
   })
 
