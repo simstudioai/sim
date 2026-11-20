@@ -33,7 +33,10 @@ const SCOPED_SELECTORS = {
     plural: 'knowledge bases',
     example: "knowledgeBase('docs')",
   },
-} as const satisfies Record<string, { kind: ResourceKind }>
+} as const satisfies Record<
+  string,
+  { kind: ResourceKind; noun: string; plural: string; example: string }
+>
 
 type ScopedSelector = keyof typeof SCOPED_SELECTORS
 
