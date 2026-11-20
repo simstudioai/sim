@@ -33,7 +33,6 @@ realtime_pid=''
 realtime_tag=''
 realtime_log=''
 browsers_pid=''
-browsers_started=0
 local_app_url=''
 extra_pids=()
 extra_tags=()
@@ -86,7 +85,6 @@ start_browser_install() {
   local name=$1
   shift
   browsers_log="$report_dir/$name-playwright-install.log"
-  browsers_started=$SECONDS
   setsid --wait bash "$GITHUB_WORKSPACE/.github/scripts/install-playwright.sh" "$@" > "$browsers_log" 2>&1 &
   browsers_pid=$!
 }
@@ -99,8 +97,7 @@ wait_for_browsers() {
     exit 1
   fi
   browsers_pid=''
-  echo "Browsers installed $((SECONDS - browsers_started))s after the install started"
-  grep -E '^(Installed system dependencies|Stored [0-9]+ packages)' "$browsers_log" || true
+  grep -E '^(Installed system dependencies|Stored [0-9]+ packages|Browser install took)' "$browsers_log" || true
 }
 
 # start_app <name> <port> <label> [record-http-status]

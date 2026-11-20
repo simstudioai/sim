@@ -276,11 +276,14 @@ jobs:
         id: runner-image
         run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
 
+      # Restores the newest saved set by prefix. A cache key is never overwritten, so a run that had
+      # to add packages saves a new one below.
       - name: Restore browser system packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cache/playwright-apt
-          key: playwright-apt-${{ steps.runner-image.outputs.version }}-${{ hashFiles('bun.lock') }}-${{ matrix.group }}
+          key: playwright-apt-${{ steps.runner-image.outputs.version }}-${{ hashFiles('bun.lock') }}-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: playwright-apt-${{ steps.runner-image.outputs.version }}-${{ hashFiles('bun.lock') }}-${{ matrix.group }}-
 
       # Migrations create their own extensions, as on a fresh self-hosted install.
       - name: Provision the database through migrations
@@ -335,6 +338,21 @@ jobs:
         timeout-minutes: 19
         working-directory: apps/sim
         run: PLAYWRIGHT_APT_CACHE="$HOME/.cache/playwright-apt" bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
+
+      - name: Check for new browser system packages
+        id: apt-cache
+        run: |
+          if [ -f "$HOME/.cache/playwright-apt/.updated" ]; then
+            rm "$HOME/.cache/playwright-apt/.updated"
+            echo 'updated=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save browser system packages
+        if: steps.apt-cache.outputs.updated == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ~/.cache/playwright-apt
+          key: playwright-apt-${{ steps.runner-image.outputs.version }}-${{ hashFiles('bun.lock') }}-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload acceptance timing and coverage reports
         if: always()
