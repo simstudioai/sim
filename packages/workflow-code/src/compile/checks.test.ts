@@ -353,6 +353,24 @@ describe('legacy block types', () => {
     if (!stored) throw new Error('expected a workflow')
     expect(findings(run(body, stored, withLegacy), 'W_LEGACY_BLOCK_TYPE')).toEqual([])
   })
+
+  it('stays quiet offline for a legacy block the lock binds, as the server does', () => {
+    const offline = (lockKey: string, ident: string) =>
+      compileWorkflow({
+        entry: { path: 'workflow.ts', text: source("const s = block('slack_legacy', 'S', {})") },
+        files: new Map(),
+        catalog: withLegacy,
+        sdkMajor: 1,
+        storedUnread: {
+          version: 1,
+          blocks: { [lockKey]: { id: 'b-1', parent: null, ident, order: 0 } },
+          variables: {},
+        },
+      })
+    expect(findings(offline('s', 's'), 'W_LEGACY_BLOCK_TYPE')).toEqual([])
+    expect(findings(offline('old', 's'), 'W_LEGACY_BLOCK_TYPE')).toEqual([])
+    expect(findings(offline('other', 'other'), 'W_LEGACY_BLOCK_TYPE')).toHaveLength(1)
+  })
 })
 
 describe('unwired branches', () => {

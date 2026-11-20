@@ -174,6 +174,14 @@ function apply(
   )
 }
 
+/** The 1-based line and column where `needle` first starts in `text`. */
+function positionOf(text: string, needle: string): { line: number; column: number } {
+  const index = text.indexOf(needle)
+  expect(index, `the text holds "${needle}"`).toBeGreaterThanOrEqual(0)
+  const before = text.slice(0, index)
+  return { line: before.split('\n').length, column: index - before.lastIndexOf('\n') }
+}
+
 /** Replaces the one occurrence of `from` across the source files. */
 function edit(files: Record<string, string>, from: string, to: string): Record<string, string> {
   const hits = Object.entries(files).filter(([, text]) => text.split(from).length === 2)
@@ -1605,7 +1613,7 @@ describe('source apply edge cases', () => {
   )
 
   check(
-    'a workflow renamed in source to a name its folder holds is refused at the header',
+    'a workflow renamed in source to a name its folder holds is refused at the name',
     async () => {
       const seeded = await seedWorkflow()
       const other = await seedWorkflow()
@@ -1614,13 +1622,11 @@ describe('source apply edge cases', () => {
       const taken = await storedName(other.workflowId)
       const before = await snapshot(seeded.workflowId)
 
-      const error = await expectRejected(
-        apply(source, edit(source.files, `'${name}'`, `'${taken}'`)),
-        'E_NAME_TAKEN'
-      )
+      const files = edit(source.files, `'${name}'`, `'${taken}'`)
+      const error = await expectRejected(apply(source, files), 'E_NAME_TAKEN')
       expect(error.diagnostics.find((d) => d.code === 'E_NAME_TAKEN')).toMatchObject({
         file: 'workflow.ts',
-        line: expect.any(Number),
+        ...positionOf(files['workflow.ts'], `'${taken}'`),
       })
       expect(await storedName(seeded.workflowId)).toBe(name)
       expect(await snapshot(seeded.workflowId)).toEqual(before)
@@ -1789,9 +1795,11 @@ export default workflow('', {}, () => {
       }
 
       const error = await expectRejected(apply(source, emptied), 'E_APPLY_BLOCK_DELETE')
-      expect(error.diagnostics.find((d) => d.code === 'E_APPLY_BLOCK_DELETE')?.message).toBe(
-        'This apply deletes 2 blocks the source no longer declares: Start, Score.'
-      )
+      expect(error.diagnostics.find((d) => d.code === 'E_APPLY_BLOCK_DELETE')).toMatchObject({
+        message: 'This apply deletes 2 blocks the source no longer declares: Start, Score.',
+        file: 'workflow.ts',
+        ...positionOf(emptied['workflow.ts'], "'Source apply edge"),
+      })
       expect(await snapshot(workflowId)).toEqual(before)
 
       const dryRun = await apply(source, emptied, { dryRun: true })
@@ -1971,7 +1979,11 @@ export default workflow('', {}, () => {
     expect(result.dryRun).toBe(true)
     expect(result.applied).toBe(false)
     expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ code: 'E_APPLY_STALE', severity: 'error' })
+      expect.objectContaining({
+        code: 'E_APPLY_STALE',
+        severity: 'error',
+        message: `Workflow "Source apply ${seeded.workflowId}" changed since this source was read. Get the source again, reapply your edit and retry.`,
+      })
     )
     expect(result.base.fingerprint).toBe(source.base.fingerprint)
     expect(await snapshot(seeded.workflowId)).toEqual(before)

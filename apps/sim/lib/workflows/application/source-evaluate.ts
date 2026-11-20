@@ -120,6 +120,8 @@ export interface SourceEvaluationInput {
  */
 export interface SourceReference extends ResourceKeyRef {
   member?: string
+  /** Where the entry file writes the reference, for an MCP tool: the agent's `tools`. */
+  span?: SourceSpan
 }
 
 /** A resource an enclosing apply creates or adopts, by key, with the id that stands in for it. */
@@ -293,6 +295,11 @@ function withoutRenamedCodeFileRefs(
   return diagnostics.filter((d) => d.code !== 'W_UNRESOLVED_REF' || still.has(at(d)))
 }
 
+/** `{ span }` when there is one, to spread into a diagnostic. */
+function withSpan(span: SourceSpan | undefined): { span?: SourceSpan } {
+  return span ? { span } : {}
+}
+
 /** Names in a refusal, the first ten and a count of the rest. */
 function listNames(names: readonly string[]): string {
   const shown = names.slice(0, 10).join(', ')
@@ -325,7 +332,7 @@ function blockDeleteRefusal(
           message: deletes,
           hint: 'Pass --allow-delete (allowDelete=true) to delete them, or declare them again to keep them.',
         }),
-    ...(span ? { span } : {}),
+    ...withSpan(span),
   }
 }
 
@@ -392,9 +399,13 @@ function isResourceKind(kind: string): kind is ResourceKind {
  * Every `(kind, key)` resource reference in a compiled model, for ident lookup, and the tool each
  * MCP agent tool (`mcp(key).tool(name)`) names on its server.
  */
-function collectResourceKeys(value: unknown, refs: SourceReference[]): void {
+function collectResourceKeys(
+  value: unknown,
+  refs: SourceReference[],
+  span: SourceSpan | undefined
+): void {
   if (Array.isArray(value)) {
-    for (const item of value) collectResourceKeys(item, refs)
+    for (const item of value) collectResourceKeys(item, refs, span)
     return
   }
   if (value === null || typeof value !== 'object') return
@@ -408,8 +419,8 @@ function collectResourceKeys(value: unknown, refs: SourceReference[]): void {
     refs.push({ kind: record.kind, key: record.key })
   }
   const tool = mcpToolReference(record)
-  if (tool) refs.push(tool)
-  for (const nested of Object.values(record)) collectResourceKeys(nested, refs)
+  if (tool) refs.push(span ? { ...tool, span } : tool)
+  for (const nested of Object.values(record)) collectResourceKeys(nested, refs, span)
 }
 
 /** The server and tool an MCP agent tool entry names, or `null` for anything else. */
@@ -459,14 +470,18 @@ function boundLock(identity: LockIdentity, submitted: WorkflowLockV1): WorkflowL
 function metaLimitRefusals(
   meta: CanonicalWorkflowMeta,
   fields: readonly (keyof CanonicalWorkflowMeta)[]
-): Diagnostic[] {
-  const refusals: Diagnostic[] = []
-  const refuse = (message: string, hint: string) =>
-    refusals.push({ code: 'E_WORKFLOW_META_INVALID', severity: 'error', message, hint })
+): Array<{ field: keyof CanonicalWorkflowMeta; refusal: Diagnostic }> {
+  const refusals: Array<{ field: keyof CanonicalWorkflowMeta; refusal: Diagnostic }> = []
+  const refuse = (field: keyof CanonicalWorkflowMeta, message: string, hint: string) =>
+    refusals.push({
+      field,
+      refusal: { code: 'E_WORKFLOW_META_INVALID', severity: 'error', message, hint },
+    })
   if (fields.includes('name') && meta.name.trim() === '') {
-    refuse('The workflow name is empty.', "Name the workflow: workflow('Name', ...).")
+    refuse('name', 'The workflow name is empty.', "Name the workflow: workflow('Name', ...).")
   } else if (fields.includes('name') && meta.name.length > V2_WORKFLOW_NAME_MAX_LENGTH) {
     refuse(
+      'name',
       `The workflow name is ${meta.name.length} characters, over the ${V2_WORKFLOW_NAME_MAX_LENGTH}-character limit.`,
       `Shorten the name to ${V2_WORKFLOW_NAME_MAX_LENGTH} characters or fewer.`
     )
@@ -474,6 +489,7 @@ function metaLimitRefusals(
   const description = meta.description ?? ''
   if (fields.includes('description') && description.length > V2_WORKFLOW_DESCRIPTION_MAX_LENGTH) {
     refuse(
+      'description',
       `The workflow description is ${description.length} characters, over the ${V2_WORKFLOW_DESCRIPTION_MAX_LENGTH}-character limit.`,
       `Shorten the description to ${V2_WORKFLOW_DESCRIPTION_MAX_LENGTH} characters or fewer.`
     )
@@ -549,7 +565,12 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   }
 
   const compiledKeys: SourceReference[] = []
-  collectResourceKeys(compiledWorkflow.blocks, compiledKeys)
+  for (const [key, block] of Object.entries(compiledWorkflow.blocks)) {
+    const span =
+      compiled.spans[encodeAnchor({ kind: 'param', block: key, param: 'tools' })] ??
+      compiled.spans[encodeAnchor({ kind: 'block', block: key })]
+    collectResourceKeys(block, compiledKeys, span)
+  }
   const storedResources = resources
   const newKeys = compiledKeys.filter(({ kind, key }) => storedResources.toId(kind, key) === null)
   if (newKeys.length > 0) {
@@ -720,6 +741,9 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   )
   const sourceRefusals: Diagnostic[] = []
   const headerSpan = compiled.spans[encodeAnchor({ kind: 'header' })]
+  /** Where a finding about the workflow itself points: the field it names, else the name. */
+  const metaSpan = (field: keyof CanonicalWorkflowMeta = 'name') =>
+    compiled.metaSpans[field] ?? compiled.metaSpans.name ?? headerSpan
   if (
     metaChanged.includes('name') &&
     (await workflowNameExistsInFolder({
@@ -734,13 +758,13 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       severity: 'error',
       message: `Another workflow in this workflow's folder is named ${JSON.stringify(meta.name)}.`,
       hint: `Choose another name, or keep workflow(${JSON.stringify(storedMeta.name)}, ...).`,
-      ...(headerSpan ? { span: headerSpan } : {}),
+      ...withSpan(metaSpan('name')),
     })
   }
   sourceRefusals.push(
-    ...metaLimitRefusals(meta, isNew ? META_FIELDS : metaChanged).map((refusal) => ({
+    ...metaLimitRefusals(meta, isNew ? META_FIELDS : metaChanged).map(({ field, refusal }) => ({
       ...refusal,
-      ...(headerSpan ? { span: headerSpan } : {}),
+      ...withSpan(metaSpan(field)),
     }))
   )
   const removedKeys = isNew ? [] : canonicalDiff.blocks.removed
@@ -749,7 +773,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       blockDeleteRefusal(
         removedKeys.map((key) => storedCanonical.workflow.blocks[key]),
         canonicalDiff.blocks.added.map((key) => materialized.workflow.blocks[key]),
-        headerSpan
+        metaSpan()
       )
     )
   }

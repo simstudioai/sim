@@ -309,6 +309,8 @@ describe('MCP servers as workspace source', () => {
         kind: 'workflow',
         key: 'triage',
         file: 'workflows/triage/workflow.ts',
+        line: 9,
+        column: 5,
       })
       expect(unknown?.message).toContain('Did you mean "create_issue"?')
     }

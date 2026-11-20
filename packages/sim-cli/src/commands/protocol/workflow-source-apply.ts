@@ -129,12 +129,13 @@ function diffSummary(data: SourceApplyData): string {
     `${blocks.renamed.length} renamed`,
     `${blocks.modified.length} modified`,
   ]
-  const variableCount =
-    variables.added.length + variables.removed.length + variables.modified.length
+  const variableChanges = (['added', 'removed', 'modified'] as const).flatMap((change) =>
+    variables[change].length > 0 ? [`${change} ${variables[change].join(', ')}`] : []
+  )
   const modified = blocks.modified.map(({ key, fields }) => `${key} (${fields.join(', ')})`)
   return `Blocks: ${parts.join(', ')}. Connections: +${edges.added} -${edges.removed}.${
-    variableCount > 0 ? ` Variables changed: ${variableCount}.` : ''
-  }${modified.length > 0 ? `\nModified: ${modified.join('; ')}` : ''}`
+    modified.length > 0 ? `\nModified: ${modified.join('; ')}` : ''
+  }${variableChanges.length > 0 ? `\nVariables: ${variableChanges.join('; ')}` : ''}`
 }
 
 const GET_HINT = 'Write the directory with `sim workflows source get` first.'
@@ -400,6 +401,11 @@ export function attachWorkflowSourceCreate(source: Command): void {
     )
 }
 
+/** Whether a diff adds, removes or changes any workflow variable. */
+function variablesChanged(variables: SourceApplyData['diff']['variables']): boolean {
+  return variables.added.length > 0 || variables.removed.length > 0 || variables.modified.length > 0
+}
+
 /** A create that did not apply stored nothing, so its provisional workflow id names no workflow. */
 function summarize(data: SourceApplyData, created: boolean) {
   return {
@@ -416,6 +422,7 @@ function summarize(data: SourceApplyData, created: boolean) {
     }),
     edgesAdded: data.diff.edges.added,
     edgesRemoved: data.diff.edges.removed,
+    ...(variablesChanged(data.diff.variables) && { variables: data.diff.variables }),
     errors: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
     warnings: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
     notes: data.notes.length,

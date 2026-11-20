@@ -325,6 +325,25 @@ describe('sim workflows source apply', () => {
     })
   })
 
+  it('names each changed variable in the result and the preview', async () => {
+    setTerminal(true)
+    const changed = outcome({ dryRun: true })
+    changed.data.diff.variables = { added: ['retries'], removed: [], modified: ['threshold'] }
+    request.mockResolvedValue(changed)
+    prompt.question.mockResolvedValue('n')
+
+    await apply(WORKFLOW_ID, '--dir', dir).catch(() => {})
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(
+      stderrLines().some((line) => line.includes('Variables: added retries; modified threshold'))
+    ).toBe(true)
+    const printed = vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? ''
+    expect(JSON.parse(printed)).toMatchObject({
+      variables: { added: ['retries'], removed: [], modified: ['threshold'] },
+    })
+  })
+
   it('prints the modified blocks readably in text output', async () => {
     contextMockState.output = 'text'
     const modified = outcome({ dryRun: true })

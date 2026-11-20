@@ -1816,7 +1816,9 @@ export function compileBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
 
 /**
  * `W_LEGACY_BLOCK_TYPE` for a new block of a legacy or deprecated type, naming its replacement and
- * that type's builders. A block the stored workflow already holds under that type stays quiet.
+ * that type's builders. A block the stored workflow already holds under that type stays quiet; an
+ * offline check, which has only the lock, stays quiet on a block the lock binds by key or ident,
+ * as the server does for the stored block it continues.
  */
 function checkLegacyType(ctx: CompileContext, decl: BlockDecl): void {
   const block = catalogBlockOf(decl)
@@ -1824,6 +1826,14 @@ function checkLegacyType(ctx: CompileContext, decl: BlockDecl): void {
   if (!block || !sunset) return
   const stored = ctx.stored ? getOwn(ctx.stored.blocks, decl.key) : undefined
   if (stored?.type === block.type) return
+  const lock = ctx.storedUnread
+  if (
+    lock &&
+    (Object.hasOwn(lock.blocks, decl.key) ||
+      Object.values(lock.blocks).some((entry) => entry.ident === decl.ident))
+  ) {
+    return
+  }
   const replacement = sunset.replacedBy
   const namespaces = replacement
     ? [

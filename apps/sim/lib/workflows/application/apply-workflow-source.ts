@@ -49,10 +49,10 @@ import {
 } from '@/lib/workflows/application/source-commit'
 import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import {
-  WORKFLOW_SOURCE_STALE_MESSAGE,
   type WorkflowSourceDiagnostic,
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
+  workflowSourceStaleMessage,
 } from '@/lib/workflows/application/source-error'
 import {
   evaluateSource,
@@ -559,12 +559,12 @@ async function runSourceApply(
         ])
       }
       if (target.kind === 'existing' && storedFingerprint !== target.base.fingerprint) {
-        if (!dryRun) throw new WorkflowSourceStaleError(storedFingerprint)
+        if (!dryRun) throw new WorkflowSourceStaleError(storedFingerprint, stored.meta.name)
         return refuse([
           {
             code: 'E_APPLY_STALE',
             severity: 'error',
-            message: WORKFLOW_SOURCE_STALE_MESSAGE,
+            message: workflowSourceStaleMessage(stored.meta.name),
           },
         ])
       }

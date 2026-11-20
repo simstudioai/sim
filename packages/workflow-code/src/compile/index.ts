@@ -21,6 +21,7 @@ import type {
   CanonicalBlock,
   CanonicalVariable,
   CanonicalWorkflow,
+  CanonicalWorkflowMeta,
   PortKey,
   VarKey,
 } from '../model'
@@ -109,6 +110,11 @@ export interface CompileResult {
   diagnostics: LocatedDiagnostic<CompileDiagnosticCode>[]
   /** Where each anchor sits, to map later server findings back to lines. */
   spans: Partial<Record<AnchorKey, SourceSpan>>
+  /**
+   * Where `workflow()` writes the name and the description, so a server finding about the
+   * workflow itself (a name another workflow holds, a block delete) points there.
+   */
+  metaSpans: Partial<Record<keyof CanonicalWorkflowMeta, SourceSpan>>
   /** Idents as written, `order` as declaration index, and code files, for the lock. */
   hints: SourceHints
   /** The header's major, or `null` when the header is missing. */
@@ -312,6 +318,7 @@ function compileWorkflowCall(
       }
     )
   } else if (nameNode) {
+    ctx.metaSpans.name = ctx.reporter.span(rangeOf(ctx, nameNode))
     checkSuspiciousName(ctx, name, nameNode, 'workflow')
   }
   const optionsNode: Node | undefined = third ? second : undefined
@@ -329,6 +336,7 @@ function compileWorkflowCall(
     } else {
       for (const [key, property] of objectEntries(ctx, optionsNode)) {
         if (key === 'description') {
+          ctx.metaSpans.description = ctx.reporter.span(rangeOf(ctx, property.value))
           description = literalText(property.value)
           if (description === null)
             unsupported(
@@ -413,6 +421,7 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
     workflow: null,
     diagnostics: reporter.diagnostics,
     spans: {},
+    metaSpans: {},
     hints: { blocks: {} },
     sdkMajor,
     envReferences: [],
@@ -503,8 +512,10 @@ function compileEntry(
     wiring: [],
     implied: [],
     spans: new Map(),
+    metaSpans: {},
     knownKeys: input.knownKeys ?? new Set(),
     stored: input.stored,
+    storedUnread: input.stored === undefined ? input.storedUnread : undefined,
     envNames: input.envNames,
     envDeclaredIn: input.envDeclaredIn,
     envReferences: new Set(),
@@ -705,6 +716,7 @@ function compileEntry(
     workflow,
     diagnostics: reporter.diagnostics,
     spans,
+    metaSpans: ctx.metaSpans,
     hints,
     sdkMajor: parsed.sdkMajor,
     envReferences: [...ctx.envReferences].sort(compareStrings),

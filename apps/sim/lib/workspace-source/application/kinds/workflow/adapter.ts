@@ -209,13 +209,16 @@ function sourceRefs(
   evaluated: EvaluatedSource | undefined
 ): NonNullable<WorkflowChange['refs']> {
   const refs = new Map<string, NonNullable<WorkflowChange['refs']>[number]>()
-  for (const { kind, key, member } of references) {
+  for (const { kind, key, member, span } of references) {
     if (!isWorkspaceKind(kind)) continue
     if (isResourceKeyed(kind)) {
-      refs.set(JSON.stringify([kind, key, member ?? null]), {
+      const id = JSON.stringify([kind, key, member ?? null])
+      if (refs.has(id)) continue
+      refs.set(id, {
         kind,
         key,
         ...(member !== undefined ? { member } : {}),
+        ...(span !== undefined ? { span } : {}),
       })
       continue
     }

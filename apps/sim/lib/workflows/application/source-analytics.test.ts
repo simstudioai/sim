@@ -35,7 +35,7 @@ describe('recordSourceRefused', () => {
   beforeEach(() => capture.mockClear())
 
   it.each([
-    ['stale', new WorkflowSourceStaleError('sf1:x')],
+    ['stale', new WorkflowSourceStaleError('sf1:x', 'Lead Scoring')],
     ['rejected', new WorkflowSourceRejectedError([])],
     ['locked', new OrchestrationError('locked', 'Workflow is locked')],
   ])('records a %s refusal as ok:false with its error_kind', (kind, error) => {
@@ -74,7 +74,7 @@ describe('recordSourceRefused', () => {
         principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'ws-1' }),
         workflowId: 'wf-1',
       },
-      new WorkflowSourceStaleError('sf1:x')
+      new WorkflowSourceStaleError('sf1:x', 'Lead Scoring')
     )
 
     expect(capture).not.toHaveBeenCalled()
