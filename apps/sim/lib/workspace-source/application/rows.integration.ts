@@ -549,6 +549,27 @@ export default defineTable({
     expect(codes(refused.diagnostics)).toContain('E_APPLY_REFUSED')
   })
 
+  check(
+    'reports managed rows the server wrote since the base as drift, and keeps them',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await managedPlans(workspaceId)
+      const clean = await apply(workspaceId, read.files, { base: read.base, dryRun: true })
+      expect(codes(clean.diagnostics, 'warning')).toEqual([])
+
+      await editStoredSeats(workspaceId, 'team', 25)
+      const drifted = await apply(workspaceId, read.files, { base: read.base })
+
+      expect(drifted.applied).toEqual([])
+      expect(
+        drifted.diagnostics
+          .filter((finding) => finding.severity === 'warning')
+          .map((finding) => `${finding.code} ${finding.kind}:${finding.key}`)
+      ).toEqual(['W_SERVER_CHANGED table:plans'])
+      expect((await storedRows(workspaceId))[1]).toMatchObject({ code: 'team', seats: 25 })
+    }
+  )
+
   check('refuses rows edited here that the server changed since the base', async () => {
     const workspaceId = await newWorkspace()
     const read = await managedPlans(workspaceId)

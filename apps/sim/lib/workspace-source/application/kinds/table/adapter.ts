@@ -56,6 +56,7 @@ import { getTableById } from '@/lib/table/service'
 import type { RowData } from '@/lib/table/types'
 import { validateRowSize } from '@/lib/table/validation'
 import {
+  DRIFT_HINT,
   GET_HINT,
   keyRenamedChange,
   kindFinding,
@@ -391,7 +392,22 @@ async function planRows(
   const local = tableRowsFingerprint(rows)
   const based = entry?.id === state.table.id ? entry.rows : undefined
   const marked = storedKey === rows.key
-  if (based && based.fingerprint === local && marked) return outcome
+  if (based && based.fingerprint === local && marked) {
+    // Rows the directory leaves alone are not read, but a row version that moved says the server
+    // wrote them since: drift the apply keeps, which the plan says.
+    if ((await rowsVersion(ctx, state.table.id)) !== based.version) {
+      outcome.diagnostics.push(
+        kindFinding(
+          'table',
+          key,
+          'W_SERVER_CHANGED',
+          `The rows of table "${state.table.name}" were written on the server since this directory was read; the apply keeps the server's rows (not reverted to ${tableRowsPath(key)}).`,
+          { hint: DRIFT_HINT }
+        )
+      )
+    }
+    return outcome
+  }
   const rowKey = rows.key ?? ''
   const stored = await readStoredRows(ctx, state.table, keyById)
   const kept = unkeyedRows(stored, rowKey)
