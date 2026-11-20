@@ -14,6 +14,8 @@ import {
   type Diagnostic,
   diffCanonical,
   encodeAnchor,
+  getOwn,
+  type LocatedDiagnostic,
   type LockIdentity,
   type MaterializeResult,
   materialize,
@@ -33,6 +35,7 @@ import { WORKFLOW_RESOURCE_KINDS } from '@sim/workflow-types/resources'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import type { WorkspaceKind } from '@sim/workspace-code'
 import { and, inArray, ne } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit'
 import {
   V2_WORKFLOW_DESCRIPTION_MAX_LENGTH,
   V2_WORKFLOW_NAME_MAX_LENGTH,
@@ -237,18 +240,18 @@ function withoutPendingReferences(
 
 /**
  * `lint` without the block-output references compile already reported in a function's code
- * file (`W_UNRESOLVED_REF` on that block, located at the file line): the same dangling `$ref`
- * is one warning there, as an offline check reports it, not also a lint error on the
- * `codeFile()` call.
+ * file (`W_UNRESOLVED_REF`, or `E_APPLY_UNRESOLVED_REF` on code the edit changed, on that block,
+ * located at the file line): the same dangling `$ref` is one finding there, as an offline check
+ * reports it, not also a lint finding on the `codeFile()` call.
  */
 function withoutCodeFileReferences(
   lint: WorkflowLintReport,
-  compiled: CompileResult['diagnostics'],
+  compiled: readonly LocatedDiagnostic[],
   keyOf: (id: string) => string | undefined
 ): WorkflowLintReport {
   const reported = new Set(
     compiled.flatMap((diagnostic) =>
-      diagnostic.code === 'W_UNRESOLVED_REF' &&
+      (diagnostic.code === 'W_UNRESOLVED_REF' || diagnostic.code === 'E_APPLY_UNRESOLVED_REF') &&
       diagnostic.blockKey !== undefined &&
       diagnostic.span.file !== SOURCE_ENTRY_FILE
         ? [diagnostic.blockKey]
@@ -302,6 +305,29 @@ function withoutRenameSettledFindings(
       .map(at)
   )
   return diagnostics.filter((d) => !RENAME_SETTLED_CODES.has(d.code) || still.has(at(d)))
+}
+
+/**
+ * `diagnostics` with each function code file `W_UNRESOLVED_REF` on a block whose code the source
+ * changed (`codeChanged`, by block key) refused as `E_APPLY_UNRESOLVED_REF`: a `$ref` the edit
+ * wrote that names no block fails at run time. On code the stored workflow already holds it stays
+ * a warning, so a workflow saved with a dangling reference still applies unchanged.
+ */
+function withEditedCodeFileRefsRefused(
+  diagnostics: CompileResult['diagnostics'],
+  codeChanged: (blockKey: string) => boolean
+): LocatedDiagnostic[] {
+  return diagnostics.map((diagnostic): LocatedDiagnostic => {
+    if (
+      diagnostic.code !== 'W_UNRESOLVED_REF' ||
+      diagnostic.span.file === SOURCE_ENTRY_FILE ||
+      diagnostic.blockKey === undefined ||
+      !codeChanged(diagnostic.blockKey)
+    ) {
+      return diagnostic
+    }
+    return { ...diagnostic, code: 'E_APPLY_UNRESOLVED_REF', severity: 'error' }
+  })
 }
 
 /** `{ span }` when there is one, to spread into a diagnostic. */
@@ -764,8 +790,21 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     blockRenames
   )
   const renamedKeys = new Map([...blockRenames].map(([key, storedKey]) => [storedKey, key]))
-  const compileDiagnostics = withoutRenameSettledFindings(compiled.diagnostics, renamedKeys, () =>
-    compileWorkflow({ ...compileInput, stored: compiled.stored, renamedKeys })
+  const storedKeyOf = new Map([...renamedKeys].map(([storedKey, key]) => [key, storedKey]))
+  const storedCode = (key: string) => {
+    const storedBlock =
+      getOwn(compiled.stored.blocks, key) ??
+      getOwn(compiled.stored.blocks, storedKeyOf.get(key) ?? key)
+    return storedBlock && getOwn(storedBlock.params, 'code')
+  }
+  const compileDiagnostics = withEditedCodeFileRefsRefused(
+    withoutRenameSettledFindings(compiled.diagnostics, renamedKeys, () =>
+      compileWorkflow({ ...compileInput, stored: compiled.stored, renamedKeys })
+    ),
+    (key) => {
+      const compiledBlock = getOwn(compiledWorkflow.blocks, key)
+      return !isEqual(compiledBlock && getOwn(compiledBlock.params, 'code'), storedCode(key))
+    }
   )
   const sourceRefusals: Diagnostic[] = []
   const headerSpan = compiled.spans[encodeAnchor({ kind: 'header' })]

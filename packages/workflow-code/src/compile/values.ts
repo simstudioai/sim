@@ -34,6 +34,7 @@ import {
   responseFormatFields,
   valueTree,
 } from '../json-fields'
+import { SOURCE_ENTRY_FILE } from '../limits'
 import {
   type BlockKey,
   type CanonicalBlock,
@@ -857,7 +858,9 @@ export function checkDynamicOutputRefs(
  * that names no block (a block's ident, a renamed block's old key, a typo) or a variable that does
  * not exist is `W_UNRESOLVED_REF`, and a path no output has is `W_UNKNOWN_OUTPUT_PATH`. Warnings,
  * not errors, because stored code may already hold a dangling reference and must round-trip; at
- * run time such a token is spliced into the code as text, which fails as JavaScript. A head that
+ * run time such a token is spliced into the code as text, which fails as JavaScript, so the apply
+ * and an offline check refuse `W_UNRESOLVED_REF` as `E_APPLY_UNRESOLVED_REF` on code the edit
+ * changed. A head that
  * is the stored key of a block the source renamed (`renamed`, stored key → source key) resolves:
  * an apply rewrites it to the new key, so its path is checked against the renamed block.
  */
@@ -903,19 +906,47 @@ export function checkCodeFileRefs(
       const byIdent = ctx.declsByIdent.get(head.name)?.[0]
       const byName = ctx.declsByKey.get(normalizeWorkflowBlockName(head.name))
       const suggested = byIdent ?? byName
+      const rewritten = (key: BlockKey) =>
+        formatMemberPath(REF_ROOT, [{ kind: 'name', name: key }, ...rest])
       ctx.reporter.report(
         'W_UNRESOLVED_REF',
         `${written} names no block, so it does not resolve at run time.`,
         at,
         {
           hint: suggested
-            ? `${REF_ROOT} names a block by its key: write ${formatMemberPath(REF_ROOT, [{ kind: 'name', name: suggested.key }, ...rest])}.`
-            : () => didYouMean(head.name, ctx.declsByKey.keys(), (key) => `${REF_ROOT}.${key}`),
+            ? `${REF_ROOT} names a block by its key: write ${rewritten(suggested.key)}.`
+            : ctx.knownKeys.has(head.name)
+              ? formerBlockHint(ctx, head.name, renamed, rewritten)
+              : () => didYouMean(head.name, ctx.declsByKey.keys(), (key) => `${REF_ROOT}.${key}`),
           blockKey,
         }
       )
     }
   }
+}
+
+/**
+ * The hint for a code file `$ref` head that is the key of a block the workflow had (the lock or
+ * the stored workflow binds it) and source no longer declares: most often a block renamed in both
+ * name and const, whose references an apply rewrites only when it ties the block to the stored
+ * one. Names the one declared block nothing binds, when there is exactly one, as the probable new
+ * key (`rewritten` writes the reference with it).
+ */
+function formerBlockHint(
+  ctx: CompileContext,
+  formerKey: BlockKey,
+  renamed: ReadonlyMap<BlockKey, BlockKey>,
+  rewritten: (key: BlockKey) => string
+): string {
+  const renamedTo = new Set(renamed.values())
+  const unbound = [...ctx.declsByKey.values()].filter(
+    (decl) => !ctx.knownKeys.has(decl.key) && !renamedTo.has(decl.key)
+  )
+  const lead = `${REF_ROOT}.${formerKey} is a block this workflow had that ${SOURCE_ENTRY_FILE} no longer declares under that key`
+  const [only] = unbound
+  return unbound.length === 1 && only
+    ? `${lead}: if ${only.name} is it renamed, write ${rewritten(only.key)}.`
+    : `${lead}: if you renamed it, write ${REF_ROOT}.<its new key>, the display name lowercased with whitespace and dots removed.`
 }
 
 function subflowScopeRef(

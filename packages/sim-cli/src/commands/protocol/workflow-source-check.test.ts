@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SimApiError } from '../../http/client'
 import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, mockedProfile } from '../../test/context-mock'
+import { digest } from './source-dir'
 import { attachWorkflowSourceCheck } from './workflow-source-check'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -193,6 +194,17 @@ function writeLock(keys: readonly string[]): void {
         keys.map((key, order) => [key, { id: `id-${key}`, parent: null, ident: key, order }])
       ),
       variables: {},
+    })
+  )
+}
+
+/** Records `files` in `.sim/written.json` as a get leaves them. */
+function writeWritten(files: Record<string, string>): void {
+  writeFileSync(
+    join(dir, '.sim/written.json'),
+    JSON.stringify({
+      version: 1,
+      files: Object.fromEntries(Object.entries(files).map(([path, text]) => [path, digest(text)])),
     })
   )
 }
@@ -486,7 +498,7 @@ export default workflow('W', {}, () => {
     await check()
     expect(result().diagnostics).toContainEqual(
       expect.objectContaining({
-        code: 'W_UNRESOLVED_REF',
+        code: 'E_APPLY_UNRESOLVED_REF',
         severity: 'error',
         file: 'functions/total.js',
         line: 1,
@@ -497,6 +509,7 @@ export default workflow('W', {}, () => {
 
     process.exitCode = undefined
     writeLock(['start', 'total'])
+    writeWritten({ 'functions/total.js': 'return $ref.ordertotals.sum\n' })
     await check()
     expect(result()).toMatchObject({ errors: 0, warnings: 1 })
     expect(process.exitCode).toBeUndefined()
@@ -504,6 +517,39 @@ export default workflow('W', {}, () => {
     await checkIn(dir, '--strict')
     expect(result()).toMatchObject({ errors: 1 })
     expect(process.exitCode).toBe(1)
+  })
+
+  it('fails on a dangling $ref the edit wrote into a bound function file, whatever the strict mode', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const total = fn('Total', { code: codeFile('./functions/total.js') })
+  start.to(total)
+})
+`
+    )
+    writeLock(['start', 'total'])
+    writeWritten({ 'functions/total.js': 'return 1\n' })
+    writeFileSync(join(dir, 'functions/total.js'), 'return $ref.ordertotals.sum\n')
+
+    for (const flags of [[], ['--no-strict']]) {
+      process.exitCode = undefined
+      await checkIn(dir, ...flags)
+      expect(result().diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: 'E_APPLY_UNRESOLVED_REF',
+          severity: 'error',
+          file: 'functions/total.js',
+        })
+      )
+      expect(process.exitCode).toBe(1)
+    }
   })
 
   it('fails on a bound block with --strict and on nothing with --no-strict', async () => {

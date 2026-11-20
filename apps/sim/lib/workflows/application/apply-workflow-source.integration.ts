@@ -2214,7 +2214,7 @@ export default workflow('', {}, () => {
 
 describe('renames in source', () => {
   /** Start → Boom → Tally → Report, each a function; Report's code reads Boom and Tally by $ref. */
-  async function seedChain() {
+  async function seedChain(reportCode = 'return <boom.result> + <tally.result>') {
     const workflowId = generateId()
     const now = new Date()
     await db.insert(workflow).values({
@@ -2238,7 +2238,7 @@ describe('renames in source', () => {
     const start: BlockState = { ...fn('Start', ''), type: 'start_trigger', subBlocks: {} }
     const boom = fn('Boom', 'return 1')
     const tally = fn('Tally', 'return 2')
-    const report = fn('Report', 'return <boom.result> + <tally.result>')
+    const report = fn('Report', reportCode)
     const chain = [start, boom, tally, report]
     const saved = await saveWorkflowToNormalizedTables(workflowId, {
       blocks: Object.fromEntries(chain.map((block) => [block.id, block])),
@@ -2515,7 +2515,7 @@ describe('renames in source', () => {
   })
 
   check(
-    'a $ref to a missing block in a function file is the same warning in check and dry run, at the file',
+    'a $ref to a missing block the edit wrote into a function file is refused, at the file',
     async () => {
       const seeded = await seedChain()
       const source = await getSource(seeded.workflowId)
@@ -2525,7 +2525,26 @@ describe('renames in source', () => {
 
       expect(
         dryRun.diagnostics.map((d) => ({ code: d.code, severity: d.severity, file: d.file }))
-      ).toEqual([{ code: 'W_UNRESOLVED_REF', severity: 'warning', file: 'functions/boom.js' }])
+      ).toEqual([{ code: 'E_APPLY_UNRESOLVED_REF', severity: 'error', file: 'functions/boom.js' }])
+      await expectRejected(apply(source, files), 'E_APPLY_UNRESOLVED_REF')
+    }
+  )
+
+  check(
+    'a dangling reference the stored code already holds stays a warning, whatever else the apply changes',
+    async () => {
+      const seeded = await seedChain('return <ghost.result>')
+      const source = await getSource(seeded.workflowId)
+      expect(source.files['functions/report.js']).toBe('return $ref.ghost.result')
+
+      const result = await apply(source, edit(source.files, "fn('Boom'", "fn('Bang'"))
+
+      expect(result.applied).toBe(true)
+      expect(
+        result.diagnostics
+          .filter((d) => d.code === 'W_UNRESOLVED_REF')
+          .map((d) => ({ severity: d.severity, file: d.file }))
+      ).toEqual([{ severity: 'warning', file: 'functions/report.js' }])
     }
   )
 })

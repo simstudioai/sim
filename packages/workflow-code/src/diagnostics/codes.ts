@@ -455,6 +455,11 @@ const APPLY_DIAGNOSTIC_CODES = [
   'W_APPLY_PROBABLE_RENAME',
   /** A blocking workflow lint finding, mapped to a source line. */
   'E_APPLY_LINT',
+  /**
+   * A function code file `$ref` naming no block or variable in code the edit changed, which fails
+   * at run time; on code the stored workflow already holds it stays `W_UNRESOLVED_REF`.
+   */
+  'E_APPLY_UNRESOLVED_REF',
   /** A non-blocking workflow lint finding, mapped to a source line. */
   'W_APPLY_LINT',
   /** A table row write (insert, upsert, update) with a key that is not a column of its table. */
