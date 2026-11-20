@@ -11,14 +11,10 @@ import { withCatalogBlockScope } from '@/lib/catalog/application/context'
 import { previewSourceCommit } from '@/lib/workflows/application/source-commit'
 import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
-import type { SourceReference } from '@/lib/workflows/application/source-pipeline/evaluate'
 import { type CommitTarget, targetIds } from '@/lib/workflows/application/source-pipeline/load'
 import type { PlannedSource, RefusedSource } from '@/lib/workflows/application/source-pipeline/plan'
 import { type PrintedSource, printStoredSource } from '@/lib/workflows/code/print-stored'
-import {
-  checkDraftNeedsRedeployment,
-  checkNeedsRedeployment,
-} from '@/lib/workflows/deployment-status'
+import { checkDraftNeedsRedeployment } from '@/lib/workflows/deployment-status'
 
 const logger = createLogger('ApplyWorkflowSource')
 
@@ -32,11 +28,6 @@ export interface SourceOutcome {
   applied: boolean
   /** True when source meta was stored: with a graph write, or alone for a graph no-op. */
   wroteSourceMeta: boolean
-  /**
-   * True when a graph no-op still changes source meta (idents, order or comments): stored by a
-   * commit, and on a dry run what a commit would store.
-   */
-  sourceMetaChanged: boolean
   diff: SourceDiffSummary
   /** Warnings on success; on a dry run, every finding including the errors a commit would refuse. */
   diagnostics: WorkflowSourceDiagnostic[]
@@ -47,16 +38,6 @@ export interface SourceOutcome {
   base: SourceBase
   /** Source key → id for every new block whose id was minted rather than taken from the lock. */
   mintedIds: Record<string, string>
-  /**
-   * Every resource the submitted source names by key, as the compiler read it; empty when the
-   * source did not compile.
-   */
-  references: SourceReference[]
-  /**
-   * Every env name the submitted source reads, as the compiler read it; empty when the source did
-   * not compile.
-   */
-  envReferences: string[]
   notes: string[]
   needsRedeployment: boolean
   sdkMajor: number
@@ -73,18 +54,7 @@ interface OutcomeFrame {
 
 /** What an outcome reports beyond its frame and the printed source; the rest default to empty. */
 type OutcomeFields = Pick<SourceOutcome, 'applied' | 'diff' | 'diagnostics' | 'needsRedeployment'> &
-  Partial<
-    Pick<
-      SourceOutcome,
-      | 'workflowName'
-      | 'mintedIds'
-      | 'references'
-      | 'envReferences'
-      | 'notes'
-      | 'wroteSourceMeta'
-      | 'sourceMetaChanged'
-    >
-  >
+  Partial<Pick<SourceOutcome, 'workflowName' | 'mintedIds' | 'notes' | 'wroteSourceMeta'>>
 
 /** The one outcome shape: what is (or would be) stored, printed, and what the write did. */
 export function shapeOutcome(
@@ -99,11 +69,8 @@ export function shapeOutcome(
     workspaceId,
     dryRun: frame.dryRun,
     mintedIds: {},
-    references: [],
-    envReferences: [],
     notes: [],
     wroteSourceMeta: false,
-    sourceMetaChanged: false,
     ...outcome,
     files: printed.files,
     lock: printed.lock,
@@ -160,12 +127,12 @@ export function printWritten(
 
 /**
  * The dry run of a plan: what a commit would store, re-printed, and whether the draft would then
- * differ from its deployment. A graph no-op reports the source meta a commit would store, and the
- * deployment check of the draft as it is (`needsRedeployment`, started beside the plan, when given).
+ * differ from its deployment. A graph no-op reports the source meta a commit would store, and
+ * `draftNeedsRedeployment`, the deployment check of the draft as it is, started beside the plan.
  */
 export async function previewSource(
   planned: PlannedSource,
-  options: { needsRedeployment?: Promise<boolean> } = {}
+  draftNeedsRedeployment: Promise<boolean>
 ): Promise<SourceOutcome> {
   const { plan, loaded, target } = planned
   const frame = {
@@ -182,12 +149,7 @@ export async function previewSource(
         workflowName: plan.meta.name,
         diff: plan.diff,
         diagnostics: plan.diagnostics,
-        references: plan.references,
-        envReferences: plan.envReferences,
-        sourceMetaChanged: planned.noop.sourceMetaChanged,
-        needsRedeployment:
-          !isNew &&
-          (await (options.needsRedeployment ?? checkNeedsRedeployment(planned.workflowId))),
+        needsRedeployment: await draftNeedsRedeployment,
       })
     }
     const preview = await previewSourceCommit(planned.workflowId, plan)
@@ -207,8 +169,6 @@ export async function previewSource(
       diff: plan.diff,
       diagnostics: plan.diagnostics,
       mintedIds: plan.mintedIds,
-      references: plan.references,
-      envReferences: plan.envReferences,
       notes: preview.warnings,
       workflowName: plan.meta.name,
     })
@@ -218,14 +178,14 @@ export async function previewSource(
 /**
  * The dry-run answer for a refused plan: its findings with a 200, echoing the submission. It echoes
  * the caller's own base fingerprint, so applying its response after a stale or mismatched read
- * still fails the freshness check rather than overwriting the newer draft. `needsRedeployment` is
- * the deployment check of the draft as it is, when the target is an existing workflow.
+ * still fails the freshness check rather than overwriting the newer draft, and the deployment check
+ * of the draft as it is (`draftNeedsRedeployment`).
  */
 export async function refusedOutcome(
   refused: RefusedSource,
   target: CommitTarget,
   submission: { files: Record<string, string>; lock: WorkflowLockV1 },
-  options: { needsRedeployment?: Promise<boolean> } = {}
+  draftNeedsRedeployment: Promise<boolean>
 ): Promise<SourceOutcome> {
   return shapeOutcome(
     {
@@ -239,8 +199,7 @@ export async function refusedOutcome(
       applied: false,
       diff: emptyDiffSummary(),
       diagnostics: refused.diagnostics,
-      ...refused.compiledReferences,
-      needsRedeployment: options.needsRedeployment ? await options.needsRedeployment : false,
+      needsRedeployment: await draftNeedsRedeployment,
     }
   )
 }

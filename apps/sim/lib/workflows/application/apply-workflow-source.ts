@@ -69,13 +69,14 @@ export interface CreateWorkflowFromSourceInput {
 }
 
 /**
- * Whether the draft differs from its deployment, for a dry run that leaves it as it is (a no-op
- * or a refusal): it writes nothing, so this is known now and runs beside the plan. A dry run
- * that would change the draft compares what it would write instead. The `catch` only keeps it
- * observed when an error throws first or it goes unused.
+ * Whether the draft as it is differs from its deployment, for a dry run that leaves it so (a no-op
+ * or a refusal): it writes nothing, so this is known now and runs beside the plan. A new workflow
+ * has no deployment. A dry run that would change the draft compares what it would write instead.
+ * The `catch` only keeps it observed when an error throws first or it goes unused.
  */
-function draftNeedsRedeployment(workflowId: string): Promise<boolean> {
-  const check = checkNeedsRedeployment(workflowId)
+function draftNeedsRedeployment(target: SourceTarget): Promise<boolean> {
+  if (target.kind === 'new') return Promise.resolve(false)
+  const check = checkNeedsRedeployment(target.context.workflowId)
   check.catch(() => {})
   return check
 }
@@ -91,17 +92,16 @@ async function writeSource(
   submission: { files: Record<string, string>; lock: WorkflowLockV1 },
   dryRun: boolean
 ): Promise<SourceOutcome> {
-  const needsRedeployment =
-    dryRun && target.kind === 'existing'
-      ? draftNeedsRedeployment(target.context.workflowId)
-      : undefined
-  const options = needsRedeployment ? { needsRedeployment } : {}
-  const planned = await planSource(principal, target, submission, { allocate: !dryRun })
-  if (planned.kind === 'refused') {
-    if (!dryRun) throw refusalError(planned)
-    return refusedOutcome(planned, target, submission, options)
+  if (!dryRun) {
+    const planned = await planSource(principal, target, submission, { allocate: true })
+    if (planned.kind === 'refused') throw refusalError(planned)
+    return commitSource(principal, planned, target)
   }
-  return dryRun ? previewSource(planned, options) : commitSource(principal, planned, target)
+  const needsRedeployment = draftNeedsRedeployment(target)
+  const planned = await planSource(principal, target, submission, { allocate: false })
+  return planned.kind === 'refused'
+    ? refusedOutcome(planned, target, submission, needsRedeployment)
+    : previewSource(planned, needsRedeployment)
 }
 
 /**

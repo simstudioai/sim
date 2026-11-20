@@ -61,10 +61,7 @@ export async function commitSource(
         workflowName: plan.meta.name,
         diff: plan.diff,
         diagnostics: plan.diagnostics,
-        references: plan.references,
-        envReferences: plan.envReferences,
         wroteSourceMeta: sourceMetaChanged,
-        sourceMetaChanged,
         needsRedeployment: await checkNeedsRedeployment(workflowId),
       })
     }
@@ -91,8 +88,6 @@ export async function commitSource(
       diff: plan.diff,
       diagnostics: plan.diagnostics,
       mintedIds: plan.mintedIds,
-      references: plan.references,
-      envReferences: plan.envReferences,
       workflowName: committed.name,
       notes: committed.warnings,
       needsRedeployment: target.kind === 'new' ? false : await checkNeedsRedeployment(workflowId),
