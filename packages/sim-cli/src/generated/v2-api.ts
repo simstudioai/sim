@@ -9110,6 +9110,7 @@ export type GetSourceCatalogResponse = {
                 | {
                     opaque: true
                   }
+              optionsVary?: true
               hidden?: boolean
               readOnly?: boolean
               password?: boolean
@@ -9347,6 +9348,7 @@ export type GetSourceCatalogResponse = {
                 | {
                     opaque: true
                   }
+              optionsVary?: true
               hidden?: boolean
               readOnly?: boolean
               password?: boolean
@@ -9537,6 +9539,7 @@ export type GetSourceCatalogResponse = {
         | {
             opaque: true
           }
+      optionsVary?: true
       hidden?: boolean
       readOnly?: boolean
       password?: boolean

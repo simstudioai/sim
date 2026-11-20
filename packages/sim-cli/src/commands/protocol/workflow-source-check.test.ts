@@ -1036,6 +1036,24 @@ export default workflow('W', {}, () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('keeps a value outside options that vary by deployment a warning, as the cached catalog may predate the settings the server checks with', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace(
+        '  start.to(done)',
+        "  const run = fn('Run', { language: 'shell', code: 'echo hi' })\n  start.to(done)\n  done.to(run)"
+      ).replace('import { response,', 'import { fn, response,')
+    )
+    writeLock([])
+
+    await checkIn(dir, '--no-strict')
+
+    expect(findingLines()).toMatch(/warning W_UNKNOWN_OPTION: language has no option shell/)
+    expect(result()).toMatchObject({ errors: 0 })
+    expect(process.exitCode).toBeUndefined()
+  })
+
   it('passes what a get prints from stored state the server keeps: a loop error edge, a cycle, an unwired branch', async () => {
     cacheCatalog()
     writeFileSync(join(dir, 'workflow.ts'), STORED_SHAPES)

@@ -344,7 +344,13 @@ Compile also refuses or flags source the runtime would silently mishandle:
   input the unified Start passes through); a format with references inside is unread;
 - a dropdown value outside its static options is `W_UNKNOWN_OPTION`, a `model` the catalog does
   not list `W_UNKNOWN_MODEL` (free text stays valid), and an unknown `operation`
-  `E_UNKNOWN_OPERATION` unless the stored block already holds it;
+  `E_UNKNOWN_OPERATION` unless the stored block already holds it. An apply refuses
+  `W_UNKNOWN_OPTION` (`E_APPLY_INVALID_SUBBLOCK_FIELD`, `diagnostics/refusals.ts`) only on a field
+  the edit sets, the fields the server's value gate judges; the CLI's offline check, which holds no
+  stored values, counts every field of a changed block. Options a registry function derives from
+  deployment settings are marked `optionsVary` in the catalog: the offline check keeps a value
+  outside them a warning, since its cached catalog may have been built under other settings, and
+  leaves the verdict to the server, whose catalog and gate run in one process;
 - a new block of a legacy or deprecated type is `W_LEGACY_BLOCK_TYPE`, naming its replacement.
 
 ## Materialize

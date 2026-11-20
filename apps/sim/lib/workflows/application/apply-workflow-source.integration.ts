@@ -1568,6 +1568,33 @@ describe('source apply edge cases', () => {
   )
 
   check(
+    "an edited block's stored out-of-options value written bare again is not refused: the edit does not set that field",
+    async () => {
+      const start = seedBlock('start_trigger', 'Start')
+      const score = seedBlock('function', 'Score', {
+        code: ['code', 'return 1'],
+        language: ['dropdown', 'cobol'],
+      })
+      const workflowId = await seedGraph([start, score])
+      const source = await getInlineSource(workflowId)
+
+      const result = await apply(
+        source,
+        edit(
+          edit(source.files, "language: raw('cobol')", "language: 'cobol'"),
+          'return 1',
+          'return 2'
+        )
+      )
+
+      expect(result.applied).toBe(true)
+      expect(result.diagnostics.map((d) => d.code)).not.toContain('E_APPLY_INVALID_SUBBLOCK_FIELD')
+      const after = await snapshot(workflowId)
+      expect(after.state?.blocks[score.id]?.subBlocks.language?.value).toBe('cobol')
+    }
+  )
+
+  check(
     'a value the field normalizes is stored normalized, and untouched blocks keep their bytes',
     async () => {
       const start = seedBlock('start_trigger', 'Start')

@@ -191,6 +191,23 @@ function collectGatedBlocks(base: SourceGraph, target: SourceGraph, diff: GraphD
 }
 
 /**
+ * Per block id the diff adds or modifies, the subblock ids whose value it sets: the fields the
+ * value gate judges ({@link GatedBlock.changedFields}).
+ */
+export function changedSubBlockFields(
+  base: SourceGraph,
+  target: SourceGraph,
+  diff: GraphDiff
+): Map<string, ReadonlySet<string>> {
+  return new Map(
+    collectGatedBlocks(base, target, diff).map((entry) => [
+      entry.block.id,
+      new Set(entry.changedFields),
+    ])
+  )
+}
+
+/**
  * The placement gates on a new or retyped block, judged against the target graph's other blocks so
  * replacing a trigger in one apply (remove the old, add the new) passes. Returns whether the
  * placement passed. First, a type the source catalog keeps only for blocks that already use it is

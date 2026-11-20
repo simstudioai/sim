@@ -28,6 +28,7 @@ import type {
 } from '@/lib/workflows/application/source-pipeline/evaluate/types'
 import { foreignResourceRefusals } from '@/lib/workflows/application/source-resource-scope'
 import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
+import { changedSubBlockFields } from '@/lib/workflows/code/apply/gates'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import type {
   WorkflowLintReport,
@@ -189,7 +190,15 @@ export async function finalizePlan(
   const changedIds = new Set([...graphDiff.added, ...graphDiff.modified.map((m) => m.id)])
   const changedKeys = new Set([...changedIds].flatMap((id) => keyById.get(id) ?? []))
   const keyOfId = (id: string) => keyById.get(id)
-  const compileDiagnostics = editedCompileFindings(refusals, changedKeys)
+  const changedFields = new Map(
+    [...changedSubBlockFields(storedGraph, { blocks: gated.blocks, edges }, graphDiff)].flatMap(
+      ([id, fields]) => {
+        const key = keyById.get(id)
+        return key === undefined ? [] : [[key, fields] as const]
+      }
+    )
+  )
+  const compileDiagnostics = editedCompileFindings(refusals, changedKeys, changedFields)
   const compiledLint = withoutCompiledReferences(
     withoutPendingReferences(lint, pending),
     compileDiagnostics,

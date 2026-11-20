@@ -9,6 +9,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   type BlockCatalog,
   type CanonicalWorkflow,
+  catalogBlock,
   codeFrame,
   codePointLabel,
   compileWorkflow,
@@ -390,7 +391,7 @@ async function compileWorkflowDir(
     ...(storedEdges ? { storedUnreadEdges: storedEdges } : {}),
     ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
   })
-  return { lock, files, compiled, storedBlocks, printedWith }
+  return { lock, files, compiled, storedBlocks, printedWith, catalog }
 }
 
 /**
@@ -437,11 +438,8 @@ export async function checkWorkflowDir(
   catalog: BlockCatalog,
   options: { declarations?: WorkspaceDeclarations; strict: StrictMode; prefix?: string }
 ): Promise<{ findings: CheckFinding[]; entry: string; unlisted: UnlistedCounts }> {
-  const { lock, files, compiled, storedBlocks, printedWith } = await compileWorkflowDir(
-    dir,
-    catalog,
-    options.declarations
-  )
+  const compiledDir = await compileWorkflowDir(dir, catalog, options.declarations)
+  const { lock, files, compiled, storedBlocks, printedWith } = compiledDir
   const entryText = files[SOURCE_ENTRY_FILE]
   const locate = (block: string, param: string, names: string | undefined) => {
     const prefix = encodeAnchor({ kind: 'param', block, param: '' })
@@ -552,7 +550,23 @@ export async function checkWorkflowDir(
     const head = /^(?:\$ref\.|<)([A-Za-z0-9_]+)/.exec(text)?.[1]
     return head !== undefined && removedKeys.has(head)
   }
-  const refusable = (finding: (typeof compiled.diagnostics)[number]) => !mayBeRenamed(finding)
+  /**
+   * A dropdown value outside options that vary with deployment settings (`optionsVary`): the
+   * cached catalog may have been built under other settings than the server's gate runs with, so
+   * the check keeps the warning and leaves the verdict to the server.
+   */
+  const variesByDeployment = (finding: (typeof compiled.diagnostics)[number]) => {
+    const { blockKey, param } = finding
+    if (finding.code !== 'W_UNKNOWN_OPTION' || blockKey === undefined || param === undefined) {
+      return false
+    }
+    const type = compiled.workflow ? getOwn(compiled.workflow.blocks, blockKey)?.type : undefined
+    const block = type === undefined ? undefined : catalogBlock(compiledDir.catalog, type)
+    return block?.subBlocks.some((sub) => sub.id === param && sub.optionsVary === true) === true
+  }
+  const exempt = (finding: (typeof compiled.diagnostics)[number]) =>
+    mayBeRenamed(finding) || variesByDeployment(finding)
+  const refusable = (finding: (typeof compiled.diagnostics)[number]) => !exempt(finding)
   const refused = [
     ...refuseEditedFindings(
       {
@@ -561,7 +575,7 @@ export async function checkWorkflowDir(
       },
       { changed, codeEdited }
     ),
-    ...compiled.diagnostics.filter(mayBeRenamed),
+    ...compiled.diagnostics.filter(exempt),
   ]
   const findings = [
     ...refused.filter((diagnostic) => reported(diagnostic.code, diagnostic.blockKey)),

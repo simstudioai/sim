@@ -77,6 +77,12 @@ export interface EditedBlocks {
    * code before and after may compare that alone.
    */
   codeEdited(blockKey: string, file: string): boolean
+  /**
+   * Whether the edit sets field `param` of the changed block `blockKey`: the server's field gate
+   * judges only those. A caller that cannot tell (an offline check holds no stored values) leaves
+   * it out, and every field of a changed block counts as set.
+   */
+  paramChanged?(blockKey: string, param: string): boolean
 }
 
 /**
@@ -88,10 +94,11 @@ const CHANGED_BLOCK_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
 ])
 
 /**
- * In `workflow.ts` on a block the edit changed: a dropdown value none of its options names, which
- * the server's field gate refuses. A value the stored block already holds outside its options
- * prints as `raw()`, which the compile does not check, so only a value the author wrote is
- * refused. `operation` is left out: an unknown one is already an error, and its warning means the
+ * In `workflow.ts` on a field the edit set ({@link EditedBlocks.paramChanged}) of a block it
+ * changed: a dropdown value none of its options names, which the server's field gate refuses. A
+ * value the stored block already holds outside its options prints as `raw()`, which the compile
+ * does not check, and one written bare again is not a field the edit set, so only a value the
+ * author changed is refused. `operation` is left out: an unknown one is already an error, and its warning means the
  * stored block holds a retired operation, which the gate keeps.
  */
 const PARAM_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
@@ -178,8 +185,10 @@ function refusalOf(finding: LocatedDiagnostic, edit: EditedBlocks): EditRefusalC
   }
   const onParam = PARAM_REFUSALS.get(finding.code)
   if (onParam) {
-    if (!inEntryFile || finding.param === 'operation') return undefined
-    return edit.changed(blockKey) ? onParam : undefined
+    const { param } = finding
+    if (!inEntryFile || param === undefined || param === 'operation') return undefined
+    if (!edit.changed(blockKey)) return undefined
+    return (edit.paramChanged?.(blockKey, param) ?? true) ? onParam : undefined
   }
   if (inEntryFile) {
     const inEntry = ENTRY_REFUSALS.get(finding.code)

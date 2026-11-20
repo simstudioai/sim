@@ -359,14 +359,18 @@ export async function sourceRefusals(
 
 /**
  * The compile's findings, each on a block this write changes (or whose code it edits) refused as
- * the shared edited-block rule says, so a warning the author introduced cannot be written.
+ * the shared edited-block rule says, so a warning the author introduced cannot be written. A
+ * field finding is refused only on a field the write sets (`changedFields`, by block key), the
+ * fields the value gate judges.
  */
 export function editedCompileFindings(
   refusals: Pick<SourceRefusals, 'compileFindings' | 'codeEdited'>,
-  changedKeys: ReadonlySet<string>
+  changedKeys: ReadonlySet<string>,
+  changedFields: ReadonlyMap<string, ReadonlySet<string>>
 ): LocatedDiagnostic[] {
   return refuseEditedFindings(refusals.compileFindings, {
     changed: (key) => changedKeys.has(key),
     codeEdited: refusals.codeEdited,
+    paramChanged: (key, param) => changedFields.get(key)?.has(param) === true,
   })
 }

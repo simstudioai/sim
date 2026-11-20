@@ -349,7 +349,9 @@ function projectSubBlock(subBlock: SubBlockConfig, ctx: SubBlockContext): Catalo
   if (writable && typeof subBlock.value === 'function') {
     assign(projected, 'valueDefault', projectValueDefault(subBlock.value, subBlock.valueScope))
   }
-  assign(projected, 'options', projectOptions(subBlock))
+  const options = projectOptions(subBlock)
+  assign(projected, 'options', options)
+  if (typeof subBlock.options === 'function' && Array.isArray(options)) projected.optionsVary = true
 
   assign(projected, 'hidden', subBlock.hidden)
   assign(projected, 'readOnly', subBlock.readOnly)
