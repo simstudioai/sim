@@ -9,8 +9,7 @@ export const revalidate = 0
 
 /**
  * GET /api/v2/workspaces/{workspaceId}/workflows/source/catalog — the source catalog. The
- * response carries `ETag: "<hash>"`; a matching `If-None-Match` answers `304` with no body. The
- * catalog runs to megabytes, so a client accepting brotli or gzip gets it encoded.
+ * response carries `ETag: "<hash>"`; a matching `If-None-Match` answers `304` with no body.
  */
 export const GET = defineV2JsonRoute({
   contract: v2GetSourceCatalogContract,
@@ -25,5 +24,4 @@ export const GET = defineV2JsonRoute({
   useCase: readSourceCatalog,
   entityTag: (catalog) => catalog.hash,
   present: (catalog) => ({ data: catalog }),
-  encodeLargeBody: true,
 })

@@ -18,11 +18,6 @@ import {
   requireHeadAuthorizableUseCase,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
-import {
-  encodeBody,
-  MIN_ENCODED_BODY_BYTES,
-  preferredEncoding,
-} from '@/lib/api/server/routes/response-compression'
 import type {
   JsonApiRouteContract,
   JsonNextRouteHandler,
@@ -602,13 +597,6 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
    * `present` never sees the principal, so the body is a function of exactly that key.
    */
   entityTag?(result: NoInfer<R>): string
-  /**
-   * Encodes a success body of at least {@link MIN_ENCODED_BODY_BYTES} as brotli or gzip when the
-   * request's `Accept-Encoding` allows (`response-compression.ts`), for a route whose answers run
-   * to megabytes. Every such answer says `Vary: Accept-Encoding`; an encoded one with an entity
-   * tag carries it weak (`W/"…"`), as its bytes differ from the plain body's.
-   */
-  encodeLargeBody?: true
 }
 
 /**
@@ -642,11 +630,6 @@ export function defineV2JsonRoute<
   const validatedByTag = options.entityTag
     ? new LRUCache<string, NonNullable<unknown>>({ max: VALIDATED_BODY_CACHE_MAX })
     : undefined
-  /** Encoded bodies by the validated body's cache key and encoding, so a repeat skips encoding. */
-  const encodedByTag =
-    options.entityTag && options.encodeLargeBody
-      ? new LRUCache<string, Buffer>({ max: VALIDATED_BODY_CACHE_MAX })
-      : undefined
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
       if (!methodMatchesContract(request.method, options.contract.method)) {
@@ -758,33 +741,11 @@ export function defineV2JsonRoute<
           )
         }
         await options.onSuccess?.({ principal: auth.principal, input, result })
-        const cacheControl = entityTag ? REVALIDATE_CACHE_CONTROL : 'private, no-store'
-        if (!options.encodeLargeBody) {
-          return NextResponse.json(validatedBody, {
-            status: responseStatus,
-            headers: { 'Cache-Control': cacheControl, ...(entityTag ? { ETag: entityTag } : {}) },
-          })
-        }
-        const json = Buffer.from(JSON.stringify(validatedBody))
-        const encoding =
-          json.byteLength >= MIN_ENCODED_BODY_BYTES
-            ? preferredEncoding(request.headers.get('accept-encoding'))
-            : null
-        const encodedKey = cacheKey && encoding ? `${encoding} ${cacheKey}` : undefined
-        const encoded = encoding
-          ? ((encodedKey ? encodedByTag?.get(encodedKey) : undefined) ??
-            (await encodeBody(json, encoding)))
-          : null
-        if (encodedKey && encoded) encodedByTag?.set(encodedKey, encoded)
-        return new NextResponse(new Uint8Array(encoded ?? json), {
+        return NextResponse.json(validatedBody, {
           status: responseStatus,
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': cacheControl,
-            Vary: 'Accept-Encoding',
-            ...(encoding ? { 'Content-Encoding': encoding } : {}),
-            ...(entityTag ? { ETag: encoding ? `W/${entityTag}` : entityTag } : {}),
-          },
+          headers: entityTag
+            ? { 'Cache-Control': REVALIDATE_CACHE_CONTROL, ETag: entityTag }
+            : { 'Cache-Control': 'private, no-store' },
         })
       } catch (error) {
         const response = options.errorPolicy.render(error)

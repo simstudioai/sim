@@ -1,4 +1,3 @@
-import { brotliDecompressSync, gunzipSync } from 'node:zlib'
 import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import {
   MockV2ApiKeyUnauthenticatedError,
@@ -230,70 +229,6 @@ describe('defineV2JsonRoute', () => {
     const unchanged = await handler(revalidating)
     expect(unchanged.status).toBe(304)
     expect(unchanged.headers.get('Cache-Control')).toBe('private, no-cache')
-  })
-
-  it.each([
-    { acceptEncoding: 'br, gzip', encoding: 'br' },
-    { acceptEncoding: 'gzip, deflate', encoding: 'gzip' },
-    { acceptEncoding: 'br;q=0, gzip', encoding: 'gzip' },
-    { acceptEncoding: 'gzip;q=0.5, *', encoding: 'br' },
-    { acceptEncoding: 'identity', encoding: null },
-    { acceptEncoding: null, encoding: null },
-  ])(
-    'encodes a large body as the request accepts ($acceptEncoding → $encoding), keeping the tag weak',
-    async ({ acceptEncoding, encoding }) => {
-      const value = 'x'.repeat(64 * 1024)
-      const handler = defineV2JsonRoute({
-        contract,
-        auth: v2ApiKeyAuth,
-        operation,
-        rateLimit: v2RateLimits.publicApi,
-        errorPolicy: v2OrchestrationErrorPolicy,
-        mapInput: ({ body }) => body,
-        useCase: { operation, execute: async () => ({ value }) },
-        entityTag: () => 'v1',
-        present: (result) => ({ data: result }),
-        encodeLargeBody: true,
-      })
-      const asking = request()
-      if (acceptEncoding) asking.headers.set('accept-encoding', acceptEncoding)
-
-      const served = await handler(asking)
-
-      const bytes = Buffer.from(await served.arrayBuffer())
-      const decoded =
-        encoding === 'br'
-          ? brotliDecompressSync(bytes)
-          : encoding === 'gzip'
-            ? gunzipSync(bytes)
-            : bytes
-      expect(JSON.parse(decoded.toString('utf8'))).toEqual({ data: { value } })
-      expect(served.headers.get('Content-Encoding')).toBe(encoding)
-      expect(served.headers.get('Vary')).toBe('Accept-Encoding')
-      expect(served.headers.get('ETag')).toBe(encoding ? 'W/"v1"' : '"v1"')
-      if (encoding) expect(bytes.byteLength).toBeLessThan(value.length / 10)
-    }
-  )
-
-  it('sends a body under the encoding threshold as it is', async () => {
-    const handler = defineV2JsonRoute({
-      contract,
-      auth: v2ApiKeyAuth,
-      operation,
-      rateLimit: v2RateLimits.publicApi,
-      errorPolicy: v2OrchestrationErrorPolicy,
-      mapInput: ({ body }) => body,
-      useCase: { operation, execute: async ({ input }) => input },
-      present: (result) => ({ data: result }),
-      encodeLargeBody: true,
-    })
-    const asking = request()
-    asking.headers.set('accept-encoding', 'br, gzip')
-
-    const served = await handler(asking)
-
-    expect(served.headers.get('Content-Encoding')).toBeNull()
-    await expect(served.json()).resolves.toEqual({ data: { value: 'ok' } })
   })
 
   it('never serves a cached body to a request whose input presents it differently', async () => {

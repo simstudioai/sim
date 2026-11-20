@@ -734,9 +734,9 @@ export class SimClient {
             ? { authorization: `Bearer ${credential.oauth.accessToken}` }
             : {}),
           accept: 'application/json',
-          // Large answers (the block catalog, a workspace's source) come encoded, a tenth of
-          // their size; fetch decodes them. An in-process transport reads the handler's
-          // response as it is, so it never asks for an encoding.
+          // A server or proxy that compresses answers may send the large ones (the block catalog,
+          // a workspace's source) as brotli or gzip; fetch decodes them. An in-process transport
+          // reads the handler's response as it is, so it never asks for an encoding.
           ...(this.profile.transport ? {} : { 'accept-encoding': ACCEPT_ENCODING }),
           ...identityHeaders(),
           ...(hasBody ? { 'content-type': 'application/json' } : {}),

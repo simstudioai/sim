@@ -25,5 +25,4 @@ export const GET = defineV2JsonRoute({
   mapInput: ({ params }) => ({ workspaceId: params.workspaceId }),
   useCase: readSourceResources,
   present: (manifest) => ({ data: manifest }),
-  encodeLargeBody: true,
 })
