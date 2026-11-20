@@ -1163,6 +1163,37 @@ describe('errors, each with its code, location and hint', () => {
     )
   })
 
+  it('writes the placeholder of a renamed block once in a tag, for a tag the file writes', () => {
+    const text = source(
+      [
+        START,
+        "const a = api('Fetch Page', { url: 'x' })",
+        "const b = api('Load Page', { url: 'x' })",
+        "const f = fn('F', { code: codeFile('./functions/f.js') })",
+      ].join('\n')
+    )
+    const storedUnread = {
+      version: 1 as const,
+      blocks: {
+        start: { id: 'b-start', parent: null, ident: 'start', order: 0 },
+        lookup: { id: 'b-lookup', parent: null, ident: 'lookup', order: 1 },
+        f: { id: 'b-f', parent: null, ident: 'f', order: 2 },
+      },
+      variables: {},
+    }
+    const result = compileWorkflow({
+      entry: { path: ENTRY, text },
+      files: new Map([['workflows/functions/f.js', "return '<lookup.data>'"]]),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      knownKeys: new Set(Object.keys(storedUnread.blocks)),
+      storedUnread,
+    })
+
+    const finding = result.diagnostics.find((d) => d.code === 'W_UNRESOLVED_REF')
+    expect(finding?.hint).toContain('if you renamed it, write <newkey>, where newkey is')
+  })
+
   it('reports a syntax error inside a code file at its own location', () => {
     const result = run(source("const f = fn('F', { code: codeFile('./functions/bad.js') })"), {
       'workflows/functions/bad.js': 'return (',

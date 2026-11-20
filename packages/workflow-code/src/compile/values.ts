@@ -1061,10 +1061,9 @@ function formerBlockHint(
   )
   const lead = `${spell([{ kind: 'name', name: formerKey }])} is a block this workflow had that ${SOURCE_ENTRY_FILE} no longer declares under that key`
   const [only] = unbound
-  const placeholder = spell([{ kind: 'name', name: 'NEWKEY' }]).replace('NEWKEY', '<its new key>')
   return unbound.length === 1 && only
     ? `${lead}: if ${only.name} is it renamed, write ${rewritten(only.key)}.`
-    : `${lead}: if you renamed it, write ${placeholder}, the display name lowercased with whitespace and dots removed.`
+    : `${lead}: if you renamed it, write ${spell([{ kind: 'name', name: 'newkey' }])}, where newkey is its display name lowercased with whitespace and dots removed.`
 }
 
 function subflowScopeRef(
