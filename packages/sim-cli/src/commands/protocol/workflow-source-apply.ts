@@ -133,7 +133,11 @@ function diffSummary(data: SourceApplyData): string {
     variables[change].length > 0 ? [`${change} ${variables[change].join(', ')}`] : []
   )
   const modified = blocks.modified.map(({ key, fields }) => `${key} (${fields.join(', ')})`)
+  const typed = (list: ReadonlyArray<{ key: string; type: string }>) =>
+    list.map(({ key, type }) => `${key} (${type})`).join('; ')
   return `Blocks: ${parts.join(', ')}. Connections: +${edges.added} -${edges.removed}.${
+    blocks.added.length > 0 ? `\nAdded: ${typed(blocks.added)}` : ''
+  }${blocks.removed.length > 0 ? `\nRemoved: ${typed(blocks.removed)}` : ''}${
     modified.length > 0 ? `\nModified: ${modified.join('; ')}` : ''
   }${variableChanges.length > 0 ? `\nVariables: ${variableChanges.join('; ')}` : ''}`
 }
@@ -415,7 +419,13 @@ function summarize(data: SourceApplyData, created: boolean) {
     dryRun: data.dryRun,
     noop: data.diff.noop,
     blocksAdded: data.diff.blocks.added.length,
+    ...(data.diff.blocks.added.length > 0 && {
+      added: data.diff.blocks.added.map(({ key, type }) => ({ block: key, type })),
+    }),
     blocksRemoved: data.diff.blocks.removed.length,
+    ...(data.diff.blocks.removed.length > 0 && {
+      removed: data.diff.blocks.removed.map(({ key, type }) => ({ block: key, type })),
+    }),
     blocksModified: data.diff.blocks.modified.length,
     ...(data.diff.blocks.modified.length > 0 && {
       modified: data.diff.blocks.modified.map(({ key, fields }) => ({ block: key, fields })),

@@ -181,7 +181,7 @@ export const workflowSourceOpenApiRoutes = [
               diff: {
                 noop: false,
                 blocks: {
-                  added: [{ id: BLOCK_ID, key: 'start' }],
+                  added: [{ id: BLOCK_ID, key: 'start', type: 'start_trigger' }],
                   removed: [],
                   renamed: [],
                   modified: [],

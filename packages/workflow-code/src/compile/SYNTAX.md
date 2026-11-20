@@ -514,7 +514,8 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_APPLY_TRIGGER_REMOVED` | A deleted or retyped block still serves a live webhook, schedule, chat output or MCP tool until the next deploy. |
 | `W_APPLY_CATALOG_MOVED` | Compile failed and the block catalog changed since the read: get the source again. |
 | `E_APPLY_LINT`, `W_APPLY_LINT` | A workflow lint finding, mapped to a source line. |
-| `E_APPLY_BLOCK_DELETE` | The apply deletes blocks the source no longer declares; pass `--allow-delete`. |
+| `E_APPLY_BLOCK_DELETE` | The apply deletes blocks the source no longer declares; pass `--allow-delete`. When it also adds blocks of a deleted one's type, it names them as possible renames and says how to keep the ids instead. |
+| `W_APPLY_PROBABLE_RENAME` | With `--allow-delete`, a deleted block and an added one share a type and parent: a probable rename that gets a new id. |
 | `E_NAME_TAKEN` | The `workflow('…')` name renames the workflow to one another workflow in its folder holds. |
 | `E_WORKFLOW_META_INVALID` | The `workflow('…')` name is empty or over 255 characters, or its description is over 50,000 characters: limits the workflow API holds every workflow to. |
 | `E_APPLY_INVALID_SCHEDULE` | An added or changed schedule whose cron, timezone or interval deploy would refuse. |

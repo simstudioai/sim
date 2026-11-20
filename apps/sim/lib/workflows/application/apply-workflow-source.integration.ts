@@ -2355,6 +2355,24 @@ describe('renames in source', () => {
         'This apply deletes 2 blocks the source no longer declares: Boom, Tally. It adds Bang, Total of the same type: if those are the same blocks renamed, both their name and const changed, so nothing ties them to the stored blocks and they would get new ids.'
       )
       expect(refusal?.hint).not.toContain('allow-delete')
+
+      const allowed = await apply(source, files, { dryRun: true, allowDelete: true })
+      expect(allowed.diff.blocks.removed.map(({ key, type }) => `${key} ${type}`)).toEqual([
+        'boom function',
+        'tally function',
+      ])
+      expect(allowed.diff.blocks.added.map(({ key, type }) => `${key} ${type}`)).toEqual([
+        'bang function',
+        'total function',
+      ])
+      expect(
+        allowed.diagnostics
+          .filter((d) => d.code === 'W_APPLY_PROBABLE_RENAME')
+          .map((d) => d.message)
+      ).toEqual([
+        'Boom (function) is deleted and Bang (function) added: probably a rename, but its name and const both changed, so it gets a new id and loses its run history and webhook URL.',
+        'Tally (function) is deleted and Total (function) added: probably a rename, but its name and const both changed, so it gets a new id and loses its run history and webhook URL.',
+      ])
     }
   )
 

@@ -86,7 +86,7 @@ describe('recordSourceWritten', () => {
 
   it('counts a create from source as a workflow creation, attributed to the Copilot subject', () => {
     const diff = emptyDiffSummary()
-    diff.blocks.added.push({ id: 'b-1', key: 'start' })
+    diff.blocks.added.push({ id: 'b-1', key: 'start', type: 'start_trigger' })
 
     recordSourceWritten(
       {
@@ -125,7 +125,7 @@ describe('recordSourceDryRun', () => {
 
   it('records a clean dry run as ok with the changes a commit would make', () => {
     const diff = emptyDiffSummary()
-    diff.blocks.added.push({ id: 'b-1', key: 'start' })
+    diff.blocks.added.push({ id: 'b-1', key: 'start', type: 'start_trigger' })
     diff.edges.added = 2
 
     recordSourceDryRun(

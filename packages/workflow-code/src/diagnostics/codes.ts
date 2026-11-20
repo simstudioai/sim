@@ -448,6 +448,11 @@ const APPLY_DIAGNOSTIC_CODES = [
   'W_APPLY_TRIGGER_REMOVED',
   /** Compile failed and the catalog changed since the source was read: get the source again. */
   'W_APPLY_CATALOG_MOVED',
+  /**
+   * An apply passed `allowDelete` deletes a block and adds one of the same type and parent: a
+   * probable rename whose name and const both changed, which gets a new id.
+   */
+  'W_APPLY_PROBABLE_RENAME',
   /** A blocking workflow lint finding, mapped to a source line. */
   'E_APPLY_LINT',
   /** A non-blocking workflow lint finding, mapped to a source line. */

@@ -780,10 +780,12 @@ export type ApplyWorkflowSourceResponse = {
         added: Array<{
           id: string
           key: string
+          type: string
         }>
         removed: Array<{
           id: string
           key: string
+          type: string
         }>
         renamed: Array<{
           id: string
@@ -949,6 +951,7 @@ export type ApplyWorkflowSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
@@ -1432,6 +1435,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
@@ -1710,6 +1714,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
@@ -5199,10 +5204,12 @@ export type CreateWorkflowFromSourceResponse = {
         added: Array<{
           id: string
           key: string
+          type: string
         }>
         removed: Array<{
           id: string
           key: string
+          type: string
         }>
         renamed: Array<{
           id: string
@@ -5368,6 +5375,7 @@ export type CreateWorkflowFromSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
@@ -10462,6 +10470,7 @@ export type GetWorkflowSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
@@ -11140,6 +11149,7 @@ export type GetWorkspaceSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'

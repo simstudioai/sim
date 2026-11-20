@@ -49,7 +49,12 @@ const created = {
   applied: true,
   diff: {
     noop: false,
-    blocks: { added: [{ id: 'b-1', key: 'start' }], removed: [], renamed: [], modified: [] },
+    blocks: {
+      added: [{ id: 'b-1', key: 'start', type: 'start_trigger' }],
+      removed: [],
+      renamed: [],
+      modified: [],
+    },
     edges: { added: 0, removed: 0 },
     variables: { added: [], removed: [], modified: [] },
   },

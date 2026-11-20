@@ -48,13 +48,17 @@ function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[]; notes?:
       diff: {
         noop: false,
         blocks: {
-          added: [{ id: 'b-1', key: 'start' }],
-          removed: [],
+          added: [{ id: 'b-1', key: 'start', type: 'start_trigger' }] as Array<{
+            id: string
+            key: string
+            type: string
+          }>,
+          removed: [] as Array<{ id: string; key: string; type: string }>,
           renamed: [],
           modified: [] as Array<{ id: string; key: string; fields: string[] }>,
         },
         edges: { added: 1, removed: 0 },
-        variables: { added: [], removed: [], modified: [] },
+        variables: { added: [] as string[], removed: [] as string[], modified: [] as string[] },
       },
       diagnostics: overrides.diagnostics ?? [],
       files: { 'workflow.ts': `${ENTRY}// stored\n` },
@@ -322,6 +326,26 @@ describe('sim workflows source apply', () => {
     expect(JSON.parse(printed)).toMatchObject({
       blocksModified: 1,
       modified: [{ block: 'eachticket', fields: ['subflow'] }],
+    })
+  })
+
+  it('names each added and removed block with its type in the result and the preview', async () => {
+    setTerminal(true)
+    const changed = outcome({ dryRun: true })
+    changed.data.diff.blocks.added = [{ id: 'b-3', key: 'bang', type: 'function' }]
+    changed.data.diff.blocks.removed = [{ id: 'b-2', key: 'boom', type: 'function' }]
+    request.mockResolvedValue(changed)
+    prompt.question.mockResolvedValue('n')
+
+    await apply(WORKFLOW_ID, '--dir', dir).catch(() => {})
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(stderrLines().some((line) => line.includes('Added: bang (function)'))).toBe(true)
+    expect(stderrLines().some((line) => line.includes('Removed: boom (function)'))).toBe(true)
+    const printed = vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? ''
+    expect(JSON.parse(printed)).toMatchObject({
+      added: [{ block: 'bang', type: 'function' }],
+      removed: [{ block: 'boom', type: 'function' }],
     })
   })
 

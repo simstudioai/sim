@@ -312,6 +312,25 @@ function listNames(names: readonly string[]): string {
  * could tie to the stored blocks (several alike, and none reads as the one renamed): the finding
  * names them and says how to keep the ids, instead of offering to delete.
  */
+/**
+ * Each removed block with the added block of the same type and parent it most probably became:
+ * one pair per removed block, in order, each added block used once.
+ */
+function probableRenames(
+  removed: readonly CanonicalBlock[],
+  added: readonly CanonicalBlock[]
+): Array<{ removed: CanonicalBlock; added: CanonicalBlock }> {
+  const free = [...added]
+  return removed.flatMap((block) => {
+    const index = free.findIndex(
+      (candidate) => candidate.type === block.type && candidate.parent === block.parent
+    )
+    if (index === -1) return []
+    const [match] = free.splice(index, 1)
+    return [{ removed: block, added: match }]
+  })
+}
+
 function blockDeleteRefusal(
   removed: readonly CanonicalBlock[],
   added: readonly CanonicalBlock[],
@@ -768,15 +787,22 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     }))
   )
   const removedKeys = isNew ? [] : canonicalDiff.blocks.removed
+  const removedBlocks = removedKeys.map((key) => storedCanonical.workflow.blocks[key])
+  const addedBlocks = canonicalDiff.blocks.added.map((key) => materialized.workflow.blocks[key])
   if (removedKeys.length > 0 && !input.allowDelete) {
-    sourceRefusals.push(
-      blockDeleteRefusal(
-        removedKeys.map((key) => storedCanonical.workflow.blocks[key]),
-        canonicalDiff.blocks.added.map((key) => materialized.workflow.blocks[key]),
-        metaSpan()
-      )
-    )
+    sourceRefusals.push(blockDeleteRefusal(removedBlocks, addedBlocks, metaSpan()))
   }
+  const renameWarnings = input.allowDelete
+    ? probableRenames(removedBlocks, addedBlocks).map(
+        ({ removed, added }): Diagnostic => ({
+          code: 'W_APPLY_PROBABLE_RENAME',
+          severity: 'warning',
+          message: `${removed.name} (${removed.type}) is deleted and ${added.name} (${added.type}) added: probably a rename, but its name and const both changed, so it gets a new id and loses its run history and webhook URL.`,
+          hint: `To keep the id, apply ${added.name} under the const or name ${removed.name} had first, then change the other.`,
+          blockKey: added.key,
+        })
+      )
+    : []
 
   const storedGraph: SourceGraph = { blocks: state.blocks, edges: state.edges }
   let blocks = materialized.state.blocks
@@ -804,6 +830,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   ])
   const refusals: Diagnostic[] = [
     ...sourceRefusals,
+    ...renameWarnings,
     ...findLockedBlockRefusals(storedGraph, { blocks, edges }, graphDiff, keyOf),
     ...findInvalidSchedules({ blocks, edges }, graphDiff, keyOf),
     ...gateDiagnostics,
@@ -891,8 +918,8 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       diagnostics,
       diff: summarizeDiff(
         canonicalDiff,
-        storedCanonical.identity,
-        materialized.identity,
+        storedCanonical,
+        { workflow: materialized.workflow, identity: materialized.identity },
         noop,
         metaChanged
       ),
