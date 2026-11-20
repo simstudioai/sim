@@ -308,9 +308,9 @@ function listNames(names: readonly string[]): string {
 
 /**
  * `E_APPLY_BLOCK_DELETE` for the stored blocks an apply removes. When the source adds blocks of
- * a removed block's type, they may be renames whose name and const both changed, which no rule
- * could tie to the stored blocks (several alike, and none reads as the one renamed): the finding
- * names them and says how to keep the ids, instead of offering to delete.
+ * a removed block's type, they may be renames whose name and const both changed with no identity
+ * signal tying them to the stored blocks (settings, connections or renamed references): the
+ * finding names them and says how to keep the ids, or to pass `--allow-delete` to replace them.
  */
 /**
  * Each removed block with the added block of the same type and parent it most probably became:
@@ -345,7 +345,7 @@ function blockDeleteRefusal(
     ...(lookalikes.length > 0
       ? {
           message: `${deletes} It adds ${listNames(lookalikes.map((block) => block.name))} of the same type: if those are the same blocks renamed, both their name and const changed, so nothing ties them to the stored blocks and they would get new ids.`,
-          hint: 'To rename a block and keep its id, change its name or its const in one apply and the other in the next (the lock binds a block by either); or declare the removed blocks again.',
+          hint: 'To rename a block and keep its id, keep its const name in this apply (change it in the next), or rename the references to it with it; to replace it with a new block, pass --allow-delete.',
         }
       : {
           message: deletes,

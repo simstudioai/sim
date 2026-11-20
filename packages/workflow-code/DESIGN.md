@@ -200,10 +200,14 @@ key-keyed lock; `mergeSourceMetaFromLock` stores a write's hints back by id.
 4. `inferred`: exactly one unmatched prev block and one unmatched compiled block with the same
    type and parent and agreeing edge neighbourhoods, so renaming the variable and the display
    name together keeps the id; failing that, a prev block the lock binds (the source dropped its
-   key and its ident) pairs with the one new block of its type and parent whatever its wiring,
-   or, when several were renamed at once, with the one new block whose params agree with it
-   (`W_MAT_INFERRED_RENAME`; to get a new block instead, delete the old one in one apply and add the new one in the next). Renames nothing ties
-   are refused as `E_APPLY_BLOCK_DELETE`, naming the look-alike new blocks and how to keep the ids;
+   key and its ident) pairs with a new block of its type and parent only when exactly one such
+   pair shows a strong identity signal: equal settings (references to the old key read as the
+   new), most bound neighbours shared, or every block that referenced the old key now referencing
+   the new one. A trigger (webhook paths, schedules) pairs only on equal settings, under either
+   rule (`W_MAT_INFERRED_RENAME`; to get a new block instead, delete the old one in one apply and
+   add the new one in the next). A delete and an add with no signal stay a delete, refused as
+   `E_APPLY_BLOCK_DELETE` (naming the look-alike new blocks and how to keep the ids) unless the
+   caller passes `allowDelete`;
 5. otherwise created: the lock's id when unclaimed, else minted (`idSource`).
 
 A match across types is a delete plus a create (`W_MAT_RETYPE_RECREATED`), except a catalog

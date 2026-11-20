@@ -38,7 +38,7 @@ import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/re
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer/dimensions'
@@ -2335,7 +2335,7 @@ describe('renames in source', () => {
   })
 
   check(
-    'renames nothing ties to the stored blocks are refused with how to keep the ids, not --allow-delete',
+    'renames nothing ties to the stored blocks are refused with how to keep the ids',
     async () => {
       const seeded = await seedChain()
       const source = await getSource(seeded.workflowId)
@@ -2347,6 +2347,11 @@ describe('renames in source', () => {
         files = edit(renameIdent(files, ident, newIdent), `fn('${name}'`, `fn('${newName}'`)
       }
       files = edit(edit(files, 'return 1', 'return 10'), 'return 2', 'return 20')
+      files = edit(
+        files,
+        '  start.to(bang)\n  bang.to(total)\n  total.to(report)',
+        '  start.to(report)\n  report.to(bang)\n  report.to(total)'
+      )
 
       const dryRun = await apply(source, files, { dryRun: true })
 
@@ -2354,7 +2359,9 @@ describe('renames in source', () => {
       expect(refusal?.message).toBe(
         'This apply deletes 2 blocks the source no longer declares: Boom, Tally. It adds Bang, Total of the same type: if those are the same blocks renamed, both their name and const changed, so nothing ties them to the stored blocks and they would get new ids.'
       )
-      expect(refusal?.hint).not.toContain('allow-delete')
+      expect(refusal?.hint).toBe(
+        'To rename a block and keep its id, keep its const name in this apply (change it in the next), or rename the references to it with it; to replace it with a new block, pass --allow-delete.'
+      )
 
       const allowed = await apply(source, files, { dryRun: true, allowDelete: true })
       expect(allowed.diff.blocks.removed.map(({ key, type }) => `${key} ${type}`)).toEqual([
@@ -2375,6 +2382,84 @@ describe('renames in source', () => {
       ])
     }
   )
+
+  check(
+    'an unrelated delete and add of one type is refused without --allow-delete, keeping no id',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      const files = omit<Record<string, string>, string>(
+        {
+          ...edit(
+            edit(
+              edit(
+                source.files,
+                "  const tally = fn('Tally', { language: null, code: codeFile('./functions/tally.js') })\n",
+                "  const fresh = fn('Fresh', { code: js`return 'unrelated'` })\n"
+              ),
+              '  boom.to(tally)\n  tally.to(report)',
+              '  boom.to(report)\n  start.to(fresh)'
+            ),
+            'import { codeFile, fn,',
+            'import { codeFile, fn, js,'
+          ),
+          'functions/report.js': 'return $ref.boom.result',
+        },
+        ['functions/tally.js']
+      )
+
+      const dryRun = await apply(source, files, { dryRun: true })
+
+      expect(codes(dryRun.diagnostics)).toContain('E_APPLY_BLOCK_DELETE')
+      expect(codes(dryRun.diagnostics)).not.toContain('W_MAT_INFERRED_RENAME')
+      const allowed = await apply(source, files, { allowDelete: true })
+      expect(allowed.diff.blocks.removed.map((block) => block.id)).toEqual([seeded.ids.tally])
+    }
+  )
+
+  check(
+    'a rename of name and const that rewires, changes its code and renames its references keeps its id',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      const renamed = edit(renameIdent(source.files, 'tally', 'total'), "fn('Tally'", "fn('Total'")
+      const files = {
+        ...edit(renamed, '  boom.to(total)\n', '  start.to(total)\n'),
+        'functions/tally.js': 'return 3',
+        'functions/report.js': 'return $ref.boom.result + $ref.total.result',
+      }
+
+      const result = await apply(source, files)
+
+      expect(result.applied).toBe(true)
+      expect(result.diff.blocks.removed).toEqual([])
+      expect(result.diff.blocks.renamed).toEqual([
+        { id: seeded.ids.tally, from: 'tally', to: 'total' },
+      ])
+      expect(result.diagnostics.find((d) => d.code === 'W_MAT_INFERRED_RENAME')?.message).toContain(
+        'the references to it renamed with it'
+      )
+    }
+  )
+
+  check('a trigger renamed in name and const with changed settings is refused', async () => {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    const files = edit(
+      edit(
+        source.files,
+        "const start = trigger.start('Start', {})",
+        "const begin = trigger.start('Begin', { inputFormat: { question: 'string' } })"
+      ),
+      '  start.to(boom)',
+      '  begin.to(boom)'
+    )
+
+    const dryRun = await apply(source, files, { dryRun: true })
+
+    expect(codes(dryRun.diagnostics)).toContain('E_APPLY_BLOCK_DELETE')
+    expect(codes(dryRun.diagnostics)).not.toContain('W_MAT_INFERRED_RENAME')
+  })
 
   check(
     'a $ref to a missing block in a function file is the same warning in check and dry run, at the file',
