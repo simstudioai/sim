@@ -301,6 +301,9 @@ describe('native computer use authority and lifecycle', () => {
 
     await service.execute('accepted', 'chat', update)
     expect(sent()).toBe(1)
+    expect(native.request.mock.lastCall?.[1]).toMatchObject({
+      expected: { title: 'Pay rent', due: '2027-05-04', priority: 0, completed: false },
+    })
   })
 
   it('refuses an app command when the user denies the app, before asking to confirm', async () => {

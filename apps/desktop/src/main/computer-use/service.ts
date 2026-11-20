@@ -93,7 +93,8 @@ type ReminderItem = NonNullable<
  * and each field's current and new value, since nothing happens on screen.
  */
 function updateSummary(command: ReminderUpdate, current: ReminderItem): string {
-  const priority = (value: number) => PRIORITY_NAMES[value] ?? 'None'
+  const priority = (value: number) =>
+    value === 0 ? 'None' : (PRIORITY_NAMES[value] ?? String(value))
   const changes: Array<[string, string | undefined, string]> = []
   const title = command.title?.trim()
   if (title !== undefined && title !== current.title) changes.push(['Title', current.title, title])
@@ -488,9 +489,11 @@ export class ComputerUseService {
       this.activity = { ...this.activity, appName }
       this.deps.onActivity(this.activity)
     }
+    const current =
+      command.name === 'update_reminder' ? await this.currentReminder(command.id, work) : undefined
     const summary =
-      command.name === 'update_reminder'
-        ? updateSummary(command, await this.currentReminder(command.id, work))
+      command.name === 'update_reminder' && current
+        ? updateSummary(command, current)
         : writeSummary(command, await this.destinationName(command, work))
     if (summary !== null) {
       const confirmed = await this.deps.confirmAppCommand(
@@ -506,14 +509,19 @@ export class ComputerUseService {
         })
     }
     this.check(work)
-    return await this.appCommand(command)
+    // The helper refuses the update if a field it changes no longer has the value the user approved.
+    return await this.appCommand(command, current && omit(current, ['id', 'list']))
   }
 
   /** Runs one app command in the helper and checks the reply is for that command. */
   private async appCommand(
-    command: AppCommand
+    command: AppCommand,
+    expected?: Omit<ReminderItem, 'id' | 'list'>
   ): Promise<Extract<ComputerUseResult, { kind: 'command' }>> {
-    const result = await this.deps.native.request('app_command', { command })
+    const result = await this.deps.native.request(
+      'app_command',
+      expected ? { command, expected } : { command }
+    )
     if (result.kind !== 'command' || result.command !== command.name)
       throw new Error('Computer Use returned a result for a different command.')
     return result
