@@ -339,8 +339,10 @@ jobs:
         working-directory: apps/sim
         run: PLAYWRIGHT_APT_CACHE="$HOME/.cache/playwright-apt" bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
 
+      # Packages installed fine even when the suite then fails, so both steps run unless cancelled.
       - name: Check for new browser system packages
         id: apt-cache
+        if: ${{ !cancelled() }}
         run: |
           if [ -f "$HOME/.cache/playwright-apt/.updated" ]; then
             rm "$HOME/.cache/playwright-apt/.updated"
@@ -348,7 +350,7 @@ jobs:
           fi
 
       - name: Save browser system packages
-        if: steps.apt-cache.outputs.updated == 'true'
+        if: ${{ !cancelled() && steps.apt-cache.outputs.updated == 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cache/playwright-apt
