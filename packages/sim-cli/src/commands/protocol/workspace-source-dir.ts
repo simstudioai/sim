@@ -2,7 +2,7 @@
  * The workspace source directory `workspaces source get --dir` writes and `workspaces source
  * apply --dir` reads back: one folder per kind (`tables/`, `workflows/<key>/`, …), the base in
  * `.sim/base.json`, and the SDK declarations once at the root. Path safety, staged writes and the
- * `.sim/written.json` record are the source directory's (`source-dir.ts`).
+ * `.sim/written.json` record are the source directory's (`source-dir/`).
  */
 import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
