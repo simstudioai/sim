@@ -12,8 +12,8 @@ import {
   locallyEditedFiles,
   readPreviousLock,
   readSourceJson,
-  WORKSPACE_FOLDER_BUSY_HELP,
-  withWorkspaceFolderLock,
+  WORKFLOW_DIR_BUSY_HELP,
+  withSourceCommandLock,
 } from './source-dir'
 import { printTreeResult, withSourceExitCode } from './source-tree'
 import { findingsOutput } from './source-ui'
@@ -93,7 +93,7 @@ export function attachWorkflowSourceGet(source: Command): void {
     "With --dir: replace another workflow's source or edits no apply has saved"
   )
   absoluteDirOption(get)
-  get.addHelpText('after', `${GET_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}`)
+  get.addHelpText('after', `${GET_EXIT_CODES_HELP}${WORKFLOW_DIR_BUSY_HELP}`)
   get.action(async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
     const flags = command.optsWithGlobals() as Record<string, unknown>
     const dir = flags[DIR_FLAG]
@@ -105,7 +105,7 @@ export function attachWorkflowSourceGet(source: Command): void {
       }
       return
     }
-    await withWorkspaceFolderLock(dir, async () => {
+    await withSourceCommandLock(dir, async () => {
       const force = flags[FORCE_FLAG] === true
       await assertSourceDirKind(dir, 'workflow')
       if (!force) await assertSameWorkflow(dir, workflowId)

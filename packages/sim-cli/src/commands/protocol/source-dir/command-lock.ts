@@ -178,18 +178,24 @@ export async function withSourceDirLock<T>(
 }
 
 /**
- * Runs a single-workflow command on `dir` holding the command lock of the workspace directory it
- * is a workflow folder of, if any: such a command rewrites the workspace's own records (see
- * {@link writeBack}), so it must not interleave with a workspace command, or with another workflow
- * command in a sibling folder. Refused like a workspace command (`SOURCE_DIR_BUSY`, exit 10), with
- * nothing read or written.
+ * Runs a single-workflow command on `dir` holding the command lock it shares with every command
+ * that may rewrite the same records: for a workflow folder of a workspace directory, the workspace
+ * directory's lock (such a command rewrites the workspace's own records, see {@link writeBack}, so
+ * it must not interleave with a workspace command, or with a workflow command in a sibling
+ * folder); for any other directory, its own. Refused like a workspace command (`SOURCE_DIR_BUSY`,
+ * exit 10), with nothing read or written. `readOnly` as {@link withSourceDirLock} takes it.
  */
-export async function withWorkspaceFolderLock<T>(dir: string, run: () => Promise<T>): Promise<T> {
+export async function withSourceCommandLock<T>(
+  dir: string,
+  run: () => Promise<T>,
+  options: { readOnly?: boolean } = {}
+): Promise<T> {
   const folder = await workspaceFolderOf(dir)
-  return folder ? withSourceDirLock(folder.root, run) : run()
+  return withSourceDirLock(folder ? folder.root : dir, run, options)
 }
 
 /** The help line every single-workflow command that writes a directory adds to its exit codes. */
-export const WORKSPACE_FOLDER_BUSY_HELP = `
-Exit 10 (busy, retry): --dir is a workflow folder of a workspace directory another sim command is
-using (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.`
+export const WORKFLOW_DIR_BUSY_HELP = `
+Exit 10 (busy, retry): another sim command is using --dir, or the workspace directory it is a
+workflow folder of (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it
+finished.`

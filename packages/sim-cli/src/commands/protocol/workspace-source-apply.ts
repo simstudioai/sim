@@ -22,7 +22,6 @@ import {
 import { serverResourceChanges } from '@sim/workspace-code/status'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
-import { DEFERRED_INTERRUPT_BOUND_MS, deferInterrupts } from '#sim-cli/terminal/interrupts'
 import { setSoftExitCode } from '../../embed-context'
 import { SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
 import type {
@@ -54,17 +53,15 @@ import { SOURCE_WRITE_EXIT_CODES_HELP } from './source-exit-codes'
 import { destructiveChanges } from './source-status'
 import { cachedCatalog } from './source-tree'
 import {
-  confirm,
   createdText,
   findingsOutput,
-  planNext,
   printRefusal,
   refusedExitCode,
   shellWord,
-  stopAtPlan,
   verboseFlag,
   writeMode,
 } from './source-ui'
+import { type NextStep, runSourceWrite } from './source-write'
 import {
   removedWorkflowRecords,
   unrecordedFoldersWarning,
@@ -770,7 +767,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
           const notSent = notSentFindings(submission.ignored)
           findings.print(notSent)
           /** Prints `data` as the result, with the findings about files the CLI did not send. */
-          const report = (data: ApplyData, next?: { command: string; reason: string }) => {
+          const report = (data: ApplyData, next?: NextStep) => {
             const diagnostics = [...notSent, ...data.diagnostics]
             const result = { ...summarize({ ...data, diagnostics }), ...(next ? { next } : {}) }
             printProtocolResult(
@@ -779,53 +776,48 @@ export function attachWorkspaceSourceApply(source: Command): void {
               { created: createdText(result.created), ...(next ? { next: next.command } : {}) }
             )
           }
-          let preview: ApplyData | null = null
-          if (mode !== 'write') {
-            preview = reported(await send(submission, true))
-            printPlan(preview.plan, preview.diagnostics)
-            findings.print(preview.diagnostics)
-            const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
-            if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
-            if (mode === 'dry-run' || refusesApply(preview)) {
-              report(preview)
-              return
-            }
-            if (mode === 'plan') {
-              stopAtPlan()
-              report(preview, planNext(applyCommand(options)))
-              return
-            }
-            if (!(await confirm(`Apply these changes to workspace ${workspaceId}?`))) {
-              throw new SourceDirError('Nothing was applied.', { code: 'CANCELLED' })
-            }
-          }
-
-          // Without a preview, stage the blobs the base does not hold as they are.
-          await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
-          const data = await deferInterrupts(
-            async () => {
+          const data = await runSourceWrite<ApplyData>({
+            mode,
+            preview: async () => reported(await send(submission, true)),
+            show: (preview) => {
+              printPlan(preview.plan, preview.diagnostics)
+              findings.print(preview.diagnostics)
+            },
+            refuses: refusesApply,
+            // Without a preview, stage the blobs the base does not hold as they are.
+            beforeCommit: (preview) =>
+              stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission)),
+            commit: async () => {
               const answer = reported(await send(submission, false))
               findings.print(answer.diagnostics)
+              return answer
+            },
+            save: async (answer) => {
               // A promotion leaves the directory bound to the workspace it was read from, and
               // records what it left in the target for the next promotion to compare with.
               if (promotion) {
                 await savePromotion(options.dir, promotion.target, promotion, answer)
-              } else {
-                const workspaceCatalog = cachedCatalog(workspaceId)
-                const { records, unrecorded } = workspaceCatalog
-                  ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, answer.files)
-                  : { records: [], unrecorded: [] }
-                await saveApplied(options.dir, answer, submission, written, records)
-                const unrecordedWarning = unrecordedFoldersWarning(unrecorded)
-                if (unrecordedWarning) printError(unrecordedWarning)
+                return
               }
-              return answer
+              const workspaceCatalog = cachedCatalog(workspaceId)
+              const { records, unrecorded } = workspaceCatalog
+                ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, answer.files)
+                : { records: [], unrecorded: [] }
+              await saveApplied(options.dir, answer, submission, written, records)
+              const unrecordedWarning = unrecordedFoldersWarning(unrecorded)
+              if (unrecordedWarning) printError(unrecordedWarning)
             },
-            {
-              waiting: `Interrupted: the apply was already sent. Waiting up to ${DEFERRED_INTERRUPT_BOUND_MS / 1000}s for its answer and saving it into ${options.dir}, so the directory matches the workspace; press Ctrl-C again to stop now.`,
-              abandoned: `Stopped before the apply answered. ${answerLostHint(options.dir)}`,
-            }
-          )
+            report,
+            question: `Apply these changes to workspace ${workspaceId}?`,
+            command: applyCommand(options),
+            interrupt: {
+              verb: 'apply',
+              dir: options.dir,
+              noun: 'workspace',
+              ifAnswerLost: answerLostHint(options.dir),
+            },
+          })
+          if (!data) return
           if (data.failed) {
             printError('The apply stopped part-way; each planned change:')
             printPlan(data.plan, data.diagnostics, data)

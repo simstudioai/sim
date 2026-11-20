@@ -1060,6 +1060,27 @@ describe('sim workflows source apply in a workflow folder of a workspace directo
   })
 })
 
+describe('a standalone workflow directory', () => {
+  it('refuses a second apply while the first holds the directory, sending nothing', async () => {
+    setTerminal(false)
+    let second: unknown = null
+    request.mockResolvedValue(outcome())
+    request.mockImplementationOnce(async () => {
+      second = await apply('--dir', dir, '--yes').then(
+        () => null,
+        (error: unknown) => error
+      )
+      return outcome()
+    })
+
+    await apply('--dir', dir, '--yes')
+
+    expect(second).toMatchObject({ code: 'SOURCE_DIR_BUSY', exitCode: 10 })
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(existsSync(join(dir, '.sim/command.lock'))).toBe(false)
+  })
+})
+
 describe('the code files an apply sends', () => {
   function writeFunctions(...names: string[]) {
     mkdirSync(join(dir, 'functions'), { recursive: true })
