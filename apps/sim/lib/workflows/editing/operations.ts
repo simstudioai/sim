@@ -4,6 +4,7 @@ import { isNonEmptyValue } from '@sim/workflow-code/catalog/canonical-index'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { checkBlockPlacement } from '@/lib/workflows/editing/gates'
+import { rewriteBlockNameReferences } from '@/lib/workflows/references/block-rename'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
 import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
@@ -63,6 +64,22 @@ function refuseNestedPlacement(
   if (!refusal) return false
   logSkippedItem(ctx.skippedItems, refusal)
   return true
+}
+
+/**
+ * Renames a block and rewrites the `<name.` references every other block's sub-blocks hold to it,
+ * the same rewrite the editor's rename applies.
+ */
+function renameBlock(blocks: Record<string, BlockState>, blockId: string, name: string): void {
+  const nameMap = new Map([[normalizeName(blocks[blockId].name), normalizeName(name)]])
+  blocks[blockId].name = name
+  for (const [id, block] of Object.entries(blocks)) {
+    if (id === blockId) continue
+    for (const subBlock of Object.values(block.subBlocks ?? {})) {
+      if (subBlock.value === undefined || subBlock.value === null) continue
+      subBlock.value = rewriteBlockNameReferences(subBlock.value, nameMap) as typeof subBlock.value
+    }
+  }
 }
 
 /**
@@ -677,7 +694,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
           },
         })
       } else {
-        block.name = params.name
+        renameBlock(modifiedState.blocks, block_id, params.name)
       }
     }
   }
