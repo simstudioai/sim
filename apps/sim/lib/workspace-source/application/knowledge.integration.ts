@@ -517,6 +517,27 @@ describe('knowledge bases as workspace source', () => {
     }
   )
 
+  check(
+    'a chunking change counts only the stored documents that keep their chunks, not the ones it replaces',
+    async () => {
+      const { workspaceId, read } = await setUp()
+
+      const planned = await apply(
+        workspaceId,
+        {
+          files: {
+            [POLICIES_FILE]: declaration('Policies', '\n  chunking: { maxSize: 512 },'),
+          },
+          docs: { ...POLICIES.docs, [REFUNDS]: Buffer.from('# Refunds\nWithin 60 days.\n') },
+        },
+        { base: read.base, dryRun: true, carry: 'none' }
+      )
+
+      const chunking = planned.diagnostics.find((finding) => finding.code === 'I_KB_CHUNKING')
+      expect(chunking?.message).toContain('1 stored document(s) keep their chunks')
+    }
+  )
+
   check('a get reproduces the apply, and re-applying it changes nothing', async () => {
     const workspaceId = await newWorkspace()
     const created = await apply(workspaceId, POLICIES)
@@ -1024,6 +1045,38 @@ describe('knowledge bases as workspace source', () => {
         carry: 'none',
       })
       expect(actions(settled)).toEqual(['noop knowledge-base:policies'])
+    }
+  )
+
+  check(
+    'a chunking change counts the replacement a stopped replace left among the documents keeping their chunks',
+    async () => {
+      const { workspaceId, read, dir } = await setUp()
+      const edited = withDoc(dir, REFUNDS, '# Refunds\nWithin 60 days.\n')
+      const failing = vi
+        .spyOn(deleteKnowledgeDocument, 'execute')
+        .mockRejectedValueOnce(new Error('storage unavailable'))
+        .mockRejectedValueOnce(new Error('storage unavailable'))
+      const first = await apply(workspaceId, edited, { base: read.base }).finally(() =>
+        failing.mockRestore()
+      )
+      expect(first.failed).toMatchObject({ key: 'policies' })
+
+      const planned = await apply(
+        workspaceId,
+        {
+          ...edited,
+          files: {
+            ...edited.files,
+            [POLICIES_FILE]: declaration('Policies', '\n  chunking: { maxSize: 512 },'),
+          },
+        },
+        { base: first.base, dryRun: true, carry: 'none' }
+      )
+
+      // The finished replacement and shipping.txt keep their chunks; the replaced refunds.md goes.
+      const chunking = planned.diagnostics.find((finding) => finding.code === 'I_KB_CHUNKING')
+      expect(chunking?.message).toContain('2 stored document(s) keep their chunks')
     }
   )
 

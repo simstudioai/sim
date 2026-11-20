@@ -18,9 +18,10 @@ import { fingerprintOf } from '@sim/workspace-code'
 import { knowledgeCodec } from '@sim/workspace-code/kinds/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
-import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
 import { runWorkflowSourceCheck, runWorkspaceSource } from '../../test/workspace-source-command'
 import { blobBytes, blobDigests } from './workspace-source-blobs'
+import { kindFolders } from './workspace-source-dir'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 
@@ -89,7 +90,11 @@ beforeEach(() => {
   contextMockState.workspaceSource = 'config'
   request.mockReset()
   requestRaw.mockReset()
-  contextMockFns.mockProfileFrom.mockReturnValue({ workspaceId: 'ws_local', output: 'json' })
+  contextMockFns.mockProfileFrom.mockReturnValue({
+    ...mockedProfile(),
+    workspaceId: 'ws_local',
+    output: 'json',
+  })
   rootDir = mkdtempSync(join(tmpdir(), 'sim-workspace-get-'))
   dir = join(rootDir, 'out')
   vi.stubEnv('SIM_CONFIG_DIR', join(rootDir, 'config'))
@@ -122,6 +127,40 @@ describe('workspaces source get', () => {
 
     await get('--force')
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// server\n`)
+  })
+
+  it('keeps the seed rows file of a table the answer declares seed rows for, which no read prints', async () => {
+    const seeded = (name: string) =>
+      `// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\n\nexport default defineTable({ name: '${name}', columns: { code: column.string() }, rows: { mode: 'seed' } })\n`
+    const rows = '{"code":"a"}\n'
+    serve({
+      'tables/leads.ts': seeded('leads'),
+      'tables/leads.rows.jsonl': rows,
+      'tables/accounts.ts': seeded('accounts'),
+      'tables/accounts.rows.jsonl': rows,
+    })
+    await get()
+
+    serve({ 'tables/leads.ts': seeded('leads'), 'tables/accounts.ts': ACCOUNTS })
+    await get()
+
+    expect(readFileSync(join(dir, 'tables/leads.rows.jsonl'), 'utf8')).toBe(rows)
+    expect(existsSync(join(dir, 'tables/accounts.rows.jsonl'))).toBe(false)
+  })
+
+  it('writes the workspace primer atop the guide, and the deep dives to the advanced guide it names', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+
+    await get()
+
+    const agents = readFileSync(join(dir, '.sim/AGENTS.md'), 'utf8')
+    expect(agents.startsWith('# Sim workspace source: primer')).toBe(true)
+    expect(agents).toContain('`.sim/GUIDE-advanced.md`')
+    expect(agents).not.toContain('## Git and CI')
+    const advanced = readFileSync(join(dir, '.sim/GUIDE-advanced.md'), 'utf8')
+    for (const section of ['## Deletes', '## Git and CI', '## Promote to another workspace']) {
+      expect(advanced).toContain(section)
+    }
   })
 
   it('refuses to restore a file deleted since the CLI wrote it, a pending delete', async () => {
@@ -649,7 +688,7 @@ describe('workspaces source get', () => {
       '---\nname: fresh\ndescription: New\n---\nAdded after the get.\n'
     )
     expect(typecheck(uses('fresh'))).toContain('"fresh"')
-    contextMockFns.mockProfileFrom.mockReturnValue({ output: 'json' })
+    contextMockFns.mockProfileFrom.mockReturnValue({ ...mockedProfile(), output: 'json' })
     request.mockClear()
     await runWorkspaceSource('check', dir)
     expect(request).not.toHaveBeenCalled()
@@ -895,5 +934,144 @@ describe('workspaces source get', () => {
     writeFileSync(join(dir, '.sim/base.json'), JSON.stringify({ ...extended, later: true }))
     await expect(get()).rejects.toMatchObject({ code: 'SOURCE_OTHER_WORKSPACE' })
     expect(request).not.toHaveBeenCalled()
+  })
+})
+
+/** Block types the workspace catalog withholds while a stored workflow holds them. */
+const WITHHELD_TYPES = new Set(['table_v2', 'knowledge'])
+
+/** {@link CATALOG} as the workspace catalog of a caller it withholds {@link WITHHELD_TYPES} from. */
+const WORKSPACE_CATALOG = {
+  ...CATALOG,
+  hash: 'workspace-catalog',
+  blocks: Object.fromEntries(
+    Object.entries(CATALOG.blocks).filter(([type]) => !WITHHELD_TYPES.has(type))
+  ),
+  builders: Object.fromEntries(
+    Object.entries(CATALOG.builders as Record<string, { type: string }>).filter(
+      ([, builder]) => !WITHHELD_TYPES.has(builder.type)
+    )
+  ),
+}
+
+const ROUTER = `// @sim-sdk 1
+import { condition, js, knowledge, knowledgeBase, table, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Router', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { subject: 'string', priority: 'string' } })
+  const isUrgent = condition('Is Urgent', { if: js\`\${start.priority} === 'high'\`, else: true })
+  const policy = knowledge.search('Policy', {
+    knowledgeBaseId: knowledgeBase('policies'),
+    query: start.subject,
+  })
+  const logTicket = table.insertRow('Log Ticket', {
+    tableId: table('tickets'),
+    data: { subject: start.subject },
+  })
+
+  start.to(isUrgent)
+  isUrgent.if.to(policy)
+  isUrgent.else.to(logTicket)
+})
+`
+
+/** A stored cycle between A and B, every block bound by the lock. */
+const CYCLE = `// @sim-sdk 1
+import { api, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Cycle', {}, () => {
+  const start = trigger.start('Start', {})
+  const a = api('A', { url: 'https://example.com', method: 'GET' })
+  const b = api('B', { url: 'https://example.com', method: 'GET' })
+  const c = api('C', { url: 'https://example.com', method: 'GET' })
+
+  start.to(a)
+  a.to(b)
+  b.to(a)
+  b.to(c)
+})
+`
+
+function lockOf(keys: readonly string[]): string {
+  return JSON.stringify({
+    version: 1,
+    blocks: Object.fromEntries(
+      keys.map((key, order) => [key, { id: `id-${key}`, parent: null, ident: key, order }])
+    ),
+    variables: {},
+  })
+}
+
+/**
+ * A workspace answer holding workflow `key` (`source`, bound by a lock on `keys`) printed with
+ * the catalog of hash `catalogHash`; the catalog route answers the full catalog for a workflow and
+ * the withholding one for the workspace.
+ */
+function serveWorkflow(key: string, source: string, keys: readonly string[], catalogHash: string) {
+  const files = {
+    [`workflows/${key}/workflow.ts`]: source,
+    [`workflows/${key}/.sim/lock.json`]: lockOf(keys),
+    [`workflows/${key}/.sim/base.json`]: JSON.stringify({
+      version: 1,
+      workflowId: `wf-${key}`,
+      workspaceId: 'ws_local',
+      fingerprint: `sf1:${key}`,
+      catalogHash,
+    }),
+  }
+  serve(files, {
+    kinds: ['workflow'],
+    resources: { [`workflow:${key}`]: { id: `wf-${key}`, fingerprint: `rf1:${key}` } },
+  })
+  const answer = request.getMockImplementation()
+  request.mockImplementation(
+    async (path: string, options?: { query?: { workflowId?: string } }) => {
+      if (path !== CATALOG_PATH) return answer?.(path, options)
+      return { data: options?.query?.workflowId ? CATALOG : WORKSPACE_CATALOG }
+    }
+  )
+}
+
+function checked(): { errors: number; diagnostics: Array<{ code: string }> } {
+  return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+}
+
+describe('workspaces source check after a get', () => {
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  it('checks a workflow holding a type the workspace catalog withholds against its own catalog', async () => {
+    serveWorkflow('router', ROUTER, ['start', 'isurgent', 'policy', 'logticket'], CATALOG.hash)
+    await get()
+
+    await runWorkspaceSource('check', dir)
+
+    expect(checked()).toMatchObject({ errors: 0, diagnostics: [] })
+    expect(existsSync(join(dir, 'workflows/router/.sim/stored-edges.json'))).toBe(true)
+    expect((await kindFolders(dir, ['workflow'])).ignored).toEqual([])
+    expect(
+      request.mock.calls.filter(
+        ([path, options]) => path === CATALOG_PATH && options?.query?.workflowId === 'wf-router'
+      )
+    ).toHaveLength(1)
+  })
+
+  it('refuses a cycle an edit closes between bound blocks of a workflow folder', async () => {
+    serveWorkflow('cycle', CYCLE, ['start', 'a', 'b', 'c'], WORKSPACE_CATALOG.hash)
+    await get()
+    await runWorkspaceSource('check', dir, '--strict')
+    expect(checked().diagnostics.map(({ code }) => code)).toEqual(['W_EDGE_CYCLE'])
+    expect(process.exitCode).toBeUndefined()
+    const entry = join(dir, 'workflows/cycle/workflow.ts')
+    writeFileSync(
+      entry,
+      readFileSync(entry, 'utf8').replace('  b.to(c)\n', '  b.to(c)\n  c.to(b)\n')
+    )
+
+    await runWorkspaceSource('check', dir, '--strict')
+
+    expect(checked().diagnostics.map(({ code }) => code)).toEqual(['E_EDGE_CYCLE'])
+    expect(process.exitCode).toBe(1)
   })
 })

@@ -166,7 +166,10 @@ export async function hashDocs(
   return [...left, ...failed]
 }
 
-/** The info line a change gets for the documents it indexes, and for chunking it changes. */
+/**
+ * The info line a change gets for the documents it indexes, and for chunking it changes:
+ * `storedDocs` counts the stored documents that keep their chunks (neither replaced nor deleted).
+ */
 export function indexingFindings(
   key: string,
   uploads: readonly DocUpload[],
@@ -355,6 +358,16 @@ export async function diffKnowledgeBase(input: {
       )
     }
   }
-  changes.diagnostics.push(...indexingFindings(key, changes.uploads, chunkingChanged, byName.size))
+  const reindexed = new Set([
+    ...changes.uploads.flatMap((upload) => (upload.replaces ? [upload.replaces.id] : [])),
+    ...changes.finishes.map((finish) => finish.replaces.id),
+    ...changes.deletes.map((doc) => doc.id),
+  ])
+  // A finished replacement is already stored and indexed, so it keeps its chunks too.
+  const keepingChunks =
+    [...byName.values()].filter((doc) => !reindexed.has(doc.id)).length + changes.finishes.length
+  changes.diagnostics.push(
+    ...indexingFindings(key, changes.uploads, chunkingChanged, keepingChunks)
+  )
   return changes
 }

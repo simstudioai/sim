@@ -47,6 +47,7 @@ import {
 } from '../model'
 import { getOwn, setOwn } from '../records'
 import { isTemplateTag, SDK_RESOURCE_CALLS, type SdkCoreExport, TEMPLATE_TAGS } from '../sdk'
+import { inputFormatFields } from '../start-inputs'
 import {
   type BlockDecl,
   type CompileContext,
@@ -700,8 +701,12 @@ function checkOutputPath(
     return
   }
   const block = catalogBlockOf(target)
-  if (block?.dynamicOutputs?.source === 'responseFormat') {
-    ctx.responseFormatRefs.push({ at, target, segments, blockKey })
+  const dynamicSource = block?.dynamicOutputs?.source
+  if (
+    dynamicSource === 'responseFormat' ||
+    (dynamicSource === 'inputFormat' && block && DECLARED_INPUT_TRIGGERS.has(block.type))
+  ) {
+    ctx.dynamicOutputRefs.push({ at, target, segments, blockKey })
     return
   }
   // Table rows only refine the element type of `rows`/`row`; the outputs themselves are static.
@@ -750,23 +755,59 @@ export function checkErrorOutputRefs(ctx: CompileContext, erroring: ReadonlySet<
 }
 
 /**
- * Checks each reference into a block whose outputs a `responseFormat` param declares, once every
- * block is compiled: the first path segment must be a field the format declares or one of the
- * block's static outputs (`W_UNKNOWN_OUTPUT_PATH` otherwise). A format the compiler cannot read
- * (not JSON, or holding references) leaves every path allowed; an absent one leaves the static
- * outputs.
+ * The input triggers whose outputs are exactly their declared inputs plus static outputs, as the
+ * editor's tag picker lists them (`getEffectiveBlockOutputs`). The legacy starter's outputs
+ * depend on its mode, so it is left out.
  */
-export function checkResponseFormatRefs(
+const DECLARED_INPUT_TRIGGERS: ReadonlySet<string> = new Set([
+  'start_trigger',
+  'api_trigger',
+  'input_trigger',
+])
+
+/** The unified Start's run-metadata output, present while its `runMetadata` switch is on. */
+const START_RUN_METADATA = 'metadata'
+
+/**
+ * The output fields a block's dynamic-outputs param declares: an agent's `responseFormat` fields,
+ * or an input trigger's `inputFormat` inputs (plus the unified Start's `metadata` while run
+ * metadata is on). `null` when the param cannot be read statically.
+ */
+function declaredOutputFields(
+  source: 'responseFormat' | 'inputFormat',
+  compiled: CanonicalBlock,
+  param: string
+): string[] | null {
+  if (source === 'responseFormat') return responseFormatFields(getOwn(compiled.params, param))
+  const inputs = inputFormatFields(getOwn(compiled.params, param))
+  if (inputs === null) return null
+  const names = inputs.map((input) => input.name)
+  const metadata = getOwn(compiled.params, 'runMetadata')
+  return metadata?.kind === 'value' && metadata.value === true
+    ? [...names, START_RUN_METADATA]
+    : names
+}
+
+/**
+ * Checks each reference into a block whose outputs a param declares (an agent's
+ * `responseFormat`, an input trigger's `inputFormat`), once every block is compiled: the first
+ * path segment must be a declared field or one of the block's static outputs
+ * (`W_UNKNOWN_OUTPUT_PATH` otherwise). A warning, as for any unknown output path: a caller may
+ * still pass an undeclared input, which the unified Start passes through. A param the compiler
+ * cannot read (not JSON, or holding references) leaves every path allowed; an absent one leaves
+ * the static outputs.
+ */
+export function checkDynamicOutputRefs(
   ctx: CompileContext,
   blockOf: (key: BlockKey) => CanonicalBlock | undefined
 ): void {
-  for (const { at, target, segments, blockKey } of ctx.responseFormatRefs) {
+  for (const { at, target, segments, blockKey } of ctx.dynamicOutputRefs) {
     const block = catalogBlockOf(target)
     const compiled = blockOf(target.key)
     const dynamic = block?.dynamicOutputs
     if (!block || !compiled || !dynamic) continue
-    const param = getOwn(compiled.params, dynamic.param)
-    const fields = responseFormatFields(param)
+    if (dynamic.source !== 'responseFormat' && dynamic.source !== 'inputFormat') continue
+    const fields = declaredOutputFields(dynamic.source, compiled, dynamic.param)
     const [first] = segments
     if (fields === null || first?.kind !== 'name' || fields.includes(first.name)) continue
     const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
@@ -777,11 +818,28 @@ export function checkResponseFormatRefs(
       continue
     }
     const known = [...fields, ...Object.keys(outputs)]
+    const path = formatStoredPath(segments)
+    if (dynamic.source === 'inputFormat') {
+      ctx.reporter.report(
+        'W_UNKNOWN_OUTPUT_PATH',
+        fields.length > 0
+          ? `${target.name} declares no input ${first.name}: its inputFormat declares ${fields.join(', ')}.`
+          : `${target.name} declares no input ${first.name}: its inputFormat declares none.`,
+        at,
+        {
+          hint: () =>
+            didYouMean(first.name, known) ??
+            `Add ${first.name} to ${target.ident ?? target.name}'s inputFormat, or reference an input it declares.`,
+          blockKey,
+        }
+      )
+      continue
+    }
     ctx.reporter.report(
       'W_UNKNOWN_OUTPUT_PATH',
       fields.length > 0
-        ? `${target.name} has no output ${formatStoredPath(segments)}: its responseFormat declares ${fields.join(', ')}.`
-        : `${target.name} has no output ${formatStoredPath(segments)}, and declares no responseFormat field of that name.`,
+        ? `${target.name} has no output ${path}: its responseFormat declares ${fields.join(', ')}.`
+        : `${target.name} has no output ${path}, and declares no responseFormat field of that name.`,
       at,
       {
         hint: () =>
@@ -799,9 +857,14 @@ export function checkResponseFormatRefs(
  * that names no block (a block's ident, a renamed block's old key, a typo) or a variable that does
  * not exist is `W_UNRESOLVED_REF`, and a path no output has is `W_UNKNOWN_OUTPUT_PATH`. Warnings,
  * not errors, because stored code may already hold a dangling reference and must round-trip; at
- * run time such a token is spliced into the code as text, which fails as JavaScript.
+ * run time such a token is spliced into the code as text, which fails as JavaScript. A head that
+ * is the stored key of a block the source renamed (`renamed`, stored key → source key) resolves:
+ * an apply rewrites it to the new key, so its path is checked against the renamed block.
  */
-export function checkCodeFileRefs(ctx: CompileContext): void {
+export function checkCodeFileRefs(
+  ctx: CompileContext,
+  renamed: ReadonlyMap<BlockKey, BlockKey>
+): void {
   for (const { path, blockKey, refs } of ctx.codeFiles.chains) {
     for (const ref of refs) {
       const at: Range = { file: path, start: ref.start, end: ref.end }
@@ -829,7 +892,10 @@ export function checkCodeFileRefs(ctx: CompileContext): void {
         continue
       }
       if (isReservedWorkflowBlockName(head.name)) continue
-      const target = ctx.declsByKey.get(head.name)
+      const renamedTo = renamed.get(head.name)
+      const target =
+        ctx.declsByKey.get(head.name) ??
+        (renamedTo === undefined ? undefined : ctx.declsByKey.get(renamedTo))
       if (target) {
         checkOutputPath(ctx, at, target, rest, blockKey)
         continue

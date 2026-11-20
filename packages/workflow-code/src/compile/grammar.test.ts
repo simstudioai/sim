@@ -1062,6 +1062,48 @@ describe('errors, each with its code, location and hint', () => {
     ])
   })
 
+  it('resolves a code file $ref to the stored key of a block the source renamed', () => {
+    const text = source(
+      [
+        START,
+        "const lookup = api('Fetch Page', { url: 'x' })",
+        "const f = fn('F', { code: codeFile('./fns/f.js') })",
+      ].join('\n')
+    )
+    const files = { 'workflows/fns/f.js': 'return $ref.lookup.data + $ref.lookup.nope' }
+    const lockBlock = (id: string, ident: string, order: number) => ({
+      id,
+      parent: null,
+      ident,
+      order,
+    })
+    const storedUnread = {
+      version: 1 as const,
+      blocks: {
+        start: lockBlock('b-start', 'start', 0),
+        lookup: lockBlock('b-lookup', 'lookup', 1),
+        f: lockBlock('b-f', 'f', 2),
+      },
+      variables: {},
+    }
+    const compile = (input: Partial<Parameters<typeof compileWorkflow>[0]>) =>
+      compileWorkflow({
+        entry: { path: ENTRY, text },
+        files: new Map(Object.entries(files)),
+        catalog: TEST_CATALOG,
+        sdkMajor: 1,
+        ...input,
+      })
+    const codes = (result: CompileResult) =>
+      result.diagnostics
+        .filter((d) => d.span.file === 'workflows/fns/f.js')
+        .map((d) => `${d.code} ${d.span.column}`)
+    const expected = ['W_UNKNOWN_OUTPUT_PATH 27']
+    expect(codes(compile({ storedUnread }))).toEqual(expected)
+    expect(codes(compile({ renamedKeys: new Map([['lookup', 'fetchpage']]) }))).toEqual(expected)
+    expect(codes(compile({}))).toEqual(['W_UNRESOLVED_REF 8', 'W_UNRESOLVED_REF 27'])
+  })
+
   it('reports a syntax error inside a code file at its own location', () => {
     const result = run(source("const f = fn('F', { code: codeFile('./fns/bad.js') })"), {
       'workflows/fns/bad.js': 'return (',

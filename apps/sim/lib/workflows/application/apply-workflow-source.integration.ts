@@ -38,7 +38,7 @@ import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/re
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer/dimensions'
@@ -172,6 +172,14 @@ function apply(
       },
     })
   )
+}
+
+/** The 1-based line and column where `needle` first starts in `text`. */
+function positionOf(text: string, needle: string): { line: number; column: number } {
+  const index = text.indexOf(needle)
+  expect(index, `the text holds "${needle}"`).toBeGreaterThanOrEqual(0)
+  const before = text.slice(0, index)
+  return { line: before.split('\n').length, column: index - before.lastIndexOf('\n') }
 }
 
 /** Replaces the one occurrence of `from` across the source files. */
@@ -1605,7 +1613,7 @@ describe('source apply edge cases', () => {
   )
 
   check(
-    'a workflow renamed in source to a name its folder holds is refused at the header',
+    'a workflow renamed in source to a name its folder holds is refused at the name',
     async () => {
       const seeded = await seedWorkflow()
       const other = await seedWorkflow()
@@ -1614,13 +1622,11 @@ describe('source apply edge cases', () => {
       const taken = await storedName(other.workflowId)
       const before = await snapshot(seeded.workflowId)
 
-      const error = await expectRejected(
-        apply(source, edit(source.files, `'${name}'`, `'${taken}'`)),
-        'E_NAME_TAKEN'
-      )
+      const files = edit(source.files, `'${name}'`, `'${taken}'`)
+      const error = await expectRejected(apply(source, files), 'E_NAME_TAKEN')
       expect(error.diagnostics.find((d) => d.code === 'E_NAME_TAKEN')).toMatchObject({
         file: 'workflow.ts',
-        line: expect.any(Number),
+        ...positionOf(files['workflow.ts'], `'${taken}'`),
       })
       expect(await storedName(seeded.workflowId)).toBe(name)
       expect(await snapshot(seeded.workflowId)).toEqual(before)
@@ -1789,9 +1795,11 @@ export default workflow('', {}, () => {
       }
 
       const error = await expectRejected(apply(source, emptied), 'E_APPLY_BLOCK_DELETE')
-      expect(error.diagnostics.find((d) => d.code === 'E_APPLY_BLOCK_DELETE')?.message).toBe(
-        'This apply deletes 2 blocks the source no longer declares: Start, Score.'
-      )
+      expect(error.diagnostics.find((d) => d.code === 'E_APPLY_BLOCK_DELETE')).toMatchObject({
+        message: 'This apply deletes 2 blocks the source no longer declares: Start, Score.',
+        file: 'workflow.ts',
+        ...positionOf(emptied['workflow.ts'], "'Source apply edge"),
+      })
       expect(await snapshot(workflowId)).toEqual(before)
 
       const dryRun = await apply(source, emptied, { dryRun: true })
@@ -1971,7 +1979,11 @@ export default workflow('', {}, () => {
     expect(result.dryRun).toBe(true)
     expect(result.applied).toBe(false)
     expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ code: 'E_APPLY_STALE', severity: 'error' })
+      expect.objectContaining({
+        code: 'E_APPLY_STALE',
+        severity: 'error',
+        message: `Workflow "Source apply ${seeded.workflowId}" changed since this source was read. Get the source again, reapply your edit and retry.`,
+      })
     )
     expect(result.base.fingerprint).toBe(source.base.fingerprint)
     expect(await snapshot(seeded.workflowId)).toEqual(before)
@@ -2198,4 +2210,269 @@ export default workflow('', {}, () => {
     expect(error.code).toBe('payload_too_large')
     expect(await snapshot(seeded.workflowId)).toEqual(before)
   })
+})
+
+describe('renames in source', () => {
+  /** Start → Boom → Tally → Report, each a function; Report's code reads Boom and Tally by $ref. */
+  async function seedChain() {
+    const workflowId = generateId()
+    const now = new Date()
+    await db.insert(workflow).values({
+      id: workflowId,
+      userId: ownerId,
+      workspaceId,
+      name: `Source renames ${workflowId}`,
+      lastSynced: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const fn = (name: string, code: string): BlockState => ({
+      id: generateId(),
+      type: 'function',
+      name,
+      position: { x: 0, y: 0 },
+      subBlocks: { code: { id: 'code', type: 'code', value: code } },
+      outputs: {},
+      enabled: true,
+    })
+    const start: BlockState = { ...fn('Start', ''), type: 'start_trigger', subBlocks: {} }
+    const boom = fn('Boom', 'return 1')
+    const tally = fn('Tally', 'return 2')
+    const report = fn('Report', 'return <boom.result> + <tally.result>')
+    const chain = [start, boom, tally, report]
+    const saved = await saveWorkflowToNormalizedTables(workflowId, {
+      blocks: Object.fromEntries(chain.map((block) => [block.id, block])),
+      edges: chain.slice(1).map((block, index) => ({
+        id: generateId(),
+        source: chain[index].id,
+        target: block.id,
+      })),
+      loops: {},
+      parallels: {},
+    })
+    if (!saved.success) throw new Error(`Seeding the workflow failed: ${saved.error}`)
+    return { workflowId, ids: { boom: boom.id, tally: tally.id, report: report.id } }
+  }
+
+  const codes = (diagnostics: ReadonlyArray<{ code: string }>) => diagnostics.map((d) => d.code)
+
+  /** Replaces every whole-word `from` in `workflow.ts`. */
+  function renameIdent(files: Record<string, string>, from: string, to: string) {
+    return {
+      ...files,
+      'workflow.ts': files['workflow.ts'].replace(new RegExp(`\\b${from}\\b(?!\\.js)`, 'g'), to),
+    }
+  }
+
+  check('two display-name renames in one save keep both ids and resolve their $refs', async () => {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    const files = edit(edit(source.files, "fn('Boom'", "fn('Bang'"), "fn('Tally'", "fn('Total'")
+
+    const dryRun = await apply(source, files, { dryRun: true })
+    expect(codes(dryRun.diagnostics)).toEqual([])
+    const result = await apply(source, files)
+
+    expect(result.applied).toBe(true)
+    expect(result.diff.blocks.removed).toEqual([])
+    expect(result.diff.blocks.renamed).toEqual([
+      { id: seeded.ids.boom, from: 'boom', to: 'bang' },
+      { id: seeded.ids.tally, from: 'tally', to: 'total' },
+    ])
+    const after = await snapshot(seeded.workflowId)
+    expect(after.state?.blocks[seeded.ids.report]?.subBlocks.code?.value).toBe(
+      'return <bang.result> + <total.result>'
+    )
+    expect(result.files['functions/report.js']).toBe('return $ref.bang.result + $ref.total.result')
+  })
+
+  check(
+    'a block whose name and const both change while its wiring changes keeps its id',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      const files = edit(
+        edit(renameIdent(source.files, 'boom', 'bang'), "fn('Boom'", "fn('Bang'"),
+        '  tally.to(report)',
+        '  tally.to(report)\n  bang.to(report)'
+      )
+
+      const result = await apply(source, files)
+
+      expect(result.applied).toBe(true)
+      expect(result.diff.blocks.removed).toEqual([])
+      expect(result.diff.blocks.renamed).toEqual([
+        { id: seeded.ids.boom, from: 'boom', to: 'bang' },
+      ])
+      expect(codes(result.diagnostics)).toContain('W_MAT_INFERRED_RENAME')
+    }
+  )
+
+  check('three blocks of one type renamed name and const in one save keep their ids', async () => {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    let files = source.files
+    for (const [ident, name, newIdent, newName] of [
+      ['boom', 'Boom', 'bang', 'Bang'],
+      ['tally', 'Tally', 'total', 'Total'],
+      ['report', 'Report', 'summary', 'Summary'],
+    ]) {
+      files = edit(renameIdent(files, ident, newIdent), `fn('${name}'`, `fn('${newName}'`)
+    }
+
+    const result = await apply(source, files)
+
+    expect(result.applied).toBe(true)
+    expect(result.diff.blocks.removed).toEqual([])
+    expect(result.diff.blocks.renamed.map((r) => r.id).sort()).toEqual(
+      [seeded.ids.boom, seeded.ids.tally, seeded.ids.report].sort()
+    )
+    expect(codes(result.diagnostics)).not.toContain('W_UNRESOLVED_REF')
+    const after = await snapshot(seeded.workflowId)
+    expect(after.state?.blocks[seeded.ids.report]?.subBlocks.code?.value).toBe(
+      'return <bang.result> + <total.result>'
+    )
+  })
+
+  check(
+    'renames nothing ties to the stored blocks are refused with how to keep the ids',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      let files = source.files
+      for (const [ident, name, newIdent, newName] of [
+        ['boom', 'Boom', 'bang', 'Bang'],
+        ['tally', 'Tally', 'total', 'Total'],
+      ]) {
+        files = edit(renameIdent(files, ident, newIdent), `fn('${name}'`, `fn('${newName}'`)
+      }
+      files = edit(edit(files, 'return 1', 'return 10'), 'return 2', 'return 20')
+      files = edit(
+        files,
+        '  start.to(bang)\n  bang.to(total)\n  total.to(report)',
+        '  start.to(report)\n  report.to(bang)\n  report.to(total)'
+      )
+
+      const dryRun = await apply(source, files, { dryRun: true })
+
+      const refusal = dryRun.diagnostics.find((d) => d.code === 'E_APPLY_BLOCK_DELETE')
+      expect(refusal?.message).toBe(
+        'This apply deletes 2 blocks the source no longer declares: Boom, Tally. It adds Bang, Total of the same type: if those are the same blocks renamed, both their name and const changed, so nothing ties them to the stored blocks and they would get new ids.'
+      )
+      expect(refusal?.hint).toBe(
+        'To rename a block and keep its id, keep its const name in this apply (change it in the next), or rename the references to it with it; to replace it with a new block, pass --allow-delete.'
+      )
+
+      const allowed = await apply(source, files, { dryRun: true, allowDelete: true })
+      expect(allowed.diff.blocks.removed.map(({ key, type }) => `${key} ${type}`)).toEqual([
+        'boom function',
+        'tally function',
+      ])
+      expect(allowed.diff.blocks.added.map(({ key, type }) => `${key} ${type}`)).toEqual([
+        'bang function',
+        'total function',
+      ])
+      expect(
+        allowed.diagnostics
+          .filter((d) => d.code === 'W_APPLY_PROBABLE_RENAME')
+          .map((d) => d.message)
+      ).toEqual([
+        'Boom (function) is deleted and Bang (function) added: probably a rename, but its name and const both changed, so it gets a new id and loses its run history and webhook URL.',
+        'Tally (function) is deleted and Total (function) added: probably a rename, but its name and const both changed, so it gets a new id and loses its run history and webhook URL.',
+      ])
+    }
+  )
+
+  check(
+    'an unrelated delete and add of one type is refused without --allow-delete, keeping no id',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      const files = omit<Record<string, string>, string>(
+        {
+          ...edit(
+            edit(
+              edit(
+                source.files,
+                "  const tally = fn('Tally', { language: null, code: codeFile('./functions/tally.js') })\n",
+                "  const fresh = fn('Fresh', { code: js`return 'unrelated'` })\n"
+              ),
+              '  boom.to(tally)\n  tally.to(report)',
+              '  boom.to(report)\n  start.to(fresh)'
+            ),
+            'import { codeFile, fn,',
+            'import { codeFile, fn, js,'
+          ),
+          'functions/report.js': 'return $ref.boom.result',
+        },
+        ['functions/tally.js']
+      )
+
+      const dryRun = await apply(source, files, { dryRun: true })
+
+      expect(codes(dryRun.diagnostics)).toContain('E_APPLY_BLOCK_DELETE')
+      expect(codes(dryRun.diagnostics)).not.toContain('W_MAT_INFERRED_RENAME')
+      const allowed = await apply(source, files, { allowDelete: true })
+      expect(allowed.diff.blocks.removed.map((block) => block.id)).toEqual([seeded.ids.tally])
+    }
+  )
+
+  check(
+    'a rename of name and const that rewires, changes its code and renames its references keeps its id',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      const renamed = edit(renameIdent(source.files, 'tally', 'total'), "fn('Tally'", "fn('Total'")
+      const files = {
+        ...edit(renamed, '  boom.to(total)\n', '  start.to(total)\n'),
+        'functions/tally.js': 'return 3',
+        'functions/report.js': 'return $ref.boom.result + $ref.total.result',
+      }
+
+      const result = await apply(source, files)
+
+      expect(result.applied).toBe(true)
+      expect(result.diff.blocks.removed).toEqual([])
+      expect(result.diff.blocks.renamed).toEqual([
+        { id: seeded.ids.tally, from: 'tally', to: 'total' },
+      ])
+      expect(result.diagnostics.find((d) => d.code === 'W_MAT_INFERRED_RENAME')?.message).toContain(
+        'the references to it renamed with it'
+      )
+    }
+  )
+
+  check('a trigger renamed in name and const with changed settings is refused', async () => {
+    const seeded = await seedChain()
+    const source = await getSource(seeded.workflowId)
+    const files = edit(
+      edit(
+        source.files,
+        "const start = trigger.start('Start', {})",
+        "const begin = trigger.start('Begin', { inputFormat: { question: 'string' } })"
+      ),
+      '  start.to(boom)',
+      '  begin.to(boom)'
+    )
+
+    const dryRun = await apply(source, files, { dryRun: true })
+
+    expect(codes(dryRun.diagnostics)).toContain('E_APPLY_BLOCK_DELETE')
+    expect(codes(dryRun.diagnostics)).not.toContain('W_MAT_INFERRED_RENAME')
+  })
+
+  check(
+    'a $ref to a missing block in a function file is the same warning in check and dry run, at the file',
+    async () => {
+      const seeded = await seedChain()
+      const source = await getSource(seeded.workflowId)
+      const files = { ...source.files, 'functions/boom.js': 'return $ref.nosuchblock.value\n' }
+
+      const dryRun = await apply(source, files, { dryRun: true })
+
+      expect(
+        dryRun.diagnostics.map((d) => ({ code: d.code, severity: d.severity, file: d.file }))
+      ).toEqual([{ code: 'W_UNRESOLVED_REF', severity: 'warning', file: 'functions/boom.js' }])
+    }
+  )
 })

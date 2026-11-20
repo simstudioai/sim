@@ -84,7 +84,9 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
   `E_UNSUPPORTED_SYNTAX`.
 - A pinned param (`operation`, or a builder's `fixed` entry) is `E_FIXED_PARAM`; the compiler adds
   pinned values.
-- A param not visible under the block's values is `W_FIELD_NOT_APPLICABLE`. A required field left
+- A param not visible under the block's values is `W_FIELD_NOT_APPLICABLE`, naming the value that
+  hides it: it never runs, so apply keeps the stored value (preserved state) and the written-back
+  source drops the line. A required field left
   empty (or `todo()`) is `W_REQUIRED_MISSING`. A value whose JSON type differs from the field's is
   `W_VALUE_KIND`; it is never coerced.
 
@@ -190,8 +192,9 @@ reordered tool never takes another tool's secret.
 - `blk.a.b` → `<key.a.b>`, `blk['x-y']` → `<key.x-y>`, `blk.items[0]` → `<key.items[0]>`,
   `blk.items['0']` → `<key.items.0>`. Paths are typed from the block's outputs; a path no output
   has is `W_UNKNOWN_OUTPUT_PATH`. For an agent with a `responseFormat`, its declared fields count
-  beside the static outputs (skipped when the format holds references); other dynamic outputs
-  skip the check.
+  beside the static outputs (skipped when the format holds references); for a Start, API or Input
+  trigger its declared `inputFormat` inputs do, so `start.nope`, or a reference to an input since
+  removed, warns at the reference; other dynamic outputs skip the check.
 - A ref to a block declared later is `W_FORWARD_REF`; it still resolves. A ref into a sibling
   subflow's child is `E_OUT_OF_SCOPE`. An unknown identifier is `E_UNKNOWN_IDENTIFIER` with a
   did-you-mean. Wiring resolves its identifiers the same way.
@@ -215,7 +218,9 @@ A JSON code field (subBlock type `code`: `responseFormat`, table row `data`, a r
 written as an object or array literal compiles to `JSON.stringify(value, null, 2)` text. Each bare
 reference is stored by its output type: quoted (`"<a.b>"`) when the catalog or the workflow types it
 `string`, bare (`<a.b>`) otherwise, because the executor splices a string raw and any other value as
-JSON. A reference nothing types is stored bare with `W_JSON_REF_UNTYPED`. A template is a JSON
+JSON. A reference nothing types is stored bare with `W_JSON_REF_UNTYPED`, which is not raised for a
+Function `result` field its JavaScript returns as a non-string literal (`return { total: a + b }`),
+nor, against a stored workflow, for a field the source left as stored. A template is a JSON
 string, which is how a value becomes text on purpose. A resource (`table('x')`, `credential()`,
 `file()`) or `raw(node)` is not data, so inside the literal it is `E_UNSUPPORTED_SYNTAX`. The printer writes a field's text back as the
 literal only when serializing that literal gives the same bytes; otherwise the text prints as a
@@ -415,7 +420,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_UNKNOWN_BUILDER` | A builder path the catalog does not have, a bare builder-shaped call (`apii('Name', …)`) nothing binds, or a namespace the SDK lacks or the file did not import; `hint` names the builder a common other name stands for (`http.request` → `api`), then prefers a synonymous verb (`postMessage` → `sendMessage`), then the closest path, then the namespace's builders. |
 | `E_UNKNOWN_PARAM` | A param the block does not have; the hint has a did-you-mean. |
 | `E_FIXED_PARAM` | A param the builder already pins. |
-| `W_FIELD_NOT_APPLICABLE` | A param not visible under the block's values. |
+| `W_FIELD_NOT_APPLICABLE` | A param not visible under the block's values; apply keeps the stored value and the written-back source drops it. |
 | `W_REQUIRED_MISSING` | A required field left empty, including `todo()`; not repeated for a field an `E_UNKNOWN_PARAM` did-you-mean names, or one written with a value that failed to compile. |
 | `W_UNKNOWN_OPTION` | A dropdown value none of its options names; `hint` lists them. |
 | `E_UNKNOWN_OPERATION` | An `operation` the block does not offer; `hint` lists them. A retired one the stored block holds is `W_UNKNOWN_OPTION`. |
@@ -511,7 +516,8 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_APPLY_TRIGGER_REMOVED` | A deleted or retyped block still serves a live webhook, schedule, chat output or MCP tool until the next deploy. |
 | `W_APPLY_CATALOG_MOVED` | Compile failed and the block catalog changed since the read: get the source again. |
 | `E_APPLY_LINT`, `W_APPLY_LINT` | A workflow lint finding, mapped to a source line. |
-| `E_APPLY_BLOCK_DELETE` | The apply deletes blocks the source no longer declares; pass `--allow-delete`. |
+| `E_APPLY_BLOCK_DELETE` | The apply deletes blocks the source no longer declares; pass `--allow-delete`. When it also adds blocks of a deleted one's type, it names them as possible renames and says how to keep the ids. |
+| `W_APPLY_PROBABLE_RENAME` | With `--allow-delete`, a deleted block and an added one share a type and parent: a probable rename that gets a new id. |
 | `E_NAME_TAKEN` | The `workflow('…')` name renames the workflow to one another workflow in its folder holds. |
 | `E_WORKFLOW_META_INVALID` | The `workflow('…')` name is empty or over 255 characters, or its description is over 50,000 characters: limits the workflow API holds every workflow to. |
 | `E_APPLY_INVALID_SCHEDULE` | An added or changed schedule whose cron, timezone or interval deploy would refuse. |

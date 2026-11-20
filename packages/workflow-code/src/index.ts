@@ -36,9 +36,9 @@ export {
   fromCodeFile,
   isIdentifierName,
 } from './code-files'
-export { type CompileResult, compileWorkflow } from './compile'
+export { type CompileResult, compileWorkflow, type StoredEdgeRef } from './compile'
 export { codePointLabel, scriptName } from './compile/characters'
-export { didYouMean } from './compile/hints'
+export { didYouMean, suggestBuilder } from './compile/hints'
 export {
   babelMessage,
   bracketDepthOverflow,

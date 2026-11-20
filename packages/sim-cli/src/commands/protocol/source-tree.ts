@@ -5,14 +5,19 @@
  * the agent guide and the LF lines.
  */
 import { createHash } from 'node:crypto'
-import { join } from 'node:path'
-import { isRecordLike } from '@sim/utils/object'
+import { rmSync } from 'node:fs'
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
+import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
 import {
   COOKBOOK_EXAMPLES,
   CORE_DTS,
+  checkedBlockTypes,
   defaultBlockFiles,
   fullBlockFiles,
   generateSdkTypes,
@@ -24,7 +29,8 @@ import {
   sdkIndexHeader,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
-import { printError } from '#sim-cli/output/io'
+import { printError, printLine } from '#sim-cli/output/io'
+import type { OutputFormat } from '../../config/index'
 import { readJsonFile, writeJsonFile } from '../../config/json-file'
 import { configDir } from '../../config/paths'
 import { embedStore } from '../../embed-context'
@@ -33,7 +39,10 @@ import type { GetSourceResourcesResponse, GetWorkflowSourceResponse } from '../.
 import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
 import { cliVersion } from '../../version'
+import { printProtocolResult } from './result'
 import {
+  FILE_CONCURRENCY,
+  readSourceJson,
   readSourceText,
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_AGENTS_FILE,
@@ -44,6 +53,7 @@ import {
   updateSourceDir,
   withMissingLines,
 } from './source-dir'
+import { type PrimerKind, primerFor } from './source-primer'
 
 const TSCONFIG_FILE = 'tsconfig.json'
 /** Type-checks the source against every current block, for a block the default one leaves out. */
@@ -75,26 +85,61 @@ function isBlockCatalog(value: unknown): value is BlockCatalog {
   )
 }
 
-/** Workspace ids are uuids; anything else is never used to name a cache file. */
+/** Workspace ids are uuids and catalog hashes hex; anything else never names a cache file. */
 const CACHE_KEY = /^[\w-]+$/
 
-/**
- * Where the workspace's catalog is cached: one file per workspace in the CLI's config directory,
- * so every `source get` in the workspace (whatever the workflow or output directory) revalidates
- * the same copy. Callers gate the id with `CACHE_KEY` first.
- */
-function catalogCachePath(workspaceId: string): string {
-  return join(configDir(), 'cache', 'source-catalog', `${workspaceId}.json`)
+/** The CLI's catalog cache: every catalog by its hash, and each workspace's current hash. */
+function catalogCacheDir(): string {
+  return join(configDir(), 'cache', 'source-catalog')
 }
 
 /**
- * The cached catalog, or `null`. Standalone runs only: an embedded run has no local disk of its
- * own to cache on. The file is read without following a link and under a size cap.
+ * Where a catalog is cached: by its content hash, so the workspace catalog and every per-workflow
+ * catalog share one file per distinct catalog, however many workflows and workspaces name it.
+ * Callers gate the hash with `CACHE_KEY` first.
  */
+function catalogCachePath(hash: string): string {
+  return join(catalogCacheDir(), `${hash}.json`)
+}
+
+/**
+ * Where the hash of a workspace's catalog is recorded, so a get revalidates it by ETag and an
+ * offline command finds it. Callers gate the id with `CACHE_KEY` first.
+ */
+function workspaceCatalogPointerPath(workspaceId: string): string {
+  return join(catalogCacheDir(), 'workspaces', `${workspaceId}.json`)
+}
+
+/** A pointer is one hash; a larger file was not written by this CLI. */
+const MAX_POINTER_BYTES = 4096
+
+/**
+ * The cached catalog of `hash`, or `null`. Standalone runs only: an embedded run has no local disk
+ * of its own to cache on. The file is read without following a link and under a size cap, and
+ * kept only when the catalog in it names the hash its file does.
+ */
+export function cachedCatalogByHash(hash: unknown): BlockCatalog | null {
+  if (embedStore.getStore() || typeof hash !== 'string' || !CACHE_KEY.test(hash)) return null
+  const cached = readJsonFile(catalogCachePath(hash), MAX_CATALOG_CACHE_BYTES)
+  return isBlockCatalog(cached) && cached.hash === hash ? cached : null
+}
+
+/** The cached catalog of the workspace, by the hash its last catalog read recorded, or `null`. */
 export function cachedCatalog(workspaceId: string): BlockCatalog | null {
   if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return null
-  const cached = readJsonFile(catalogCachePath(workspaceId), MAX_CATALOG_CACHE_BYTES)
-  return isBlockCatalog(cached) ? cached : null
+  const pointer = readJsonFile(workspaceCatalogPointerPath(workspaceId), MAX_POINTER_BYTES)
+  return isRecordLike(pointer) ? cachedCatalogByHash(pointer.hash) : null
+}
+
+/**
+ * The cached catalog a workflow source directory was printed against, by the hash its
+ * `.sim/base.json` records (the workspace's, or the workflow's own for a workflow holding a type
+ * the workspace catalog lacks), or `null` when the directory has no base or that catalog is not
+ * cached. An offline check compiles against it, so it agrees with the dry run, which compiles
+ * against the same catalog.
+ */
+export async function cachedSourceCatalog(dir: string): Promise<BlockCatalog | null> {
+  return cachedCatalogByHash(toRecord(await readSourceJson(dir, SOURCE_BASE_FILE)).catalogHash)
 }
 
 /** The catalog a `getSourceCatalog` answer carries. */
@@ -105,22 +150,71 @@ function catalogFrom(response: { data: unknown }): BlockCatalog {
   return response.data
 }
 
-/** Replaces the cached catalog atomically; a failed write only costs the next get a download. */
-function writeCachedCatalog(workspaceId: string, catalog: BlockCatalog): void {
-  if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return
-  writeJsonFile(catalogCachePath(workspaceId), catalog)
+/**
+ * Caches `catalog` by its hash, replacing the file atomically; a failed write only costs the next
+ * get a download. An unchanged catalog is not rewritten.
+ */
+function writeCachedCatalog(catalog: BlockCatalog): void {
+  if (embedStore.getStore() || !CACHE_KEY.test(catalog.hash)) return
+  if (cachedCatalogByHash(catalog.hash)) return
+  writeJsonFile(catalogCachePath(catalog.hash), catalog)
 }
 
 /**
- * The workspace's block catalog, revalidated by ETag against the per-workspace cache: a `304`
- * reuses it, anything else replaces it. A workflow can hold a type the workspace no longer offers
- * (a legacy version, a block an allowlist now withholds); only then is that workflow's compile
- * catalog fetched instead, uncached, so its types still resolve.
+ * Records `hash` as the workspace's catalog, dropping the per-workspace copy and the
+ * per-workflow copies an older CLI cached under the workspace id.
+ */
+function writeWorkspaceCatalogPointer(workspaceId: string, hash: string): void {
+  if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return
+  writeJsonFile(workspaceCatalogPointerPath(workspaceId), { hash })
+  for (const legacy of [`${workspaceId}.json`, workspaceId]) {
+    if (legacy === `${hash}.json`) continue
+    try {
+      rmSync(join(catalogCacheDir(), legacy), { recursive: true, force: true })
+    } catch {}
+  }
+}
+
+/**
+ * The catalog of the workflow `workflowId` (the workspace catalog plus the types it stores that the
+ * workspace catalog lacks), fetched and cached by hash; `knownHash`, a hash the workflow's catalog
+ * may have, is sent as its ETag, so a catalog already cached answers `304` with no body.
+ */
+export async function loadWorkflowCatalog(
+  client: OperationClient<'getSourceCatalog'>,
+  workspaceId: string,
+  workflowId: string,
+  knownHash?: string
+): Promise<BlockCatalog> {
+  const known = cachedCatalogByHash(knownHash)
+  try {
+    const catalog = catalogFrom(
+      await client.request<{ data: unknown }>('getSourceCatalog', {
+        params: { workspaceId },
+        query: { workflowId },
+        ...(known ? { headers: { 'if-none-match': `"${known.hash}"` } } : {}),
+      })
+    )
+    writeCachedCatalog(catalog)
+    return catalog
+  } catch (error) {
+    if (!known || !(error instanceof SimApiError) || error.status !== 304) throw error
+    return known
+  }
+}
+
+/**
+ * The workspace's block catalog, revalidated by ETag against the cached one: a `304` reuses it,
+ * anything else replaces it. A workflow can hold a type the workspace no longer offers (a legacy
+ * version, a block an allowlist now withholds); only then is that workflow's own catalog used
+ * instead, so its types still resolve: the one cached under the hash its base records
+ * (`catalogHash`), else fetched ({@link loadWorkflowCatalog}).
  */
 export async function loadCatalog(
   client: OperationClient<'getSourceCatalog'>,
   source: Pick<GetWorkflowSourceResponse['data'], 'workspaceId' | 'blockTypes'> & {
     workflowId?: string
+    catalogHash?: string
   }
 ): Promise<BlockCatalog> {
   const cached = cachedCatalog(source.workspaceId)
@@ -132,23 +226,18 @@ export async function loadCatalog(
         ...(cached ? { headers: { 'if-none-match': `"${cached.hash}"` } } : {}),
       })
     )
-    writeCachedCatalog(source.workspaceId, catalog)
+    writeCachedCatalog(catalog)
   } catch (error) {
     if (!cached || !(error instanceof SimApiError) || error.status !== 304) throw error
     catalog = cached
   }
-  if (
-    source.workflowId === undefined ||
-    source.blockTypes.every((type) => catalogBlock(catalog, type) !== undefined)
-  ) {
-    return catalog
-  }
-  return catalogFrom(
-    await client.request<{ data: unknown }>('getSourceCatalog', {
-      params: { workspaceId: source.workspaceId },
-      query: { workflowId: source.workflowId },
-    })
-  )
+  writeWorkspaceCatalogPointer(source.workspaceId, catalog.hash)
+  const declaresAll = (candidate: BlockCatalog) =>
+    source.blockTypes.every((type) => catalogBlock(candidate, type) !== undefined)
+  if (source.workflowId === undefined || declaresAll(catalog)) return catalog
+  const printedWith = cachedCatalogByHash(source.catalogHash)
+  if (printedWith && declaresAll(printedWith)) return printedWith
+  return loadWorkflowCatalog(client, source.workspaceId, source.workflowId)
 }
 
 /**
@@ -334,14 +423,70 @@ function sdkGeneratorLine(): string {
   return `// generated by sim ${cliVersion()} · core.d.ts ${core}`
 }
 
-/** The generated declarations, with the generator line under the index's catalog header. */
-function sdkTypeFiles(catalog: BlockCatalog): Array<readonly [string, string]> {
+/** Under the index's catalog header, the generator line; `blockTypes` as `generateSdkTypes` takes it. */
+function sdkTypeFiles(
+  catalog: BlockCatalog,
+  blockTypes?: ReadonlySet<string>
+): Array<readonly [string, string]> {
   const generator = sdkGeneratorLine()
-  return generateSdkTypes(catalog).map((file) => {
-    if (file.path !== SDK_INDEX_FILE) return [`${SDK_DIR}/${file.path}`, file.text] as const
+  return generateSdkTypes(catalog, blockTypes ? { blockTypes } : {}).map((file) => {
+    if (file.path !== SDK_INDEX_FILE) return [file.path, file.text] as const
     const [header, ...rest] = file.text.split('\n')
-    return [`${SDK_DIR}/${file.path}`, [header, generator, ...rest].join('\n')] as const
+    return [file.path, [header, generator, ...rest].join('\n')] as const
   })
+}
+
+/** The head a current `index.d.ts` starts with: the catalog header and the generator line. */
+function sdkIndexHead(catalog: BlockCatalog): string {
+  return `${sdkIndexHeader(catalog)}\n${sdkGeneratorLine()}`
+}
+
+/**
+ * Where the declarations of every block of `catalog` are cached, once per catalog and generator
+ * (the generator line's digest), beside the catalog itself. `tsconfig.full.json` includes the
+ * `index.d.ts` there, so a directory holds only the blocks it uses. Callers gate the hash with
+ * `CACHE_KEY` first.
+ */
+function sdkCacheDir(catalog: BlockCatalog): string {
+  const generator = createHash('sha256').update(sdkGeneratorLine(), 'utf8').digest('hex')
+  return join(catalogCacheDir(), catalog.hash, `sdk-${generator.slice(0, 16)}`)
+}
+
+/**
+ * The cached full declarations' `index.d.ts` for `catalog` (an absolute path), generating them
+ * into a staging folder moved into place on the first call; later calls only check the index.
+ * `null` in an embedded run, which has no disk of its own, or when the cache cannot be written:
+ * the directory then holds every block itself, as before the cache.
+ */
+async function sdkCacheIndex(catalog: BlockCatalog): Promise<string | null> {
+  if (embedStore.getStore() || !CACHE_KEY.test(catalog.hash)) return null
+  const dir = sdkCacheDir(catalog)
+  const index = join(dir, SDK_INDEX_FILE)
+  const head = sdkIndexHead(catalog)
+  const current = await readFile(index, 'utf8').catch(() => null)
+  if (current?.startsWith(`${head}\n`)) return index
+  try {
+    await mkdir(dirname(dir), { recursive: true })
+    const staging = await mkdtemp(`${dir}.staging-`)
+    try {
+      const files = sdkTypeFiles(catalog)
+      const parents = new Set(files.map(([path]) => dirname(join(staging, path))))
+      for (const parent of parents) await mkdir(parent, { recursive: true })
+      await mapWithConcurrency(files, FILE_CONCURRENCY, ([path, text]) =>
+        writeFile(join(staging, path), text)
+      )
+      await rm(dir, { recursive: true, force: true })
+      // Another command that generated the same files first already moved them into place.
+      await rename(staging, dir).catch(async (error: unknown) => {
+        if (!(await readFile(index, 'utf8').catch(() => null))?.startsWith(`${head}\n`)) throw error
+      })
+    } finally {
+      await rm(staging, { recursive: true, force: true })
+    }
+    return index
+  } catch {
+    return null
+  }
 }
 
 /** What a tree write reports: the same fields after a get and a create scaffold. */
@@ -352,6 +497,8 @@ export interface SourceTree {
   workspaceTypes: boolean
   /** The agent guide to read before editing. */
   guide: typeof SOURCE_AGENTS_FILE
+  /** The primer atop the guide (`source-primer.ts`), printed so an agent needs no other read. */
+  primer: string
 }
 
 /** Reports a `tsconfig.json` the CLI left alone and summarizes a tree write. */
@@ -359,20 +506,46 @@ export function finishTree(
   dir: string,
   written: number,
   workspaceTypes: WorkspaceTypes | null,
-  ownsTsconfig: boolean
+  tree: { ownsTsconfig: boolean; primer: string }
 ): SourceTree {
-  if (!ownsTsconfig) {
+  if (!tree.ownsTsconfig) {
     printError(
       `note: ${TSCONFIG_FILE} in ${dir} is not the CLI's, so it was left as it is. To type-check the source, map "@sim/workflow-sdk" to ["./${SDK_DIR}/core.d.ts"] in its compilerOptions.paths.`
     )
   }
-  return { files: written, workspaceTypes: workspaceTypes !== null, guide: SOURCE_AGENTS_FILE }
+  return {
+    files: written,
+    workspaceTypes: workspaceTypes !== null,
+    guide: SOURCE_AGENTS_FILE,
+    primer: tree.primer,
+  }
+}
+
+/**
+ * Prints a tree write's result: in JSON or YAML one document with the primer as its `primer`
+ * field, otherwise the fields and then the primer as text, so it reads as written.
+ */
+export function printTreeResult(
+  format: OutputFormat,
+  result: Record<string, unknown> & { primer: string }
+): void {
+  if (format === 'json' || format === 'yaml') {
+    printProtocolResult(format, result)
+    return
+  }
+  const { primer, ...fields } = result
+  printProtocolResult(format, fields)
+  printLine(`\n${primer}`)
 }
 
 /** What a directory's editable tree holds beside the printed source. */
 export interface SourceTreeProfile {
-  /** `.sim/AGENTS.md`. */
+  /** Which primer opens `.sim/AGENTS.md`. */
+  kind: PrimerKind
+  /** The reference in `.sim/AGENTS.md`, below the primer. */
   agents: string
+  /** More guides beside `.sim/AGENTS.md` (path → text), rewritten every time like it. */
+  guides?: ReadonlyArray<readonly [string, string]>
   /**
    * A `tsconfig.json` the CLI writes, starting with {@link TSCONFIG_MARKER}, that type-checks the
    * source with the SDK declarations `sdkFiles` (directory-relative paths).
@@ -391,13 +564,15 @@ export interface SourceTreeProfile {
 /**
  * The SDK files each written tsconfig includes for source that uses the `used` block types:
  * `tsconfig.json` the models, `workspace.d.ts` and only those blocks (plus the core builders'),
- * so `tsc` reads a few dozen files instead of every block; `tsconfig.full.json` every current
- * block for adding one the source does not use yet.
+ * which the directory holds, so `tsc` reads a few dozen files instead of every block;
+ * `tsconfig.full.json` every current block for adding one the source does not use yet, through
+ * `fullIndex` (the cached index, else the directory's own).
  */
 function sdkIncludes(
   catalog: BlockCatalog,
   used: readonly string[],
-  hasWorkspaceTypes: boolean
+  hasWorkspaceTypes: boolean,
+  fullIndex: string
 ): { tsconfig: string[]; full: string[] } {
   const workspace = hasWorkspaceTypes ? [WORKSPACE_TYPES_FILE] : []
   const inSdk = (files: readonly string[]) => files.map((file) => `${SDK_DIR}/${file}`)
@@ -407,25 +582,33 @@ function sdkIncludes(
       ...workspace,
       ...inSdk(defaultBlockFiles(catalog, used)),
     ],
-    full: [...inSdk(fullBlockFiles(catalog, used)), ...workspace],
+    full: [
+      ...fullBlockFiles(catalog, used).map((file) =>
+        file === SDK_INDEX_FILE ? fullIndex : `${SDK_DIR}/${file}`
+      ),
+      ...workspace,
+    ],
   }
 }
 
+/** The block types source that uses `use` names: the server's, and the builders it calls. */
+function usedBlockTypes(catalog: BlockCatalog, use: SourceTreeUse): string[] {
+  return [...new Set([...(use.blockTypes ?? []), ...referencedBlockTypes(catalog, use.sources)])]
+}
+
 /**
- * The CLI's tsconfig files for source that uses `use`: each written when it is absent or still
+ * The CLI's tsconfig files for the `used` block types: each written when it is absent or still
  * starts with {@link TSCONFIG_MARKER}, so a person's own file is never replaced.
  */
 function tsconfigWrites(
   catalog: BlockCatalog,
   hasWorkspaceTypes: boolean,
   profile: Pick<SourceTreeProfile, 'tsconfig'>,
-  use: SourceTreeUse,
+  used: readonly string[],
+  fullIndex: string,
   current: { tsconfig: string | null; full: string | null }
 ): { write: Array<readonly [string, string]>; ownsTsconfig: boolean } {
-  const used = [
-    ...new Set([...(use.blockTypes ?? []), ...referencedBlockTypes(catalog, use.sources)]),
-  ]
-  const includes = sdkIncludes(catalog, used, hasWorkspaceTypes)
+  const includes = sdkIncludes(catalog, used, hasWorkspaceTypes, fullIndex)
   const owned = (text: string | null) => text === null || text.startsWith(TSCONFIG_MARKER)
   const write: Array<readonly [string, string]> = []
   const ownsTsconfig = owned(current.tsconfig)
@@ -435,13 +618,36 @@ function tsconfigWrites(
 }
 
 /**
- * Rewrites the CLI's tsconfig files for the source `use` names: after an apply, which keeps the
- * declarations but may have added a block `tsconfig.json` should now include, and on a check, so
- * a block the edit added type-checks before anything is applied. `incremental` (a check) keeps
- * the blocks the files include now, since a check scans only the source text and not the
- * server's block types, and rewrites only files that exist. It reads the workspace's cached
- * catalog, so it costs no request; without one nothing changes until the next get. A file whose
- * text would not change is not rewritten.
+ * The generated declarations a directory holds for the `used` block types, under the SDK
+ * directory: the models, an index and `INDEX.md` of its blocks, and the file of each block
+ * `tsconfig.json` includes. Without a cache (`cached` false) every block, as the full config then
+ * reads the directory's own index.
+ */
+function localSdkFiles(
+  catalog: BlockCatalog,
+  used: readonly string[],
+  cached: boolean
+): Array<readonly [string, string]> {
+  const blockTypes = cached ? new Set(checkedBlockTypes(catalog, used)) : undefined
+  return sdkTypeFiles(catalog, blockTypes).map(
+    ([path, text]) => [`${SDK_DIR}/${path}`, text] as const
+  )
+}
+
+/** `tsconfig.full.json`'s index: the cached one, else the directory's own. */
+function fullIndexPath(cacheIndex: string | null): string {
+  return cacheIndex ?? SDK_INDEX_PATH
+}
+
+/**
+ * Brings the CLI's tsconfig files and the block declarations the directory holds up to date with
+ * the source `use` names: after an apply, which may have added a block, and on a check, so a block
+ * the edit added type-checks before anything is applied. `incremental` (a check) keeps the blocks
+ * `tsconfig.json` includes now, since a check scans only the source text and not the server's
+ * block types, and rewrites `tsconfig.json` only when it exists (`tsconfig.full.json`, which names
+ * this machine's cache, is written again when missing, as a fresh clone lacks it). It reads the
+ * cached catalog, so it costs no request; without one nothing changes until the next get. A file
+ * whose text would not change is not rewritten.
  */
 export async function refreshTsconfigs(
   dir: string,
@@ -450,27 +656,45 @@ export async function refreshTsconfigs(
   use: SourceTreeUse,
   options: { incremental?: boolean } = {}
 ): Promise<void> {
-  const catalog = cachedCatalog(workspaceId)
+  const catalog = (await cachedSourceCatalog(dir)) ?? cachedCatalog(workspaceId)
   if (!catalog) return
-  const [tsconfig, full, workspaceTypes] = await Promise.all([
+  const [tsconfig, full, workspaceTypes, index, cacheIndex] = await Promise.all([
     readSourceText(dir, TSCONFIG_FILE),
     readSourceText(dir, TSCONFIG_FULL_FILE),
     readSourceText(dir, WORKSPACE_TYPES_FILE),
+    readSourceText(dir, SDK_INDEX_PATH),
+    sdkCacheIndex(catalog),
   ])
   const kept = options.incremental ? includedBlockTypes(tsconfig) : []
+  const used = usedBlockTypes(catalog, {
+    ...use,
+    blockTypes: [...(use.blockTypes ?? []), ...kept],
+  })
   const { write } = tsconfigWrites(
     catalog,
     workspaceTypes !== null,
     profile,
-    { ...use, blockTypes: [...(use.blockTypes ?? []), ...kept] },
+    used,
+    fullIndexPath(cacheIndex),
     { tsconfig, full }
   )
-  const current: Record<string, string | null> = {
-    [TSCONFIG_FILE]: tsconfig,
-    [TSCONFIG_FULL_FILE]: full,
-  }
-  const changed = write.filter(
-    ([path, text]) => current[path] !== text && (!options.incremental || current[path] !== null)
+  const current = new Map<string, string | null>([
+    [TSCONFIG_FILE, tsconfig],
+    [TSCONFIG_FULL_FILE, full],
+  ])
+  // Declarations of another catalog or generator are left for the next get, which replaces them.
+  const declarations =
+    cacheIndex !== null && index?.startsWith(`${sdkIndexHead(catalog)}\n`)
+      ? localSdkFiles(catalog, used, true).filter(([path]) => path.startsWith(`${SDK_DIR}/blocks/`))
+      : []
+  const texts = await mapWithConcurrency(declarations, FILE_CONCURRENCY, ([path]) =>
+    readSourceText(dir, path)
+  )
+  declarations.forEach(([path], position) => current.set(path, texts[position]))
+  const changed = [...write, ...declarations].filter(
+    ([path, text]) =>
+      current.get(path) !== text &&
+      (!options.incremental || path !== TSCONFIG_FILE || current.get(path) !== null)
   )
   if (changed.length > 0) await updateSourceDir(dir, { write: changed })
 }
@@ -502,12 +726,15 @@ export interface SourceTreeUse {
 }
 
 /**
- * Everything beside the printed source that makes a directory editable: the agent guide and the
- * example workflows (both rewritten every time and never in `.sim/written.json`), the
- * declarations (regenerated only when the catalog or generator changed), `workspace.d.ts`, the
- * CLI's `tsconfig.json` and `tsconfig.full.json`, and the LF lines. `incremental` (a write that
- * leaves workflows on disk unread, such as a get of only some kinds) keeps the blocks
- * `tsconfig.json` includes now, as {@link refreshTsconfigs} does, adding the ones `use` needs.
+ * Everything beside the printed source that makes a directory editable: the agent guide (the
+ * primer for the builders `use` calls, then the profile's reference) and the example workflows
+ * (both rewritten every time and never in `.sim/written.json`), the declarations of the blocks
+ * the source uses (every block's are cached once per catalog, for `tsconfig.full.json`),
+ * `workspace.d.ts`, the CLI's `tsconfig.json` and `tsconfig.full.json`, and the LF lines.
+ * Declarations of another catalog or generator are removed whole; otherwise only the block files,
+ * so a block the source no longer uses loses its file. `incremental` (a write that leaves
+ * workflows on disk unread, such as a get of only some kinds) keeps the blocks `tsconfig.json`
+ * includes now, as {@link refreshTsconfigs} does, adding the ones `use` needs.
  */
 export async function sourceTreeChange(
   dir: string,
@@ -516,9 +743,12 @@ export async function sourceTreeChange(
   profile: SourceTreeProfile,
   use: SourceTreeUse,
   options: { incremental?: boolean } = {}
-): Promise<{ change: SourceDirChange; ownsTsconfig: boolean }> {
+): Promise<{ change: SourceDirChange; ownsTsconfig: boolean; primer: string }> {
+  const sources = [...use.sources]
+  const primer = primerFor(profile.kind, catalog, sources)
   const write: Array<readonly [string, string]> = [
-    [SOURCE_AGENTS_FILE, profile.agents],
+    [SOURCE_AGENTS_FILE, `${primer}\n${profile.agents}`],
+    ...(profile.guides ?? []),
     ...Object.entries(COOKBOOK_EXAMPLES).map(
       ([file, text]) => [`${SOURCE_EXAMPLES_DIR}/${file}`, text] as const
     ),
@@ -527,19 +757,25 @@ export async function sourceTreeChange(
     ...(profile.sdk ?? []),
   ]
   const remove: string[] = []
-  const [gitattributes, gitignore, index, tsconfig, tsconfigFull] = await Promise.all([
+  const [gitattributes, gitignore, index, tsconfig, tsconfigFull, cacheIndex] = await Promise.all([
     readSourceText(dir, SOURCE_GITATTRIBUTES_FILE),
     profile.gitignore ? readSourceText(dir, SOURCE_GITIGNORE_FILE) : null,
     readSourceText(dir, SDK_INDEX_PATH),
     readSourceText(dir, TSCONFIG_FILE),
     readSourceText(dir, TSCONFIG_FULL_FILE),
+    sdkCacheIndex(catalog),
   ])
   const kept = options.incremental ? includedBlockTypes(tsconfig) : []
+  const used = usedBlockTypes(catalog, {
+    sources,
+    blockTypes: [...(use.blockTypes ?? []), ...kept],
+  })
   const tsconfigs = tsconfigWrites(
     catalog,
     workspaceTypes !== null,
     profile,
-    { ...use, blockTypes: [...(use.blockTypes ?? []), ...kept] },
+    used,
+    fullIndexPath(cacheIndex),
     { tsconfig, full: tsconfigFull }
   )
   write.push(...tsconfigs.write)
@@ -548,10 +784,13 @@ export async function sourceTreeChange(
   if (mergedAttributes !== null) write.push([SOURCE_GITATTRIBUTES_FILE, mergedAttributes])
   const mergedIgnore = profile.gitignore ? withMissingLines(gitignore, profile.gitignore) : null
   if (mergedIgnore !== null) write.push([SOURCE_GITIGNORE_FILE, mergedIgnore])
-  const indexHead = index?.split('\n', 2).join('\n')
-  if (indexHead !== `${sdkIndexHeader(catalog)}\n${sdkGeneratorLine()}`) {
-    remove.push(SDK_DIR)
-    write.push(...sdkTypeFiles(catalog))
+  const current = index?.startsWith(`${sdkIndexHead(catalog)}\n`) === true
+  if (!current) remove.push(SDK_DIR)
+  if (cacheIndex !== null) {
+    if (current) remove.push(`${SDK_DIR}/blocks`)
+    write.push(...localSdkFiles(catalog, used, true))
+  } else if (!current) {
+    write.push(...localSdkFiles(catalog, used, false))
   }
   if (workspaceTypes === null) remove.push(WORKSPACE_TYPES_FILE)
   else write.push([WORKSPACE_TYPES_FILE, workspaceTypes.text])
@@ -560,7 +799,7 @@ export async function sourceTreeChange(
   } else {
     remove.push(WORKSPACE_MANIFEST_FILE)
   }
-  return { change: { write, remove }, ownsTsconfig }
+  return { change: { write, remove }, ownsTsconfig, primer }
 }
 
 /** A read the server refused as over the source size limits exits 7, as a refused apply does. */

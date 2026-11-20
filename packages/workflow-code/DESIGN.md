@@ -38,7 +38,9 @@ stored workflow (see "Preserved state"). There is no verbose mode.
 Two escape hatches carry state that runs but has no SDK syntax:
 
 - `meta.extra`: stored params of a schema-agnostic custom block, the agent's legacy prompt fields,
-  a container's stored params.
+  a container's stored params other than those `block.data` supersedes (the config inputs the
+  editing engine copies into `data`, `SUPERSEDED_CONTAINER_PARAMS`), which never run and are
+  preserved state.
 - `meta.subflowData`: a loop or parallel's `block.data` subflow keys canonicalize could not read as
   config, which the serializer passes on. Kept apart from `extra` because canvas containers often
   store params under the same names.
@@ -197,7 +199,15 @@ key-keyed lock; `mergeSourceMetaFromLock` stores a write's hints back by id.
 3. `db-name`: the prev block with the same key (the lockless and stale-lock path);
 4. `inferred`: exactly one unmatched prev block and one unmatched compiled block with the same
    type and parent and agreeing edge neighbourhoods, so renaming the variable and the display
-   name together keeps the id (`W_MAT_INFERRED_RENAME`; to get a new block instead, delete the old one in one apply and add the new one in the next);
+   name together keeps the id; failing that, a prev block the lock binds (the source dropped its
+   key and its ident) pairs with a new block of its type and parent only when exactly one such
+   pair shows a strong identity signal: equal settings (references to the old key read as the
+   new), most bound neighbours shared, or every block that referenced the old key now referencing
+   the new one. A trigger (webhook paths, schedules) pairs only on equal settings, under either
+   rule (`W_MAT_INFERRED_RENAME`; to get a new block instead, delete the old one in one apply and
+   add the new one in the next). A delete and an add with no signal stay a delete, refused as
+   `E_APPLY_BLOCK_DELETE` (naming the look-alike new blocks and how to keep the ids) unless the
+   caller passes `allowDelete`;
 5. otherwise created: the lock's id when unclaimed, else minted (`idSource`).
 
 A match across types is a delete plus a create (`W_MAT_RETYPE_RECREATED`), except a catalog
@@ -310,8 +320,8 @@ print compiles with zero errors.
 
 ## Compile
 
-`compileWorkflow({ entry, files, catalog, sdkMajor, limits?, knownKeys?, stored?, storedUnread? })` → `{ workflow,
-diagnostics, spans, hints, sdkMajor }`. It parses with Babel and interprets the AST statically; it
+`compileWorkflow({ entry, files, catalog, sdkMajor, limits?, knownKeys?, stored?, storedUnread?,
+storedUnreadEdges? })` → `{ workflow, diagnostics, spans, hints, sdkMajor, envReferences, edges }`. It parses with Babel and interprets the AST statically; it
 never executes the file. `workflow` is `null` iff any diagnostic is an error. It accepts exactly
 what the printer emits plus the conveniences SYNTAX.md lists, checks names, scope, wiring and
 catalog fields, fills defaults, resolves `stored()` from `CompileInput.stored`, and returns `spans`
@@ -326,9 +336,12 @@ Compile also refuses or flags source the runtime would silently mishandle:
   of edges the stored workflow holds is `W_EDGE_CYCLE`, so stored state keeps round-tripping
   (`storedUnread`, the CLI's offline check, which has the lock but not the stored workflow, takes
   every edge between two blocks its lock binds, by key or by ident for a block renamed in source,
-  as one it may hold; the same goes for `W_ERROR_PORT_STORED`);
-- a reference into an agent whose `responseFormat` declares its fields names a declared field or
-  a static output (`W_UNKNOWN_OUTPUT_PATH` otherwise); a format with references inside is unread;
+  as one it may hold, or with `storedUnreadEdges`, the edges the get printed by lock key, only
+  those; the same goes for `W_ERROR_PORT_STORED`);
+- a reference into an agent whose `responseFormat` declares its fields, or into a Start, API or
+  Input trigger (whose `inputFormat` declares its inputs), names a declared field or a static
+  output (`W_UNKNOWN_OUTPUT_PATH` otherwise; a warning, since a caller may pass an undeclared
+  input the unified Start passes through); a format with references inside is unread;
 - a dropdown value outside its static options is `W_UNKNOWN_OPTION`, a `model` the catalog does
   not list `W_UNKNOWN_MODEL` (free text stays valid), and an unknown `operation`
   `E_UNKNOWN_OPERATION` unless the stored block already holds it;
@@ -365,7 +378,8 @@ then writes the stored graph so that a no-op is byte-identical (O1):
   filled into fields that never run are dropped);
 - the fields of the loop or parallel types not in effect, and prev's whole config when it runs the
   same;
-- unknown `block.data` source does not carry.
+- unknown `block.data` source does not carry;
+- a container's subBlocks `block.data` supersedes (`iterations`, `loopType`, …).
 
 Canonicalize's output already holds all of this, so restoring onto it changes nothing.
 

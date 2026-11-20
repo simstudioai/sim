@@ -354,7 +354,7 @@ export const v2StageWorkspaceSourceBlobsFormSchema = z
     z.file().max(WORKSPACE_SOURCE_LIMITS.maxBlobBytes).describe('The bytes of one binary file.')
   )
   .describe(
-    `One file part per binary file, named by its SHA-256: at most ${WORKSPACE_SOURCE_LIMITS.maxBlobsPerRequest} files and ${WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest} bytes per request.`
+    `One file part per binary file, named by its SHA-256: at most ${WORKSPACE_SOURCE_LIMITS.maxBlobsPerRequest} files and ${WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest} bytes per request, a larger file alone.`
   )
 
 /** `POST /api/v2/workspaces/{workspaceId}/source/blobs`: stage binary files for an apply. */

@@ -3,7 +3,7 @@
  * workflow call's `inputMapping` fills and a run's input carries.
  */
 import { isRecordLike } from '@sim/utils/object'
-import type { CanonicalWorkflow } from './model'
+import type { CanonicalParam, CanonicalWorkflow } from './model'
 
 /**
  * The trigger types whose `inputFormat` defines a workflow's inputs. Webhook and schedule
@@ -32,9 +32,17 @@ export function startInputs(workflow: CanonicalWorkflow): WorkflowInput[] | null
     INPUT_TRIGGER_TYPES.some((type) => type === block.type)
   )
   if (!start) return null
-  const format = start.params.inputFormat
-  if (format?.kind !== 'value' || !Array.isArray(format.value)) return []
-  return format.value.flatMap((field) => {
+  return inputFormatFields(start.params.inputFormat) ?? []
+}
+
+/**
+ * The fields an `inputFormat` param declares, in order: `[]` when it is absent, `null` when its
+ * value is not a list (a reference or other text), so nothing can be said about its fields.
+ */
+export function inputFormatFields(param: CanonicalParam | undefined): WorkflowInput[] | null {
+  if (param === undefined) return []
+  if (param.kind !== 'value' || !Array.isArray(param.value)) return null
+  return param.value.flatMap((field) => {
     if (!isRecordLike(field) || typeof field.name !== 'string' || field.name === '') return []
     return [{ name: field.name, type: typeof field.type === 'string' ? field.type : 'string' }]
   })

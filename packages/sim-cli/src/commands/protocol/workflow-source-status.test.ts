@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { REQUEST_CANCELLED, SimApiError } from '../../http/client'
-import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
 import { digest } from './source-dir'
 import { attachWorkflowSourceDiff, attachWorkflowSourceStatus } from './workflow-source-status'
 
@@ -102,7 +102,7 @@ const STALE = { code: 'E_APPLY_STALE', severity: 'error', message: 'The workflow
 beforeEach(() => {
   contextMockState.output = 'json'
   mockRequest.mockReset()
-  mockProfileFrom.mockReturnValue({ workspaceId: WORKSPACE_ID, output: 'json' })
+  mockProfileFrom.mockReturnValue({ ...mockedProfile(), workspaceId: WORKSPACE_ID, output: 'json' })
   root = mkdtempSync(join(tmpdir(), 'sim-workflow-status-'))
   writeWorkflowDir(root, null)
   vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -115,6 +115,20 @@ afterEach(() => {
 })
 
 describe('workflows source status', () => {
+  it.each(['status', 'diff'] as const)(
+    'on a starter no workflow was created from, %s names the create to run, not a get',
+    async (command) => {
+      const starter = join(root, 'starter')
+      write(starter, 'workflow.ts', GOT['workflow.ts'])
+      write(starter, '.sim/starter.json', JSON.stringify({ workspaceId: WORKSPACE_ID }))
+
+      await expect(run(starter, command)).rejects.toThrow(
+        `It holds a starter no workflow was created from yet: run \`sim workflows source create --dir ${starter} --workspace ${WORKSPACE_ID} --dry-run\``
+      )
+      expect(mockRequest).not.toHaveBeenCalled()
+    }
+  )
+
   it('is clean, exit 0, with nothing changed on either side', async () => {
     mockRequest.mockResolvedValue(dryRun())
 
@@ -241,7 +255,40 @@ describe('workflows source status', () => {
       // A dry run would only exit 13: the login is the next step.
       next: { command: 'sim login --profile default' },
     })
-    expect(process.exitCode).toBe(11)
+    expect(process.exitCode).toBe(13)
+  })
+
+  it('exits 13 without a login even when nothing changed here, like every other command', async () => {
+    mockRequest.mockRejectedValue(
+      new SimApiError('Not logged in on profile "default".', 0, 'AUTH_REQUIRED', undefined, 13)
+    )
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({ server: 'unreachable', state: 'clean' })
+    expect(process.exitCode).toBe(13)
+  })
+
+  it('degrades to the local view when the server refuses the credential, naming the login', async () => {
+    write(root, 'workflow.ts', `${ENTRY}// edited\n`)
+    mockRequest.mockRejectedValue(
+      new SimApiError(
+        'Invalid API key — run sim login --profile default',
+        401,
+        'UNAUTHORIZED',
+        undefined,
+        13
+      )
+    )
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({
+      server: 'unreachable',
+      state: 'local',
+      next: { command: 'sim login --profile default' },
+    })
+    expect(process.exitCode).toBe(13)
   })
 
   it('fails on a cancelled request instead of reporting the server unreachable', async () => {
@@ -384,7 +431,11 @@ describe('workflows source diff', () => {
   it('prints a colorless unified diff for a person when stdout is not a terminal', async () => {
     write(root, 'functions/score.js', 'return 2\n')
     mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
-    mockProfileFrom.mockReturnValue({ workspaceId: WORKSPACE_ID, output: 'text' })
+    mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: WORKSPACE_ID,
+      output: 'text',
+    })
 
     await run(root, 'diff')
 

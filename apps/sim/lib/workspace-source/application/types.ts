@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import type { SourceSpan } from '@sim/workflow-code'
 import type {
   BaseResource,
   BlobEntry,
@@ -143,6 +144,8 @@ interface ChangeFields {
     key: string
     /** The part of the resource the reference names: an MCP server's tool. */
     member?: string
+    /** Where the declaration's entry file writes the reference, when the pipeline located it. */
+    span?: SourceSpan
     /**
      * The resource's id, for a kind keyed otherwise than a workflow names it (a workspace file,
      * keyed by its path): the plan finds that kind's change by id and names it by its key.

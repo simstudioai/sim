@@ -73,6 +73,13 @@ deleted. A workflow still names a workspace file by its resource key (`file('rep
 its path: a file an apply creates claims the key a get would first allocate it, so a workflow of
 the same apply resolves it.
 
+A table's column keys persist with the table too: every table write records each declared column
+whose key is not its name in `metadata.sourceColumnKeys` (column id → key), and a read prints a
+column under the base's binding, else that record, else its name. So a fresh get, and the target's
+read in a promotion, print the key the declaration gave the column (also after a rename in Sim), and
+a promotion's managed rows match the stored ones by the same keys. An apply that finds a column a
+read would print under another key records the keys alone (`fields: ['column keys']`).
+
 ## Fingerprints and the three-way rule
 
 A resource's fingerprint is `fingerprintOf(canonical(decl))` = `rf1:` + SHA-256 of the canonical
@@ -131,7 +138,10 @@ apart from the declarations').
 
 - `{ mode: 'seed' }` writes the rows into a table the apply creates, or adopts while it holds no
   rows and the base has no entry for it (`I_TABLE_SEED_SKIPPED` otherwise). Seed rows are outside
-  every fingerprint, and a get never prints them.
+  every fingerprint, and a get never prints them: they are the directory's. The table's
+  `metadata.sourceRows` records `{ mode: 'seed' }`, so a get prints the declaration's `rows` and
+  the CLI keeps the rows file it finds beside it (`seedRowsFiles`), and a promotion from a
+  re-read directory still seeds the tables it creates.
 - `{ mode: 'managed', key }` makes the file the table's whole content, each row matched to its
   stored row by the unique `key` column. The table's `canonical()` carries only `{ mode, key }` (so
   tables without managed rows fingerprint as before); the rows have their own fingerprint
@@ -238,7 +248,10 @@ resolves keys an earlier kind creates), check references across kinds, authorize
 cap the plan. Any error refuses the whole apply before the first write, so the plan refuses what
 a write would refuse: a delete of a locked resource (`E_APPLY_LOCKED`), of one a stored workflow
 still uses (`E_PLAN_REF_DELETED` for a declared caller, `W_RESOURCE_IN_USE` for one outside the
-directory, workflows included), and a table change whose data breaks a new column rule. A plan
+directory, workflows included), and a table change whose data breaks a new column rule. A column
+rename warns `W_TABLE_COLUMN_RENAMED_IN_USE` on each Table block of a stored workflow that still writes,
+filters or sorts by the old name (the run drops it), at the line of the declared workflow's file; an
+edited workflow folder is checked by its own lint against the declared columns instead. A plan
 reports at most 1000 findings, errors first, then warnings, then infos, and an info counts the
 rest, so cutting findings never refuses a plan.
 
@@ -267,7 +280,9 @@ the write is still caught only where the child use case takes a precondition (a 
 **Staged blobs.** Blob bytes never travel in an apply. A client first asks which of the blobs it
 will send it has not staged (`POST /source/blobs/missing`, by SHA-256 and size), uploads only
 those (`POST /source/blobs`, multipart, one part per blob named by its hash, at most
-`maxBlobBytesPerRequest` per request, `stageBatches` in `src/limits.ts`), then sends one apply
+`maxBlobBytesPerRequest` per request framing included, a larger blob alone, `stageBatches` in
+`src/limits.ts`; every body stays under the 10 MiB Next.js proxy ceiling, past which the route
+would receive a truncated body, and the route answers a larger one `413 PAYLOAD_TOO_LARGE`), then sends one apply
 whose manifest names each blob by path, hash and size. The server checks every uploaded part
 against its hash before staging it, so a staged blob is verified bytes. The plan resolves the
 blobs its writes need against the staging area once, before any write: a missing one (never
@@ -311,9 +326,19 @@ each folder's `.sim/lock.json` and `.sim/base.json` replaced by the target's fol
 directory declares unless `--allow-delete`. The server sees an ordinary apply against its own base,
 so every rule holds unchanged: a resource bound under the key is updated in place (a workflow keeps
 its id and block ids through the target's lock), an unbound one of the same name is adopted, a
-missing one created, a change in the target between the read and the apply is `E_APPLY_STALE`, and
-secrets and credentials bind by name and key to the target's own. The answer is not saved: the
-directory stays bound to the workspace it was read from. Without `--to`, the CLI refuses a
+missing one created, and secrets and credentials bind by name and key to the target's own. The
+directory stays bound to the workspace it was read from; the one thing a promotion saves is the
+target's promotion record, `.sim/targets/<workspaceId>.json` (`promotionRecord`): the target's
+base entries after the apply and, per workflow folder, the target workflow's fingerprint and a
+digest of the folder as promoted. The next promotion composes with it: each base entry the record
+holds for the same id stands in for the target's live one, so the server's three-way rule compares
+with what the last promotion left (a target edit since is kept when the directory left the resource
+alone, `E_APPLY_STALE` when it changed it too); a workflow folder whose digest is unchanged is sent
+as its base alone (a no-op), and an edited one whole with the recorded fingerprint, so a target edit
+since is the folder's 409. Without a record entry (the first promotion, or a resource created in
+the target since) the live entry is the base and the target is updated to match the directory;
+deleting the record re-takes the target as it stands. Read alone, the target's live base could
+never look changed. Without `--to`, the CLI refuses a
 directory read from another workspace (`SOURCE_OTHER_WORKSPACE`); `--workspace <target>` instead
 applies it as a copy whose base the server ignores (`W_BASE_OTHER_WORKSPACE`), which only a first
 apply to an empty target survives (a second is `E_APPLY_NO_BASE` for everything it created).

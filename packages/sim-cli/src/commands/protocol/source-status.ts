@@ -12,6 +12,7 @@ import { createTwoFilesPatch, FILE_HEADERS_ONLY } from 'diff'
 import type { OutputFormat } from '../../config/index'
 import {
   AUTH_REQUIRED_CODE,
+  AUTH_REQUIRED_EXIT_CODE,
   SOURCE_DRIFT_EXIT_CODE,
   SOURCE_LOCAL_CHANGES_EXIT_CODE,
   SOURCE_TOO_LARGE_EXIT_CODE,
@@ -47,8 +48,9 @@ read); ${SOURCE_LOCAL_CHANGES_EXIT_CODE} local changes only (applying writes the
 directory was read: drift (a resource edited, added or deleted there that the directory leaves
 alone) or a conflict (also changed here, so applying it is refused as stale), with or without
 local changes; ${SOURCE_TOO_LARGE_EXIT_CODE} the source is too large for the server to read in one dry run; 1 the command
-failed. A server that cannot be reached is not a failure: the status shows the local changes only
-and says so (exit 0 or ${SOURCE_LOCAL_CHANGES_EXIT_CODE}).`
+failed; ${AUTH_REQUIRED_EXIT_CODE} not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the
+local changes only, then run \`sim login\`. A server that cannot be reached is not a failure: the
+status shows the local changes only and says so (exit 0 or ${SOURCE_LOCAL_CHANGES_EXIT_CODE}).`
 
 /** What `diff` compares, and its exit codes. */
 export const DIFF_HELP = `
@@ -60,8 +62,12 @@ file or folder (and in a workspace directory by kind:key, such as table:leads). 
 differences were shown, whether or not there were any; ${SOURCE_TOO_LARGE_EXIT_CODE} the source is too large for the server
 to read; 1 the command failed.`
 
-/** The exit status of a status report: drift or conflict, else local changes, else clean. */
-export function statusExitCode(state: SourceStatus['state']): number {
+/**
+ * The exit status of a status report: no login (`login` holds the command to run), else drift or
+ * conflict, else local changes, else clean.
+ */
+export function statusExitCode(state: SourceStatus['state'], login: string | null): number {
+  if (login) return AUTH_REQUIRED_EXIT_CODE
   if (state === 'conflict' || state === 'drift') return SOURCE_DRIFT_EXIT_CODE
   return state === 'local' ? SOURCE_LOCAL_CHANGES_EXIT_CODE : 0
 }
@@ -70,27 +76,33 @@ export function statusExitCode(state: SourceStatus['state']): number {
 const UNREACHABLE_STATUSES = new Set([502, 503, 504])
 
 /**
+ * Whether `error` says this profile cannot authenticate: the CLI's own refusal of a profile with
+ * no login, or a credential the server refused (`401`, which exits 13 like it).
+ */
+export function credentialRefused(error: unknown): boolean {
+  return (
+    error instanceof SimApiError &&
+    ((error.status === 0 && error.code === AUTH_REQUIRED_CODE) || error.status === 401)
+  )
+}
+
+/**
  * Why the server could not be reached (no connection, a timeout, a gateway that gave up, no login
- * on the profile), as a sentence, or `null` for any other failure (a cancelled request included),
- * which a status reports rather than hides.
+ * on the profile or a credential it refused), as a sentence, or `null` for any other failure (a
+ * cancelled request included), which a status reports rather than hides.
  */
 export function unreachableReason(error: unknown): string | null {
   if (!(error instanceof SimApiError)) return null
-  const offline =
-    noAnswer(error, UNREACHABLE_STATUSES) ||
-    (error.status === 0 && error.code === AUTH_REQUIRED_CODE)
-  if (!offline) return null
+  if (!noAnswer(error, UNREACHABLE_STATUSES) && !credentialRefused(error)) return null
   return /[.!?]$/.test(error.message) ? error.message : `${error.message}.`
 }
 
 /**
- * The login a status recommends when `error` is the CLI's own refusal of a profile with no login
- * (which a status treats as an unreachable server), or `null` for any other failure.
+ * The login a status recommends when `error` says the profile cannot authenticate (which a status
+ * treats as an unreachable server), or `null` for any other failure.
  */
 export function loginCommand(error: unknown, authProfile: string): string | null {
-  return error instanceof SimApiError && error.status === 0 && error.code === AUTH_REQUIRED_CODE
-    ? `sim login --profile ${authProfile}`
-    : null
+  return credentialRefused(error) ? `sim login --profile ${authProfile}` : null
 }
 
 const SERVER_WORDS = {

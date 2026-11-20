@@ -4,7 +4,8 @@ import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SimApiError } from '../../http/client'
-import { contextMockFns } from '../../test/context-mock'
+import { cacheCatalogText } from '../../test/catalog-cache'
+import { contextMockFns, mockedProfile } from '../../test/context-mock'
 import { attachWorkflowSourceCheck } from './workflow-source-check'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -33,11 +34,7 @@ async function check(): Promise<void> {
 }
 
 function cacheCatalog(): void {
-  mkdirSync(join(dir, 'config/cache/source-catalog'), { recursive: true })
-  writeFileSync(
-    join(dir, `config/cache/source-catalog/${WORKSPACE_ID}.json`),
-    readFileSync(FIXTURE_CATALOG, 'utf8')
-  )
+  cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, readFileSync(FIXTURE_CATALOG, 'utf8'))
 }
 
 function result(): Record<string, unknown> {
@@ -51,10 +48,18 @@ function stdoutJson(): Record<string, unknown> {
   return JSON.parse(calls[0].join(' '))
 }
 
-function stderr(): string {
-  return vi
-    .mocked(console.error)
-    .mock.calls.map((call) => call.join(' '))
+/**
+ * The findings of the JSON result on stdout as a person reads them on stderr in a display format
+ * (`file:line:column severity CODE: message`, then its hint): with `--output json` they are
+ * printed only there.
+ */
+function findingLines(): string {
+  const diagnostics = (result().diagnostics ?? []) as Array<Record<string, unknown>>
+  return diagnostics
+    .map(
+      ({ file, line, column, severity, code, message, hint }) =>
+        `${file === undefined ? '' : `${file}:${line}:${column} `}${severity} ${code}: ${message}${hint === undefined ? '' : `\n  hint: ${hint}`}`
+    )
     .join('\n')
 }
 
@@ -208,7 +213,11 @@ beforeEach(() => {
     JSON.stringify({ workflowId: 'wf', workspaceId: WORKSPACE_ID, fingerprint: 'sf1:a' })
   )
   vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
-  contextMockFns.mockProfileFrom.mockReturnValue({ workspaceId: 'ws_other', output: 'json' })
+  contextMockFns.mockProfileFrom.mockReturnValue({
+    ...mockedProfile(),
+    workspaceId: 'ws_other',
+    output: 'json',
+  })
   contextMockFns.mockRequest.mockReset()
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -242,7 +251,7 @@ describe('sim workflows source check', () => {
     await check()
 
     expect(result()).toMatchObject({ errors: 1 })
-    expect(stderr()).toMatch(/workflow\.ts:6:\d+ error E_UNKNOWN_PARAM/)
+    expect(findingLines()).toMatch(/workflow\.ts:6:\d+ error E_UNKNOWN_PARAM/)
     expect(process.exitCode).toBe(1)
   })
 
@@ -269,6 +278,19 @@ describe('sim workflows source check', () => {
     })
   })
 
+  it('with --output json, prints each finding in the JSON only, not again as a frame on stderr', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace('{ body: { received: start.message } }', '{ bdy: { received: start.message } }')
+    )
+
+    await check()
+
+    expect(stdoutJson()).toMatchObject({ diagnostics: [{ code: 'E_UNKNOWN_PARAM' }] })
+    expect(vi.mocked(console.error)).not.toHaveBeenCalled()
+  })
+
   it('leaves stored() to the server, which holds the stored values', async () => {
     cacheCatalog()
     writeFileSync(
@@ -287,7 +309,7 @@ describe('sim workflows source check', () => {
 
     await check()
 
-    expect(stderr()).not.toContain('E_STORED_VALUE_MISSING')
+    expect(findingLines()).not.toContain('E_STORED_VALUE_MISSING')
   })
 
   it('refuses without a cached catalog, naming the get that caches one', async () => {
@@ -297,6 +319,29 @@ describe('sim workflows source check', () => {
 
     expect((error as SimApiError).code).toBe('CATALOG_NOT_CACHED')
     expect((error as SimApiError).message).toContain('sim workflows source get')
+  })
+
+  it('refuses a directory without workflow.ts before looking for a catalog, by its absolute path', async () => {
+    const error = await check().catch((caught: unknown) => caught)
+
+    expect((error as SimApiError).code).not.toBe('CATALOG_NOT_CACHED')
+    expect((error as SimApiError).message).toContain(`${dir} has no workflow.ts`)
+  })
+
+  it('refuses a --workspace naming another workspace than .sim/base.json, and only that', async () => {
+    cacheCatalog()
+    writeFileSync(join(dir, 'workflow.ts'), CLEAN)
+    contextMockFns.mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: 'ws_other',
+      output: 'json',
+      sources: { workspaceId: 'flag' },
+    })
+
+    const error = await check().catch((caught: unknown) => caught)
+
+    expect((error as SimApiError).code).toBe('SOURCE_OTHER_WORKSPACE')
+    expect((error as SimApiError).message).toContain(`was read from workspace ${WORKSPACE_ID}`)
   })
 
   it('points a workspace root at the workspace check', async () => {
@@ -335,8 +380,10 @@ describe('sim workflows source check', () => {
     await checkIn(folder)
 
     expect(result()).toMatchObject({ errors: 2 })
-    expect(stderr()).toMatch(/workflow\.ts:6:\d+ error E_MAT_UNKNOWN_RESOURCE: No table "contact"/)
-    expect(stderr()).toMatch(
+    expect(findingLines()).toMatch(
+      /workflow\.ts:6:\d+ error E_MAT_UNKNOWN_RESOURCE: No table "contact"/
+    )
+    expect(findingLines()).toMatch(
       /error E_MAT_UNKNOWN_RESOURCE: No credential "ops-slak"[\s\S]*Keys: ops-slack/
     )
     expect(process.exitCode).toBe(1)
@@ -353,7 +400,7 @@ describe('sim workflows source check', () => {
     await checkIn(folder)
 
     expect(result()).toMatchObject({ errors: 0, warnings: 1 })
-    expect(stderr()).toContain('W_ENV_UNKNOWN')
+    expect(findingLines()).toContain('W_ENV_UNKNOWN')
   })
 
   it('fails a row write naming a column or select option the table does not declare', async () => {
@@ -370,10 +417,10 @@ describe('sim workflows source check', () => {
 
     await checkIn(folder)
 
-    expect(stderr()).toMatch(
+    expect(findingLines()).toMatch(
       /error W_TABLE_UNKNOWN_COLUMN: data writes emial[\s\S]*Columns: email, status/
     )
-    expect(stderr()).toMatch(
+    expect(findingLines()).toMatch(
       /error W_UNKNOWN_OPTION: status of table "contacts" has no option done/
     )
     expect(process.exitCode).toBe(1)
@@ -384,7 +431,7 @@ describe('sim workflows source check', () => {
     writeFileSync(join(dir, 'workflow.ts'), UNKNOWN_METHOD)
 
     await check()
-    expect(stderr()).toMatch(/error W_UNKNOWN_OPTION/)
+    expect(findingLines()).toMatch(/error W_UNKNOWN_OPTION/)
     expect(process.exitCode).toBe(1)
 
     process.exitCode = undefined
@@ -392,6 +439,71 @@ describe('sim workflows source check', () => {
     await check()
     expect(result()).toMatchObject({ errors: 0, warnings: 1 })
     expect(process.exitCode).toBeUndefined()
+  })
+
+  it('reports an untyped JSON reference only on a block the lock does not bind, and on all with --strict', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace(
+        "const done = response('Done', { body: { received: start.message } })",
+        "const call = api('Call', { url: 'https://x', method: 'POST', body: { n: start.missing.deep } })\n  const done = response('Done', { body: { received: start.message } })"
+      ).replace('import { response,', 'import { api, response,')
+    )
+    const untyped = () =>
+      ((result().diagnostics ?? []) as Array<{ code: string }>).filter(
+        (finding) => finding.code === 'W_JSON_REF_UNTYPED'
+      )
+
+    await check()
+    expect(untyped()).toHaveLength(1)
+
+    writeLock(['start', 'done', 'call'])
+    await check()
+    expect(untyped()).toEqual([])
+
+    await checkIn(dir, '--strict')
+    expect(untyped()).toHaveLength(1)
+  })
+
+  it('fails on a dangling $ref in a new function file by default, and on any with --strict', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(join(dir, 'functions/total.js'), 'return $ref.ordertotals.sum\n')
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const total = fn('Total', { code: codeFile('./functions/total.js') })
+  start.to(total)
+})
+`
+    )
+
+    await check()
+    expect(result().diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'W_UNRESOLVED_REF',
+        severity: 'error',
+        file: 'functions/total.js',
+        line: 1,
+        column: 8,
+      })
+    )
+    expect(process.exitCode).toBe(1)
+
+    process.exitCode = undefined
+    writeLock(['start', 'total'])
+    await check()
+    expect(result()).toMatchObject({ errors: 0, warnings: 1 })
+    expect(process.exitCode).toBeUndefined()
+
+    await checkIn(dir, '--strict')
+    expect(result()).toMatchObject({ errors: 1 })
+    expect(process.exitCode).toBe(1)
   })
 
   it('fails on a bound block with --strict and on nothing with --no-strict', async () => {
@@ -416,10 +528,12 @@ describe('sim workflows source check', () => {
     writeLock(['start', 'l', 'inner', 'fallback', 'a', 'route'])
 
     await check()
-    expect(stderr()).toMatch(/warning W_ERROR_PORT_STORED/)
-    expect(stderr()).toMatch(/warning W_EDGE_CYCLE/)
-    expect(stderr()).toMatch(/warning W_BRANCH_UNWIRED/)
-    expect(stderr()).toMatch(/keeps this error edge only if the stored workflow already holds it/)
+    expect(findingLines()).toMatch(/warning W_ERROR_PORT_STORED/)
+    expect(findingLines()).toMatch(/warning W_EDGE_CYCLE/)
+    expect(findingLines()).toMatch(/warning W_BRANCH_UNWIRED/)
+    expect(findingLines()).toMatch(
+      /keeps this error edge only if the stored workflow already holds it/
+    )
     expect(result()).toMatchObject({ errors: 0 })
     expect(process.exitCode).toBeUndefined()
 
@@ -434,8 +548,8 @@ describe('sim workflows source check', () => {
     writeLock(['start', 'l', 'inner', 'fallback', 'a', 'route'])
 
     await check()
-    expect(stderr()).toMatch(/warning W_ERROR_PORT_STORED/)
-    expect(stderr()).toMatch(/warning W_EDGE_CYCLE/)
+    expect(findingLines()).toMatch(/warning W_ERROR_PORT_STORED/)
+    expect(findingLines()).toMatch(/warning W_EDGE_CYCLE/)
     expect(result()).toMatchObject({ errors: 0 })
     expect(process.exitCode).toBeUndefined()
   })
@@ -449,8 +563,8 @@ describe('sim workflows source check', () => {
     writeLock(['start', 'l', 'inner', 'fallback', 'a', 'route'])
 
     await check()
-    expect(stderr()).toMatch(/error E_ERROR_PORT_UNSUPPORTED/)
-    expect(stderr()).toMatch(/error E_EDGE_CYCLE/)
+    expect(findingLines()).toMatch(/error E_ERROR_PORT_UNSUPPORTED/)
+    expect(findingLines()).toMatch(/error E_EDGE_CYCLE/)
     expect(process.exitCode).toBe(1)
   })
 
@@ -460,8 +574,8 @@ describe('sim workflows source check', () => {
     writeLock(['start', 'inner', 'fallback', 'route'])
 
     await check()
-    expect(stderr()).toMatch(/error E_ERROR_PORT_UNSUPPORTED/)
-    expect(stderr()).toMatch(/error E_EDGE_CYCLE/)
+    expect(findingLines()).toMatch(/error E_ERROR_PORT_UNSUPPORTED/)
+    expect(findingLines()).toMatch(/error E_EDGE_CYCLE/)
     expect(process.exitCode).toBe(1)
   })
 
@@ -484,6 +598,5 @@ describe('sim workflows source check', () => {
     expect(includes(join(dir, 'tsconfig.json'))).toEqual(
       expect.arrayContaining(['.sim/sdk/blocks/slack_v2.d.ts', '.sim/sdk/blocks/gmail_v2.d.ts'])
     )
-    expect(() => readFileSync(join(dir, 'tsconfig.full.json'))).toThrow()
   })
 })

@@ -9,6 +9,7 @@ import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
 import type { ApplicationOperation, AuthorizingUseCase } from '@/lib/core/application'
 import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import { WorkspaceSourceBusyError } from '@/lib/workspace-source/lease/store'
+import { SourceStagingFullError } from '@/lib/workspace-source/staging/store'
 import {
   v2CaughtOrchestrationError,
   v2Error,
@@ -66,7 +67,8 @@ export function withSourceSlot<O extends ApplicationOperation, I, R>(
  * status (`400`, `409` stale, `423` locked, `413` over a limit) with `details.diagnostics`;
  * `details.code` is `SOURCE_STALE` when a resource changed since the directory was read, else
  * `SOURCE_REJECTED`. An apply while another one writes the workspace answers `409` with
- * `details.code` `SOURCE_BUSY`.
+ * `details.code` `SOURCE_BUSY`. Staging past the caller's staging caps answers `413` with
+ * `details.code` `SOURCE_STAGING_FULL`, apart from a body over the request limit.
  */
 export const v2WorkspaceSourceErrorPolicy = createV2ResourceConcealmentPolicy({
   notFoundMessage: 'Workspace not found',
@@ -84,6 +86,9 @@ export const v2WorkspaceSourceErrorPolicy = createV2ResourceConcealmentPolicy({
     }
     if (error instanceof WorkspaceSourceBusyError) {
       return v2ErrorForOrchestration(error.code, error.message, { code: 'SOURCE_BUSY' })
+    }
+    if (error instanceof SourceStagingFullError) {
+      return v2ErrorForOrchestration(error.code, error.message, { code: 'SOURCE_STAGING_FULL' })
     }
     return v2CaughtOrchestrationError(error)
   },

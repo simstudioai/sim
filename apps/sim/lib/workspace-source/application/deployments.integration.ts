@@ -1055,6 +1055,61 @@ describe('workspace source: deployments', () => {
     }
   )
 
+  check(
+    'warns when a column rename breaks the live version of a workflow whose draft writes the new name, unless the apply redeploys',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Deployed column user', ownerId })
+      const kinds: WorkspaceKind[] = ['table', 'workflow', 'deployment']
+      const created = await apply(
+        workspaceId,
+        {
+          'tables/leads.ts': LEADS_TABLE,
+          'workflows/ingest/workflow.ts': INGEST_LEADS,
+          'deployments/ingest.ts': DRAFT,
+        },
+        { kinds }
+      )
+      expect(created.failed).toBeUndefined()
+      const read = await getAll(workspaceId, kinds)
+      // The table renames email, and the draft writes the new name; the live version still writes email.
+      const renamed: Files = {
+        ...read.files,
+        'tables/leads.ts': LEADS_TABLE.replace(
+          'email: column.string(),',
+          "email: column.string({ name: 'email_address' }),"
+        ),
+        'workflows/ingest/workflow.ts': INGEST_LEADS.replace(
+          'data: { email: start.email }',
+          'data: { email_address: start.email }'
+        ),
+      }
+
+      const { 'deployments/ingest.ts': _deployment, ...undeclaredDeployment } = renamed
+      const kept = await apply(workspaceId, undeclaredDeployment, {
+        kinds: ['table', 'workflow'],
+        base: read.base,
+        dryRun: true,
+      })
+      expect(codes(kept.diagnostics)).toEqual([])
+      const warning = kept.diagnostics.find(
+        (finding) => finding.code === 'W_TABLE_COLUMN_RENAMED_IN_USE'
+      )
+      expect(warning).toMatchObject({ kind: 'table', key: 'leads' })
+      expect(warning?.message).toContain('live version')
+
+      const redeployed = await apply(workspaceId, renamed, {
+        kinds,
+        base: read.base,
+        dryRun: true,
+      })
+      expect(codes(redeployed.diagnostics)).toEqual([])
+      expect(actions(redeployed.plan)).toContain('update deployment:ingest')
+      expect(codes(redeployed.diagnostics, 'warning')).not.toContain(
+        'W_TABLE_COLUMN_RENAMED_IN_USE'
+      )
+    }
+  )
+
   check('refuses a deployment of a workflow the workspace does not hold', async () => {
     const workspaceId = await workspaces.create({ name: 'Deploy nothing', ownerId })
     const refused = await refusal(apply(workspaceId, { 'deployments/missing.ts': DRAFT }))

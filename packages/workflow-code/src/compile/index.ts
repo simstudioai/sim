@@ -6,7 +6,7 @@ import {
   VARIABLE_TYPES,
   type VariableType,
 } from '@sim/workflow-types/workflow'
-import { encodeAnchor } from '../anchors'
+import { edgeTupleKey, encodeAnchor, portKey } from '../anchors'
 import { literalText } from '../babel'
 import { compareEdges } from '../canonicalize/edges'
 import type { BlockCatalog } from '../catalog/types'
@@ -21,23 +21,26 @@ import type {
   CanonicalBlock,
   CanonicalVariable,
   CanonicalWorkflow,
+  CanonicalWorkflowMeta,
+  PortKey,
   VarKey,
 } from '../model'
-import { setOwn } from '../records'
+import { getOwn, setOwn } from '../records'
 import { OLDEST_SDK_MAJOR, SDK_MODULE } from '../sdk'
 import { compileBlock } from './blocks'
 import { checkStorableLiterals, checkStorableText } from './characters'
 import { CommentCollector } from './comments'
 import { type CompileContext, rangeOf, recordSpan, type Scope, unsupported } from './context'
 import { EdgeCollector } from './edges'
+import { referencedResultKind } from './function-returns'
 import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
 import { ErrorLimitReached, Reporter } from './report'
 import { checkSuspiciousName, collectBody, collisionSuffix } from './scope'
 import {
   checkCodeFileRefs,
+  checkDynamicOutputRefs,
   checkErrorOutputRefs,
-  checkResponseFormatRefs,
   compileJsonLiteral,
   objectEntries,
 } from './values'
@@ -74,6 +77,21 @@ export interface CompileInput {
    */
   storedUnread?: WorkflowLockV1
   /**
+   * With `storedUnread`, the edges the stored workflow held when that lock was written, by lock
+   * key (a get's printed source compiled: `CompileResult.edges`). An edge between bound blocks
+   * then counts as possibly stored only when it is one of these, so a cycle or an error edge the
+   * source adds between bound blocks is the error the server reports. Absent, any such edge may
+   * be stored.
+   */
+  storedUnreadEdges?: ReadonlyArray<StoredEdgeRef>
+  /**
+   * Stored block keys the source renamed, stored key → source key (`lockIdentRenames`, which the
+   * server computes against `stored`; with `storedUnread` the compile computes them itself). An
+   * apply rewrites every `<stored.path>` to the new key, so a code file's `$ref.<stored key>`
+   * still resolves and is checked against the renamed block instead of warning.
+   */
+  renamedKeys?: ReadonlyMap<BlockKey, BlockKey>
+  /**
    * The env variable names a run resolves (the workspace's plus the caller's personal ones).
    * `env.NAME` outside it compiles with `W_ENV_UNKNOWN`; absent, no name is checked.
    */
@@ -93,6 +111,11 @@ export interface CompileResult {
   diagnostics: LocatedDiagnostic<CompileDiagnosticCode>[]
   /** Where each anchor sits, to map later server findings back to lines. */
   spans: Partial<Record<AnchorKey, SourceSpan>>
+  /**
+   * Where `workflow()` writes the name and the description, so a server finding about the
+   * workflow itself (a name another workflow holds, a block delete) points there.
+   */
+  metaSpans: Partial<Record<keyof CanonicalWorkflowMeta, SourceSpan>>
   /** Idents as written, `order` as declaration index, and code files, for the lock. */
   hints: SourceHints
   /** The header's major, or `null` when the header is missing. */
@@ -102,6 +125,19 @@ export interface CompileResult {
    * workspace apply checks against the secrets its directory declares.
    */
   envReferences: string[]
+  /**
+   * Every edge the wiring denotes that passed validation, by block key, whether or not the
+   * compile failed elsewhere: what an offline check records of a get's printed source as
+   * `CompileInput.storedUnreadEdges`.
+   */
+  edges: StoredEdgeRef[]
+}
+
+/** One edge as `CompileInput.storedUnreadEdges` names it: block keys and the port's `portKey`. */
+export interface StoredEdgeRef {
+  from: BlockKey
+  port: PortKey
+  to: BlockKey
 }
 
 const WORKFLOW_OPTIONS = ['description', 'variables']
@@ -283,6 +319,7 @@ function compileWorkflowCall(
       }
     )
   } else if (nameNode) {
+    ctx.metaSpans.name = ctx.reporter.span(rangeOf(ctx, nameNode))
     checkSuspiciousName(ctx, name, nameNode, 'workflow')
   }
   const optionsNode: Node | undefined = third ? second : undefined
@@ -300,6 +337,7 @@ function compileWorkflowCall(
     } else {
       for (const [key, property] of objectEntries(ctx, optionsNode)) {
         if (key === 'description') {
+          ctx.metaSpans.description = ctx.reporter.span(rangeOf(ctx, property.value))
           description = literalText(property.value)
           if (description === null)
             unsupported(
@@ -384,13 +422,31 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
     workflow: null,
     diagnostics: reporter.diagnostics,
     spans: {},
+    metaSpans: {},
     hints: { blocks: {} },
     sdkMajor,
     envReferences: [],
+    edges: [],
   }
 }
 
 const BYTE_ORDER_MARK = '\uFEFF'
+
+/**
+ * Whether the stored workflow holds `value` in `param` of block `key` already: a JSON field the
+ * source left as it was printed, whose untyped references the edit did not write, so
+ * `W_JSON_REF_UNTYPED` is not repeated on every apply of a workflow it was saved with.
+ */
+function storedHolds(
+  stored: CanonicalWorkflow | undefined,
+  key: BlockKey,
+  param: string,
+  value: string
+): boolean {
+  const held = stored && getOwn(stored.blocks, key)
+  const storedParam = held ? getOwn(held.params, param) : undefined
+  return storedParam?.kind === 'value' && storedParam.value === value
+}
 
 /**
  * Statically interprets a workflow source file into the canonical model. Pass 1 collects
@@ -473,13 +529,15 @@ function compileEntry(
     wiring: [],
     implied: [],
     spans: new Map(),
+    metaSpans: {},
     knownKeys: input.knownKeys ?? new Set(),
     stored: input.stored,
+    storedUnread: input.stored === undefined ? input.storedUnread : undefined,
     envNames: input.envNames,
     envDeclaredIn: input.envDeclaredIn,
     envReferences: new Set(),
     jsonFields: [],
-    responseFormatRefs: [],
+    dynamicOutputRefs: [],
     errorOutputRefs: [],
     refusedBranches: new Map(),
     valueConsts: new Set(),
@@ -592,7 +650,11 @@ function compileEntry(
     })
   }
 
-  checkCodeFileRefs(ctx)
+  const unread = input.stored === undefined ? input.storedUnread : undefined
+  const unreadRenames = unread
+    ? lockIdentRenames(hints, unread, (key) => Object.hasOwn(unread.blocks, key))
+    : new Map<BlockKey, BlockKey>()
+  checkCodeFileRefs(ctx, new Map([...unreadRenames, ...(input.renamedKeys ?? [])]))
 
   const refTypes: RefTypeScope = {
     catalog: input.catalog,
@@ -601,9 +663,23 @@ function compileEntry(
   }
   const isString = (token: string) => refValueKind(token, refTypes) === 'string'
   for (const { params, id, tree, refs } of ctx.jsonFields) {
-    setOwn(params, id, { kind: 'value', value: jsonFieldText(tree, isString) })
+    const value = jsonFieldText(tree, isString)
+    setOwn(params, id, { kind: 'value', value })
     for (const ref of refs) {
       if (refValueKind(ref.token, refTypes) !== 'untyped') continue
+      const returned = referencedResultKind(ref.token, refTypes.block)
+      if (returned === 'typed') continue
+      // An unchanged field stays quiet only while what it reads is too: a Function that now
+      // returns text where it returned a number makes the same bare token break the JSON.
+      if (
+        storedHolds(input.stored, ref.blockKey, id, value) &&
+        referencedResultKind(
+          ref.token,
+          (key) => input.stored && getOwn(input.stored.blocks, key)
+        ) === returned
+      ) {
+        continue
+      }
       reporter.report(
         'W_JSON_REF_UNTYPED',
         `Nothing declares the type of ${ref.token}; it is stored bare, so a string value would break the JSON.`,
@@ -616,17 +692,24 @@ function compileEntry(
     }
   }
 
-  checkResponseFormatRefs(ctx, (key) => compiled.get(key))
+  checkDynamicOutputRefs(ctx, (key) => compiled.get(key))
 
-  const unread = input.stored === undefined ? input.storedUnread : undefined
   const edges = new EdgeCollector(
     ctx,
     compiled,
-    unread &&
-      new Set([
-        ...Object.keys(unread.blocks),
-        ...lockIdentRenames(hints, unread, (key) => Object.hasOwn(unread.blocks, key)).values(),
-      ])
+    unread && {
+      lockKeys: new Map([
+        ...Object.keys(unread.blocks).map((key) => [key, key] as const),
+        ...[...unreadRenames].map(([lockKey, key]) => [key, lockKey] as const),
+      ]),
+      ...(input.storedUnreadEdges
+        ? {
+            edges: new Set(
+              input.storedUnreadEdges.map((edge) => edgeTupleKey(edge.from, edge.port, edge.to))
+            ),
+          }
+        : {}),
+    }
   )
   for (const entry of ctx.wiring) edges.statement(entry)
   for (const implied of ctx.implied) edges.implied(implied.container, implied.child, implied.body)
@@ -664,8 +747,10 @@ function compileEntry(
     workflow,
     diagnostics: reporter.diagnostics,
     spans,
+    metaSpans: ctx.metaSpans,
     hints,
     sdkMajor: parsed.sdkMajor,
     envReferences: [...ctx.envReferences].sort(compareStrings),
+    edges: sortedEdges.map((edge) => ({ from: edge.from, port: portKey(edge.port), to: edge.to })),
   }
 }

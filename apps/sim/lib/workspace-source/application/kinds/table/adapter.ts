@@ -49,6 +49,7 @@ import {
   deleteTableUseCase,
   listTableDefinitionsUseCase,
 } from '@/lib/table/application/tables'
+import { getColumnId } from '@/lib/table/column-keys'
 import { getTableById } from '@/lib/table/service'
 import type { RowData } from '@/lib/table/types'
 import { validateRowSize } from '@/lib/table/validation'
@@ -70,6 +71,7 @@ import {
   isColumnOp,
   type TableChanges,
 } from '@/lib/workspace-source/application/kinds/table/diff'
+import { checkColumnRenamesInUse } from '@/lib/workspace-source/application/kinds/table/renames'
 import {
   baseRows,
   namedRows,
@@ -80,6 +82,7 @@ import {
 import {
   printStoredTable,
   type StoredTableState,
+  sourceColumns,
   storedFingerprint,
   tableAsDecl,
 } from '@/lib/workspace-source/application/kinds/table/stored'
@@ -98,11 +101,17 @@ import type {
 interface RowsPlan {
   /** The rows the reshape writes (only those that differ); absent leaves the rows alone. */
   write?: ReshapeRows
-  /** The managed mark to set, by key column name, or `null` to clear it; absent leaves it. */
-  mark?: { mode: 'managed'; keyColumn: string } | null
+  /**
+   * The rows mark to set (managed rows by key column name, or seed rows), or `null` to clear it;
+   * absent leaves it.
+   */
+  mark?: RowsMark | null
   /** The row version the plan read the stored rows at; the apply refuses one that moved. */
   version?: number
 }
+
+/** How a declaration opts its rows in, as the table's mark records it. */
+type RowsMark = { mode: 'managed'; keyColumn: string } | { mode: 'seed' }
 
 /** What the apply carries out for one table, decided at plan time. */
 export interface TablePlan {
@@ -111,6 +120,11 @@ export interface TablePlan {
   /** The base's column bindings the plan's fingerprint was read under. */
   bindings?: Record<string, BaseColumn>
   rows?: RowsPlan
+  /**
+   * The column keys the write records (`metadata.sourceColumnKeys`), by stored column name: each
+   * declared column whose key is not its name. Absent leaves the record alone.
+   */
+  keys?: Record<string, string>
 }
 
 type TableChange = PlannedChange<'table'>
@@ -162,8 +176,60 @@ function namesByKey(decl: TableDecl): Map<string, string> {
   )
 }
 
-/** The managed mark a declaration asks for, by its key column's stored name. */
-function markOf(decl: TableDecl): { mode: 'managed'; keyColumn: string } | null {
+/** The keys `decl` gives its columns where a key is not the column's name, by column name. */
+function declaredKeys(decl: TableDecl): Record<string, string> {
+  const keys: Record<string, string> = {}
+  for (const [key, column] of Object.entries(decl.columns)) {
+    const name = columnName(key, column)
+    if (name !== key) setOwn(keys, name, key)
+  }
+  return keys
+}
+
+/**
+ * Whether a read of the stored table without a base (a fresh get, or a promotion's read of the
+ * target) would print a declared column under another key than `decl` gives it.
+ */
+function keysUnrecorded(state: StoredTableState, decl: TableDecl): boolean {
+  const { keyById } = tableAsDecl(state)
+  const idByName = new Map(
+    sourceColumns(state.table).map((column) => [column.name, getColumnId(column)])
+  )
+  return Object.entries(decl.columns).some(([key, column]) => {
+    const id = idByName.get(columnName(key, column))
+    return id !== undefined && keyById.get(id) !== key
+  })
+}
+
+/**
+ * `change` recording `decl`'s column keys: every table write records them, and a no-op becomes a
+ * write of the record alone when a read without a base would print a column under another key.
+ */
+function withKeys(
+  change: TableChange,
+  state: StoredTableState,
+  decl: TableDecl,
+  entry: BaseResource | undefined
+): TableChange {
+  const keys = declaredKeys(decl)
+  if (change.action === 'update' || change.action === 'adopt') {
+    return { ...change, detail: { ...change.detail, keys } }
+  }
+  if (change.action !== 'noop' || !keysUnrecorded(state, decl)) return change
+  const bindings = entry?.id === state.table.id ? entry.columns : undefined
+  return {
+    ...change,
+    action: 'update',
+    storedId: state.table.id,
+    fields: ['column keys'],
+    storedFingerprint: storedFingerprint(state, bindings),
+    detail: { ...(bindings ? { bindings } : {}), keys },
+  }
+}
+
+/** The rows mark a declaration asks for: managed rows by their key column's stored name, or seed. */
+function markOf(decl: TableDecl): RowsMark | null {
+  if (decl.rows?.mode === 'seed') return { mode: 'seed' }
   const key = decl.rows?.mode === 'managed' ? decl.rows.key : undefined
   const column = key !== undefined ? decl.columns[key] : undefined
   return key !== undefined && column
@@ -177,7 +243,7 @@ function rowsWrite(decl: TableDecl, allowDelete: boolean): ReshapeRows | undefin
   if (!rows) return undefined
   const named = namedRows(rows, namesByKey(decl))
   const mark = markOf(decl)
-  return rows.mode === 'managed' && mark
+  return rows.mode === 'managed' && mark?.mode === 'managed'
     ? {
         mode: 'managed',
         keyColumn: mark.keyColumn,
@@ -285,9 +351,16 @@ async function planRows(
   const { decl: storedDecl, keyById } = tableAsDecl(state, entry?.columns)
   const storedKey = storedDecl.rows?.key
   if (rows?.mode !== 'managed') {
-    if (storedKey !== undefined) {
-      outcome.plan = { mark: null }
-      outcome.fields.push('rows (no longer managed)')
+    const storedMode = storedDecl.rows?.mode
+    if (storedMode !== rows?.mode) {
+      outcome.plan = { mark: markOf(decl) }
+      outcome.fields.push(
+        storedMode === 'managed'
+          ? 'rows (no longer managed)'
+          : rows
+            ? 'rows (seed)'
+            : 'rows (no longer seeded)'
+      )
     }
     if (rows?.mode === 'seed' && rows.data.length > 0 && !entry) {
       if (state.table.rowCount === 0) {
@@ -456,7 +529,10 @@ async function planTable(
     // A table whose declaration is unchanged can still hold rows to write.
     const settled = planned.settled
     const resource = resolution.action === 'noop' ? resolution.stored : undefined
-    if (!resource || settled.action !== 'noop' || !decl.rows) return settled
+    if (!resource || settled.action !== 'noop') return settled
+    if (!decl.rows && !resource.state.table.metadata?.sourceRows) {
+      return withKeys(settled, resource.state, decl, entry)
+    }
     const rows = await planRows(key, decl, resource.state, entry, ctx)
     const renamed = rows.plan?.write ? columnsRenamedOnServer(decl, resource.state, entry) : []
     if (renamed.length > 0) {
@@ -471,7 +547,7 @@ async function planTable(
       )
       return settled
     }
-    return withRows(settled, rows, resource.state, entry)
+    return withKeys(withRows(settled, rows, resource.state, entry), resource.state, decl, entry)
   }
   switch (planned.action) {
     case 'create': {
@@ -491,7 +567,7 @@ async function planTable(
           ...rows.fields,
         ],
         pending: pendingOf({ ...change, action: 'create' }, { columns: declaredColumnNames(decl) }),
-        detail: { rows: rows.plan },
+        detail: { rows: rows.plan, keys: declaredKeys(decl) },
       }
     }
     case 'adopt':
@@ -533,45 +609,51 @@ async function planTable(
       }
       const action = planned.action === 'adopt' ? 'adopt' : changed ? 'update' : 'noop'
       const storedId = planned.stored.id
-      return {
-        ...change,
-        action,
-        storedId,
-        // A later workflow's dry run checks its row writes against the columns this declares.
-        ...(action !== 'noop'
-          ? {
-              pending: pendingOf(
-                { ...change, action, storedId },
-                { columns: declaredColumnNames(decl) }
-              ),
-            }
-          : {}),
-        ...(changes.fields.length + rows.fields.length > 0
-          ? { fields: [...changes.fields, ...rows.fields] }
-          : {}),
-        ...(dropped > 0 || changes.lostCells > 0 || rows.removed > 0
-          ? {
-              destructive: {
-                what: 'cells',
-                counts: {
-                  columns: dropped,
-                  ...(changes.removedOptions > 0 ? { options: changes.removedOptions } : {}),
-                  cells: changes.lostCells,
-                  ...(rows.removed > 0 ? { rows: rows.removed } : {}),
+      const entryOfStored = planned.action === 'update' ? planned.base : undefined
+      return withKeys(
+        {
+          ...change,
+          action,
+          storedId,
+          // A later workflow's dry run checks its row writes against the columns this declares.
+          ...(action !== 'noop'
+            ? {
+                pending: pendingOf(
+                  { ...change, action, storedId },
+                  { columns: declaredColumnNames(decl) }
+                ),
+              }
+            : {}),
+          ...(changes.fields.length + rows.fields.length > 0
+            ? { fields: [...changes.fields, ...rows.fields] }
+            : {}),
+          ...(dropped > 0 || changes.lostCells > 0 || rows.removed > 0
+            ? {
+                destructive: {
+                  what: 'cells',
+                  counts: {
+                    columns: dropped,
+                    ...(changes.removedOptions > 0 ? { options: changes.removedOptions } : {}),
+                    cells: changes.lostCells,
+                    ...(rows.removed > 0 ? { rows: rows.removed } : {}),
+                  },
                 },
-              },
-            }
-          : {}),
-        storedFingerprint: planFingerprint(storedFingerprint(state, bindings), rows.plan),
-        ...(action === 'noop' && rows.base
-          ? { base: { ...printStoredTable(state, key, bindings).base, rows: rows.base } }
-          : {}),
-        detail: {
-          changes,
-          ...(bindings ? { bindings } : {}),
-          ...(rows.plan ? { rows: rows.plan } : {}),
+              }
+            : {}),
+          storedFingerprint: planFingerprint(storedFingerprint(state, bindings), rows.plan),
+          ...(action === 'noop' && rows.base
+            ? { base: { ...printStoredTable(state, key, bindings).base, rows: rows.base } }
+            : {}),
+          detail: {
+            changes,
+            ...(bindings ? { bindings } : {}),
+            ...(rows.plan ? { rows: rows.plan } : {}),
+          },
         },
-      }
+        state,
+        decl,
+        entryOfStored
+      )
     }
   }
 }
@@ -663,6 +745,7 @@ function reshapeInput(
     ...(rows?.write ? { rows: rows.write } : {}),
     ...(rows?.mark !== undefined ? { sourceRows: rows.mark } : {}),
     ...(rows?.version !== undefined ? { expectedRowsVersion: rows.version } : {}),
+    ...(plan?.keys !== undefined ? { sourceColumnKeys: plan.keys } : {}),
   }
   if (!plan?.changes) return { tableId, workspaceId, ...rowsInput }
   const { table, columns } = plan.changes
@@ -700,6 +783,7 @@ async function managedRowsMovedSinceBase(
 }
 
 export const tableAdapter: KindAdapter<'table', StoredTableState> = {
+  checkRefs: checkColumnRenamesInUse,
   codec: tableCodec,
 
   async load(ctx, { allocate }) {
@@ -804,17 +888,21 @@ export const tableAdapter: KindAdapter<'table', StoredTableState> = {
         },
       })
       const rows = change.detail?.rows
-      if (rows?.write || rows?.mark) {
+      const keys = change.detail?.keys
+      const recordsKeys = keys !== undefined && Object.keys(keys).length > 0
+      if (rows?.write || rows?.mark || recordsKeys) {
         await reshapeTableUseCase.execute({
           principal,
-          input: reshapeInput(ctx, table.id, { rows }),
+          input: reshapeInput(ctx, table.id, { rows, ...(recordsKeys ? { keys } : {}) }),
         })
       }
       return written(ctx, change.key, table.id, decl)
     }
     const tableId = change.storedId
     const plan = change.detail
-    if (!tableId || !(plan?.changes || plan?.rows)) throw new Error('A table update needs its plan')
+    if (!tableId || !(plan?.changes || plan?.rows || plan?.keys)) {
+      throw new Error('A table update needs its plan')
+    }
     await reshapeTableUseCase.execute({ principal, input: reshapeInput(ctx, tableId, plan) })
     return written(ctx, change.key, tableId, decl)
   },

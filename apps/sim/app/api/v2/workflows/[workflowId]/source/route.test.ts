@@ -215,7 +215,7 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
 
   it('answers 409 with the current fingerprint when the draft moved', async () => {
     const current = `sf1:${'f'.repeat(64)}`
-    mocks.apply.mockRejectedValue(new WorkflowSourceStaleError(current))
+    mocks.apply.mockRejectedValue(new WorkflowSourceStaleError(current, 'Lead Scoring'))
 
     const response = await POST(applyRequest(applyBody), context)
     const body = await response.json()

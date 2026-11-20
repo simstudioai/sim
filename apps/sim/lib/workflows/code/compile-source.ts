@@ -56,5 +56,5 @@ export function compileSource(
   )
   if (renames.size === 0) return { ...first, stored: input.stored }
   const stored = rekeyStored(input.stored, renames)
-  return { ...compileWorkflow({ ...compileInput, stored }), stored }
+  return { ...compileWorkflow({ ...compileInput, stored, renamedKeys: renames }), stored }
 }

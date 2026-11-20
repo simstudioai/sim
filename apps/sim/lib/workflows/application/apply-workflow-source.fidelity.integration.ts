@@ -484,6 +484,53 @@ check(
 )
 
 check(
+  'a field the model hides, added in source, is reported as dropped and apply keeps the stored value',
+  async () => {
+    const workflowId = await insertWorkflow('Fidelity hidden field')
+    const start = generateId()
+    const agentId = generateId()
+    await putState(workflowId, {
+      blocks: {
+        [start]: block(start, 'start_trigger', 'Start'),
+        [agentId]: {
+          ...block(agentId, 'agent', 'Answer', {
+            model: { id: 'model', type: 'combobox', value: 'gpt-5.4' },
+          }),
+          advancedMode: true,
+        },
+      },
+      edges: [
+        {
+          id: generateId(),
+          source: start,
+          target: agentId,
+          sourceHandle: 'source',
+          targetHandle: 'target',
+        },
+      ],
+      loops: {},
+      parallels: {},
+      variables: {},
+    })
+    const source = await getSource(workflowId)
+    expect(source.files['workflow.ts']).not.toContain('temperature')
+    const before = await snapshot(workflowId)
+
+    const result = await applySource(
+      source,
+      editEntry(source.files, "model: 'gpt-5.4' }", "model: 'gpt-5.4', temperature: 0.5 }")
+    )
+    const dropped = result.diagnostics.filter((d) => d.code === 'W_FIELD_NOT_APPLICABLE')
+    expect(dropped.map((d) => d.message)).toEqual([
+      'temperature is hidden (model gpt-5.4 does not use it), so it never runs: an apply does not save it over the stored value, and the source it writes back drops this line.',
+    ])
+    expect(result.diff.noop).toBe(true)
+    expect(result.files['workflow.ts']).not.toContain('temperature')
+    expect(await snapshot(workflowId)).toEqual(before)
+  }
+)
+
+check(
   'a workflow built by editing operations and one created from its source read the same through the JSON API',
   async () => {
     const canvasId = await insertWorkflow('Fidelity canvas')
@@ -530,7 +577,63 @@ check(
 
     const canvas = byName(await readGraph(canvasId))
     const fromSource = byName(await readGraph(created.workflowId))
-    expect(findDifferences(canvas, fromSource, 20)).toEqual([])
+    // The loop's `iterations`/`loopType` subBlocks the editing operations leave beside
+    // `data.count` never run, so source does not carry them to the created workflow.
+    const differences = findDifferences(canvas, fromSource, 20).map((d) => d.path)
+    expect(differences.sort()).toEqual([
+      '/blocks/Retry/subBlocks/iterations',
+      '/blocks/Retry/subBlocks/loopType',
+    ])
+  }
+)
+
+check(
+  'a loop the editing operations built prints no superseded subBlocks, and a no-op apply keeps them stored',
+  async () => {
+    const workflowId = await insertWorkflow('Fidelity operations loop')
+    const start = generateId()
+    const loop = generateId()
+    await applyOperations(workflowId, [
+      { operation_type: 'add', block_id: start, params: { type: 'start_trigger', name: 'Start' } },
+      {
+        operation_type: 'add',
+        block_id: loop,
+        params: { type: 'loop', name: 'Retry', inputs: { loopType: 'for', iterations: 3 } },
+      },
+      {
+        operation_type: 'insert_into_subflow',
+        block_id: generateId(),
+        params: {
+          subflowId: loop,
+          type: 'function',
+          name: 'Attempt',
+          inputs: { code: 'return 1' },
+        },
+      },
+      { operation_type: 'edit', block_id: start, params: { connections: { source: loop } } },
+    ])
+    const stored = (await readGraph(workflowId)).blocks[loop]
+    expect(Object.keys(stored.subBlocks ?? {}).sort()).toEqual(['iterations', 'loopType'])
+    expect(stored.data?.count).toBe(3)
+
+    const source = await getSource(workflowId)
+    expect(source.files['workflow.ts']).toContain("loop.for('Retry', { count: 3 }")
+    expect(source.files['workflow.ts']).not.toContain('iterations')
+    expect(source.files['workflow.ts']).not.toContain('extra')
+
+    const before = await snapshot(workflowId)
+    const unchanged = await applySource(source, source.files)
+    expect(unchanged.diff.noop).toBe(true)
+    expect(await snapshot(workflowId)).toEqual(before)
+
+    const counted = await applySource(
+      source,
+      editEntry(source.files, '{ count: 3 }', '{ count: 5 }')
+    )
+    expect(counted.applied).toBe(true)
+    const after = (await readGraph(workflowId)).blocks[loop]
+    expect(after.data?.count).toBe(5)
+    expect(after.subBlocks).toEqual(stored.subBlocks)
   }
 )
 

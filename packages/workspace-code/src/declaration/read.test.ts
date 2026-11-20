@@ -59,7 +59,10 @@ describe('readDeclaration on large files', () => {
       code: 'E_DECL_UNSUPPORTED',
       span: { line: MAX_FINDINGS_PER_FILE + 2, column: 1 },
     })
-    expect(read.diagnostics[MAX_FINDINGS_PER_FILE]).toMatchObject({ code: 'E_LIMIT_EXCEEDED' })
+    expect(read.diagnostics[MAX_FINDINGS_PER_FILE]).toMatchObject({
+      code: 'I_FINDINGS_TRUNCATED',
+      severity: 'info',
+    })
     expect(fullTextScans()).toBeLessThanOrEqual(1)
   })
 
@@ -84,7 +87,7 @@ describe('readDeclaration on large files', () => {
     expect(parsed.diagnostics).toHaveLength(MAX_FINDINGS_PER_FILE + 1)
     const options = parsed.diagnostics.filter((finding) => finding.code === 'E_TABLE_OPTIONS')
     expect(options.at(-1)?.span).toMatchObject({ line: options.length + 3 })
-    expect(parsed.diagnostics.at(-1)).toMatchObject({ code: 'E_LIMIT_EXCEEDED' })
+    expect(parsed.diagnostics.at(-1)).toMatchObject({ code: 'I_FINDINGS_TRUNCATED' })
     expect(fullTextScans()).toBeLessThanOrEqual(2)
   })
 

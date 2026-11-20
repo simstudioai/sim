@@ -238,14 +238,18 @@ function fileFinding(
 
 /**
  * `findings` about a knowledge base's document files, past {@link MAX_FINDINGS_PER_FILE} folded
- * into one `E_LIMIT_EXCEEDED`: a folder of bad documents costs no more than its first hundred.
+ * into one `I_FINDINGS_TRUNCATED`: a folder of bad documents costs no more than its first
+ * hundred, and refuses for what those hundred are, not as a size limit. Errors are kept before
+ * warnings, so a refusal is never folded away behind a hundred warnings.
  */
 function cappedFileFindings(key: string, findings: WorkspaceDiagnostic[]): WorkspaceDiagnostic[] {
   if (findings.length <= MAX_FINDINGS_PER_FILE) return findings
+  const errors = findings.filter((finding) => finding.severity === 'error')
+  const rest = findings.filter((finding) => finding.severity !== 'error')
   return [
-    ...findings.slice(0, MAX_FINDINGS_PER_FILE),
+    ...[...errors, ...rest].slice(0, MAX_FINDINGS_PER_FILE),
     diagnostic(
-      'E_LIMIT_EXCEEDED',
+      'I_FINDINGS_TRUNCATED',
       `Stopped after ${MAX_FINDINGS_PER_FILE} findings about the files in knowledge/${key}/.`,
       { kind: 'knowledge-base', key, hint: 'Fix these and apply again to see the rest.' }
     ),

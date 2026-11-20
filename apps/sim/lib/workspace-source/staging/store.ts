@@ -100,6 +100,18 @@ export async function stagedUsage(
   return { count: Number(usage?.count ?? 0), bytes: Number(usage?.bytes ?? 0) }
 }
 
+/**
+ * A caller's staging area has no room for what it stages: `413` like a body over the limit, told
+ * apart by `details.code` `SOURCE_STAGING_FULL`, since freeing staged files (or waiting for them
+ * to expire) fixes it and sending smaller requests does not.
+ */
+export class SourceStagingFullError extends OrchestrationError {
+  constructor(message: string) {
+    super('payload_too_large', message)
+    this.name = 'SourceStagingFullError'
+  }
+}
+
 /** Refuses staging that would take `target` past its blob or byte cap. */
 export function assertStagingFits(
   usage: { count: number; bytes: number },
@@ -107,14 +119,12 @@ export function assertStagingFits(
 ): void {
   const { maxStagedBlobs, maxStagedBytes } = WORKSPACE_SOURCE_LIMITS
   if (usage.count + adding.count > maxStagedBlobs) {
-    throw new OrchestrationError(
-      'payload_too_large',
+    throw new SourceStagingFullError(
       `Staging ${adding.count} more binary files would hold ${usage.count + adding.count}, over the ${maxStagedBlobs}-file limit. Staged files expire a day after their last use.`
     )
   }
   if (usage.bytes + adding.bytes > maxStagedBytes) {
-    throw new OrchestrationError(
-      'payload_too_large',
+    throw new SourceStagingFullError(
       `Staging ${adding.bytes} more bytes would hold ${usage.bytes + adding.bytes}, over the ${maxStagedBytes}-byte limit. Staged files expire a day after their last use.`
     )
   }

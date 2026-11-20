@@ -13,6 +13,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { WorkspaceKind } from '@sim/workspace-code'
+import { stageBatches } from '@sim/workspace-code/limits'
 import { inArray, sql } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
@@ -124,25 +125,30 @@ export type SourceSubmission = Omit<
   principal?: Principal
 }
 
-/** Stages `blobs` (base64 bytes by SHA-256) in `workspaceId` as `principal`, as the CLI does. */
+/**
+ * Stages `blobs` (base64 bytes by SHA-256) in `workspaceId` as `principal`, as the CLI does: in
+ * the requests `stageBatches` splits them into.
+ */
 export async function stageBlobsAs(
   principal: Principal,
   workspaceId: string,
   blobs: ReadonlyArray<{ sha256: string; content: string }>
 ) {
-  if (blobs.length === 0) return
-  await withPermissionGroupScope(() =>
-    stageSourceBlobs.execute({
-      principal,
-      input: {
-        workspaceId,
-        blobs: blobs.map((blob) => ({
-          sha256: blob.sha256,
-          content: Buffer.from(blob.content, 'base64'),
-        })),
-      },
-    })
-  )
+  const decoded = blobs.map((blob) => {
+    const content = Buffer.from(blob.content, 'base64')
+    return { sha256: blob.sha256, content, size: content.byteLength }
+  })
+  for (const batch of stageBatches(decoded)) {
+    await withPermissionGroupScope(() =>
+      stageSourceBlobs.execute({
+        principal,
+        input: {
+          workspaceId,
+          blobs: batch.map(({ sha256, content }) => ({ sha256, content })),
+        },
+      })
+    )
+  }
 }
 
 /**

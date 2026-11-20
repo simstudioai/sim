@@ -1,8 +1,9 @@
 /**
  * The layout of the generated declarations (`generateSdkTypes`) and which of them a source
- * directory type-checks. A whole catalog is about 500 block files; `tsc` over all of them costs
- * hundreds of megabytes, so a directory's `tsconfig.json` includes only the blocks its source
- * uses, and `tsconfig.full.json` every current block for adding a new one.
+ * directory holds and type-checks. A whole catalog is about 500 block files (over 13 MB), so a
+ * directory holds and its `tsconfig.json` includes only the blocks its source uses; the whole set
+ * lives once per catalog in the CLI's cache, which `tsconfig.full.json` includes for adding any
+ * block.
  */
 
 import { compareStrings } from '@sim/utils/string'
@@ -64,31 +65,44 @@ export function legacyOnlyBlockTypes(catalog: BlockCatalog): Set<string> {
 const CALL = /([A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*)\s*\(/g
 
 /**
- * The block types `sources` (workflow files) name through a builder: every dotted call whose path
- * is a catalog builder (`slack.sendMessage(`) or its tool form (`slack.tool.sendMessage(`). A
- * text scan, not a compile, so it reads any source, broken or not; a builder named in a comment
- * only adds a file to the type-check. `block('type', …)` has untyped params, so needs no file.
+ * The catalog builders `sources` (workflow files) call, sorted: every dotted call whose path is a
+ * catalog builder (`slack.sendMessage(`) or its tool form (`slack.tool.sendMessage(`, read as
+ * `slack.sendMessage`). A text scan, not a compile, so it reads any source, broken or not; a
+ * builder named in a comment counts too. `block('type', …)` names no builder.
  */
-export function referencedBlockTypes(catalog: BlockCatalog, sources: Iterable<string>): string[] {
-  const types = new Set<string>()
+export function referencedBuilders(catalog: BlockCatalog, sources: Iterable<string>): string[] {
+  const keys = new Set<string>()
   for (const text of sources) {
     for (const match of text.matchAll(CALL)) {
       const path = match[1].replace(/\s+/g, '').split('.')
       if (path.length > 1 && path[path.length - 2] === TOOL_NAMESPACE)
         path.splice(path.length - 2, 1)
       else if (path.length > 1 && path[path.length - 1] === TOOL_NAMESPACE) path.pop()
-      const builder = catalogBuilder(catalog, path.join('.'))
-      if (builder) types.add(builder.type)
+      const key = path.join('.')
+      if (catalogBuilder(catalog, key)) keys.add(key)
     }
+  }
+  return [...keys].sort(compareStrings)
+}
+
+/**
+ * The block types `sources` name through a builder ({@link referencedBuilders}): the blocks a
+ * directory's `tsconfig.json` type-checks.
+ */
+export function referencedBlockTypes(catalog: BlockCatalog, sources: Iterable<string>): string[] {
+  const types = new Set<string>()
+  for (const key of referencedBuilders(catalog, sources)) {
+    const builder = catalogBuilder(catalog, key)
+    if (builder) types.add(builder.type)
   }
   return [...types].sort(compareStrings)
 }
 
 /**
- * The block files a directory's `tsconfig.json` includes, relative to the SDK directory: those of
- * the `used` types that have one, plus the {@link ALWAYS_CHECKED_BUILDERS}' blocks.
+ * The block types a directory holds declarations for and its `tsconfig.json` type-checks: the
+ * `used` types that have builders, plus the {@link ALWAYS_CHECKED_BUILDERS}' blocks.
  */
-export function defaultBlockFiles(catalog: BlockCatalog, used: Iterable<string>): string[] {
+export function checkedBlockTypes(catalog: BlockCatalog, used: Iterable<string>): string[] {
   const declared = declaredBlockTypes(catalog)
   const types = new Set<string>()
   for (const key of ALWAYS_CHECKED_BUILDERS) {
@@ -96,7 +110,15 @@ export function defaultBlockFiles(catalog: BlockCatalog, used: Iterable<string>)
     if (type) types.add(type)
   }
   for (const type of used) if (declared.has(type)) types.add(type)
-  return [...types].sort(compareStrings).map(blockTypesFile)
+  return [...types].sort(compareStrings)
+}
+
+/**
+ * The block files a directory's `tsconfig.json` includes, relative to the SDK directory: those of
+ * the {@link checkedBlockTypes}.
+ */
+export function defaultBlockFiles(catalog: BlockCatalog, used: Iterable<string>): string[] {
+  return checkedBlockTypes(catalog, used).map(blockTypesFile)
 }
 
 /**

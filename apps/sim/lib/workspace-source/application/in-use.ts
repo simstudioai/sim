@@ -136,7 +136,7 @@ export function inUseUncheckedFinding(change: Pick<PlannedChange, 'kind' | 'key'
  * The workflows whose live version this plan replaces or stops before its deletes run: a
  * deployment it writes that publishes the draft, or one it undeploys. Held changes write nothing.
  */
-function liveVersionsReplaced(changes: readonly PlannedChange[]): Set<string> {
+export function liveVersionsReplaced(changes: readonly PlannedChange[]): Set<string> {
   const replaced = new Set<string>()
   for (const change of changes) {
     if (change.kind !== 'deployment' || change.held) continue

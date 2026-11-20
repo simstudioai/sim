@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   truncateSync,
   unlinkSync,
@@ -13,10 +14,11 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
+import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { runWorkspaceSource } from '../../test/workspace-source-command'
 import { digest } from './source-dir'
@@ -129,6 +131,38 @@ afterEach(() => {
 })
 
 describe('workspaces source apply', () => {
+  it('without --yes and nobody at a terminal, prints the plan, writes nothing and exits 14', async () => {
+    request.mockResolvedValue(
+      answer({ dryRun: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
+    )
+
+    await apply('--allow-delete')
+
+    expect(request.mock.calls.map((call) => call[1].query?.dryRun === true)).toEqual([true])
+    expect(process.exitCode).toBe(14)
+    const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(printed).toMatchObject({
+      dryRun: true,
+      created: [{ kind: 'table', key: 'leads' }],
+      next: { command: `sim workspaces source apply --dir ${dir} --allow-delete --yes` },
+    })
+    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('+ leads')
+  })
+
+  it('with --yes, prints the plan it applied', async () => {
+    request.mockResolvedValue(
+      answer({
+        plan: [{ kind: 'table', key: 'leads', action: 'create' }],
+        applied: [{ kind: 'table', key: 'leads', action: 'create', id: 'tbl_1' }],
+      })
+    )
+
+    await apply('--yes')
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('+ leads')
+  })
+
   it('puts each finding of a dry run in the JSON on stdout', async () => {
     const finding = {
       code: 'E_DECL_SHAPE',
@@ -196,9 +230,8 @@ describe('workspaces source apply', () => {
     expect(Object.keys(bodies()[0].files)).toContain('workflows/ingest/workflow.ts')
   })
 
-  it('sends an unchanged workflow folder whole when applying a copy to another workspace', async () => {
+  it('sends an unchanged workflow folder copied from another workspace whole', async () => {
     const copied = folderBase('ws_other')
-    write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
     write('workflows/ingest/.sim/base.json', copied)
     write(
       '.sim/written.json',
@@ -209,7 +242,6 @@ describe('workspaces source apply', () => {
         },
       })
     )
-    contextMockState.workspaceSource = 'flag'
     request.mockResolvedValue(answer())
 
     await apply('--yes')
@@ -289,6 +321,46 @@ describe('workspaces source apply', () => {
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(LEADS)
   })
 
+  it('records what a promotion left in the target, and compares the next promotion with it rather than the target as read then', async () => {
+    const leads = (fingerprint: string) => ({
+      id: 'tbl_prod',
+      fingerprint: `rf1:${fingerprint.repeat(64)}`,
+    })
+    let live = { version: 1, workspaceId: 'ws_prod', resources: { 'table:leads': leads('a') } }
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table'],
+            files: { 'tables/leads.ts': LEADS },
+            blobs: [],
+            base: live,
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      return answer({ workspaceId: 'ws_prod', base: live })
+    })
+
+    await apply('--to', 'ws_prod', '--only', 'tables', '--dry-run')
+    expect(existsSync(join(dir, '.sim/targets/ws_prod.json'))).toBe(false)
+    await apply('--to', 'ws_prod', '--only', 'tables', '--yes')
+    expect(JSON.parse(readFileSync(join(dir, '.sim/targets/ws_prod.json'), 'utf8'))).toMatchObject({
+      version: 1,
+      workspaceId: 'ws_prod',
+      resources: { 'table:leads': leads('a') },
+    })
+
+    live = { ...live, resources: { 'table:leads': leads('b') } }
+    request.mockClear()
+    await apply('--to', 'ws_prod', '--only', 'tables', '--yes')
+
+    const post = request.mock.calls.find(([, options]) => options.body !== undefined)
+    expect(post?.[1].body.base.resources['table:leads']).toEqual(leads('a'))
+  })
+
   it('counts the changes that delete data in a dry run, and says re-applying an older directory does not restore it', async () => {
     request.mockResolvedValue(
       answer({
@@ -359,7 +431,7 @@ describe('workspaces source apply', () => {
     expect(summary).toMatchObject({
       workspaceId: 'ws_prod',
       dryRun: true,
-      created: 1,
+      created: [{ kind: 'table', key: 'leads' }],
       diagnostics: [expect.objectContaining({ code: 'W_UNDECLARED', key: 'audit' })],
     })
   })
@@ -526,7 +598,11 @@ describe('workspaces source apply', () => {
       .mocked(console.log)
       .mock.calls.map(([line]) => String(line))
       .join('\n')
-    expect(JSON.parse(printed)).toMatchObject({ applied: 1, created: 1, failed: 'workflow:ingest' })
+    expect(JSON.parse(printed)).toMatchObject({
+      applied: 1,
+      created: [{ kind: 'table', key: 'leads', id: 'tbl_1' }],
+      failed: 'workflow:ingest',
+    })
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// stored\n`)
     expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).resources).toEqual({
       'table:leads': { id: 'tbl_1' },
@@ -645,6 +721,56 @@ describe('workspaces source apply', () => {
     await expect(apply('--yes')).rejects.toMatchObject({ code: 'SOURCE_BLOB_CHANGED' })
     expect(staging.uploaded).toEqual([])
     expect(request).not.toHaveBeenCalled()
+  })
+
+  it('a staging request the server refuses as too large applies nothing, names the upload and the fix, and exits 7', async () => {
+    write('files/a.bin', Buffer.alloc(3_000, 1))
+    mockRequest.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path.endsWith('/source/blobs')) {
+        throw new SimApiError('Request body is too large', 413, 'PAYLOAD_TOO_LARGE')
+      }
+      return path.includes('/source/blobs') ? stagingAnswer(path, options) : request(path, options)
+    })
+
+    const refused = await apply('--yes').then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    expect(refused).toMatchObject({ status: 413, code: 'PAYLOAD_TOO_LARGE', exitCode: 7 })
+    expect((refused as SimApiError).message).toContain('files/a.bin')
+    expect((refused as SimApiError).message).toContain('sim update')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('keeps the server’s refusal of a staging area with no room, which no CLI update or proxy fixes', async () => {
+    write('files/a.bin', Buffer.alloc(3_000, 1))
+    const full =
+      'Staging 3000 more bytes would hold 2000000001, over the 2000000000-byte limit. Staged files expire a day after their last use.'
+    mockRequest.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path.endsWith('/source/blobs')) {
+        throw new SimApiError(full, 413, 'PAYLOAD_TOO_LARGE', { code: 'SOURCE_STAGING_FULL' })
+      }
+      return path.includes('/source/blobs') ? stagingAnswer(path, options) : request(path, options)
+    })
+
+    const refused = await apply('--yes').then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    expect(refused).toMatchObject({ status: 413, message: full })
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('uploads two files that would overflow one request body in two requests', async () => {
+    write('files/a.bin', Buffer.alloc(6_000_000, 1))
+    write('files/b.bin', Buffer.alloc(6_000_000, 2))
+    request.mockResolvedValueOnce(answer())
+
+    await apply('--yes')
+
+    expect(staging.uploaded.map((batch) => batch.length)).toEqual([1, 1])
   })
 
   describe('rate limiting', () => {
@@ -767,17 +893,36 @@ describe('workspaces source apply', () => {
     await expect(apply('--yes')).rejects.toThrow(/unsafe file path/)
   })
 
-  it('refuses a directory read from another workspace unless --workspace names the target', async () => {
+  it('applies to the workspace the directory was read from, refusing only a --workspace naming another', async () => {
     write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
     request.mockResolvedValue(answer())
 
-    await expect(apply('--yes')).rejects.toMatchObject({ code: 'SOURCE_OTHER_WORKSPACE' })
-    expect(request).not.toHaveBeenCalled()
-
-    contextMockState.workspaceSource = 'flag'
     await apply('--yes')
 
     expect(request).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0][0]).toBe('/api/v2/workspaces/ws_other/source')
+
+    write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
+    contextMockState.workspaceSource = 'flag'
+    await expect(apply('--yes')).rejects.toMatchObject({
+      code: 'SOURCE_OTHER_WORKSPACE',
+      message: expect.stringContaining('--to ws_local'),
+    })
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+
+  it('names the directory by its absolute path when --dir is relative', async () => {
+    const cwd = process.cwd()
+    process.chdir(dirname(dir))
+    try {
+      contextMockState.workspaceSource = 'flag'
+      write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
+      await expect(runWorkspaceSource('apply', basename(dir), '--yes')).rejects.toMatchObject({
+        message: expect.stringContaining(`${realpathSync(dir)} was read from workspace ws_other`),
+      })
+    } finally {
+      process.chdir(cwd)
+    }
   })
 
   it('refuses a base that records blobs no get downloaded, but sends one the user removed', async () => {
@@ -993,11 +1138,12 @@ describe('workspaces source apply', () => {
     ).resolves.toMatchObject({ blobs: [] })
   })
 
-  it('warns that a hidden file under a kind folder is not sent', async () => {
+  it('warns on stderr that a hidden file under a kind folder is not sent', async () => {
     write('files/.gitkeep', '')
     write('files/.env', 'SECRET=1')
     write('files/notes.md', 'hi')
     request.mockResolvedValue(answer())
+    contextMockState.output = 'text'
 
     await apply('--yes')
 
@@ -1008,6 +1154,29 @@ describe('workspaces source apply', () => {
       .join('\n')
     expect(warned).toContain('files/.env')
     expect(warned).not.toContain('files/.gitkeep')
+  })
+
+  it('names each file it does not send in its own warning, in the JSON result and its count', async () => {
+    write('files/a:b.txt', 'x')
+    write('files/q?.txt', 'x')
+    write('workflows/.hidden-wf/workflow.ts', INGEST)
+    request.mockResolvedValue(answer())
+
+    await apply('--yes')
+
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    const notSent = summary.diagnostics.filter(
+      (finding: { code: string }) => finding.code === 'W_PATH_NOT_SENT'
+    )
+    expect(notSent.map((finding: { file: string }) => finding.file).sort()).toEqual([
+      'files/a:b.txt',
+      'files/q?.txt',
+      'workflows/.hidden-wf/workflow.ts',
+    ])
+    expect(notSent.every((finding: { severity: string }) => finding.severity === 'warning')).toBe(
+      true
+    )
+    expect(summary.warnings).toBe(3)
   })
 
   it('sends secrets.ts and credentials.ts as their kinds, and no other root file', async () => {
@@ -1064,5 +1233,60 @@ describe('workspaces source apply', () => {
       .mock.calls.map(([line]) => String(line))
       .join('\n')
     expect(warned).toContain('Held back, not written: workflow ingest')
+  })
+
+  it('saves the applied answer when the catalog of a workflow it reprinted cannot be fetched, and says its edges are unrecorded', async () => {
+    const configDir = mkdtempSync(join(tmpdir(), 'sim-workspace-apply-config-'))
+    vi.stubEnv('SIM_CONFIG_DIR', configDir)
+    cacheCatalogText(
+      configDir,
+      'ws_local',
+      readFileSync(join(__dirname, '../../../../workflow-sdk/test/fixtures/catalog.json'), 'utf8')
+    )
+    const storedBase = JSON.stringify({
+      version: 1,
+      workflowId: 'wf_1',
+      workspaceId: 'ws_local',
+      fingerprint: 'sf1:b',
+      catalogHash: 'workflow-own-catalog',
+    })
+    request.mockImplementation(
+      async (path: string, options: { query?: { workflowId?: string } }) => {
+        if (path.endsWith('/source/catalog') && options.query?.workflowId) {
+          throw new SimApiError('Service unavailable', 503, 'UNAVAILABLE')
+        }
+        return answer({
+          plan: [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+          applied: [{ kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' }],
+          files: {
+            'workflows/ingest/workflow.ts': `${INGEST}// stored\n`,
+            'workflows/ingest/.sim/base.json': storedBase,
+          },
+          base: { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } },
+        })
+      }
+    )
+
+    try {
+      await apply('--yes')
+    } finally {
+      vi.unstubAllEnvs()
+      rmSync(configDir, { recursive: true, force: true })
+    }
+
+    expect(process.exitCode).toBeUndefined()
+    expect(readFileSync(join(dir, 'workflows/ingest/workflow.ts'), 'utf8')).toBe(
+      `${INGEST}// stored\n`
+    )
+    expect(readFileSync(join(dir, 'workflows/ingest/.sim/base.json'), 'utf8')).toBe(storedBase)
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).resources).toEqual({
+      'workflow:ingest': { id: 'wf_1' },
+    })
+    expect(existsSync(join(dir, 'workflows/ingest/.sim/stored-edges.json'))).toBe(false)
+    const warned = vi
+      .mocked(console.error)
+      .mock.calls.map(([line]) => String(line))
+      .join('\n')
+    expect(warned).toContain('could not fetch the block catalog of workflows/ingest')
   })
 })

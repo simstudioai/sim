@@ -48,7 +48,7 @@ const log = table.insertRow('Log Question', {
 })
 ```
 
-`get` writes `.sim/AGENTS.md`, a guide for coding agents, and `.sim/examples/workspace/`, a complete example of every kind and the workflow that uses them.
+`get` prints a short primer for coding agents (in JSON output, its `primer` field) and writes it atop `.sim/AGENTS.md`, the guide, with deletes in depth, Git and CI, and promoting to another workspace in `.sim/GUIDE-advanced.md`. It also writes `.sim/examples/workspace/`, a complete example of every kind and the workflow that uses them.
 
 ## Edit a workspace from the CLI
 
@@ -79,6 +79,7 @@ To apply the rest with a workspace key, such as in CI, narrow the apply to the k
 - A resource the directory never managed is kept, and the apply names it in a warning.
 - Something deleted in Sim is not re-created by an unchanged directory, and an edit to it is refused as stale.
 - Table rows are part of the directory only when the table's `rows` opts in (`tables/<key>.rows.jsonl`). Connector-synced documents and run history never are.
+- Seed rows (`rows: { mode: 'seed' }`) belong to the directory: `get` keeps the declaration and the rows file beside it, but Sim does not store them, so a get into a new directory has the declaration without the file.
 - A delete cannot be undone by applying an older copy of the directory, such as a reverted commit. The resource stays deleted, and its rows, documents, run history, webhook URLs and schedules are gone. The dry run marks each change that deletes data and counts them as `destructive`.
 
 ## Promote to another workspace
@@ -90,7 +91,15 @@ sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --dry
 sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --yes
 ```
 
-Each resource binds by key to the target's own. One the target holds under the same key is updated in place, so a workflow keeps its id and its webhook URLs. A key the target lacks is created. Secrets and credentials bind by name to the target's own, and no value is copied. Resources only the target holds are kept unless you pass `--allow-delete`. The directory is not changed and stays bound to the workspace it was read from. Without `--to`, an apply refuses a directory read from another workspace.
+Each resource binds by key to the target's own. One the target holds under the same key is updated in place, so a workflow keeps its id and its webhook URLs. A key the target lacks is created. Secrets and credentials bind by name to the target's own, and no value is copied. Resources only the target holds are kept unless you pass `--allow-delete`. The directory stays bound to the workspace it was read from. Without `--to`, `check`, `status`, `diff` and `apply` act on the workspace the directory was read from, whatever your default workspace; a `--workspace` naming another one is refused.
+
+Each promotion records what it left in the target in `.sim/targets/<workspaceId>.json`, and the next promotion compares with that record:
+
+- A resource changed in the target since the last promotion, such as a hotfix made in Sim, is kept when the directory left it alone.
+- When the directory changed it too, the promotion is refused as stale and exits `5`. Carry the target's change into the source workspace, or undo it in the target, then promote again.
+- The first promotion, and any resource the record does not hold (one created in the target since), updates the target to match the directory. Review the dry run first.
+
+Commit the record with the rest of the directory, so a promotion from CI or another clone compares with it. Deleting it makes the next promotion take the target as it stands.
 
 ## Git and CI
 
@@ -102,7 +111,7 @@ Commit the whole directory, including `.sim/`: its base files are what an apply 
 - Renaming a skill does not rewrite the workflows that use it: each agent keeps the name it stored until its skills list is next edited.
 - One apply sends at most 100 edited workflows and makes at most 1,000 changes; a directory holds at most 500 resources of a kind, and a `tables/<key>.rows.jsonl` at most 10,000 rows. An apply over a limit is refused before anything is written.
 - A document or file over 10 MB, or whose name a directory cannot hold, is left out of `get` and listed in `.sim/skipped.json`. An apply never writes or deletes it.
-- Hidden files (a name starting with a dot, such as `files/.env`) are never sent. An apply names them in a warning.
+- Hidden files (a name starting with a dot, such as `files/.env`) and names with a character no workspace path holds (such as `:` or `?`) are never sent. An apply names each one in a `W_PATH_NOT_SENT` warning.
 - A knowledge base's `embeddingModel` is fixed when it is created. An apply that changes it is refused.
 - An apply that stops part-way exits `8` and saves what it wrote into the directory. Run the same apply again until it exits `0`.
 - An apply exits `5` when a resource changed in Sim after you read it. Run `get` into a new directory and reapply your edit.

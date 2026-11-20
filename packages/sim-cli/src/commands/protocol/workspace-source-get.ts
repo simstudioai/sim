@@ -16,13 +16,15 @@ import {
   WORKSPACE_SKIPPED_FILE,
 } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
+import { printError } from '#sim-cli/output/io'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
 import { removeStagingOnSignal } from './files-get'
-import { printProtocolResult } from './result'
 import {
+  absoluteDirOption,
   checkedPath,
+  directoryWorkspace,
   editedFiles,
   FILE_CONCURRENCY,
   readSourceJson,
@@ -42,9 +44,15 @@ import {
   finishTree,
   loadCatalog,
   loadWorkspaceTypes,
+  printTreeResult,
   sourceTreeChange,
   withSourceExitCode,
 } from './source-tree'
+import {
+  removedWorkflowRecords,
+  unrecordedFoldersWarning,
+  workflowFolderRecords,
+} from './stored-edges'
 import {
   assertListedBlobs,
   blobDigests,
@@ -58,6 +66,7 @@ import {
   keepFile,
   kindFolders,
   localDeclarations,
+  seedRowsFiles,
   skippedFile,
   WORKSPACE_TREE,
 } from './workspace-source-dir'
@@ -160,17 +169,19 @@ async function writeWorkspaceSource(
   dir: string,
   source: WorkspaceSource,
   force: boolean
-): Promise<{ written: number; removed: number; guide: string }> {
+): Promise<{ written: number; removed: number; guide: string; primer: string }> {
   assertWorkspacePaths(Object.keys(source.files))
   assertListedBlobs(source.blobs)
   const blobs = new Map(source.blobs.map((blob) => [blob.path, blob]))
   const written = await readWritten(dir)
   const { paths: onDisk } = await kindFolders(dir, source.kinds)
+  const seedRows = seedRowsFiles(source.files)
   const gone = new Set(
     onDisk.filter(
       (path) =>
         !Object.hasOwn(source.files, path) &&
         !blobs.has(path) &&
+        !seedRows.has(path) &&
         Object.hasOwn(written.digests, path)
     )
   )
@@ -206,6 +217,12 @@ async function writeWorkspaceSource(
     loadWorkspaceTypes(client, source.workspaceId, localDeclarations(source.files)),
   ])
   assertSdkMajor(catalog)
+  const { records: workflowRecords, unrecorded } = await workflowFolderRecords(
+    client,
+    source.workspaceId,
+    catalog,
+    source.files
+  )
   // A get that leaves the workflows unread keeps the blocks those on disk type-check against.
   const tree = await sourceTreeChange(
     dir,
@@ -276,6 +293,7 @@ async function writeWorkspaceSource(
       [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
       [SOURCE_WRITTEN_FILE, writtenFile(record)],
       ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
+      ...workflowRecords,
       ...tree.change.write,
     ]
     await updateSourceDir(dir, {
@@ -285,13 +303,21 @@ async function writeWorkspaceSource(
       ),
       remove: [
         ...gone,
+        ...removedWorkflowRecords(gone),
         ...(skipped ? [] : [WORKSPACE_SKIPPED_FILE]),
         ...(tree.change.remove ?? []),
       ],
     })
     await rm(downloads, { recursive: true, force: true })
-    const summary = finishTree(dir, write.length + stale.length, workspaceTypes, tree.ownsTsconfig)
-    return { written: summary.files, removed: gone.size, guide: summary.guide }
+    const unrecordedWarning = unrecordedFoldersWarning(unrecorded)
+    if (unrecordedWarning) printError(unrecordedWarning)
+    const summary = finishTree(dir, write.length + stale.length, workspaceTypes, tree)
+    return {
+      written: summary.files,
+      removed: gone.size,
+      guide: summary.guide,
+      primer: summary.primer,
+    }
   } finally {
     if (partial) await rm(partial, { recursive: true, force: true })
     disposeSignalCleanup()
@@ -333,29 +359,6 @@ async function keepDownloads(
 }
 
 /**
- * The workspace a get writes `dir` from. A directory whose base was read from a workspace stays
- * that workspace's: a get refreshes it, whatever the profile's default, so a refresh never
- * rewrites it into another workspace. A `--workspace` naming another one is refused (get into
- * another directory, or promote with `apply --to`). A directory without a base takes `profile`.
- */
-async function directoryWorkspace(
-  dir: string,
-  profile: string,
-  explicit: boolean
-): Promise<string> {
-  // Read as leniently as an apply reads it: a base the parser refuses still names its workspace.
-  const recorded = toRecord(await readSourceJson(dir, WORKSPACE_BASE_FILE)).workspaceId
-  const readFrom = typeof recorded === 'string' ? recorded : null
-  if (readFrom === null || readFrom === profile) return profile
-  if (!explicit) return readFrom
-  throw new SimApiError(
-    `${dir} was read from workspace ${readFrom}, but --workspace names ${profile}. Get ${profile} into another directory, or run the get without --workspace to refresh ${readFrom}; to apply this directory to ${profile}, use \`sim workspaces source apply --to ${profile}\`.`,
-    0,
-    'SOURCE_OTHER_WORKSPACE'
-  )
-}
-
-/**
  * `sim workspaces source get --dir <dir> [--only kinds]`: writes the workspace as a source
  * directory: `tables/`, `tools/`, `skills/`, `knowledge/`, `files/` and `workflows/<key>/` (each a
  * workflow source directory), the base, and the SDK declarations once at the root, so
@@ -369,6 +372,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
     'downloadFile',
     'downloadKnowledgeDocument',
   ])
+  absoluteDirOption(command)
   command
     .requiredOption('--dir <dir>', 'Directory to write the workspace source into')
     .option('--only <kinds>', `Read only these kinds (${ONLY_KINDS_HELP})`)
@@ -380,10 +384,18 @@ export function attachWorkspaceSourceGet(source: Command): void {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
       await withSourceDirLock(options.dir, async () => {
-        const workspaceId = await directoryWorkspace(
-          options.dir,
-          client.requireWorkspace(),
-          profile.sources.workspaceId === 'flag'
+        // Read as leniently as an apply reads it: a base the parser refuses still names its workspace.
+        const recorded = toRecord(
+          await readSourceJson(options.dir, WORKSPACE_BASE_FILE)
+        ).workspaceId
+        const workspaceId = client.requireWorkspace(
+          directoryWorkspace(
+            options.dir,
+            typeof recorded === 'string' ? recorded : null,
+            profile,
+            (readFrom, named) =>
+              `Get ${named} into another directory, or run the get without --workspace to refresh ${readFrom}; to apply this directory to ${named}, use \`sim workspaces source apply --to ${named}\`.`
+          ) ?? undefined
         )
         const { data } = await client
           .request<GetWorkspaceSourceResponse>('getWorkspaceSource', {
@@ -394,7 +406,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
             throw withSourceExitCode(error)
           })
         const result = await writeWorkspaceSource(client, options.dir, data, options.force === true)
-        printProtocolResult(profile.output, {
+        printTreeResult(profile.output, {
           workspaceId: data.workspaceId,
           dir: options.dir,
           kinds: data.kinds,
@@ -403,6 +415,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
           removed: result.removed,
           skipped: data.skipped.length,
           guide: result.guide,
+          primer: result.primer,
         })
       })
     })

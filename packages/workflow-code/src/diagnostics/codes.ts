@@ -127,7 +127,8 @@ const COMPILE_EDGE_CODES = [
   /**
    * `.onError()` on a block with no error port (a loop or parallel) that the stored workflow
    * already wires: kept so it round-trips; source never adds one. Unread (`storedUnread`), any such
-   * edge between two bound blocks, which an apply keeps only if the stored workflow holds it.
+   * edge between two bound blocks (with `storedUnreadEdges`, one the get printed), which an apply
+   * keeps only if the stored workflow holds it.
    */
   'W_ERROR_PORT_STORED',
   /** `x.key.to()` where `key` is not a branch of `x`. */
@@ -447,6 +448,11 @@ const APPLY_DIAGNOSTIC_CODES = [
   'W_APPLY_TRIGGER_REMOVED',
   /** Compile failed and the catalog changed since the source was read: get the source again. */
   'W_APPLY_CATALOG_MOVED',
+  /**
+   * An apply passed `allowDelete` deletes a block and adds one of the same type and parent: a
+   * probable rename whose name and const both changed, which gets a new id.
+   */
+  'W_APPLY_PROBABLE_RENAME',
   /** A blocking workflow lint finding, mapped to a source line. */
   'E_APPLY_LINT',
   /** A non-blocking workflow lint finding, mapped to a source line. */

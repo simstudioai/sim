@@ -1,13 +1,16 @@
+import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { COOKBOOK_EXAMPLES } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
-import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
 import { digest } from './source-dir'
+import { PRIMER_MAX_BYTES, sourcePrimer } from './source-primer'
+import { attachWorkflowSourceCheck } from './workflow-source-check'
 import { attachWorkflowSourceGet } from './workflow-source-get'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -62,6 +65,21 @@ function program(): Command {
   }
   override(root)
   return root
+}
+
+/** Type-checks the output directory with one of its tsconfig files; returns tsc's output, or ''. */
+function typecheck(project: string): string {
+  try {
+    execFileSync(
+      join(__dirname, '../../../../../node_modules/.bin/tsc'),
+      ['--noEmit', '-p', join(outDir, project)],
+      { encoding: 'utf8', stdio: 'pipe' }
+    )
+    return ''
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string }
+    return `${failure.stdout ?? ''}${failure.stderr ?? ''}`
+  }
 }
 
 /** The `include` list of a tsconfig the CLI wrote into the output directory. */
@@ -121,7 +139,7 @@ afterEach(() => {
 })
 
 describe('sim workflows source get --dir', () => {
-  it('writes the source, lock, base, an agent guide and declarations for every block in the workspace catalog', async () => {
+  it('writes the source, lock, base, an agent guide and the declarations of the blocks it uses', async () => {
     serve({
       [SOURCE_PATH]: () =>
         source({ 'workflow.ts': '// @sim-sdk 1\n', 'functions/score.js': 'return 1\n' }),
@@ -136,13 +154,74 @@ describe('sim workflows source get --dir', () => {
     )
     expect(existsSync(join(outDir, '.sim/sdk/core.d.ts'))).toBe(true)
     expect(existsSync(join(outDir, '.sim/sdk/blocks/agent.d.ts'))).toBe(true)
-    expect(existsSync(join(outDir, '.sim/sdk/blocks/slack_v2.d.ts'))).toBe(true)
+    expect(existsSync(join(outDir, '.sim/sdk/blocks/slack_v2.d.ts'))).toBe(false)
     const workspaceTypes = readFileSync(join(outDir, '.sim/sdk/workspace.d.ts'), 'utf8')
     expect(workspaceTypes).toContain("'docs': true")
     expect(workspaceTypes).toContain("interface WorkspaceSkills {\n    'triage': true")
     expect(workspaceTypes).toContain("interface WorkspaceCustomTools {\n    'lookup-order': true")
     expect(callsTo(CATALOG_PATH)).toHaveLength(1)
     expect(callsTo(CATALOG_PATH)[0][1].query).toBeUndefined()
+  })
+
+  it('prints the primer, which opens the guide, with a snippet for each builder the source calls and no other', async () => {
+    serve({
+      [SOURCE_PATH]: () =>
+        source({ 'workflow.ts': "// @sim-sdk 1\nconst mail = gmail.sendEmail('Mail', {})\n" }),
+    })
+
+    await get('--dir', outDir)
+
+    const { primer } = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(readFileSync(join(outDir, '.sim/AGENTS.md'), 'utf8').startsWith(primer)).toBe(true)
+    expect(primer).toContain('- `gmail.sendEmail` (Gmail: Send Email)')
+    expect(primer).not.toContain('`slack.sendMessage`')
+  })
+
+  it('keeps the primer without snippets within its byte budget for both directory kinds', () => {
+    for (const kind of ['workflow', 'workspace'] as const) {
+      expect(Buffer.byteLength(sourcePrimer(kind))).toBeLessThanOrEqual(PRIMER_MAX_BYTES)
+    }
+  })
+
+  it('type-checks a builder of a block the directory does not hold: through the cache at once, and locally after a check', async () => {
+    const workflow = [
+      '// @sim-sdk 1',
+      "import { trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('W', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      '})',
+      '',
+    ].join('\n')
+    serve({ [SOURCE_PATH]: () => source({ 'workflow.ts': workflow }, []) })
+    await get('--dir', outDir)
+    expect(existsSync(join(outDir, '.sim/sdk/blocks/gmail_v2.d.ts'))).toBe(false)
+
+    writeFileSync(
+      join(outDir, 'workflow.ts'),
+      workflow
+        .replace('{ trigger, workflow }', '{ gmail, trigger, workflow }')
+        .replace(
+          "  const start = trigger.start('Start', {})\n",
+          "  const start = trigger.start('Start', {})\n  const mail = gmail.sendEmail('Mail', { to: 'a@b.c', subject: 's', body: 'b', bogusParam: 1 })\n  start.to(mail)\n"
+        )
+    )
+    const unknownParam = /'bogusParam' does not exist in type 'GmailSendEmailParams'/
+    expect(typecheck('tsconfig.full.json')).toMatch(unknownParam)
+
+    contextMockFns.mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: WORKSPACE_ID,
+      output: 'json',
+    })
+    const check = new Command('source')
+    attachWorkflowSourceCheck(check)
+    check.commands.forEach((command) => command.exitOverride())
+    await check.parseAsync(['node', 'source', 'check', '--dir', outDir])
+    process.exitCode = undefined
+
+    expect(existsSync(join(outDir, '.sim/sdk/blocks/gmail_v2.d.ts'))).toBe(true)
+    expect(typecheck('tsconfig.json')).toMatch(unknownParam)
   })
 
   it('writes the example workflows beside the guide, outside what the tsconfig files type-check', async () => {
@@ -160,7 +239,7 @@ describe('sim workflows source get --dir', () => {
     }
   })
 
-  it('type-checks only the blocks the source uses by default, and every current block in tsconfig.full.json', async () => {
+  it('type-checks only the blocks the source uses by default, and every current block through the cache in tsconfig.full.json', async () => {
     serve({
       [SOURCE_PATH]: () =>
         source(
@@ -193,20 +272,26 @@ describe('sim workflows source get --dir', () => {
     )
     expect(include).not.toContain('.sim/sdk/blocks/google_sheets_v2.d.ts')
     expect(include.every((path) => existsSync(join(outDir, path)))).toBe(true)
-    expect(tsconfigInclude('tsconfig.full.json')).toEqual([
-      'workflow.ts',
-      '.sim/sdk/index.d.ts',
-      '.sim/sdk/workspace.d.ts',
-    ])
+    const [entry, fullIndex, workspace] = tsconfigInclude('tsconfig.full.json')
+    expect([entry, workspace]).toEqual(['workflow.ts', '.sim/sdk/workspace.d.ts'])
+    expect(fullIndex.startsWith(join(rootDir, 'config/cache/source-catalog', CATALOG.hash))).toBe(
+      true
+    )
+    expect(readFileSync(fullIndex, 'utf8')).toContain("import './blocks/google_sheets_v2'")
+    expect(existsSync(join(dirname(fullIndex), 'blocks/google_sheets_v2.d.ts'))).toBe(true)
   })
 
-  it('writes one declaration file per block, and the builder index', async () => {
+  it('lists the builders of the blocks it holds in the builder index, and every builder in the cached one', async () => {
     serve()
 
     await get('--dir', outDir)
 
     expect(existsSync(join(outDir, '.sim/sdk/operations'))).toBe(false)
-    expect(readFileSync(join(outDir, '.sim/sdk/INDEX.md'), 'utf8')).toContain(
+    const local = readFileSync(join(outDir, '.sim/sdk/INDEX.md'), 'utf8')
+    expect(local).toContain('- `agent` — Agent → `blocks/agent.d.ts` (`AgentParams`)')
+    expect(local).not.toContain('`gmail.sendEmail`')
+    const [, fullIndex] = tsconfigInclude('tsconfig.full.json')
+    expect(readFileSync(join(dirname(fullIndex), 'INDEX.md'), 'utf8')).toContain(
       '- `gmail.sendEmail` — Gmail: Send Email → `blocks/gmail_v2.d.ts` (`GmailSendEmailParams`)'
     )
   })

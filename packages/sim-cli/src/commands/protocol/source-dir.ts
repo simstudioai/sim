@@ -37,14 +37,15 @@ import {
   SOURCE_LOCK_FILE,
 } from '@sim/workflow-code/limits'
 import { fingerprintOf, KIND_DIRS } from '@sim/workspace-code'
-import { printError } from '#sim-cli/output/io'
+import type { Command } from 'commander'
+import type { ResolvedProfile } from '../../config/index'
 import { embedStore } from '../../embed-context'
 import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
 import { SimApiError } from '../../http/client'
 import { embeddedFileContent } from '../../transfer/local-file'
 import { removeStagingOnSignal, saveToFile } from './files-get'
 
-/** Generated SDK declarations: every block in the workspace catalog, plus `workspace.d.ts`. */
+/** Generated SDK declarations: the blocks the source uses (every block's are cached), plus `workspace.d.ts`. */
 export const SOURCE_SDK_DIR = '.sim/sdk'
 /** A short guide for an agent working in the directory; never a top-level `AGENTS.md`. */
 export const SOURCE_AGENTS_FILE = '.sim/AGENTS.md'
@@ -63,6 +64,18 @@ export const SOURCE_GITIGNORE_FILE = '.gitignore'
  * edit from a file it may replace. The CLI's own record: never sent to the server.
  */
 export const SOURCE_WRITTEN_FILE = '.sim/written.json'
+/**
+ * The workspace a starter written by `workflows source create` was typed for, so the create that
+ * follows targets that workspace. The CLI's own record: never sent, and removed once the workflow
+ * exists.
+ */
+export const SOURCE_STARTER_FILE = '.sim/starter.json'
+/**
+ * The edges of the workflow a get or apply printed, by lock key, with the base fingerprint they
+ * belong to, so an offline check tells an edge the stored workflow holds from one the source
+ * adds. The CLI's own record: never sent to the server.
+ */
+export const SOURCE_STORED_EDGES_FILE = '.sim/stored-edges.json'
 /**
  * Where a workspace get keeps the blobs it verified until they move into place. A get that fails
  * leaves them there, so the next one downloads only the rest; the one that completes removes the
@@ -99,7 +112,7 @@ const GITATTRIBUTES_LINES = [
   `${SOURCE_ENTRY_FILE} text eol=lf`,
   `${SOURCE_FUNCTIONS_DIR}/** text eol=lf`,
 ]
-/** Files read or written at once on a local disk; the declarations run to thousands of small files. */
+/** Files read or written at once on a local disk; a catalog's declarations run to hundreds of small files. */
 export const FILE_CONCURRENCY = 32
 
 /**
@@ -168,6 +181,51 @@ export async function readSourceJson(dir: string, path: string): Promise<unknown
   } catch {
     return null
   }
+}
+
+/**
+ * Makes `command`'s `--dir` (given or defaulted) an absolute path before its action runs, so every
+ * message names the directory it read wherever the CLI ran: a wrapper that changes directory
+ * first made `.` name a folder its caller never meant. An embedded run keeps its host's path.
+ */
+export function absoluteDirOption(command: Command): Command {
+  return command.hook('preAction', (_hooked, action) => {
+    const dir: unknown = action.getOptionValue('dir')
+    if (typeof dir === 'string' && !embedStore.getStore()) {
+      action.setOptionValue('dir', resolve(dir))
+    }
+  })
+}
+
+/**
+ * The workspace a source command acts on for a directory read from `readFrom`: that workspace,
+ * whatever the profile's default, so a directory stays bound to where it came from. Only a
+ * `--workspace` naming another one is refused, with `next` saying what to run instead (given the
+ * workspace the directory was read from and the one named). A directory that records no workspace
+ * takes the profile's (`null` when none is selected).
+ */
+export function directoryWorkspace(
+  dir: string,
+  readFrom: string | null,
+  profile: Pick<ResolvedProfile, 'workspaceId' | 'sources'>,
+  next: (readFrom: string, named: string) => string
+): string | null {
+  const named = profile.workspaceId
+  if (readFrom === null) return named
+  if (profile.sources.workspaceId !== 'flag' || named === null || named === readFrom) {
+    return readFrom
+  }
+  throw new SimApiError(
+    `${dir} was read from workspace ${readFrom}, but --workspace names ${named}. ${next(readFrom, named)}`,
+    0,
+    'SOURCE_OTHER_WORKSPACE'
+  )
+}
+
+/** The workspace {@link SOURCE_STARTER_FILE} names, or `null` when the directory holds no starter. */
+export async function readStarterWorkspace(dir: string): Promise<string | null> {
+  const workspaceId = toRecord(await readSourceJson(dir, SOURCE_STARTER_FILE)).workspaceId
+  return typeof workspaceId === 'string' ? workspaceId : null
 }
 
 /**
@@ -283,12 +341,17 @@ export interface SourceDirChange {
 }
 
 /**
- * The files that record what the directory was read from: each workflow's lock, base and
- * `.sim/written.json`, and the workspace base. They move into place only after every other file,
+ * The files that record what the directory was read from: each workflow's lock, base,
+ * `.sim/written.json` and stored edges, and the workspace base. They move into place only after every other file,
  * so a write cut short leaves the old records beside whatever text did land: the next apply is
  * refused as stale, never sent as if the old text were current.
  */
-const RECORD_FILES = [SOURCE_BASE_FILE, SOURCE_LOCK_FILE, SOURCE_WRITTEN_FILE]
+const RECORD_FILES = [
+  SOURCE_BASE_FILE,
+  SOURCE_LOCK_FILE,
+  SOURCE_WRITTEN_FILE,
+  SOURCE_STORED_EDGES_FILE,
+]
 
 function isRecordFile(path: string): boolean {
   return RECORD_FILES.some((file) => path === file || path.endsWith(`/${file}`))
@@ -824,14 +887,7 @@ export async function takeOverStaleLock(lock: string, seen: LockSighting): Promi
 export async function withSourceDirLock<T>(
   dir: string,
   run: () => Promise<T>,
-  options: {
-    readOnly?: boolean
-    /**
-     * What to print when an interrupt (Ctrl-C) ends the command: read when it arrives, so a
-     * command can name what a write in flight may have done; `null` prints nothing.
-     */
-    interruptNote?: () => string | null
-  } = {}
+  options: { readOnly?: boolean } = {}
 ): Promise<T> {
   if (embedStore.getStore()) return run()
   const absent = async (path: string) =>
@@ -888,14 +944,7 @@ export async function withSourceDirLock<T>(
   const owner: LockOwner = { pid: process.pid, host: hostname() }
   // An interrupt (Ctrl-C) releases the lock too: a lock left behind is taken over only by a
   // command on the same host, so one left on a folder shared with a container would stay.
-  const disposeSignalRelease = removeStagingOnSignal(
-    () => lock,
-    (signal) => {
-      const note = options.interruptNote?.()
-      if (note) printError(note)
-      process.kill(process.pid, signal)
-    }
-  )
+  const disposeSignalRelease = removeStagingOnSignal(() => lock)
   try {
     await writeFile(join(lock, LOCK_OWNER_FILE), JSON.stringify(owner))
     return await run()

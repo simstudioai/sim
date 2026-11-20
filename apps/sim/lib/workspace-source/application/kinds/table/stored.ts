@@ -55,23 +55,34 @@ function columnDecl(column: ColumnDefinition, key: string): TableColumnDecl {
 
 /**
  * A stored table as the declaration it prints as. A column keeps the key `bindings` (the base's
- * column key → id) gives it; any other column is keyed by its name, so a fresh directory matches
- * columns by name.
+ * column key → id) gives it, else the key the last source write recorded for it
+ * (`metadata.sourceColumnKeys`), so a fresh directory and another workspace's read print the key
+ * the declaration gave it; any other column is keyed by its name.
  */
 export function tableAsDecl(
   state: StoredTableState,
   bindings?: Readonly<Record<string, BaseColumn>>
 ): TableAsDecl {
   const boundKey = new Map(Object.entries(bindings ?? {}).map(([key, column]) => [column.id, key]))
+  const recordedKey = state.table.metadata?.sourceColumnKeys ?? {}
   const stored = sourceColumns(state.table)
   const keyById = new Map<string, string>()
   const taken = new Set<string>()
-  // Bound keys first, so a column keyed by its name never takes a renamed column's key.
-  for (const column of stored) {
-    const key = boundKey.get(getColumnId(column))
-    if (key === undefined || !isDeclarableColumnKey(key) || taken.has(key)) continue
-    keyById.set(getColumnId(column), key)
-    taken.add(key)
+  // Bound keys first, then recorded ones, so a column keyed by its name never takes a renamed
+  // column's key.
+  for (const keyOf of [
+    (id: string) => boundKey.get(id),
+    (id: string) => (Object.hasOwn(recordedKey, id) ? recordedKey[id] : undefined),
+  ]) {
+    for (const column of stored) {
+      const id = getColumnId(column)
+      const key = keyOf(id)
+      if (keyById.has(id) || key === undefined || !isDeclarableColumnKey(key) || taken.has(key)) {
+        continue
+      }
+      keyById.set(id, key)
+      taken.add(key)
+    }
   }
   for (const column of stored) {
     const id = getColumnId(column)
@@ -88,15 +99,20 @@ export function tableAsDecl(
     const key = keyById.get(getColumnId(column)) ?? column.name
     setOwn(columns, key, columnDecl(column, key))
   }
-  // Rows source manages print as `rows`, keyed by the column the marker names while it exists.
+  // Rows source manages print as `rows`, keyed by the column the marker names while it exists;
+  // seed rows print as their `rows` alone, since the directory keeps their file.
   const marker = state.table.metadata?.sourceRows
-  const rowsKey = marker ? keyById.get(marker.keyColumnId) : undefined
+  const rowsKey = marker?.mode === 'managed' ? keyById.get(marker.keyColumnId) : undefined
   const decl: TableDecl = {
     name: state.table.name,
     ...(state.table.description ? { description: state.table.description } : {}),
     ...(state.folderPath !== '/' ? { folder: state.folderPath } : {}),
     columns,
-    ...(rowsKey !== undefined ? { rows: { mode: 'managed', key: rowsKey, data: [] } } : {}),
+    ...(rowsKey !== undefined
+      ? { rows: { mode: 'managed', key: rowsKey, data: [] } }
+      : marker?.mode === 'seed'
+        ? { rows: { mode: 'seed', data: [] } }
+        : {}),
   }
   return { decl, keyById, fingerprint: fingerprintOf(tableCodec.canonical(decl)) }
 }
@@ -134,7 +150,7 @@ export function printStoredTable(
   const { decl, keyById, fingerprint } = tableAsDecl(state, bindings)
   let rowsEntry: BaseRows | undefined
   if (rows && 'seed' in rows) {
-    if (!decl.rows) decl.rows = rows.seed
+    if (decl.rows?.mode !== 'managed') decl.rows = rows.seed
   } else if (decl.rows && rows) {
     decl.rows = { ...decl.rows, data: rows.data }
     rowsEntry = baseRows(decl.rows, rows.version)

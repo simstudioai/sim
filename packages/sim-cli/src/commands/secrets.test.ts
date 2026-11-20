@@ -156,13 +156,10 @@ describe('secrets set cancellation', () => {
 
   it('exits 130 when the user aborts the prompt', async () => {
     mockPromptSecret.mockRejectedValue(new MockCancelled())
-    vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
-      throw new Error(`exit ${code}`)
-    }) as never)
 
     await expect(
       program().parseAsync(['node', 'sim', 'secrets', 'set', 'K', '--scope', 'workspace'])
-    ).rejects.toThrow('exit 130')
+    ).rejects.toMatchObject({ code: 130 })
     expect(mockRequest).not.toHaveBeenCalled()
   })
 })

@@ -170,10 +170,22 @@ The CLI resends a request the API answers `429` only when sending it twice is sa
 | `0` | Applied or created, or a dry run with no errors |
 | `1` | The source has errors (each printed as `file:line:column` with its frame and hint), or command/request failure |
 | `5` | The workflow changed since the directory was read (`409 SOURCE_STALE`): get it again, reapply the edit, and retry |
-| `6` | The workflow is locked (`423`) |
+| `6` | The workflow or its folder is locked (`423`, `E_APPLY_LOCKED`); a locked block exits `1` (`E_APPLY_LOCKED_BLOCK`) |
 | `7` | The source is over the size limits (`413`) |
 | `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
 | `10` | `--dir` is a workflow folder of a workspace directory another `sim` command is using (`SOURCE_DIR_BUSY`); nothing was written: run it again once the other finished |
+| `13` | `AUTH_REQUIRED`: not logged in, or the server refused the credential; nothing was sent |
+| `14` | Run without `--yes` and with no terminal to ask: the plan was printed with no errors and nothing was written; run the same command with `--yes` |
+| `130` | Interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check |
+
+| Code | `sim workflows source status` or `sim workspaces source status` |
+| --- | --- |
+| `0` | Clean: nothing to apply, and the server changed nothing since the directory was read |
+| `1` | Command/request failure |
+| `7` | The source is too large for the server to read in one dry run |
+| `11` | Local changes only: applying writes them |
+| `12` | The server changed since the directory was read (drift, or a conflict with local changes) |
+| `13` | `AUTH_REQUIRED`: not logged in, or the server refused the credential; the local changes are still shown |
 
 | Code | `sim workflows source check` or `sim workspaces source check` |
 | --- | --- |
@@ -192,11 +204,13 @@ The CLI resends a request the API answers `429` only when sending it twice is sa
 | `0` | Applied, or a dry run with no errors |
 | `1` | The source has errors, changes were held back for a secret or credential the workspace cannot satisfy, or command/request failure |
 | `5` | A resource changed since the directory was read (`409 SOURCE_STALE`): get it again into a fresh directory, reapply the edit, and retry |
-| `6` | A resource is locked (`423`) |
+| `6` | A resource (a workflow or its folder, a table) is locked (`423`); a locked block exits `1` (`E_APPLY_LOCKED_BLOCK`) |
 | `7` | The directory is over the size limits (`413`) |
 | `8` | The apply stopped part-way: what was written is saved into the directory; apply again |
 | `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
 | `10` | Busy, retry: another apply is writing the workspace (`409 SOURCE_BUSY`), or another `sim workspaces source` command is using the same directory (`SOURCE_DIR_BUSY`); nothing was written: run the command again once the other finished |
+| `13` | `AUTH_REQUIRED`: not logged in, or the server refused the credential; nothing was sent |
+| `130` | Interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check |
 
 Both waits default to 3600 seconds; `--wait-timeout 0` waits indefinitely. `SIM_TIMEOUT_SECONDS` independently bounds one API request. A timeout does not cancel the underlying run or operation.
 
@@ -403,11 +417,13 @@ jobs:
 
 `check` runs first because it is offline and fast, and it regenerates `.sim/sdk/workspace.d.ts`, so the `tsc` step after it types resources the pull request adds. A workspace API key can apply tables, rows, knowledge bases, files, custom tools, MCP servers and credential bindings. Workflows, skills, secrets and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory (each `.sim/base.json`, ids it allocated, values the server normalized), and the next apply compares with them, so the last step commits them back to the branch; `[skip ci]` keeps that commit from running the job again. Where the branch is protected, run `sim workspaces source get --dir workspace` on a new branch instead and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
 
-To promote the same directory to a second workspace, add a step with `--to`:
+To promote the same directory to a second workspace, add a step with `--to` before the step that commits the files back:
 
 ```bash
 sim workspaces source apply --dir workspace --to "$PROD_WORKSPACE_ID" --yes
 ```
+
+The promotion writes `workspace/.sim/targets/<workspaceId>.json`, what it left in that workspace. Committing it lets the next run tell a change made in that workspace since (kept, or exit `5` when the directory changed the same resource) from one to promote.
 
 ## Related docs
 

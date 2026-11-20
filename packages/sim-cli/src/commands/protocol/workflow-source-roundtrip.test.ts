@@ -18,23 +18,25 @@ import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { attachProtocolCommands } from './index'
 
+/** The profile every command resolves; a test that reads display output sets `output` to text. */
+const profile = vi.hoisted(() => ({
+  name: 'default',
+  endpoint: 'https://sim.example',
+  authProfile: 'default',
+  apiKey: 'key',
+  oauth: null,
+  workspaceId: '00000000-0000-4000-8000-00000000000b',
+  output: 'json' as 'json' | 'text',
+  sources: {
+    endpoint: 'default' as const,
+    credential: 'env' as const,
+    workspaceId: 'env' as const,
+    output: 'default' as const,
+  },
+}))
+
 vi.mock('../../context', async () => {
   const { SimClient } = await import('../../http/client')
-  const profile = {
-    name: 'default',
-    endpoint: 'https://sim.example',
-    authProfile: 'default',
-    apiKey: 'key',
-    oauth: null,
-    workspaceId: '00000000-0000-4000-8000-00000000000b',
-    output: 'json' as const,
-    sources: {
-      endpoint: 'default' as const,
-      credential: 'env' as const,
-      workspaceId: 'env' as const,
-      output: 'default' as const,
-    },
-  }
   return {
     globalsOf: () => ({}),
     profileFrom: () => profile,
@@ -186,7 +188,7 @@ const MANIFEST = {
 /** What the mocked server answers; each test replaces the routes it exercises. */
 interface Server {
   source: () => Response
-  catalog: (headers: Headers) => Response
+  catalog: (headers: Headers, url: URL) => Response
   manifest: () => Response
   apply: () => Response
   create: () => Response
@@ -201,6 +203,7 @@ let catalogRequests: Headers[]
 let stderr: string[]
 
 beforeEach(() => {
+  profile.output = 'json'
   root = mkdtempSync(join(tmpdir(), 'sim-source-roundtrip-'))
   dir = join(root, 'source')
   vi.stubEnv('SIM_CONFIG_DIR', join(root, 'config'))
@@ -233,7 +236,7 @@ beforeEach(() => {
       if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/catalog`) {
         const headers = new Headers(init?.headers)
         catalogRequests.push(headers)
-        return server.catalog(headers)
+        return server.catalog(headers, url)
       }
       if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/resources`) {
         return server.manifest()
@@ -493,13 +496,14 @@ describe('catalog and declarations', () => {
     expect(existsSync(join(dir, 'workflow.ts'))).toBe(false)
   })
 
-  it('leaves the declarations alone while the index on disk names the same catalog', async () => {
+  it('drops the file of a block the source no longer uses while the index names the same catalog', async () => {
     await get()
-    writeFileSync(join(dir, '.sim/sdk/blocks/kept_block.d.ts'), 'declare const x: 1\n')
+    writeFileSync(join(dir, '.sim/sdk/blocks/unused_block.d.ts'), 'declare const x: 1\n')
 
     await get()
 
-    expect(existsSync(join(dir, '.sim/sdk/blocks/kept_block.d.ts'))).toBe(true)
+    expect(existsSync(join(dir, '.sim/sdk/blocks/unused_block.d.ts'))).toBe(false)
+    expect(existsSync(join(dir, '.sim/sdk/blocks/agent.d.ts'))).toBe(true)
   })
 
   it('regenerates the declarations for the same catalog when another CLI release generated them', async () => {
@@ -527,8 +531,12 @@ describe('catalog and declarations', () => {
   })
 
   it('heals a torn catalog cache by fetching the catalog whole and rewriting it', async () => {
-    const cache = join(root, 'config/cache/source-catalog', `${WORKSPACE_ID}.json`)
-    mkdirSync(join(cache, '..'), { recursive: true })
+    const cache = join(root, 'config/cache/source-catalog', `${CATALOG.hash}.json`)
+    mkdirSync(join(cache, '../workspaces'), { recursive: true })
+    writeFileSync(
+      join(cache, '../workspaces', `${WORKSPACE_ID}.json`),
+      JSON.stringify({ hash: CATALOG.hash })
+    )
     writeFileSync(cache, '{"hash":"torn","catalog":{"blo')
 
     await get()
@@ -782,6 +790,7 @@ describe('apply refusals', () => {
 
   it('prints each compile error as file:line:column with its frame and hint, then exits 1', async () => {
     await get()
+    profile.output = 'text'
     server.apply = () =>
       refusal(400, 'SOURCE_INVALID', {
         diagnostics: [
@@ -851,5 +860,279 @@ describe('reading the directory', () => {
     await apply()
 
     expect(applyBodies[0].files).toEqual({ 'workflow.ts': WORKFLOW_TS })
+  })
+})
+
+/**
+ * The block types the workspace catalog withholds from the caller (an unrevealed preview, an
+ * allowlist) while a stored workflow still holds them: only that workflow's own source catalog,
+ * which the get fetches with `workflowId`, declares them, and the dry run compiles against it.
+ */
+const WITHHELD_TYPES = new Set(['table_v2', 'knowledge'])
+
+/** {@link CATALOG} as the workspace catalog of a caller it withholds {@link WITHHELD_TYPES} from. */
+const WORKSPACE_CATALOG = {
+  ...CATALOG,
+  hash: 'workspace-catalog',
+  blocks: Object.fromEntries(
+    Object.entries(CATALOG.blocks).filter(([type]) => !WITHHELD_TYPES.has(type))
+  ),
+  builders: Object.fromEntries(
+    Object.entries(CATALOG.builders as Record<string, { type: string }>).filter(
+      ([, builder]) => !WITHHELD_TYPES.has(builder.type)
+    )
+  ),
+}
+
+/** Every builder path of a withheld type, in catalog order. */
+const WITHHELD_BUILDERS = Object.entries(CATALOG.builders as Record<string, { type: string }>)
+  .filter(([, builder]) => WITHHELD_TYPES.has(builder.type))
+  .map(([path]) => path)
+
+/** A ticket router as a get prints it: a condition whose else branch writes a table row. */
+const TICKET_ROUTER = `// @sim-sdk 1
+import {
+  condition,
+  js,
+  knowledge,
+  knowledgeBase,
+  response,
+  t,
+  table,
+  trigger,
+  workflow,
+} from '@sim/workflow-sdk'
+
+export default workflow('Ticket Router', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { subject: 'string', priority: 'string' } })
+  const isUrgent = condition('Is Urgent', { if: js\`\${start.priority} === 'high'\`, else: true })
+  const policy = knowledge.search('Policy', {
+    knowledgeBaseId: knowledgeBase('policies'),
+    query: start.subject,
+  })
+  const logTicket = table.insertRow('Log Ticket', {
+    tableId: table('tickets'),
+    data: { subject: start.subject, status: 'open' },
+  })
+  const upsertTicket = table.upsertRow('Upsert Ticket', {
+    tableId: table('tickets'),
+    data: { subject: start.subject, status: 'open' },
+  })
+  const recent = table.queryRows('Recent Tickets', { tableId: table('tickets'), limit: 10 })
+  const done = response('Done', { body: { rowId: t\`\${logTicket.row.id}\`, rows: recent.rows } })
+
+  start.to(isUrgent)
+  isUrgent.if.to(policy)
+  isUrgent.else.to(logTicket)
+  logTicket.to(upsertTicket)
+  upsertTicket.to(recent)
+  recent.to(done)
+})
+`
+
+/** One block of every withheld builder, each with no params, as an edit could add them. */
+const EVERY_WITHHELD_BUILDER = [
+  '// @sim-sdk 1',
+  "import { knowledge, table, trigger, workflow } from '@sim/workflow-sdk'",
+  '',
+  "export default workflow('Every Builder', {}, () => {",
+  ...WITHHELD_BUILDERS.map((path, index) => `  const b${index} = ${path}('Block ${index}', {})`),
+  '})',
+  '',
+].join('\n')
+
+const check = (...flags: string[]) => sim('workflows', 'source', 'check', '--dir', dir, ...flags)
+
+function checked(): { errors: number; warnings: number; diagnostics: unknown[] } {
+  return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+}
+
+describe('checking a workflow holding a type the workspace catalog withholds', () => {
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  beforeEach(() => {
+    server.catalog = (_, url) =>
+      json({ data: url.searchParams.has('workflowId') ? CATALOG : WORKSPACE_CATALOG })
+  })
+
+  function serve(source: string, catalogHash: string = CATALOG.hash): void {
+    const { data } = sourceResponse(
+      { 'workflow.ts': source },
+      { version: 1, blocks: {}, variables: {} }
+    )
+    server.source = () =>
+      json({
+        data: {
+          ...data,
+          base: { ...data.base, catalogHash },
+          blockTypes: ['start_trigger', 'condition', 'response', ...WITHHELD_TYPES],
+        },
+      })
+  }
+
+  it('passes the unedited source of a get, with the else branch wired to the table write', async () => {
+    serve(TICKET_ROUTER)
+    await get()
+
+    await check()
+
+    expect(checked()).toMatchObject({ errors: 0, warnings: 0, diagnostics: [] })
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('finds what the dry run finds for every builder only the workflow catalog declares', async () => {
+    serve(EVERY_WITHHELD_BUILDER)
+    await get()
+    const dryRun = compileWorkflow({
+      entry: { path: 'workflow.ts', text: EVERY_WITHHELD_BUILDER },
+      files: new Map(),
+      catalog: CATALOG,
+      sdkMajor: CATALOG.sdkMajor,
+    }).diagnostics.map(({ code, message, span }) => ({ code, message, line: span?.line }))
+
+    await check('--no-strict')
+
+    expect(WITHHELD_BUILDERS).toEqual(
+      expect.arrayContaining(['table.insertRow', 'knowledge.search'])
+    )
+    expect(dryRun.map(({ code }) => code)).not.toContain('E_UNKNOWN_BUILDER')
+    expect(
+      (checked().diagnostics as Array<{ code: string; message: string; line?: number }>).map(
+        ({ code, message, line }) => ({ code, message, line })
+      )
+    ).toEqual(dryRun)
+  })
+
+  it('caches each catalog once by its hash, fetching the workflow catalog only while uncached', async () => {
+    const cacheDir = join(root, 'config/cache/source-catalog')
+    mkdirSync(join(cacheDir, WORKSPACE_ID), { recursive: true })
+    writeFileSync(join(cacheDir, `${WORKSPACE_ID}.json`), '{}')
+    serve(TICKET_ROUTER)
+    const queries: string[] = []
+    const answer = server.catalog
+    server.catalog = (headers, url) => {
+      queries.push(url.searchParams.get('workflowId') ?? 'workspace')
+      return answer(headers, url)
+    }
+
+    await get()
+    await get()
+
+    expect(readdirSync(cacheDir).sort()).toEqual(
+      [CATALOG.hash, `${CATALOG.hash}.json`, `${WORKSPACE_CATALOG.hash}.json`, 'workspaces'].sort()
+    )
+    expect(queries.filter((query) => query === WORKFLOW_ID)).toHaveLength(1)
+  })
+
+  it('checks against the workspace catalog again once a later get no longer needs its own', async () => {
+    serve(TICKET_ROUTER)
+    await get()
+    const revealed = { ...CATALOG, hash: 'revealed' }
+    server.catalog = () => json({ data: revealed })
+    serve(TICKET_ROUTER, revealed.hash)
+    await get()
+
+    await check()
+
+    expect(checked()).toMatchObject({ errors: 0, catalogHash: revealed.hash })
+  })
+})
+
+/** A get's source holding a stored cycle between A and B, every block bound by the lock. */
+const STORED_CYCLE = `// @sim-sdk 1
+import { api, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const a = api('A', { url: 'https://example.com', method: 'GET' })
+  const b = api('B', { url: 'https://example.com', method: 'GET' })
+  const c = api('C', { url: 'https://example.com', method: 'GET' })
+
+  start.to(a)
+  a.to(b)
+  b.to(a)
+  b.to(c)
+})
+`
+
+const STORED_CYCLE_LOCK = {
+  version: 1,
+  blocks: Object.fromEntries(
+    ['start', 'a', 'b', 'c'].map((key, order) => [
+      key,
+      { id: `id-${key}`, parent: null, ident: key, order },
+    ])
+  ),
+  variables: {},
+}
+
+describe('checking wiring between blocks the lock binds', () => {
+  beforeEach(() => {
+    server.source = () =>
+      json({
+        data: {
+          ...sourceResponse({ 'workflow.ts': STORED_CYCLE }, STORED_CYCLE_LOCK).data,
+          blockTypes: ['start_trigger', 'api'],
+        },
+      })
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  const check = (...flags: string[]) => sim('workflows', 'source', 'check', '--dir', dir, ...flags)
+
+  function codes(): string[] {
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    return (printed.diagnostics as Array<{ code: string }>).map(({ code }) => code)
+  }
+
+  function edit(change: (source: string) => string): void {
+    writeFileSync(join(dir, 'workflow.ts'), change(read('workflow.ts')))
+  }
+
+  it('refuses a cycle the edit closes between bound blocks, as the dry run does', async () => {
+    await get()
+    edit((source) => source.replace('  b.to(c)\n', '  b.to(c)\n  c.to(b)\n'))
+
+    await check('--strict')
+
+    expect(codes()).toEqual(['E_EDGE_CYCLE'])
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('keeps the cycle the get printed a warning', async () => {
+    await get()
+
+    await check('--strict')
+
+    expect(codes()).toEqual(['W_EDGE_CYCLE'])
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('keeps the printed cycle a warning through a block renamed in source', async () => {
+    await get()
+    edit((source) => source.replace("api('B',", "api('Bee',"))
+
+    await check('--strict')
+
+    expect(codes()).toEqual(['W_EDGE_CYCLE'])
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('records the edges an apply printed, for the base it saves', async () => {
+    await get()
+    server.apply = () =>
+      json(appliedResponse({ 'workflow.ts': STORED_CYCLE }, { lock: STORED_CYCLE_LOCK }))
+    await apply()
+    edit((source) => source.replace('  b.to(c)\n', '  b.to(c)\n  c.to(b)\n'))
+
+    await check()
+
+    expect(JSON.parse(read('.sim/stored-edges.json')).fingerprint).toBe(SECOND)
+    expect(codes()).toEqual(['E_EDGE_CYCLE'])
   })
 })

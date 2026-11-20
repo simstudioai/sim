@@ -775,7 +775,7 @@ describe('workspace source files', () => {
     'server hashing stops at the per-request budget: a get lists the rest without a hash, and a plan refuses them rather than creating',
     async () => {
       const workspaceId = await newWorkspace()
-      const size = Math.floor(WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest / 2.5)
+      const size = Math.floor(WORKSPACE_SOURCE_LIMITS.maxHashBytesPerRequest / 2.5)
       const directory: Record<string, Buffer> = {}
       for (const name of ['a.bin', 'b.bin', 'c.bin']) {
         const bytes = Buffer.alloc(size, name)

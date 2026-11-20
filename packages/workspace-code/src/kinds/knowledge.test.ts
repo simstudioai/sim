@@ -192,6 +192,21 @@ describe('knowledgeCodec', () => {
     ])
   })
 
+  it('still refuses when the error is past the first hundred document findings', () => {
+    const suspicious = Array.from({ length: 120 }, (_, index) => ({
+      path: `knowledge/policies/docs/a${index}\u200b.md`,
+      sha256: 'a'.repeat(64),
+      size: 1,
+    }))
+    const parsed = knowledgeCodec.parse('policies', declaration("{ name: 'Policies' }"), [
+      ...suspicious,
+      { path: 'knowledge/policies/docs/z.md', sha256: 'abc', size: 1 },
+    ])
+
+    expect(parsed.decl).toBeUndefined()
+    expect(parsed.diagnostics.map((finding) => finding.code)).toContain('E_DECL_SHAPE')
+  })
+
   it('caps document findings without spending the declaration file its own findings', () => {
     const bad = Array.from({ length: 150 }, (_, index) => ({
       path: `knowledge/policies/docs/d${index}.md`,
@@ -209,7 +224,7 @@ describe('knowledgeCodec', () => {
     }
     expect(Object.fromEntries(counts)).toEqual({
       E_DECL_SHAPE: 100,
-      E_LIMIT_EXCEEDED: 1,
+      I_FINDINGS_TRUNCATED: 1,
       E_DECL_UNKNOWN_FIELD: 1,
     })
     expect(parsed.diagnostics.at(-1)).toMatchObject({

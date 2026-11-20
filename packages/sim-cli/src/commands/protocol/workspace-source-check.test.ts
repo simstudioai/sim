@@ -4,7 +4,8 @@ import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
-import { contextMockFns } from '../../test/context-mock'
+import { cacheCatalogText } from '../../test/catalog-cache'
+import { contextMockFns, mockedProfile } from '../../test/context-mock'
 import { attachWorkspaceSourceCheck } from './workspace-source-check'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -52,10 +53,18 @@ function stdoutJson(): Record<string, unknown> {
   return JSON.parse(calls[0].join(' '))
 }
 
-function stderr(): string {
-  return vi
-    .mocked(console.error)
-    .mock.calls.map((call) => call.join(' '))
+/**
+ * The findings of the JSON result on stdout as a person reads them on stderr in a display format
+ * (`file:line:column severity CODE: message`, then its hint): with `--output json` they are
+ * printed only there.
+ */
+function findingLines(): string {
+  const diagnostics = (result().diagnostics ?? []) as Array<Record<string, unknown>>
+  return diagnostics
+    .map(
+      ({ file, line, column, severity, code, message, hint }) =>
+        `${file === undefined ? '' : `${file}:${line}:${column} `}${severity} ${code}: ${message}${hint === undefined ? '' : `\n  hint: ${hint}`}`
+    )
     .join('\n')
 }
 
@@ -74,12 +83,13 @@ beforeEach(() => {
       '',
     ].join('\n')
   )
-  writeFile(
-    `config/cache/source-catalog/${WORKSPACE_ID}.json`,
-    readFileSync(FIXTURE_CATALOG, 'utf8')
-  )
+  cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, readFileSync(FIXTURE_CATALOG, 'utf8'))
   vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
-  contextMockFns.mockProfileFrom.mockReturnValue({ workspaceId: 'ws_other', output: 'json' })
+  contextMockFns.mockProfileFrom.mockReturnValue({
+    ...mockedProfile(),
+    workspaceId: 'ws_other',
+    output: 'json',
+  })
   contextMockFns.mockRequest.mockReset()
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -111,10 +121,12 @@ describe('sim workspaces source check', () => {
     await check()
 
     expect(result()).toMatchObject({ errors: 2, workflows: 3 })
-    expect(stderr()).toMatch(
+    expect(findingLines()).toMatch(
       /workflows\/second\/workflow\.ts:5:\d+ error E_MAT_UNKNOWN_RESOURCE: No table "contact"/
     )
-    expect(stderr()).toMatch(/workflows\/third\/workflow\.ts:5:\d+ error W_TABLE_UNKNOWN_COLUMN/)
+    expect(findingLines()).toMatch(
+      /workflows\/third\/workflow\.ts:5:\d+ error W_TABLE_UNKNOWN_COLUMN/
+    )
     expect(process.exitCode).toBe(1)
   })
 
@@ -132,8 +144,8 @@ describe('sim workspaces source check', () => {
 
     await check()
 
-    expect(stderr()).toMatch(/W_TABLE_UNKNOWN_COLUMN: data writes emial/)
-    expect(stderr()).toMatch(/W_TABLE_UNKNOWN_COLUMN: data writes seen/)
+    expect(findingLines()).toMatch(/W_TABLE_UNKNOWN_COLUMN: data writes emial/)
+    expect(findingLines()).toMatch(/W_TABLE_UNKNOWN_COLUMN: data writes seen/)
     expect(process.exitCode).toBe(1)
   })
 
@@ -155,10 +167,7 @@ describe('sim workspaces source check', () => {
   })
 
   it('in a fresh clone (no cached catalog), downloads the catalog once and checks', async () => {
-    const catalog = readFileSync(
-      join(dir, `config/cache/source-catalog/${WORKSPACE_ID}.json`),
-      'utf8'
-    )
+    const catalog = readFileSync(FIXTURE_CATALOG, 'utf8')
     rmSync(join(dir, 'config'), { recursive: true })
     writeFile('workflows/first/workflow.ts', insertWorkflow())
     contextMockFns.mockRequest.mockResolvedValue({ data: JSON.parse(catalog) })
@@ -305,6 +314,30 @@ describe('sim workspaces source check', () => {
     expect(
       found.every(({ code, file }) => code === 'E_TABLE_ROWS' && file === 'tables/plans.rows.jsonl')
     ).toBe(true)
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('a rows file with more bad lines than one file lists exits 1, as source errors, not 7 as a size limit', async () => {
+    writeFile(
+      'tables/plans.ts',
+      [
+        '// @sim-sdk 1',
+        "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+        'export default defineTable({',
+        "  name: 'plans',",
+        '  columns: { code: column.string({ required: true, unique: true }) },',
+        "  rows: { mode: 'managed', key: 'code' },",
+        '})',
+        '',
+      ].join('\n')
+    )
+    writeFile('tables/plans.rows.jsonl', `${Array.from({ length: 150 }, () => '{').join('\n')}\n`)
+
+    await check()
+
+    const found = stdoutJson().diagnostics as Array<{ code: string; severity: string }>
+    expect(found.at(-1)).toMatchObject({ code: 'I_FINDINGS_TRUNCATED', severity: 'info' })
+    expect(found.filter((finding) => finding.severity === 'error')).toHaveLength(100)
     expect(process.exitCode).toBe(1)
   })
 

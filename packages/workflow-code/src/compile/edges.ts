@@ -51,6 +51,12 @@ function portForHandle(handle: string, from: BlockDecl): Port {
 /** Implicit branch keys of a never-persisted branch list. */
 const IMPLICIT_BRANCHES = { condition: ['if', 'else'], router: ['route0'] } as const
 
+/** What `EdgeCollector` knows of a stored workflow it continues but cannot read. */
+interface UnreadBound {
+  lockKeys: ReadonlyMap<BlockKey, BlockKey>
+  edges?: ReadonlySet<string>
+}
+
 /** Pass 2 of wiring: validates each edge a wiring statement denotes and collects accepted ones. */
 export class EdgeCollector {
   readonly edges: CanonicalEdge[] = []
@@ -65,10 +71,12 @@ export class EdgeCollector {
     private readonly ctx: CompileContext,
     private readonly blocks: ReadonlyMap<string, CanonicalBlock>,
     /**
-     * Under `CompileInput.storedUnread`, the source keys of the blocks its lock binds, renamed
-     * ones included; `undefined` when the compile holds the stored workflow or continues none.
+     * Under `CompileInput.storedUnread`, the lock key of each source block its lock binds, by
+     * source key (a renamed block's is its vacated lock key), and with
+     * `CompileInput.storedUnreadEdges` the tuple keys of the stored edges by lock key;
+     * `undefined` when the compile holds the stored workflow or continues none.
      */
-    private readonly unreadBound: ReadonlySet<BlockKey> | undefined
+    private readonly unreadBound: UnreadBound | undefined
   ) {
     for (const decl of ctx.decls) {
       if (decl.duplicate) continue
@@ -129,7 +137,7 @@ export class EdgeCollector {
       const stored = (this.ctx.stored?.edges ?? []).some(
         (edge) => edge.from === from.key && edge.to === to.key && edge.port.kind === 'error'
       )
-      const unread = !stored && this.maybeStored(from.key, to.key)
+      const unread = !stored && this.maybeStored(from.key, port, to.key)
       if (!stored && !unread) {
         this.error('E_ERROR_PORT_UNSUPPORTED', `${from.name} has no error port.`, node, {
           hint: containerKindOf(from)
@@ -237,7 +245,7 @@ export class EdgeCollector {
         return (
           edge &&
           !storedTuples.has(edgeTupleKey(edge.from, portKey(edge.port), edge.to)) &&
-          !this.maybeStored(edge.from, edge.to)
+          !this.maybeStored(edge.from, edge.port, edge.to)
         )
       })
       const candidates = fresh.length > 0 ? fresh : inside
@@ -304,11 +312,16 @@ export class EdgeCollector {
   }
 
   /**
-   * Whether an edge between `from` and `to` may be one the stored workflow holds although this
-   * compile cannot read it (`CompileInput.storedUnread`): both ends are blocks its lock binds.
+   * Whether an edge may be one the stored workflow holds although this compile cannot read it
+   * (`CompileInput.storedUnread`): both ends are blocks its lock binds, and with
+   * `CompileInput.storedUnreadEdges` the stored workflow held this edge between them.
    */
-  private maybeStored(from: BlockKey, to: BlockKey): boolean {
-    return this.unreadBound?.has(from) === true && this.unreadBound.has(to)
+  private maybeStored(from: BlockKey, port: Port, to: BlockKey): boolean {
+    const lockFrom = this.unreadBound?.lockKeys.get(from)
+    const lockTo = this.unreadBound?.lockKeys.get(to)
+    if (lockFrom === undefined || lockTo === undefined) return false
+    const stored = this.unreadBound?.edges
+    return stored === undefined || stored.has(edgeTupleKey(lockFrom, portKey(port), lockTo))
   }
 
   /**

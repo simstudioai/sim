@@ -49,13 +49,20 @@ export class WorkflowSourceRejectedError extends OrchestrationError {
  * edited the workflow, toggled a block lock, or a migration changed it. Re-read the source,
  * rebase the edit onto it and apply again.
  */
-/** Why a source apply refuses a draft changed since its base, as both its 409 and dry run say. */
-export const WORKFLOW_SOURCE_STALE_MESSAGE =
-  'The workflow changed since this source was read. Get the source again, reapply your edit and retry.'
+/**
+ * Why a source apply refuses a draft changed since its base, as both its 409 and dry run say,
+ * naming the workflow so a workspace apply's line for it says which one.
+ */
+export function workflowSourceStaleMessage(workflowName: string): string {
+  return `Workflow ${JSON.stringify(workflowName)} changed since this source was read. Get the source again, reapply your edit and retry.`
+}
 
 export class WorkflowSourceStaleError extends OrchestrationError {
-  constructor(readonly currentFingerprint: string) {
-    super('conflict', WORKFLOW_SOURCE_STALE_MESSAGE)
+  constructor(
+    readonly currentFingerprint: string,
+    workflowName: string
+  ) {
+    super('conflict', workflowSourceStaleMessage(workflowName))
     this.name = 'WorkflowSourceStaleError'
   }
 }

@@ -64,8 +64,10 @@ export default workflow(
       inputMapping: { email: start.email },
     })
 
-    // Parallel: one branch per item, run at once. p.currentItem is the item; each.results lists
-    // every branch's output once all finish. (loop.forEach is the sequential form.)
+    // Parallel: one branch per item, run at once. p.currentItem is the item and p.index its
+    // position; each.results lists every branch's output once all finish. (loop.forEach is the
+    // sequential form.) In a function code file inside the body, the same values are
+    // $ref.parallel.currentItem and $ref.parallel.index.
     const each = parallel.collection('Each Domain', { collection: start.domains }, (p) => {
       const brief = agent('Company Brief', {
         model: 'claude-sonnet-4-6',

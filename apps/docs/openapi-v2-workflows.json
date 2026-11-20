@@ -6343,7 +6343,8 @@
                             "added": [
                               {
                                 "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
-                                "key": "start"
+                                "key": "start",
+                                "type": "start_trigger"
                               }
                             ],
                             "removed": [],
@@ -8986,7 +8987,7 @@
       "post": {
         "operationId": "stageWorkspaceSourceBlobs",
         "summary": "Stage workspace source blobs",
-        "description": "Stage the bytes of binary files (workspace files, knowledge documents) for a workspace source apply, as multipart form data: one file part per blob, its field name the SHA-256 of its bytes. At most 1000 files and 24000000 bytes per request, 10000000 bytes per file. A part whose bytes hash to another SHA-256 refuses the whole request (`400`), nothing staged. Staged files are scoped to the workspace and the caller, capped at 20000 files and 4000000000 bytes (`413` past either), and expire a day after their last use (staged, asked for, or applied); an apply does not remove them, so applying the same bytes again uploads nothing. Staging the same bytes again only renews them. Requires workspace write access. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.",
+        "description": "Stage the bytes of binary files (workspace files, knowledge documents) for a workspace source apply, as multipart form data: one file part per blob, its field name the SHA-256 of its bytes. At most 1000 files and 8000000 bytes per request, 10000000 bytes per file; a larger file goes in a request of its own. A body over 10001024 bytes answers `413` (`PAYLOAD_TOO_LARGE`) before it is read. A part whose bytes hash to another SHA-256 refuses the whole request (`400`), nothing staged. Staged files are scoped to the workspace and the caller, capped at 20000 files and 4000000000 bytes (`413` with `details.code` `SOURCE_STAGING_FULL` past either), and expire a day after their last use (staged, asked for, or applied); an apply does not remove them, so applying the same bytes again uploads nothing. Staging the same bytes again only renews them. Requires workspace write access. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workspaces.source.blobs.stage",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -18915,6 +18916,7 @@
                         "W_APPLY_TYPE_CHANGED",
                         "W_APPLY_TRIGGER_REMOVED",
                         "W_APPLY_CATALOG_MOVED",
+                        "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
@@ -19060,11 +19062,15 @@
                             "key": {
                               "type": "string",
                               "description": "Block key in the source."
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "Block type."
                             }
                           },
-                          "required": ["id", "key"],
+                          "required": ["id", "key", "type"],
                           "additionalProperties": false,
-                          "description": "A block by id and source key."
+                          "description": "An added or removed block by id, source key and type."
                         },
                         "description": "New blocks."
                       },
@@ -19080,11 +19086,15 @@
                             "key": {
                               "type": "string",
                               "description": "Block key in the source."
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "Block type."
                             }
                           },
-                          "required": ["id", "key"],
+                          "required": ["id", "key", "type"],
                           "additionalProperties": false,
-                          "description": "A block by id and source key."
+                          "description": "An added or removed block by id, source key and type."
                         },
                         "description": "Deleted blocks."
                       },
@@ -19350,6 +19360,7 @@
                         "W_APPLY_TYPE_CHANGED",
                         "W_APPLY_TRIGGER_REMOVED",
                         "W_APPLY_CATALOG_MOVED",
+                        "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
@@ -20012,11 +20023,15 @@
                             "key": {
                               "type": "string",
                               "description": "Block key in the source."
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "Block type."
                             }
                           },
-                          "required": ["id", "key"],
+                          "required": ["id", "key", "type"],
                           "additionalProperties": false,
-                          "description": "A block by id and source key."
+                          "description": "An added or removed block by id, source key and type."
                         },
                         "description": "New blocks."
                       },
@@ -20032,11 +20047,15 @@
                             "key": {
                               "type": "string",
                               "description": "Block key in the source."
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "Block type."
                             }
                           },
-                          "required": ["id", "key"],
+                          "required": ["id", "key", "type"],
                           "additionalProperties": false,
-                          "description": "A block by id and source key."
+                          "description": "An added or removed block by id, source key and type."
                         },
                         "description": "Deleted blocks."
                       },
@@ -20302,6 +20321,7 @@
                         "W_APPLY_TYPE_CHANGED",
                         "W_APPLY_TRIGGER_REMOVED",
                         "W_APPLY_CATALOG_MOVED",
+                        "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
@@ -20623,7 +20643,8 @@
                   "added": [
                     {
                       "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
-                      "key": "start"
+                      "key": "start",
+                      "type": "start_trigger"
                     }
                   ],
                   "removed": [],
@@ -25117,6 +25138,7 @@
                         "E_DECL_SHAPE",
                         "E_DECL_UNKNOWN_FIELD",
                         "E_DECL_UNKNOWN_FILE",
+                        "W_PATH_NOT_SENT",
                         "E_BLOB_MANIFEST",
                         "E_BLOB_MISSING",
                         "E_LIMIT_EXCEEDED",
@@ -25191,6 +25213,7 @@
                         "E_PLAN_REF_DELETED",
                         "E_PLAN_REF_HELD",
                         "W_RESOURCE_IN_USE",
+                        "W_TABLE_COLUMN_RENAMED_IN_USE",
                         "E_NAME_TAKEN",
                         "E_WORKFLOW_FILES_MISSING",
                         "E_WORKFLOW_FOLDER_COPIED",
@@ -25340,6 +25363,7 @@
                         "W_APPLY_TYPE_CHANGED",
                         "W_APPLY_TRIGGER_REMOVED",
                         "W_APPLY_CATALOG_MOVED",
+                        "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
@@ -25680,6 +25704,7 @@
                       "E_DECL_SHAPE",
                       "E_DECL_UNKNOWN_FIELD",
                       "E_DECL_UNKNOWN_FILE",
+                      "W_PATH_NOT_SENT",
                       "E_BLOB_MANIFEST",
                       "E_BLOB_MISSING",
                       "E_LIMIT_EXCEEDED",
@@ -25754,6 +25779,7 @@
                       "E_PLAN_REF_DELETED",
                       "E_PLAN_REF_HELD",
                       "W_RESOURCE_IN_USE",
+                      "W_TABLE_COLUMN_RENAMED_IN_USE",
                       "E_NAME_TAKEN",
                       "E_WORKFLOW_FILES_MISSING",
                       "E_WORKFLOW_FOLDER_COPIED",
@@ -25903,6 +25929,7 @@
                       "W_APPLY_TYPE_CHANGED",
                       "W_APPLY_TRIGGER_REMOVED",
                       "W_APPLY_CATALOG_MOVED",
+                      "W_APPLY_PROBABLE_RENAME",
                       "E_APPLY_LINT",
                       "W_APPLY_LINT",
                       "W_TABLE_UNKNOWN_COLUMN",
@@ -26086,6 +26113,7 @@
                         "E_DECL_SHAPE",
                         "E_DECL_UNKNOWN_FIELD",
                         "E_DECL_UNKNOWN_FILE",
+                        "W_PATH_NOT_SENT",
                         "E_BLOB_MANIFEST",
                         "E_BLOB_MISSING",
                         "E_LIMIT_EXCEEDED",
@@ -26160,6 +26188,7 @@
                         "E_PLAN_REF_DELETED",
                         "E_PLAN_REF_HELD",
                         "W_RESOURCE_IN_USE",
+                        "W_TABLE_COLUMN_RENAMED_IN_USE",
                         "E_NAME_TAKEN",
                         "E_WORKFLOW_FILES_MISSING",
                         "E_WORKFLOW_FOLDER_COPIED",
@@ -26309,6 +26338,7 @@
                         "W_APPLY_TYPE_CHANGED",
                         "W_APPLY_TRIGGER_REMOVED",
                         "W_APPLY_CATALOG_MOVED",
+                        "W_APPLY_PROBABLE_RENAME",
                         "E_APPLY_LINT",
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",

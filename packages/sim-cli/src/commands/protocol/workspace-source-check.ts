@@ -4,12 +4,18 @@ import { KIND_DIRS } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
 import { profileFrom } from '../../context'
-import { AUTH_REQUIRED_CODE } from '../../exit-codes'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
-import { readSourceJson, SOURCE_DIR_BUSY_HELP, withSourceDirLock } from './source-dir'
-import { unreachableReason } from './source-status'
+import {
+  absoluteDirOption,
+  directoryWorkspace,
+  readSourceJson,
+  SOURCE_DIR_BUSY_HELP,
+  withSourceDirLock,
+} from './source-dir'
+import { credentialRefused, unreachableReason } from './source-status'
 import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
+import { verboseFlag } from './source-ui'
 import {
   type CheckFinding,
   checkWorkflowDir,
@@ -67,12 +73,9 @@ async function fetchedCatalog(
   try {
     return await loadCatalog(connection.client, { workspaceId, blockTypes: [] })
   } catch (error) {
-    // No login keeps its own refusal (exit 13, naming `sim login`); a server that did not answer
+    // No login, or a refused credential, keeps its own refusal (exit 13, naming `sim login`); a server that did not answer
     // leaves the catalog uncached, which the get that caches it fixes once the server answers.
-    const reason =
-      error instanceof SimApiError && error.code !== AUTH_REQUIRED_CODE
-        ? unreachableReason(error)
-        : null
+    const reason = credentialRefused(error) ? null : unreachableReason(error)
     if (reason === null) throw error
     throw new SimApiError(
       `No block catalog is cached for workspace ${workspaceId}, and downloading it failed: ${reason} Run \`sim workspaces source get --dir ${dir}\` once the server can be reached, then check again.`,
@@ -89,11 +92,14 @@ async function fetchedCatalog(
  */
 export function attachWorkspaceSourceCheck(source: Command): void {
   const [command, connect] = apiCommand(source, 'check', ['getSourceCatalog'])
-  strictFlags(
-    command.option(
-      '--dir <dir>',
-      `Workspace source directory: the kind folders and ${WORKSPACE_BASE_FILE}`,
-      '.'
+  absoluteDirOption(command)
+  verboseFlag(
+    strictFlags(
+      command.option(
+        '--dir <dir>',
+        `Workspace source directory: the kind folders and ${WORKSPACE_BASE_FILE}`,
+        '.'
+      )
     )
   )
     .allowExcessArguments(false)
@@ -101,57 +107,76 @@ export function attachWorkspaceSourceCheck(source: Command): void {
       'Compile every workflow of a workspace source directory locally, without the server'
     )
     .addHelpText('after', `${CHECK_HELP}\n${SOURCE_DIR_BUSY_HELP}`)
-    .action(async (options: { dir: string } & StrictOptions, command: Command) => {
-      const profile = profileFrom(command)
-      const base = toRecord(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
-      await assertWorkspaceDir(options.dir)
-      const workspaceId =
-        typeof base.workspaceId === 'string' ? base.workspaceId : profile.workspaceId
-      if (!workspaceId) {
-        throw new SimApiError(
-          `${options.dir} has no ${WORKSPACE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`,
-          0
+    .action(
+      async (options: { dir: string; verbose?: boolean } & StrictOptions, command: Command) => {
+        const profile = profileFrom(command)
+        const base = toRecord(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
+        await assertWorkspaceDir(options.dir)
+        const workspaceId = directoryWorkspace(
+          options.dir,
+          typeof base.workspaceId === 'string' ? base.workspaceId : null,
+          profile,
+          (from) => `Run it without --workspace to check it against the catalog of ${from}.`
         )
-      }
-      await withSourceDirLock(options.dir, async () => {
-        const catalog =
-          cachedCatalog(workspaceId) ?? (await fetchedCatalog(connect, workspaceId, options.dir))
-        const workflowInputs = await workspaceWorkflowInputs(options.dir, catalog)
-        const declarations = {
-          ...(await readWorkspaceDeclarations(options.dir)),
-          workflowInputs,
-        }
-        const keys = await workspaceWorkflowKeys(options.dir)
-        const findings: CheckFinding[] = []
-        for (const key of keys) {
-          const checked = await checkWorkflowDir(
-            join(options.dir, KIND_DIRS.workflow, key),
-            catalog,
-            {
-              declarations,
-              strict: strictMode(options),
-              prefix: `${KIND_DIRS.workflow}/${key}/`,
-            }
+        if (!workspaceId) {
+          throw new SimApiError(
+            `${options.dir} has no ${WORKSPACE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`,
+            0
           )
-          findings.push(...checked.findings)
         }
-        for (const { code, message, hint, file, line, column } of declarations.rowFindings) {
-          findings.push({
+        await withSourceDirLock(options.dir, async () => {
+          const catalog =
+            cachedCatalog(workspaceId) ?? (await fetchedCatalog(connect, workspaceId, options.dir))
+          const workflowInputs = await workspaceWorkflowInputs(options.dir, catalog)
+          const declarations = {
+            ...(await readWorkspaceDeclarations(options.dir)),
+            workflowInputs,
+          }
+          const keys = await workspaceWorkflowKeys(options.dir)
+          const findings: CheckFinding[] = []
+          for (const key of keys) {
+            const checked = await checkWorkflowDir(
+              join(options.dir, KIND_DIRS.workflow, key),
+              catalog,
+              {
+                declarations,
+                strict: strictMode(options),
+                prefix: `${KIND_DIRS.workflow}/${key}/`,
+              }
+            )
+            findings.push(...checked.findings)
+          }
+          for (const {
             code,
-            severity: 'error',
+            severity,
             message,
-            ...(hint !== undefined ? { hint } : {}),
+            hint,
             file,
             line,
             column,
-          })
-        }
-        await refreshWorkspaceTypes(
-          options.dir,
-          withWorkflowInputs(declarations.local, workflowInputs)
-        )
-        await refreshWorkspaceTsconfigs(options.dir, workspaceId)
-        reportCheck(profile.output, findings, { workflows: keys.length, catalogHash: catalog.hash })
-      })
-    })
+          } of declarations.rowFindings) {
+            findings.push({
+              code,
+              severity,
+              message,
+              ...(hint !== undefined ? { hint } : {}),
+              file,
+              line,
+              column,
+            })
+          }
+          await refreshWorkspaceTypes(
+            options.dir,
+            withWorkflowInputs(declarations.local, workflowInputs)
+          )
+          await refreshWorkspaceTsconfigs(options.dir, workspaceId)
+          reportCheck(
+            profile.output,
+            findings,
+            { workflows: keys.length, catalogHash: catalog.hash },
+            options.verbose
+          )
+        })
+      }
+    )
 }

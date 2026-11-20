@@ -780,10 +780,12 @@ export type ApplyWorkflowSourceResponse = {
         added: Array<{
           id: string
           key: string
+          type: string
         }>
         removed: Array<{
           id: string
           key: string
+          type: string
         }>
         renamed: Array<{
           id: string
@@ -949,6 +951,7 @@ export type ApplyWorkflowSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
@@ -1209,6 +1212,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_DECL_SHAPE'
         | 'E_DECL_UNKNOWN_FIELD'
         | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
         | 'E_BLOB_MANIFEST'
         | 'E_BLOB_MISSING'
         | 'E_LIMIT_EXCEEDED'
@@ -1283,6 +1287,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_PLAN_REF_DELETED'
         | 'E_PLAN_REF_HELD'
         | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_FILES_MISSING'
         | 'E_WORKFLOW_FOLDER_COPIED'
@@ -1432,6 +1437,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
@@ -1487,6 +1493,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_DECL_SHAPE'
         | 'E_DECL_UNKNOWN_FIELD'
         | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
         | 'E_BLOB_MANIFEST'
         | 'E_BLOB_MISSING'
         | 'E_LIMIT_EXCEEDED'
@@ -1561,6 +1568,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_PLAN_REF_DELETED'
         | 'E_PLAN_REF_HELD'
         | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_FILES_MISSING'
         | 'E_WORKFLOW_FOLDER_COPIED'
@@ -1710,6 +1718,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
@@ -5199,10 +5208,12 @@ export type CreateWorkflowFromSourceResponse = {
         added: Array<{
           id: string
           key: string
+          type: string
         }>
         removed: Array<{
           id: string
           key: string
+          type: string
         }>
         renamed: Array<{
           id: string
@@ -5368,6 +5379,7 @@ export type CreateWorkflowFromSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
@@ -10462,6 +10474,7 @@ export type GetWorkflowSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
@@ -10917,6 +10930,7 @@ export type GetWorkspaceSourceResponse = {
         | 'E_DECL_SHAPE'
         | 'E_DECL_UNKNOWN_FIELD'
         | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
         | 'E_BLOB_MANIFEST'
         | 'E_BLOB_MISSING'
         | 'E_LIMIT_EXCEEDED'
@@ -10991,6 +11005,7 @@ export type GetWorkspaceSourceResponse = {
         | 'E_PLAN_REF_DELETED'
         | 'E_PLAN_REF_HELD'
         | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_FILES_MISSING'
         | 'E_WORKFLOW_FOLDER_COPIED'
@@ -11140,6 +11155,7 @@ export type GetWorkspaceSourceResponse = {
         | 'W_APPLY_TYPE_CHANGED'
         | 'W_APPLY_TRIGGER_REMOVED'
         | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
