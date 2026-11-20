@@ -1048,6 +1048,38 @@ describe('knowledge bases as workspace source', () => {
     }
   )
 
+  check(
+    'a chunking change counts the replacement a stopped replace left among the documents keeping their chunks',
+    async () => {
+      const { workspaceId, read, dir } = await setUp()
+      const edited = withDoc(dir, REFUNDS, '# Refunds\nWithin 60 days.\n')
+      const failing = vi
+        .spyOn(deleteKnowledgeDocument, 'execute')
+        .mockRejectedValueOnce(new Error('storage unavailable'))
+        .mockRejectedValueOnce(new Error('storage unavailable'))
+      const first = await apply(workspaceId, edited, { base: read.base }).finally(() =>
+        failing.mockRestore()
+      )
+      expect(first.failed).toMatchObject({ key: 'policies' })
+
+      const planned = await apply(
+        workspaceId,
+        {
+          ...edited,
+          files: {
+            ...edited.files,
+            [POLICIES_FILE]: declaration('Policies', '\n  chunking: { maxSize: 512 },'),
+          },
+        },
+        { base: first.base, dryRun: true, carry: 'none' }
+      )
+
+      // The finished replacement and shipping.txt keep their chunks; the replaced refunds.md goes.
+      const chunking = planned.diagnostics.find((finding) => finding.code === 'I_KB_CHUNKING')
+      expect(chunking?.message).toContain('2 stored document(s) keep their chunks')
+    }
+  )
+
   check('a create that fails partway is adopted and finished by the next apply', async () => {
     const workspaceId = await newWorkspace()
     const failing = failUpload(2)

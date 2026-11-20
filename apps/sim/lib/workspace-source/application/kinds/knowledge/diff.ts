@@ -363,7 +363,9 @@ export async function diffKnowledgeBase(input: {
     ...changes.finishes.map((finish) => finish.replaces.id),
     ...changes.deletes.map((doc) => doc.id),
   ])
-  const keepingChunks = [...byName.values()].filter((doc) => !reindexed.has(doc.id)).length
+  // A finished replacement is already stored and indexed, so it keeps its chunks too.
+  const keepingChunks =
+    [...byName.values()].filter((doc) => !reindexed.has(doc.id)).length + changes.finishes.length
   changes.diagnostics.push(
     ...indexingFindings(key, changes.uploads, chunkingChanged, keepingChunks)
   )
