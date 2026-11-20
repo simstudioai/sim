@@ -519,15 +519,23 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflow.rawBlocks || {},
         ctx.selectedOutputs
       )
-      if (isCustomBlock && childOutputSelection.targetsChildWorkflow) {
-        throw new Error('Custom block child outputs cannot be selected for streaming')
+      if (childOutputSelection.ignored.length > 0) {
+        logger.warn('Ignoring output selectors the child workflow cannot serve', {
+          childWorkflowId: workflowId,
+          ignored: childOutputSelection.ignored,
+        })
       }
-      if (!withinSseChildDepth && childOutputSelection.targetsChildWorkflow) {
-        throw new Error(
-          `Selected stream output exceeds the maximum child workflow depth of ${DEFAULTS.MAX_SSE_CHILD_DEPTH}`
-        )
+      if (childOutputSelection.targetsChildWorkflow && (isCustomBlock || !withinSseChildDepth)) {
+        logger.warn('Ignoring child output selection the stream cannot carry', {
+          childWorkflowId: workflowId,
+          reason: isCustomBlock
+            ? 'custom block child outputs cannot be selected for streaming'
+            : 'selected output exceeds the maximum child workflow depth',
+          maxDepth: DEFAULTS.MAX_SSE_CHILD_DEPTH,
+        })
       }
-      const childSelectedOutputs = isCustomBlock ? [] : childOutputSelection.selectedOutputs
+      const childSelectedOutputs =
+        isCustomBlock || !withinSseChildDepth ? [] : childOutputSelection.selectedOutputs
       const shouldStreamChild =
         shouldPropagateCallbacks && Boolean(ctx.stream) && childSelectedOutputs.length > 0
 
