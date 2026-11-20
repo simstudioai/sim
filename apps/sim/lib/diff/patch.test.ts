@@ -113,6 +113,22 @@ describe('toFileDiffs', () => {
     expect(position(file.hunks[0])).toEqual(position(original.hunks[0]))
   })
 
+  it('keeps a change block as written instead of realigning its lines by similarity', () => {
+    const [file] = render(`--- a/total.ts
++++ b/total.ts
+@@ -1,2 +1,4 @@
+-const total = sum(items)
++// recompute
++const total = sum(items) + tax
++return total
+ x`)
+    expect(
+      file.hunks[0].hunkContent.map((block) =>
+        block.type === 'change' ? [block.deletions, block.additions] : block.type
+      )
+    ).toEqual([[1, 3], 'context'])
+  })
+
   it('splits a multi-file git diff into one diff per file', () => {
     const files = render(`diff --git a/app/main.py b/app/main.py
 --- a/app/main.py

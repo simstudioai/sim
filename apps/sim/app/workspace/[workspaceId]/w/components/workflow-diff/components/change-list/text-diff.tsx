@@ -90,6 +90,10 @@ export function TextDiff({ oldText, newText, language }: TextDiffProps) {
     )
 
   const regions = fileDiff.hunks.length
+  /* Normalizing endings can leave nothing to show for a value that did change. */
+  if (regions === 0)
+    return <p className='text-[var(--text-secondary)] text-small'>Only line endings changed</p>
+
   return (
     <div className='overflow-hidden rounded-sm border border-[var(--border-1)]'>
       {regions > MANY_REGIONS && (

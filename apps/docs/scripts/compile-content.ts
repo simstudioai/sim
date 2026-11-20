@@ -473,7 +473,10 @@ if (process.argv.includes('--watch')) {
       return
     scheduleRefresh()
   })
-  watch(SYNTAX_THEME_FILE, scheduleRefresh)
+  /* Editors save by replacing the file, which ends a watch on the file itself; watch its folder. */
+  watch(path.dirname(SYNTAX_THEME_FILE), (_, filename) => {
+    if (filename?.toString() === path.basename(SYNTAX_THEME_FILE)) scheduleRefresh()
+  })
   logger.info('Watching documentation source')
   await refresh()
 } else await generate()

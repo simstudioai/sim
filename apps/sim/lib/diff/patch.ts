@@ -65,7 +65,8 @@ export function toFileDiffs(diff: UnifiedDiff, fallbackName: string): FileDiffMe
     files.set(name, [...(files.get(name) ?? []), hunk])
   }
   const patch = [...files].map(([name, hunks]) => serializeFile(name, hunks)).join('\n')
-  return parsePatchFiles(patch)
+  /* Render the lines in the order they were written, not realigned by similarity. */
+  return parsePatchFiles(patch, { disableLineMatching: true })
     .flatMap((parsed) => parsed.files)
     .map((file) => ({
       ...file,

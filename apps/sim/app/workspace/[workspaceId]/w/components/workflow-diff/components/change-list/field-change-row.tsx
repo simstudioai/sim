@@ -2,7 +2,6 @@
 
 import { ChipModalField, ChipTag, cn } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
-import { isValidCodeLanguage } from '@/lib/execution/languages'
 import { formatValueForDisplay, resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
 import { StructuredValueDiff } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/structured-value-diff'
 import {
@@ -26,6 +25,15 @@ import {
 import type { SubBlockConfig } from '@/blocks/types'
 import { formatParameterLabel } from '@/tools/params'
 
+/** Code languages blocks offer, as the highlighter names them. */
+const CODE_DIFF_LANGUAGES: Record<string, string> = {
+  javascript: 'javascript',
+  typescript: 'typescript',
+  python: 'python',
+  shell: 'bash',
+  json: 'json',
+}
+
 /**
  * The syntax a text diff highlights as: JSON for structured values, a code field's language
  * (the block's own `language` setting first, as the editor does), and plain text for prose.
@@ -37,12 +45,12 @@ function diffLanguage(
 ): string {
   if (kind === 'json') return 'json'
   if (config?.type !== 'code') return 'text'
-  const selected = values.language
-  const language =
-    typeof selected === 'string' && isValidCodeLanguage(selected)
-      ? selected
-      : (config.language ?? 'javascript')
-  return language === 'shell' ? 'bash' : language
+  const selected = typeof values.language === 'string' ? values.language : undefined
+  return (
+    (selected && CODE_DIFF_LANGUAGES[selected]) ??
+    CODE_DIFF_LANGUAGES[config.language ?? 'javascript'] ??
+    'javascript'
+  )
 }
 
 interface FieldChangeRowProps {

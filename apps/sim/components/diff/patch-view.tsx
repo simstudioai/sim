@@ -18,9 +18,8 @@ interface PatchViewProps {
  * already draws.
  */
 export function PatchView({ diff, fallbackName, wrapLines }: PatchViewProps) {
-  const numbered = diff.hunks.some((hunk) =>
-    hunk.lines.some((line) => line.oldLine !== undefined || line.newLine !== undefined)
-  )
+  /* Positions are invented for hunks without numbers, so numbers show only when every hunk has them. */
+  const numbered = diff.hunks.every((hunk) => hunk.range !== undefined)
   const files = useMemo(() => toFileDiffs(diff, fallbackName), [diff, fallbackName])
   return (
     <div>
