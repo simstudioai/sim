@@ -559,6 +559,8 @@ describe('workspaces source apply', () => {
     const [stale] = byCode('E_APPLY_STALE')
     expect(stale.hint).toContain('.sim/targets/ws_prod.json')
     expect(stale.hint).not.toContain('fresh directory')
+    expect(stale.hint).toContain('sim workspaces source get --workspace ws_prod')
+    expect(stale.hint).not.toContain('.sim/targets/ws_prod.json first')
     const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
     expect(stderr).toContain('  ! gone (deleted on the server; kept as the server has it)')
     expect(stderr).not.toContain('resource(s) that only workspace ws_prod holds')

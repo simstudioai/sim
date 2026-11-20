@@ -503,7 +503,7 @@ function resourceWhere(kind: WorkspaceKind, key: string): string {
 function promotionHint(code: string, target: string): string | undefined {
   const record = promotionRecordPath(target) ?? '.sim/targets/<workspaceId>.json'
   if (code === 'E_APPLY_STALE') {
-    return `Workspace ${target} changed this resource since the last promotion from this directory. Carry that change into the directory, or undo it in ${target}, then promote again; to take ${target} as it stands now, delete ${record} first.`
+    return `Workspace ${target} changed this resource since the last promotion from this directory. Carry that change into the directory (\`sim workspaces source get --workspace ${target} --dir <fresh dir>\` prints it), or undo it in ${target}, then promote again. Don't delete ${record} to get past this: the next promotion would then overwrite every change made in ${target} since, rows its workflows wrote included.`
   }
   if (code === 'E_APPLY_NO_BASE') {
     return `Workspace ${target} holds this resource, but no promotion from this directory recorded it. Rename the declaration, or rename or delete the resource in ${target}, then promote again.`

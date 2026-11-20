@@ -102,7 +102,7 @@ Each promotion records what it left in the target in `.sim/targets/<workspaceId>
 - A resource deleted in the target since the last promotion stays deleted, with a `W_PROMOTE_TARGET_DELETED` warning. Remove its entry from the record to create it again.
 - The first promotion, and any resource the record does not hold (one created in the target since), updates the target to match the directory. Review the dry run first.
 
-Commit the record with the rest of the directory, so a promotion from CI or another clone compares with it. Deleting it makes the next promotion take the target as it stands.
+Commit the record with the rest of the directory, so a promotion from CI or another clone compares with it. Don't delete it to get past a stale refusal: without it, the next promotion overwrites every change made in the target since, including rows its workflows wrote.
 
 ## Git and CI
 

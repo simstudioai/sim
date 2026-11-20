@@ -349,8 +349,9 @@ with what the last promotion left (a target edit since is kept when the director
 alone, `E_APPLY_STALE` when it changed it too); a workflow folder whose digest is unchanged is sent
 as its base alone (a no-op), and an edited one whole with the recorded fingerprint, so a target edit
 since is the folder's 409. Without a record entry (the first promotion, or a resource created in
-the target since) the live entry is the base and the target is updated to match the directory;
-deleting the record re-takes the target as it stands. Read alone, the target's live base could
+the target since) the live entry is the base and the target is updated to match the directory, so
+deleting the record makes the next promotion overwrite every change made in the target since,
+rows its runs wrote included: the stale hint never suggests it. Read alone, the target's live base could
 never look changed. Without `--to`, the CLI refuses a
 directory read from another workspace (`SOURCE_OTHER_WORKSPACE`); `--workspace <target>` instead
 applies it as a copy whose base the server ignores (`W_BASE_OTHER_WORKSPACE`), which only a first
