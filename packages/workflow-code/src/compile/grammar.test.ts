@@ -1896,3 +1896,38 @@ describe('reference-shaped text that floods the warnings', () => {
     expect(result.diagnostics.filter((d) => d.code === 'W_TOO_MANY_WARNINGS')).toHaveLength(1)
   })
 })
+
+describe('a do-while count beside a condition', () => {
+  const unread = (result: CompileResult) =>
+    result.diagnostics
+      .filter((d) => d.code === 'W_FIELD_NOT_APPLICABLE')
+      .map((d) => ({ message: d.message, hint: d.hint, blockKey: d.blockKey }))
+  const loopWith = (config: string) =>
+    run(
+      source(
+        [
+          START,
+          `const dw = loop.doWhile('Do While', ${config}, (p) => {`,
+          "  const inner = fn('Inner', { code: 'return 1' })",
+          '  p.to(inner)',
+          '})',
+          'start.to(dw)',
+        ].join('\n')
+      )
+    )
+
+  it('reports a count the executor ignores because a condition is set', () => {
+    expect(unread(loopWith("{ condition: '<loop.index> < 3', count: 7 }"))).toEqual([
+      {
+        message:
+          'count is not read: a do-while with a condition runs until the condition is false.',
+        hint: 'Remove count, or remove condition to run count times.',
+        blockKey: 'dowhile',
+      },
+    ])
+  })
+
+  it('keeps a count on a do-while with no condition quiet', () => {
+    expect(unread(loopWith('{ count: 7 }'))).toEqual([])
+  })
+})

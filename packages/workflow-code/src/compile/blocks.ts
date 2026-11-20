@@ -1715,11 +1715,14 @@ function compileConfig<S>(
   container: 'loop' | 'parallel',
   form: ContainerForm<S>,
   configNode: ObjectExpression | undefined
-): Map<ConfigField<S>, Value> {
+): CompiledConfig<S> {
   const { decl } = site
   const fields = new Map<ConfigField<S>, Value>()
-  if (!configNode) return fields
+  const written = new Map<ConfigField<S>, ObjectProperty>()
+  if (!configNode) return { fields, written }
   for (const [key, property] of objectEntries(ctx, configNode)) {
+    const known = getOwn(form, key)
+    if (known) written.set(known.field, property)
     const entry = getOwn(form, key)
     if (!entry) {
       ctx.reporter.report(
@@ -1762,7 +1765,37 @@ function compileConfig<S>(
     }
     fields.set(entry.field, compiled.value)
   }
-  return fields
+  return { fields, written }
+}
+
+/** A container's compiled config values, and the property each written key came from. */
+interface CompiledConfig<S> {
+  fields: Map<ConfigField<S>, Value>
+  written: Map<ConfigField<S>, ObjectProperty>
+}
+
+/**
+ * `W_FIELD_NOT_APPLICABLE` on a written config key the container does not read beside the rest of
+ * its config (`count` on a do-while that has a condition): the executor ignores it, so writing it
+ * changes nothing.
+ */
+function reportUnreadConfig<S>(
+  ctx: CompileContext,
+  decl: BlockDecl,
+  form: ContainerForm<S>,
+  written: ReadonlyMap<ConfigField<S>, ObjectProperty>,
+  spec: S
+): void {
+  for (const [key, entry] of Object.entries(form)) {
+    const property = written.get(entry.field)
+    if (!property || !entry.unread || !entry.printedWhen || entry.printedWhen(spec)) continue
+    ctx.reporter.report(
+      'W_FIELD_NOT_APPLICABLE',
+      `${key} is not read: ${entry.unread.reason}.`,
+      rangeOf(ctx, property),
+      { hint: entry.unread.hint, blockKey: decl.key }
+    )
+  }
 }
 
 function numberField(value: Value | undefined): number | undefined {
@@ -1805,12 +1838,13 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
 
   let subflow: LoopSpec | ParallelSpec
   if (builder.container === 'loop') {
-    const fields = compileConfig(ctx, site, 'loop', loopForm(builder.method), config)
+    const form = loopForm(builder.method)
+    const { fields, written } = compileConfig(ctx, site, 'loop', form, config)
     const iterations = numberField(fields.get('iterations'))
     const forEachItems = jsonField(fields.get('forEachItems'))
     const whileCondition = textField(fields.get('whileCondition'))
     const doWhileCondition = textField(fields.get('doWhileCondition'))
-    subflow = {
+    const loop: LoopSpec = {
       kind: 'loop',
       loopType: builder.method,
       iterations: iterations ?? DEFAULT_LOOP_ITERATIONS,
@@ -1818,8 +1852,10 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
       ...(whileCondition !== undefined && { whileCondition }),
       ...(doWhileCondition !== undefined && { doWhileCondition }),
     }
+    reportUnreadConfig(ctx, decl, form, written, loop)
+    subflow = loop
   } else {
-    const fields = compileConfig(ctx, site, 'parallel', parallelForm(builder.method), config)
+    const { fields } = compileConfig(ctx, site, 'parallel', parallelForm(builder.method), config)
     const count = numberField(fields.get('count'))
     const distribution = jsonField(fields.get('distribution'))
     const batchSize = numberField(fields.get('batchSize'))
