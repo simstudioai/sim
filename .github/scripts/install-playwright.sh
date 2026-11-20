@@ -30,18 +30,23 @@ install_from_cache() {
   local output
   if ! output=$(sudo DEBIAN_FRONTEND=noninteractive dpkg -i "$cache"/*.deb 2>&1); then
     printf '%s\n' "$output" | tail -n 5 | sed 's/^/Cache install failed: /'
+    dpkg_failed=true
     return 1
   fi
   deps_present
 }
 
 cache=${PLAYWRIGHT_APT_CACHE:-}
+dpkg_failed=false
 if ! deps_present; then
   if install_from_cache; then
     echo "Installed system dependencies from $cache"
   else
-    # A failed dpkg run can leave packages half-configured; let apt finish or remove them first.
-    sudo DEBIAN_FRONTEND=noninteractive apt-get -f install -y > /dev/null
+    # Only a failed dpkg run leaves packages half-configured; apt must finish or remove them
+    # before install-deps can install anything.
+    if [ "$dpkg_failed" = true ]; then
+      sudo DEBIAN_FRONTEND=noninteractive apt-get -f install -y > /dev/null
+    fi
     bunx --no-install playwright install-deps "${browsers[@]}"
     if [ -n "$cache" ] && compgen -G '/var/cache/apt/archives/*.deb' > /dev/null; then
       mkdir -p "$cache"
