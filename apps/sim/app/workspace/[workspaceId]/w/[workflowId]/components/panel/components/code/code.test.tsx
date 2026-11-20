@@ -6,10 +6,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/app/workspace/[workspaceId]/files/components/file-viewer/monaco-editor', () => ({
-  MonacoEditor: () => null,
-  TEXT_EDITOR_OPTIONS: {},
-  useMonacoTheme: () => 'vs',
+vi.mock('@/components/code-editor/code-editor', () => ({
+  CodeEditor: () => null,
 }))
 
 import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
@@ -26,7 +24,7 @@ const WORKFLOW_ID = 'wf-1'
 const SETTLE_MS = 1_200
 
 /**
- * The Code tab against the real stores, with only the network (the source read) and Monaco
+ * The Code tab against the real stores, with only the network (the source read) and the editor
  * replaced: a collaborator's field edit arrives as the collaborative hook applies it (a subblock
  * store write plus `markRemoteApplied`), with no workflow-store change and no queued operation.
  */

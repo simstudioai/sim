@@ -28,7 +28,7 @@ import { getWorkflowSourceContract, type WorkflowSource } from '@/lib/api/contra
  * session and personal API key; the workflow is built through the v2 routes.
  *
  * - Flag off: the Code tab is absent, and a persisted `activeTab: 'code'` falls back to the toolbar.
- * - Flag on: Monaco shows the draft's source and ignores typing; disabling a block on the canvas
+ * - Flag on: the editor shows the draft's source and ignores typing; disabling a block on the canvas
  *   and applying source through `POST /api/v2/workflows/{id}/source` each refresh it; dragging
  *   a block does not.
  * - A failed source read shows the error state.
@@ -223,7 +223,7 @@ function entryFile(source: WorkflowSource): string {
   return text
 }
 
-/** Monaco renders spaces as no-break spaces and wraps long lines; compare without whitespace. */
+/** The editor wraps long lines; compare without whitespace. */
 const compact = (text: string) => text.replace(/\s+/g, '')
 
 const isSourceRead = (url: string | URL) =>
@@ -249,19 +249,26 @@ async function openCodeTab(page: Page) {
   }).toPass({ timeout: PAGE_LOAD_TIMEOUT_MS })
 }
 
-/** The editor's lines in screen order: Monaco recycles line nodes, so DOM order can drift. */
+/** The editor's rendered lines in document order; Playwright's CSS locators pierce its shadow root. */
 async function editorText(page: Page): Promise<string> {
   return codeTab(page)
-    .locator('.monaco-editor .view-lines')
-    .evaluate((lines) =>
-      [...lines.querySelectorAll<HTMLElement>('.view-line')]
-        .sort((a, b) => Number.parseFloat(a.style.top) - Number.parseFloat(b.style.top))
+    .locator('[data-code-editor] [data-content] [data-line]')
+    .evaluateAll((lines) =>
+      lines
+        .sort((a, b) => Number(a.getAttribute('data-line')) - Number(b.getAttribute('data-line')))
         .map((line) => line.textContent ?? '')
         .join('\n')
     )
 }
 
-/** Waits until the stored source differs from `previous`, then until Monaco shows exactly it. */
+/** Whether the editor's editable surface holds focus, inside the host's shadow root. */
+async function editorHasFocus(page: Page): Promise<boolean> {
+  return page.evaluate(
+    () => document.activeElement?.shadowRoot?.activeElement?.hasAttribute('data-content') === true
+  )
+}
+
+/** Waits until the stored source differs from `previous`, then until the editor shows exactly it. */
 async function expectEditorToShowNewSource(page: Page, previous: WorkflowSource) {
   let current = previous
   await expect
@@ -349,16 +356,17 @@ try {
     async () => {
       await visitWorkflow(page, baseUrl)
       await openCodeTab(page)
-      const editor = codeTab(page).locator('.monaco-editor')
+      const editor = codeTab(page).locator('[data-code-editor][data-read-only]')
       await expect(editor).toBeVisible()
       await expect.poll(async () => compact(await editorText(page))).toBe(compact(entryFile(shown)))
       assert(entryFile(shown).includes(SCORE_CODE), 'The inline source carries the function code')
-      await codeTab(page).locator('.monaco-editor .view-lines').click()
-      await expect(editor).toHaveClass(/\bfocused\b/)
+      await codeTab(page).locator('[data-code-editor] [data-content] [data-line]').first().click()
+      await expect.poll(() => editorHasFocus(page)).toBe(true)
       await page.keyboard.type('typed into a read-only view')
       await page.keyboard.press('Enter')
       await page.keyboard.press('Backspace')
-      // Monaco paints edits on the next animation frame; two frames cover any queued render.
+      await page.keyboard.press('ControlOrMeta+v')
+      // The editor paints edits on the next animation frame; two frames cover any queued render.
       await page.evaluate(
         () =>
           new Promise<void>((done) =>
@@ -436,7 +444,7 @@ try {
       await toggleScoreBlock(page, 'Enable')
       assert.equal((await refused).status(), 403, 'The flag-off app refuses the source read')
       await expect(codeTab(page).getByTestId('workflow-code-error')).toBeVisible()
-      await expect(codeTab(page).locator('.monaco-editor')).toHaveCount(0)
+      await expect(codeTab(page).locator('[data-code-editor]')).toHaveCount(0)
       await page.unroute(isSourceRead)
     }
   )
@@ -448,7 +456,7 @@ try {
     await visitWorkflow(failingPage, baseUrl)
     await openCodeTab(failingPage)
     await expect(codeTab(failingPage).getByTestId('workflow-code-error')).toBeVisible()
-    await expect(codeTab(failingPage).locator('.monaco-editor')).toHaveCount(0)
+    await expect(codeTab(failingPage).locator('[data-code-editor]')).toHaveCount(0)
   })
   await failingPage.context().close()
 } catch (error) {

@@ -1,6 +1,7 @@
 /**
- * Sim's syntax colors as a TextMate (Shiki) theme, for surfaces that highlight with Shiki
- * rather than with Prism through `Code`: docs code blocks and the app's diffs.
+ * Sim's syntax colors as a TextMate (Shiki) theme, and as a Zed-format theme, for surfaces
+ * that highlight with Shiki or Pierre rather than with Prism through `Code`: docs code
+ * blocks and the app's diffs and code editor.
  *
  * Prism tokenizes into its own classes, colored by `code.css`. Shiki assigns TextMate
  * scopes, so parity is a scope-to-color mapping, derived by highlighting the same snippets
@@ -194,5 +195,64 @@ export function buildSyntaxTheme(
         settings: { foreground: c.deleted },
       },
     ],
+  }
+}
+
+/** Every role but the base foreground, which an unmapped token falls back to on its own. */
+type TokenRole = Exclude<keyof SyntaxColors, 'background' | 'foreground'>
+
+/**
+ * The same roles for tree-sitter token types, which Zed-format themes color. A type with no
+ * entry takes its parent's role (`keyword.control` → `keyword`) and an unlisted family takes
+ * the foreground, so this mirrors the TextMate mapping above rather than every token type.
+ */
+const TREE_SITTER_ROLES = new Map<string, TokenRole>([
+  ['comment', 'comment'],
+  ['keyword', 'keyword'],
+  ['keyword.operator', 'punctuation'],
+  ['function', 'function'],
+  ['constructor', 'function'],
+  ['type', 'function'],
+  ['enum', 'function'],
+  ['property', 'variable'],
+  ['attribute', 'variable'],
+  ['number', 'constant'],
+  ['boolean', 'constant'],
+  ['constant', 'constant'],
+  ['tag', 'constant'],
+  ['variable.special', 'constant'],
+  ['string', 'string'],
+  ['string.regex', 'regex'],
+  ['punctuation', 'punctuation'],
+  ['operator', 'punctuation'],
+  ['diff.plus', 'string'],
+  ['diff.minus', 'deleted'],
+])
+
+/** A Zed-format theme; structurally what Pierre's Highlights backend accepts. */
+interface ZedSyntaxTheme {
+  name: string
+  appearance: 'light' | 'dark'
+  cssVariables: { prefix: string; defaults: Record<string, string> }
+  style: { background: string; foreground: string; syntax: Record<string, string> }
+}
+
+/**
+ * {@link CODE_TOKEN_COLORS} as a Zed-format theme for highlighters that color tree-sitter
+ * tokens instead of TextMate scopes. Its colors name `code.css` variables rather than hold
+ * values, so it follows light and dark exactly as the TextMate theme does.
+ */
+export function buildCodeTokenZedTheme(name: string, background: string): ZedSyntaxTheme {
+  return {
+    name,
+    appearance: 'light',
+    cssVariables: { prefix: '--code-', defaults: { background } },
+    style: {
+      background: 'background',
+      foreground: 'foreground',
+      syntax: Object.fromEntries(
+        [...TREE_SITTER_ROLES].map(([type, role]) => [type, `token-${role}`])
+      ),
+    },
   }
 }
