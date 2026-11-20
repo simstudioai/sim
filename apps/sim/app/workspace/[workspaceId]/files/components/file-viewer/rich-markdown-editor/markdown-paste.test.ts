@@ -94,6 +94,19 @@ describe('markdown paste', () => {
     expect(editor.getText()).toBe('')
   })
 
+  it.each(['List<String>', 'List<Code>', 'Use <em> for emphasis'])(
+    'preserves ordinary angle-bracket text %s on plain clipboard paste',
+    (text) => {
+      const editor = mount()
+      dispatchPaste(editor, text)
+      expect(editor.state.doc.textContent).toBe(text)
+      expect(editor.getJSON().content?.[0].content).toEqual([{ type: 'text', text }])
+      const reopened = mount()
+      reopened.commands.setContent(editor.getMarkdown(), { contentType: 'markdown' })
+      expect(reopened.getJSON()).toEqual(editor.getJSON())
+    }
+  )
+
   it('does not flatten a rich table containing literal Markdown-shaped cell text', () => {
     const editor = mount()
     dispatchPaste(
@@ -137,14 +150,18 @@ describe('markdown paste', () => {
     }
   )
 
-  it.each(['Paste title', ''])(
+  it.each([
+    ['Paste title', 'Paste title\n===========', '<h1>Paste title</h1>'],
+    ['', 'Paste title\n===========', '<h1>Paste title</h1>'],
+    ['HTML source', '<em>Declared emphasis</em>', '<em>Declared emphasis</em>'],
+  ])(
     'honors explicit Markdown provenance with plain fallback %j',
-    (fallback) => {
+    (fallback, markdown, expectedHtml) => {
       const editor = mount()
       dispatchPaste(editor, fallback, '<b>Wrong representation</b>', {
-        'text/markdown': 'Paste title\n===========',
+        'text/markdown': markdown,
       })
-      expect(editor.getHTML()).toContain('<h1>Paste title</h1>')
+      expect(editor.getHTML()).toContain(expectedHtml)
       expect(editor.getText()).not.toContain('Wrong representation')
     }
   )

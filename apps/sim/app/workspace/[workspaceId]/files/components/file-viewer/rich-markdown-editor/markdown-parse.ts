@@ -226,6 +226,8 @@ export function hasMarkdownFormatting(body: string): boolean {
     markdown.walkTokens(markdown.lexer(block), (token) => {
       // Native paste can add autolinks separately, retaining the text if formatting exceeds its budget.
       if (token.type === 'link' && token.raw === token.text) return
+      // Bare HTML can be ordinary text such as List<Code>; explicit Markdown bypasses detection.
+      if (token.type === 'html') return
       if (!['paragraph', 'text', 'space', 'escape', 'def'].includes(token.type)) formatted = true
     })
     if (formatted) return true

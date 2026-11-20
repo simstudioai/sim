@@ -498,6 +498,9 @@ async function provePastePersistence(page: Page, browserName: string) {
     await expect(
       editor.locator('pre').filter({ hasText: `const ${browserName}Clipboard` })
     ).toContainText('"<literal>"')
+    await paste({ 'text/plain': 'List<Code>' })
+    const genericParagraph = editor.locator(':scope > p').filter({ hasText: /^List<Code>$/ })
+    await expect(genericParagraph).toHaveCount(1)
     await paste(
       { 'text/plain': `**${marker} literal**`, 'text/html': `<b>${marker} literal</b>` },
       true
@@ -522,6 +525,7 @@ async function provePastePersistence(page: Page, browserName: string) {
     )
     await expect(editor.locator(':scope > p').last()).toHaveText(`**${marker} literal**`)
     await contained(page)
+    await expect(genericParagraph).toHaveCount(1)
     await page.screenshot({ path: resolve(artifactDir, `${browserName}-paste-reopened.png`) })
     const metadata = toRecord(
       toRecord(await (await request(`/api/workspaces/${workspaceId}/files/${pastedFileId}`)).json())
@@ -546,6 +550,7 @@ async function provePastePersistence(page: Page, browserName: string) {
       .poll(readPasteSource, { timeout: 30_000 })
       .toContain(`${marker} after external update`)
     const afterLocalEdit = await readPasteSource()
+    await expect(genericParagraph).toHaveCount(1)
     assert(afterLocalEdit.includes(`## ${remoteMarker}`), 'Local edit lost the external update')
     assert(
       afterLocalEdit.includes(`${marker} measure<br>`),
