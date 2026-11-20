@@ -274,7 +274,8 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     }
   }
 
-  if (isNew || inputs.parentId !== prev?.parentId) {
+  const reparented = isNew || inputs.parentId !== prev?.parentId
+  if (reparented) {
     if (inputs.parentId !== null) {
       data.parentId = inputs.parentId
       data.extent = 'parent'
@@ -304,9 +305,12 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
 
   let built = block
   let needsLayout = false
-  if (isNew) {
-    if (inputs.layout) built = applyLayout(block, inputs.layout)
-    else needsLayout = true
+  if (isNew && inputs.layout) built = applyLayout(block, inputs.layout)
+  else if (reparented) {
+    // A child's position is relative to its container, so a move into or out of one keeps a
+    // position from the wrong frame: send it to autolayout, as the server does an unplaced block.
+    if (!isNew) built = { ...block, position: { x: 0, y: 0 } }
+    needsLayout = true
   }
 
   const items: Record<SubBlockId, LockItem[]> = {}

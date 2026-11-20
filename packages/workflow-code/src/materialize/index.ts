@@ -340,7 +340,7 @@ export function materialize(
       context.diagnostics.push(
         diagnostic(
           'I_MAT_NEEDS_LAYOUT',
-          `Block "${key}" has no stored or lock position; it is placed by autolayout`,
+          `Block "${key}" has no position in its container yet; it is placed by autolayout`,
           {
             blockKey: key,
           }

@@ -729,6 +729,35 @@ describe('materialize: identity', () => {
     expect(codes(result)).toContain('I_MAT_NEEDS_LAYOUT')
   })
 
+  it('sends a block moved into or out of a container to autolayout: its position was relative to the old one', () => {
+    const prev = workflowState(
+      [
+        blockState('l1', 'loop', 'Each', {}, { data: { loopType: 'for', count: 2 } }),
+        blockState(
+          'f1',
+          'function',
+          'Inner',
+          { code: 'x' },
+          { data: { parentId: 'l1', extent: 'parent' } }
+        ),
+        blockState('f2', 'function', 'Outer', { code: 'y' }, { position: { x: 900, y: 400 } }),
+      ],
+      { loops: { l1: { id: 'l1', nodes: ['f1'], iterations: 2, loopType: 'for', enabled: true } } }
+    )
+    const lock = lockFor(prev)
+    const target = edit(canonical(prev, lock).workflow, (draft) => {
+      draft.blocks.inner.parent = null
+      draft.blocks.outer.parent = 'each'
+    })
+
+    const result = run(target, lock, { prev })
+
+    expect(result.state.blocks.f1.position).toEqual({ x: 0, y: 0 })
+    expect(result.state.blocks.f2.position).toEqual({ x: 0, y: 0 })
+    expect([...result.needsLayout].sort()).toEqual(['inner', 'outer'])
+    expect(result.identity.blocks.inner.id).toBe('f1')
+  })
+
   it('recreates a block whose type changed under the same key, with a warning', () => {
     const prev = base()
     const target = edit(canonical(prev).workflow, (draft) => {

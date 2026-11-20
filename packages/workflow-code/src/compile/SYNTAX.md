@@ -496,7 +496,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_MAT_INFERRED_RENAME` | A rename inferred from type, parent and edges (the key and the ident both changed). |
 | `W_MAT_RETYPE_RECREATED` | A key kept with a new type: delete plus create, so webhook URLs and schedules change. |
 | `W_MAT_LOCK_ID_CLAIMED` | A lock id another workflow holds; a new id was minted. |
-| `I_MAT_NEEDS_LAYOUT` | A new block with no position; placed by autolayout. |
+| `I_MAT_NEEDS_LAYOUT` | A new block with no position, or one moved into or out of a loop or parallel; placed by autolayout. |
 
 **Apply**
 
