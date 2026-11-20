@@ -302,6 +302,36 @@ describe('workspace source promotion', () => {
     }
   )
 
+  check('promoting managed rows converges: the second promotion changes nothing', async () => {
+    const dev = await workspaces.create({ name: 'Dev', ownerId })
+    const prod = await workspaces.create({ name: 'Prod', ownerId })
+    const directory = {
+      'tables/stock.ts': `// @sim-sdk 1
+import { column, defineTable } from '@sim/workflow-sdk/workspace'
+
+export default defineTable({
+  name: 'stock',
+  columns: {
+    sku: column.string({ required: true, unique: true }),
+    status: column.select({ options: ['new', 'won'] }),
+    note_text: column.string({ name: 'memo' }),
+  },
+  rows: { mode: 'managed', key: 'sku' },
+})
+`,
+      'tables/stock.rows.jsonl': '{"sku":"A-1","status":"new","note_text":"hi"}\n{"sku":"A-2"}\n',
+    }
+    const applied = await runner.apply(dev, { files: directory, kinds: ['table'] })
+    const devDir = { ...(await runner.get(dev)), files: applied.files }
+
+    const first = await promote(devDir, prod)
+    expect(first.applied.map((change) => `${change.action} ${change.kind}:${change.key}`)).toEqual([
+      'create table:stock',
+    ])
+    const second = await promote(devDir, prod)
+    expect(second.applied).toEqual([])
+  })
+
   check(
     "the target's own resources are kept, with a warning, unless the promotion allows deletes",
     async () => {
