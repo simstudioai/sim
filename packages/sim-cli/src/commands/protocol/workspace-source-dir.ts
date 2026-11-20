@@ -18,6 +18,7 @@ import {
 import {
   APPLY_ORDER,
   type BlobEntry,
+  type FlatDiagnostic,
   isFileKind,
   KIND_DIRS,
   WORKSPACE_KIND_SPECS,
@@ -147,7 +148,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Promote to another workspace
 
-\`sim workspaces source apply --dir . --to <workspaceId> --dry-run\`, then \`--yes\`: applies this directory to another workspace (dev to prod). Each resource binds by key to the target's own: one the target holds under the same key is updated in place (a workflow keeps its id and block ids, so its webhook URLs), a key it lacks is created (or adopts a resource of the same name), and a change made in the target since is refused as stale (exit 5). Secrets and credentials bind by name and key to the target's own; no value is copied. The target's resources this directory does not declare are kept with a warning, or deleted with \`--allow-delete\`. Before the first promote, set the target's secrets (\`sim secrets set NAME --scope workspace -w <workspaceId>\`) and connect its credentials, or the workflows using them are held back. This directory is not changed and stays bound to the workspace it was read from. Without \`--to\`, \`check\`, \`status\`, \`diff\` and \`apply\` act on the workspace this directory was read from, whatever the profile's default; a \`--workspace\` naming another is refused (\`SOURCE_OTHER_WORKSPACE\`).
+\`sim workspaces source apply --dir . --to <workspaceId> --dry-run\`, then \`--yes\`: applies this directory to another workspace (dev to prod). Each resource binds by key to the target's own: one the target holds under the same key is updated in place (a workflow keeps its id and block ids, so its webhook URLs), a key it lacks is created (or adopts a resource of the same name). Each promote records what it left in the target in \`.sim/targets/<workspaceId>.json\` (commit it), and the next promote compares with that: a resource changed in the target since is kept when this directory left it alone, and refused as stale (exit 5) when this directory changed it too. A resource with no record (the first promote, or one created in the target since) is updated to match this directory; delete the record to take the target as it stands again. Secrets and credentials bind by name and key to the target's own; no value is copied. The target's resources this directory does not declare are kept with a warning, or deleted with \`--allow-delete\`. Before the first promote, set the target's secrets (\`sim secrets set NAME --scope workspace -w <workspaceId>\`) and connect its credentials, or the workflows using them are held back. This directory stays bound to the workspace it was read from. Without \`--to\`, \`check\`, \`status\`, \`diff\` and \`apply\` act on the workspace this directory was read from, whatever the profile's default; a \`--workspace\` naming another is refused (\`SOURCE_OTHER_WORKSPACE\`).
 
 ## Good to know
 
@@ -281,9 +282,13 @@ export interface WorkspaceDeclarations {
   workflowInputs?: ReadonlyMap<string, readonly WorkflowInput[] | null>
 }
 
-/** A finding about a line of a table's rows file (`E_TABLE_ROWS`, an error). */
+/**
+ * A finding about a line of a table's rows file: `E_TABLE_ROWS`, an error, or the
+ * `I_FINDINGS_TRUNCATED` that ends a long list.
+ */
 interface RowFinding {
   code: WorkspaceDiagnosticCode
+  severity: FlatDiagnostic['severity']
   message: string
   hint?: string
   file: string
@@ -351,8 +356,9 @@ function tableRowFindings(key: string, decl: TableDecl, text: string | undefined
   if (!rows || text === undefined) return []
   const parsed = parseTableRows(key, text, rows, new Set(Object.keys(decl.columns)))
   const read = parsed.diagnostics.map(
-    ({ code, message, hint, span }): RowFinding => ({
+    ({ code, severity, message, hint, span }): RowFinding => ({
       code,
+      severity,
       message,
       ...(hint ? { hint } : {}),
       file,
@@ -363,6 +369,7 @@ function tableRowFindings(key: string, decl: TableDecl, text: string | undefined
   const refused = refusedTableRows(decl, parsed.data).map(
     ({ row, errors }): RowFinding => ({
       code: 'E_TABLE_ROWS',
+      severity: 'error',
       message: `Line ${parsed.lines[row] ?? 1} does not fit the declared columns: ${errors.join('; ')}.`,
       hint: `Write a value each column of ${KIND_DIRS.table}/${key}${DECLARATION_EXTENSION} holds (a select cell names one of its options), fill every required column, and keep unique values unique.`,
       file,
@@ -408,6 +415,26 @@ function declaredTable(
     maxOptions: Number.MAX_SAFE_INTEGER,
   })
   return codec.parse(key, text, [])
+}
+
+/**
+ * The rows files of the tables `files` (a get's answer) declares seed rows for. A server read
+ * prints a seed table's `rows` but never its rows, which only the directory holds, so a get keeps
+ * the file it finds there.
+ */
+export function seedRowsFiles(files: Readonly<Record<string, string>>): Set<string> {
+  const kept = new Set<string>()
+  const paths = Object.keys(files).filter((path) => kindOfPath(path) === 'table')
+  for (const [key, tablePaths] of KIND_LAYOUTS.table.group(paths).groups) {
+    const rowsPath = tableRowsPath(key)
+    const { decl } = declaredTable(
+      key,
+      tablePaths.filter((path) => path !== rowsPath),
+      files
+    )
+    if (decl?.rows?.mode === 'seed') kept.add(rowsPath)
+  }
+  return kept
 }
 
 /** A table declaration's columns by stored name, as a workflow's row writes name them. */

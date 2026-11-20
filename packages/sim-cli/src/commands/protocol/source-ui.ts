@@ -134,8 +134,8 @@ function isMachine(format: OutputFormat): boolean {
 /**
  * The `diagnostics` a source command's result carries in a machine format, so the one document on
  * stdout holds every finding: errors and warnings, and info only with `verbose` (a new workflow
- * places every block by autolayout, which is no finding to act on). A display format prints them
- * on stderr only.
+ * places every block by autolayout, which is no finding to act on), except `I_FINDINGS_TRUNCATED`,
+ * which says the list is incomplete. A display format prints them on stderr only.
  */
 function resultDiagnostics(
   format: OutputFormat,
@@ -145,7 +145,10 @@ function resultDiagnostics(
   if (!isMachine(format)) return {}
   return {
     diagnostics: diagnostics
-      .filter((finding) => verbose || finding.severity !== 'info')
+      .filter(
+        (finding) =>
+          verbose || finding.severity !== 'info' || finding.code === 'I_FINDINGS_TRUNCATED'
+      )
       .map(({ frame: _frame, ...finding }) => finding),
   }
 }

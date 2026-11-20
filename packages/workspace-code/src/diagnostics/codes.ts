@@ -26,6 +26,12 @@ const DECLARATION_CODES = [
   'E_DECL_UNKNOWN_FIELD',
   /** A path inside a kind's folder that no resource owns. */
   'E_DECL_UNKNOWN_FILE',
+  /**
+   * A file under a kind's folder whose path no workspace holds (a hidden name such as `.env`, or a
+   * character such as `:` or `?`): the CLI does not send it, so an apply neither writes nor
+   * deletes anything for it.
+   */
+  'W_PATH_NOT_SENT',
   /** A blob manifest entry listed twice, or at a path that holds no binary file: the apply writes nothing. */
   'E_BLOB_MANIFEST',
   /**
@@ -33,7 +39,7 @@ const DECLARATION_CODES = [
    * apply writes nothing. Stage it, then apply again.
    */
   'E_BLOB_MISSING',
-  /** A size, count or nesting limit exceeded (a file, a kind, the staging area, findings). */
+  /** A size, count or nesting limit exceeded (a file, a kind, the staging area). */
   'E_LIMIT_EXCEEDED',
   /** A resource key outside `^[a-z][a-z0-9_-]{0,63}$`. */
   'E_KEY_INVALID',
@@ -262,7 +268,10 @@ const PLAN_CODES = [
   'I_KEY_REBOUND',
   /** A declaration under a new key for a resource the base read under another: keys never move. */
   'E_KEY_RENAMED',
-  /** The plan had more findings than one answer reports; this one counts those left out. */
+  /**
+   * More findings than one answer (or one file's list) reports; this one says where the list
+   * stopped. Informational: the findings it follows decide whether the apply is refused.
+   */
   'I_FINDINGS_TRUNCATED',
 ] as const
 

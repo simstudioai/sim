@@ -19,6 +19,7 @@ import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
+import { updateTableColumnUseCase } from '@/lib/table/application/columns'
 import { createTableRows } from '@/lib/table/application/rows'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import { getTableById } from '@/lib/table/service'
@@ -347,6 +348,112 @@ describe('table rows as workspace source', () => {
     expect(firedEvents()).toEqual([])
   })
 
+  check(
+    "a column's key survives a fresh get and a rename in Sim, and a table written before keys were recorded records them",
+    async () => {
+      const workspaceId = await newWorkspace()
+      const keyed = `// @sim-sdk 1
+import { column, defineTable } from '@sim/workflow-sdk/workspace'
+
+export default defineTable({
+  name: 'keyed',
+  columns: {
+    sku: column.string({ required: true, unique: true }),
+    note: column.string({ name: 'note_text' }),
+  },
+})
+`
+      const created = await apply(workspaceId, { 'tables/keyed.ts': keyed })
+      expect(created.failed).toBeUndefined()
+      expect((await runner.get(workspaceId)).files['tables/keyed.ts']).toContain(
+        "note: column.string({ name: 'note_text' })"
+      )
+
+      const [table] = await db
+        .select({ id: userTableDefinitions.id, metadata: userTableDefinitions.metadata })
+        .from(userTableDefinitions)
+        .where(
+          and(
+            eq(userTableDefinitions.workspaceId, workspaceId),
+            isNull(userTableDefinitions.archivedAt)
+          )
+        )
+      await updateTableColumnUseCase.execute({
+        principal: owner,
+        input: {
+          tableId: table.id,
+          workspaceId,
+          columnName: 'note_text',
+          updates: { name: 'memo' },
+        },
+      })
+      expect((await runner.get(workspaceId)).files['tables/keyed.ts']).toContain(
+        "note: column.string({ name: 'memo' })"
+      )
+
+      await db
+        .update(userTableDefinitions)
+        .set({ metadata: {} })
+        .where(eq(userTableDefinitions.id, table.id))
+      const legacy = await runner.get(workspaceId)
+      expect(legacy.files['tables/keyed.ts']).toContain('memo: column.string()')
+      const recorded = await apply(
+        workspaceId,
+        { 'tables/keyed.ts': keyed.replace("name: 'note_text'", "name: 'memo'") },
+        { base: legacy.base }
+      )
+      expect(recorded.applied).toMatchObject([
+        { kind: 'table', key: 'keyed', action: 'update', fields: ['column keys'] },
+      ])
+      expect((await runner.get(workspaceId)).files['tables/keyed.ts']).toContain(
+        "note: column.string({ name: 'memo' })"
+      )
+    }
+  )
+
+  check(
+    'managed rows resent against a fresh read plan as no change, a column keyed apart from its name included, as a promotion resends them',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const typed = `// @sim-sdk 1
+import { column, defineTable } from '@sim/workflow-sdk/workspace'
+
+export default defineTable({
+  name: 'typed',
+  columns: {
+    sku: column.string({ required: true, unique: true }),
+    shipped: column.date(),
+    expires: column.ttl(),
+    price: column.currency({ currencyCode: 'EUR' }),
+    labels: column.select({ options: ['red', 'green', 'blue'], multiple: true }),
+    status: column.select({ options: ['new', 'won'] }),
+    meta: column.json(),
+    note_text: column.string({ name: 'memo' }),
+  },
+  rows: { mode: 'managed', key: 'sku' },
+})
+`
+      const directory = {
+        'tables/typed.ts': typed,
+        'tables/typed.rows.jsonl': [
+          '{"sku":"A-1","shipped":"2026-11-02T10:30:00Z","expires":"2027-01-01T00:00:00-00:00","price":19.99,"labels":["red","blue"],"status":"new","meta":{"a":[1,{"b":null}]}}',
+          '{"sku":"A-2","shipped":"2026-11-01","labels":[],"status":"won","meta":[1,"x",true]}',
+          '{"sku":"A-9","note_text":"line1\\nline2"}',
+        ].join('\n'),
+      }
+      const created = await apply(workspaceId, directory)
+      expect(created.failed).toBeUndefined()
+      const versionBefore = await version(workspaceId)
+      const read = await runner.get(workspaceId)
+      expect(read.files['tables/typed.rows.jsonl']).not.toBe(directory['tables/typed.rows.jsonl'])
+
+      const resent = await apply(workspaceId, directory, { base: read.base })
+
+      expect(resent.applied).toEqual([])
+      expect(await version(workspaceId)).toBe(versionBefore)
+    }
+  )
+
   check('a key rename is a delete and an insert, gated by allow-delete', async () => {
     const workspaceId = await newWorkspace()
     const read = await managedPlans(workspaceId)
@@ -638,8 +745,10 @@ export default defineTable({
     expect(again.applied).toEqual([])
     expect((await storedRows(workspaceId))[0]).toMatchObject({ seats: 5 })
 
-    // A get leaves seed rows out: they were never the table's identity.
+    // A get keeps the declaration of seed rows but leaves the rows out: the directory holds them,
+    // and they were never the table's identity.
     const read = await runner.get(workspaceId)
+    expect(read.files['tables/plans.ts']).toContain("rows: { mode: 'seed' }")
     expect(read.files['tables/plans.rows.jsonl']).toBeUndefined()
     expect((await apply(workspaceId, read.files, { base: read.base })).applied).toEqual([])
 
@@ -648,6 +757,43 @@ export default defineTable({
     expect(codes(adopted.diagnostics, 'info')).toContain('I_TABLE_SEED_SKIPPED')
     expect(await storedRows(workspaceId)).toHaveLength(2)
   })
+
+  check(
+    'a declaration that stops seeding rows clears it, and one that starts records it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const seeded = await apply(workspaceId, {
+        'tables/plans.ts': SEED,
+        'tables/plans.rows.jsonl': ROWS,
+      })
+      const unseeded = PLANS('undefined').replace('  rows: undefined,\n', '')
+
+      const dropped = await apply(
+        workspaceId,
+        { 'tables/plans.ts': unseeded },
+        { base: seeded.base }
+      )
+      expect(dropped.applied).toMatchObject([
+        { key: 'plans', action: 'update', fields: ['rows (no longer seeded)'] },
+      ])
+      expect((await runner.get(workspaceId)).files['tables/plans.ts']).not.toContain('rows:')
+
+      const read = await runner.get(workspaceId)
+      const again = await apply(
+        workspaceId,
+        { 'tables/plans.ts': SEED, 'tables/plans.rows.jsonl': ROWS },
+        { base: read.base }
+      )
+      expect(again.applied).toMatchObject([
+        { key: 'plans', action: 'update', fields: ['rows (seed)'] },
+      ])
+      expect(codes(again.diagnostics, 'info')).not.toContain('I_TABLE_SEED_SKIPPED')
+      expect((await runner.get(workspaceId)).files['tables/plans.ts']).toContain(
+        "rows: { mode: 'seed' }"
+      )
+      expect(await storedRows(workspaceId)).toHaveLength(2)
+    }
+  )
 
   check('makes an existing column required in the apply whose managed rows fill it', async () => {
     const workspaceId = await newWorkspace()

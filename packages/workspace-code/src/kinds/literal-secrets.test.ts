@@ -24,7 +24,7 @@ describe('findings about a literal secret', () => {
     const source = `${HEADER}import { defineMcpServer } from '@sim/workflow-sdk/workspace'\n\nexport default defineMcpServer({\n  name: 'Docs',\n  url: 'https://mcp.example.com/mcp',\n  headers: {\n    Authorization: 'Bearer ${SECRET}',\n    ${headers},\n  },\n})\n`
     const parsed = mcpCodec.parse('docs', { 'mcp/docs.ts': source }, [])
     const codes = new Set(parsed.diagnostics.map((finding) => finding.code))
-    expect(codes).toEqual(new Set(['E_MCP_LITERAL_SECRET', 'E_LIMIT_EXCEEDED']))
+    expect(codes).toEqual(new Set(['E_MCP_LITERAL_SECRET', 'I_FINDINGS_TRUNCATED']))
     expect(parsed.diagnostics[0].span).toMatchObject({ file: 'mcp/docs.ts', line: 8 })
     expect(echoed(parsed.diagnostics)).not.toContain(SECRET)
   })

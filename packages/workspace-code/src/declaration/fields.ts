@@ -41,7 +41,7 @@ const SECRET_VALUE_CODES: ReadonlySet<WorkspaceDiagnosticCode> = new Set([
 /**
  * A {@link FieldReport} that appends to `diagnostics`, located through the reader's spans. Once it
  * has appended `MAX_FINDINGS_PER_FILE` findings (findings already in `diagnostics`, such as ones
- * about other files of the resource, do not count) it records one `E_LIMIT_EXCEEDED` (with a span
+ * about other files of the resource, do not count) it records one `I_FINDINGS_TRUNCATED` (with a span
  * but no frame, since the value it points at may be a secret) and drops the rest.
  */
 export function fieldReporter(

@@ -84,7 +84,10 @@ import {
   applyWorkspaceSource,
 } from '@/lib/workspace-source/application/apply-workspace-source'
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
-import { findMissingSourceBlobs } from '@/lib/workspace-source/application/stage-blobs'
+import {
+  findMissingSourceBlobs,
+  stageSourceBlobs,
+} from '@/lib/workspace-source/application/stage-blobs'
 import {
   blobManifest,
   codes,
@@ -1009,7 +1012,7 @@ export default workflow('Big', {}, () => {
 
   check('workspace files and knowledge documents hash within one per-request budget', async () => {
     const workspaceId = await newWorkspace()
-    const size = Math.floor(WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest / 2.5)
+    const size = Math.floor(WORKSPACE_SOURCE_LIMITS.maxHashBytesPerRequest / 2.5)
     for (const name of ['a.txt', 'b.txt']) {
       await uploadWorkspaceFile(
         workspaceId,
@@ -1053,10 +1056,17 @@ export default workflow('Big', {}, () => {
       () => true
     )
 
-    const refused = await stageBlobsAs(
-      owner,
-      workspaceId,
-      blobs.map((blob) => ({ sha256: blob.sha256, content: blob.content ?? '' }))
+    const refused = await withPermissionGroupScope(() =>
+      stageSourceBlobs.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          blobs: blobs.map((blob) => ({
+            sha256: blob.sha256,
+            content: Buffer.from(blob.content ?? '', 'base64'),
+          })),
+        },
+      })
     ).then(
       () => null,
       (error: unknown) => error
@@ -1070,6 +1080,19 @@ export default workflow('Big', {}, () => {
       })
     )
     expect(missing.missing).toHaveLength(3)
+
+    const [alone] = blobManifest(
+      { 'files/alone.bin': Buffer.alloc(WORKSPACE_SOURCE_LIMITS.maxBlobBytes, 'd') },
+      () => true
+    )
+    await stageBlobsAs(owner, workspaceId, [{ sha256: alone.sha256, content: alone.content ?? '' }])
+    const stillMissing = await withPermissionGroupScope(() =>
+      findMissingSourceBlobs.execute({
+        principal: owner,
+        input: { workspaceId, blobs: [{ sha256: alone.sha256, size: alone.size }] },
+      })
+    )
+    expect(stillMissing.missing).toEqual([])
   })
 
   check('a plan already refused authorizes no change', async () => {

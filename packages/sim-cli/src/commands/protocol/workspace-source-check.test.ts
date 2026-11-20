@@ -317,6 +317,30 @@ describe('sim workspaces source check', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('a rows file with more bad lines than one file lists exits 1, as source errors, not 7 as a size limit', async () => {
+    writeFile(
+      'tables/plans.ts',
+      [
+        '// @sim-sdk 1',
+        "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+        'export default defineTable({',
+        "  name: 'plans',",
+        '  columns: { code: column.string({ required: true, unique: true }) },',
+        "  rows: { mode: 'managed', key: 'code' },",
+        '})',
+        '',
+      ].join('\n')
+    )
+    writeFile('tables/plans.rows.jsonl', `${Array.from({ length: 150 }, () => '{').join('\n')}\n`)
+
+    await check()
+
+    const found = stdoutJson().diagnostics as Array<{ code: string; severity: string }>
+    expect(found.at(-1)).toMatchObject({ code: 'I_FINDINGS_TRUNCATED', severity: 'info' })
+    expect(found.filter((finding) => finding.severity === 'error')).toHaveLength(100)
+    expect(process.exitCode).toBe(1)
+  })
+
   it('accepts seed rows the columns hold, coercing a numeric string as the write does', async () => {
     writeFile(
       'tables/seeds.ts',

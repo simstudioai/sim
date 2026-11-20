@@ -61,6 +61,7 @@ import {
   keepFile,
   kindFolders,
   localDeclarations,
+  seedRowsFiles,
   skippedFile,
   WORKSPACE_TREE,
 } from './workspace-source-dir'
@@ -169,11 +170,13 @@ async function writeWorkspaceSource(
   const blobs = new Map(source.blobs.map((blob) => [blob.path, blob]))
   const written = await readWritten(dir)
   const { paths: onDisk } = await kindFolders(dir, source.kinds)
+  const seedRows = seedRowsFiles(source.files)
   const gone = new Set(
     onDisk.filter(
       (path) =>
         !Object.hasOwn(source.files, path) &&
         !blobs.has(path) &&
+        !seedRows.has(path) &&
         Object.hasOwn(written.digests, path)
     )
   )

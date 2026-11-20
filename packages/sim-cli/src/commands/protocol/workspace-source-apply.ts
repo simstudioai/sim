@@ -12,7 +12,13 @@ import {
 } from '@sim/workspace-code'
 import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
-import { promotionSubmission } from '@sim/workspace-code/promote'
+import {
+  type PromotionRecord,
+  parsePromotionRecord,
+  promotionRecord,
+  promotionRecordPath,
+  promotionSubmission,
+} from '@sim/workspace-code/promote'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { DEFERRED_INTERRUPT_BOUND_MS, deferInterrupts } from '#sim-cli/terminal/interrupts'
@@ -356,11 +362,21 @@ function baseWorkspaceOf(base: unknown): string | null {
   return isRecordLike(base) && typeof base.workspaceId === 'string' ? base.workspaceId : null
 }
 
+/** A promotion's submission, with what it needs to record the target once applied. */
+interface Promotion {
+  submission: WorkspaceSubmission
+  /** The directory's own text files, before the target's records replaced its workflows'. */
+  files: Record<string, string>
+  /** The record the last promotion to this target left, if any. */
+  record: PromotionRecord | undefined
+}
+
 /**
  * The submission that promotes `submission` (read for the target, so every workflow folder is
  * whole) to `target`: the target's get supplies its base and each workflow's lock and base, so
- * its resources are bound by key and updated in place. Refuses a target the directory was read
- * from, which a plain apply serves.
+ * its resources are bound by key and updated in place, and the target's promotion record (what
+ * the last promotion from this directory left there) is the base each resource it holds compares
+ * with. Refuses a target the directory was read from, which a plain apply serves.
  */
 async function promoted(
   client: OperationClient<'getWorkspaceSource'>,
@@ -368,7 +384,7 @@ async function promoted(
   submission: WorkspaceSubmission,
   target: string,
   allowDelete: boolean
-): Promise<WorkspaceSubmission> {
+): Promise<Promotion> {
   if (baseWorkspaceOf(submission.base) === target) {
     throw new SimApiError(
       `${dir} was read from workspace ${target}; apply it without --to.`,
@@ -376,6 +392,10 @@ async function promoted(
       'SOURCE_PROMOTE_SAME_WORKSPACE'
     )
   }
+  const recordPath = promotionRecordPath(target)
+  const record = recordPath
+    ? parsePromotionRecord(await readSourceJson(dir, recordPath), target)
+    : undefined
   const { data } = await client.request<GetWorkspaceSourceResponse>('getWorkspaceSource', {
     params: { workspaceId: target },
     query: { kinds: submission.kinds.join(',') },
@@ -389,9 +409,41 @@ async function promoted(
     blobPaths: submission.blobs.map((blob) => blob.path),
     kinds: submission.kinds,
     target: { files: data.files, base: targetBase },
+    record,
     allowDelete,
   })
-  return { ...submission, files: composed.files, base: composed.base }
+  return {
+    submission: { ...submission, files: composed.files, base: composed.base },
+    files: submission.files,
+    record,
+  }
+}
+
+/**
+ * Saves what a promotion applied to `target` as its promotion record in the directory, the base
+ * the next promotion there compares with. Nothing else in the directory changes.
+ */
+async function savePromotion(
+  dir: string,
+  target: string,
+  promotion: Promotion,
+  data: ApplyData
+): Promise<void> {
+  const path = promotionRecordPath(target)
+  const base = parseWorkspaceBase(data.base).base
+  if (!path || !base) return
+  const record = promotionRecord({
+    workspaceId: target,
+    previous: promotion.record,
+    kinds: promotion.submission.kinds,
+    files: promotion.files,
+    submission: {
+      files: promotion.submission.files,
+      base: parseWorkspaceBase(promotion.submission.base).base ?? base,
+    },
+    applied: { base, files: data.files, plan: data.plan },
+  })
+  await updateSourceDir(dir, { write: [[path, `${JSON.stringify(record, null, 2)}\n`]] })
 }
 
 /**
@@ -419,7 +471,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     .option('--only <kinds>', `Apply only these kinds (${ONLY_KINDS_HELP})`)
     .option(
       '--to <workspaceId>',
-      "Promote the directory to another workspace (dev to prod): its resources bind by key to that workspace's own and are updated in place; the directory is not changed"
+      "Promote the directory to another workspace (dev to prod): its resources bind by key to that workspace's own and are updated in place. Only .sim/targets/<workspaceId>.json changes, the record the next promotion compares with: a resource changed there since is kept, or refused as stale (exit 5) when the directory changed it too"
     )
     .allowExcessArguments(false)
     .description('Apply a workspace source directory')
@@ -513,21 +565,21 @@ export function attachWorkspaceSourceApply(source: Command): void {
             await assertWorkspaceDir(options.dir)
           }
           assertBlobsFetched(options.dir, read, written.digests)
-          const submission = options.to
+          const promotion = options.to
             ? await promoted(client, options.dir, read, options.to, options.allowDelete === true)
-            : read
-          if (submission.ignored.length > 0) {
-            printError(
-              `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
-            )
-          }
+            : null
+          const submission = promotion?.submission ?? read
           // The apply repeats findings the preview already showed: each is printed once.
           const findings = findingsOutput(profile.output, options.verbose)
+          const notSent = notSentFindings(submission.ignored)
+          findings.print(notSent)
+          /** Prints `data` as the result, with the findings about files the CLI did not send. */
           const report = (data: ApplyData, next?: { command: string; reason: string }) => {
-            const result = { ...summarize(data), ...(next ? { next } : {}) }
+            const diagnostics = [...notSent, ...data.diagnostics]
+            const result = { ...summarize({ ...data, diagnostics }), ...(next ? { next } : {}) }
             printProtocolResult(
               profile.output,
-              { ...result, ...findings.result(data.diagnostics) },
+              { ...result, ...findings.result(diagnostics) },
               { created: createdText(result.created), ...(next ? { next: next.command } : {}) }
             )
           }
@@ -558,8 +610,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
             async () => {
               const answer = await send(submission, false)
               findings.print(answer.diagnostics)
-              // A promotion leaves the directory bound to the workspace it was read from.
-              if (!options.to) {
+              // A promotion leaves the directory bound to the workspace it was read from, and
+              // records what it left in the target for the next promotion to compare with.
+              if (promotion && options.to) {
+                await savePromotion(options.dir, options.to, promotion, answer)
+              } else {
                 const workspaceCatalog = cachedCatalog(workspaceId)
                 const records = workspaceCatalog
                   ? await workflowFolderRecords(client, workspaceId, workspaceCatalog, answer.files)
@@ -600,6 +655,20 @@ function applyCommand(options: ApplyOptions): string {
     ...(options.to ? [`--to ${shellWord(options.to)}`] : []),
     ...(options.allowDelete ? ['--allow-delete'] : []),
   ].join(' ')
+}
+
+/**
+ * A `W_PATH_NOT_SENT` warning for each file under a kind folder the CLI does not send: a hidden
+ * name, or a character no workspace path holds.
+ */
+function notSentFindings(paths: readonly string[]): ApplyData['diagnostics'] {
+  return paths.map((path) => ({
+    code: 'W_PATH_NOT_SENT' as const,
+    severity: 'warning' as const,
+    message: `${path} is not sent: a hidden name, or a character no workspace path holds. The apply writes and deletes nothing for it.`,
+    hint: 'Rename it to send it, or move it out of the kind folder.',
+    file: path,
+  }))
 }
 
 /**

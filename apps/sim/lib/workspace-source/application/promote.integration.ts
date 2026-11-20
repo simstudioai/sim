@@ -11,7 +11,11 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
-import { promotionSubmission } from '@sim/workspace-code/promote'
+import {
+  type PromotionRecord,
+  promotionRecord,
+  promotionSubmission,
+} from '@sim/workspace-code/promote'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import {
@@ -92,6 +96,41 @@ async function promote(dev: Read, target: string, options: { allowDelete?: boole
     allowDelete: options.allowDelete === true,
   })
   return runner.apply(target, { files: composed.files, base: composed.base, ...options })
+}
+
+/**
+ * Promotes `dev` to `target` as `apply --to` does with the target's promotion record, returning
+ * the apply's result and the record it leaves.
+ */
+async function promoteRecorded(dev: Read, target: string, record: PromotionRecord | undefined) {
+  const prod = await runner.get(target)
+  const composed = promotionSubmission({
+    files: dev.files,
+    blobPaths: [],
+    kinds: dev.kinds,
+    target: prod,
+    record,
+    allowDelete: false,
+  })
+  const result = await runner.apply(target, { files: composed.files, base: composed.base })
+  return {
+    result,
+    record: promotionRecord({
+      workspaceId: target,
+      previous: record,
+      kinds: dev.kinds,
+      files: dev.files,
+      submission: composed,
+      applied: result,
+    }),
+  }
+}
+
+/** `dev` with `edits` applied to it, read back as the directory would hold it. */
+async function editDev(dev: string, edits: Record<string, string>) {
+  const read = await runner.get(dev)
+  await runner.apply(dev, { files: { ...read.files, ...edits }, base: read.base })
+  return runner.get(dev)
 }
 
 async function blockIds(workspaceId: string) {
@@ -199,6 +238,99 @@ describe('workspace source promotion', () => {
       expect(codes(unchanged.diagnostics)).toEqual([])
     }
   )
+
+  check(
+    'a change made in the target since the last promotion is kept when the directory left it alone, and refused as stale when the directory changed it too',
+    async () => {
+      const dev = await workspaces.create({ name: 'Dev', ownerId })
+      const prod = await workspaces.create({ name: 'Prod', ownerId })
+      await runner.apply(dev, { files: DEV })
+      const first = await promoteRecorded(await runner.get(dev), prod, undefined)
+      expect(first.result.failed).toBeUndefined()
+
+      const prodRead = await runner.get(prod)
+      await runner.apply(prod, {
+        files: {
+          ...prodRead.files,
+          'skills/tone.md': TONE.replace('Be brief.', 'Be brief, prod.'),
+          'workflows/ingest/workflow.ts': ingest('Prod hotfix.'),
+        },
+        base: prodRead.base,
+      })
+
+      const untouched = await promoteRecorded(await runner.get(dev), prod, first.record)
+      expect(untouched.result.applied).toEqual([])
+      const kept = await runner.get(prod)
+      expect(kept.files['skills/tone.md']).toContain('Be brief, prod.')
+      expect(kept.files['workflows/ingest/workflow.ts']).toContain('Prod hotfix.')
+
+      const edited = await editDev(dev, {
+        'skills/tone.md': TONE.replace('Be brief.', 'Be very brief.'),
+        'workflows/ingest/workflow.ts': ingest('Be terse.'),
+      })
+      const stale = await refusal(promoteRecorded(edited, prod, untouched.record))
+      expect(stale.stale).toBe(true)
+      expect(codes(stale.diagnostics)).toContain('E_APPLY_STALE')
+      const unchanged = await runner.get(prod)
+      expect(unchanged.files['skills/tone.md']).toContain('Be brief, prod.')
+      expect(unchanged.files['workflows/ingest/workflow.ts']).toContain('Prod hotfix.')
+    }
+  )
+
+  check(
+    'with the record, a promotion that changed nothing in the target since converges, and the next edit updates it in place',
+    async () => {
+      const dev = await workspaces.create({ name: 'Dev', ownerId })
+      const prod = await workspaces.create({ name: 'Prod', ownerId })
+      await runner.apply(dev, { files: DEV })
+      const first = await promoteRecorded(await runner.get(dev), prod, undefined)
+      const again = await promoteRecorded(await runner.get(dev), prod, first.record)
+      expect(again.result.applied).toEqual([])
+
+      const edited = await editDev(dev, {
+        'skills/tone.md': TONE.replace('Be brief.', 'Be very brief.'),
+        'workflows/ingest/workflow.ts': ingest('Be terse.'),
+      })
+      const updated = await promoteRecorded(edited, prod, again.record)
+      expect(
+        updated.result.applied
+          .map((change) => `${change.action} ${change.kind}:${change.key}`)
+          .sort()
+      ).toEqual(['update skill:tone', 'update workflow:ingest'])
+      const settled = await promoteRecorded(edited, prod, updated.record)
+      expect(settled.result.applied).toEqual([])
+    }
+  )
+
+  check('promoting managed rows converges: the second promotion changes nothing', async () => {
+    const dev = await workspaces.create({ name: 'Dev', ownerId })
+    const prod = await workspaces.create({ name: 'Prod', ownerId })
+    const directory = {
+      'tables/stock.ts': `// @sim-sdk 1
+import { column, defineTable } from '@sim/workflow-sdk/workspace'
+
+export default defineTable({
+  name: 'stock',
+  columns: {
+    sku: column.string({ required: true, unique: true }),
+    status: column.select({ options: ['new', 'won'] }),
+    note_text: column.string({ name: 'memo' }),
+  },
+  rows: { mode: 'managed', key: 'sku' },
+})
+`,
+      'tables/stock.rows.jsonl': '{"sku":"A-1","status":"new","note_text":"hi"}\n{"sku":"A-2"}\n',
+    }
+    const applied = await runner.apply(dev, { files: directory, kinds: ['table'] })
+    const devDir = { ...(await runner.get(dev)), files: applied.files }
+
+    const first = await promote(devDir, prod)
+    expect(first.applied.map((change) => `${change.action} ${change.kind}:${change.key}`)).toEqual([
+      'create table:stock',
+    ])
+    const second = await promote(devDir, prod)
+    expect(second.applied).toEqual([])
+  })
 
   check(
     "the target's own resources are kept, with a warning, unless the promotion allows deletes",

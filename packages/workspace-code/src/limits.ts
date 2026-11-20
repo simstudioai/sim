@@ -21,8 +21,14 @@ export const WORKSPACE_SOURCE_LIMITS = {
   maxDirectoryWorkflowBytes: 32_000_000,
   /** Bytes of one blob (a knowledge document or a workspace file). */
   maxBlobBytes: 10_000_000,
-  /** Blob bytes one staging request carries (and one request may download to hash). */
-  maxBlobBytesPerRequest: 24_000_000,
+  /**
+   * Blob bytes, multipart framing included, one staging request carries when it holds more than
+   * one blob; a blob up to `maxBlobBytes` goes in a request of its own. Either body stays under
+   * {@link SOURCE_REQUEST_BODY_CEILING_BYTES}.
+   */
+  maxBlobBytesPerRequest: 8_000_000,
+  /** Stored bytes one request (a get, or one apply) may download to hash. */
+  maxHashBytesPerRequest: 24_000_000,
   /** Blobs one staging request carries. */
   maxBlobsPerRequest: 1_000,
   /** Blobs one caller may hold staged in one workspace at once. */
@@ -60,13 +66,38 @@ export const WORKSPACE_SOURCE_REQUEST_MAX_BYTES =
       WORKSPACE_SOURCE_LIMITS.maxWorkflowBytes) +
   6_000_000
 
-/** Body cap for one staging request: its blobs plus multipart framing. */
+/**
+ * The most bytes a request body may carry and still reach a route whole: Next.js buffers each
+ * `/api` body for `apps/sim/proxy.ts` and silently truncates it past
+ * `experimental.proxyClientMaxBodySize` (its 10 MiB default; `PROXY_CLIENT_MAX_BODY_BYTES` in
+ * apps/sim/lib/api/server/validation.ts), so a larger staging body arrives as a broken multipart
+ * prefix.
+ */
+export const SOURCE_REQUEST_BODY_CEILING_BYTES = 10 * 1024 * 1024
+
+/**
+ * Multipart framing budgeted per staged part: its boundary line and the headers naming its SHA-256
+ * as field and file name (about 270 bytes as `FormData` serializes them).
+ */
+export const STAGE_PART_FRAMING_BYTES = 512
+
+/**
+ * Body cap for one staging request: the larger of a full batch and one blob of `maxBlobBytes`
+ * alone, with its framing and the closing boundary. Below
+ * {@link SOURCE_REQUEST_BODY_CEILING_BYTES}, so a body the proxy truncated (whose declared or read
+ * length reaches the ceiling) is refused as too large rather than misread as malformed.
+ */
 export const WORKSPACE_SOURCE_STAGE_MAX_BYTES =
-  WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest + 2_000_000
+  Math.max(
+    WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest,
+    WORKSPACE_SOURCE_LIMITS.maxBlobBytes + STAGE_PART_FRAMING_BYTES
+  ) + STAGE_PART_FRAMING_BYTES
 
 /**
  * Splits `blobs` into staging requests, in order: each carries at most `maxBlobsPerRequest` blobs
- * and `maxBlobBytesPerRequest` bytes, and always at least one blob, so every request progresses.
+ * and `maxBlobBytesPerRequest` bytes counting {@link STAGE_PART_FRAMING_BYTES} per blob, and always
+ * at least one blob, so every request progresses and a blob too large to share a request goes
+ * alone.
  */
 export function stageBatches<T extends { size: number }>(blobs: readonly T[]): T[][] {
   const { maxBlobBytesPerRequest, maxBlobsPerRequest } = WORKSPACE_SOURCE_LIMITS
@@ -74,16 +105,17 @@ export function stageBatches<T extends { size: number }>(blobs: readonly T[]): T
   let batch: T[] = []
   let bytes = 0
   for (const blob of blobs) {
+    const framed = blob.size + STAGE_PART_FRAMING_BYTES
     if (
       batch.length > 0 &&
-      (bytes + blob.size > maxBlobBytesPerRequest || batch.length >= maxBlobsPerRequest)
+      (bytes + framed > maxBlobBytesPerRequest || batch.length >= maxBlobsPerRequest)
     ) {
       batches.push(batch)
       batch = []
       bytes = 0
     }
     batch.push(blob)
-    bytes += blob.size
+    bytes += framed
   }
   if (batch.length > 0) batches.push(batch)
   return batches

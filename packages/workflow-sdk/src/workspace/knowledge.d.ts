@@ -14,7 +14,7 @@
  * ```
  *
  * Documents sync by content: adding a file to `docs/` uploads it, editing one replaces the stored
- * document (a new upload, so its tag values are not kept), and removing one deletes it only with
+ * document (a new upload that takes the old one's tag values), and removing one deletes it only with
  * `--allow-delete`. Every uploaded or replaced document is indexed after the apply. Documents a
  * connector syncs are never part of source.
  */

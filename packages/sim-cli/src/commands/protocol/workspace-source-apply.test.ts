@@ -320,6 +320,46 @@ describe('workspaces source apply', () => {
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(LEADS)
   })
 
+  it('records what a promotion left in the target, and compares the next promotion with it rather than the target as read then', async () => {
+    const leads = (fingerprint: string) => ({
+      id: 'tbl_prod',
+      fingerprint: `rf1:${fingerprint.repeat(64)}`,
+    })
+    let live = { version: 1, workspaceId: 'ws_prod', resources: { 'table:leads': leads('a') } }
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table'],
+            files: { 'tables/leads.ts': LEADS },
+            blobs: [],
+            base: live,
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      return answer({ workspaceId: 'ws_prod', base: live })
+    })
+
+    await apply('--to', 'ws_prod', '--only', 'tables', '--dry-run')
+    expect(existsSync(join(dir, '.sim/targets/ws_prod.json'))).toBe(false)
+    await apply('--to', 'ws_prod', '--only', 'tables', '--yes')
+    expect(JSON.parse(readFileSync(join(dir, '.sim/targets/ws_prod.json'), 'utf8'))).toMatchObject({
+      version: 1,
+      workspaceId: 'ws_prod',
+      resources: { 'table:leads': leads('a') },
+    })
+
+    live = { ...live, resources: { 'table:leads': leads('b') } }
+    request.mockClear()
+    await apply('--to', 'ws_prod', '--only', 'tables', '--yes')
+
+    const post = request.mock.calls.find(([, options]) => options.body !== undefined)
+    expect(post?.[1].body.base.resources['table:leads']).toEqual(leads('a'))
+  })
+
   it('counts the changes that delete data in a dry run, and says re-applying an older directory does not restore it', async () => {
     request.mockResolvedValue(
       answer({
@@ -680,6 +720,36 @@ describe('workspaces source apply', () => {
     await expect(apply('--yes')).rejects.toMatchObject({ code: 'SOURCE_BLOB_CHANGED' })
     expect(staging.uploaded).toEqual([])
     expect(request).not.toHaveBeenCalled()
+  })
+
+  it('a staging request the server refuses as too large applies nothing, names the upload and the fix, and exits 7', async () => {
+    write('files/a.bin', Buffer.alloc(3_000, 1))
+    mockRequest.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path.endsWith('/source/blobs')) {
+        throw new SimApiError('Request body is too large', 413, 'PAYLOAD_TOO_LARGE')
+      }
+      return path.includes('/source/blobs') ? stagingAnswer(path, options) : request(path, options)
+    })
+
+    const refused = await apply('--yes').then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    expect(refused).toMatchObject({ status: 413, code: 'PAYLOAD_TOO_LARGE', exitCode: 7 })
+    expect((refused as SimApiError).message).toContain('files/a.bin')
+    expect((refused as SimApiError).message).toContain('sim update')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('uploads two files that would overflow one request body in two requests', async () => {
+    write('files/a.bin', Buffer.alloc(6_000_000, 1))
+    write('files/b.bin', Buffer.alloc(6_000_000, 2))
+    request.mockResolvedValueOnce(answer())
+
+    await apply('--yes')
+
+    expect(staging.uploaded.map((batch) => batch.length)).toEqual([1, 1])
   })
 
   describe('rate limiting', () => {
@@ -1047,11 +1117,12 @@ describe('workspaces source apply', () => {
     ).resolves.toMatchObject({ blobs: [] })
   })
 
-  it('warns that a hidden file under a kind folder is not sent', async () => {
+  it('warns on stderr that a hidden file under a kind folder is not sent', async () => {
     write('files/.gitkeep', '')
     write('files/.env', 'SECRET=1')
     write('files/notes.md', 'hi')
     request.mockResolvedValue(answer())
+    contextMockState.output = 'text'
 
     await apply('--yes')
 
@@ -1062,6 +1133,29 @@ describe('workspaces source apply', () => {
       .join('\n')
     expect(warned).toContain('files/.env')
     expect(warned).not.toContain('files/.gitkeep')
+  })
+
+  it('names each file it does not send in its own warning, in the JSON result and its count', async () => {
+    write('files/a:b.txt', 'x')
+    write('files/q?.txt', 'x')
+    write('workflows/.hidden-wf/workflow.ts', INGEST)
+    request.mockResolvedValue(answer())
+
+    await apply('--yes')
+
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    const notSent = summary.diagnostics.filter(
+      (finding: { code: string }) => finding.code === 'W_PATH_NOT_SENT'
+    )
+    expect(notSent.map((finding: { file: string }) => finding.file).sort()).toEqual([
+      'files/a:b.txt',
+      'files/q?.txt',
+      'workflows/.hidden-wf/workflow.ts',
+    ])
+    expect(notSent.every((finding: { severity: string }) => finding.severity === 'warning')).toBe(
+      true
+    )
+    expect(summary.warnings).toBe(3)
   })
 
   it('sends secrets.ts and credentials.ts as their kinds, and no other root file', async () => {

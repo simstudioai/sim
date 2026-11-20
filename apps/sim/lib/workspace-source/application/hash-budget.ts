@@ -18,7 +18,7 @@ export interface HashBudget {
 
 /** A full hashing budget for one request. */
 export function newHashBudget(): HashBudget {
-  return { bytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest, count: MAX_HASHED_PER_REQUEST }
+  return { bytes: WORKSPACE_SOURCE_LIMITS.maxHashBytesPerRequest, count: MAX_HASHED_PER_REQUEST }
 }
 
 /** Downloads one plan or get runs at once while hashing. */
