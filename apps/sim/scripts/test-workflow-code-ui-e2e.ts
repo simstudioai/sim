@@ -303,7 +303,10 @@ async function visitWorkflow(page: Page, origin: URL) {
 /** A page in a fresh browser context signed in to `origin`. */
 async function signedInPage(origin: URL): Promise<Page> {
   assert(browser, 'The browser must be launched first')
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    permissions: ['clipboard-read', 'clipboard-write'],
+  })
   await context.addCookies([
     { name: 'better-auth.session_token', value: cookie, url: origin.origin },
   ])
@@ -365,6 +368,7 @@ try {
       await page.keyboard.type('typed into a read-only view')
       await page.keyboard.press('Enter')
       await page.keyboard.press('Backspace')
+      await page.evaluate(() => navigator.clipboard.writeText('pasted into a read-only view'))
       await page.keyboard.press('ControlOrMeta+v')
       // The editor paints edits on the next animation frame; two frames cover any queued render.
       await page.evaluate(

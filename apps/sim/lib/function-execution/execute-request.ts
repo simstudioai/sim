@@ -399,8 +399,10 @@ function forEachSyntaxNode(root: Node, visit: (node: Node) => void): void {
     visit(node)
     for (const key of VISITOR_KEYS[node.type] ?? []) {
       const child: unknown = Reflect.get(node, key)
-      if (Array.isArray(child)) pending.push(...child.filter(isSyntaxNode))
-      else if (isSyntaxNode(child)) pending.push(child)
+      /* One push per child: spreading a 100,000-element array literal exceeds Bun's argument limit. */
+      if (Array.isArray(child)) {
+        for (const item of child) if (isSyntaxNode(item)) pending.push(item)
+      } else if (isSyntaxNode(child)) pending.push(child)
     }
   }
 }
@@ -428,7 +430,7 @@ function extractJavaScriptImports(code: string): {
   forEachSyntaxNode(program, (node) => {
     if (node.type === 'Identifier') identifierNames.add(node.name)
     if (
-      node.type === 'CallExpression' &&
+      (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') &&
       node.callee.type === 'Identifier' &&
       node.callee.name === 'require'
     ) {

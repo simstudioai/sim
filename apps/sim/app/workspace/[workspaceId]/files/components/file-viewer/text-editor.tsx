@@ -285,6 +285,18 @@ export const TextEditor = memo(function TextEditor({
     return false
   }
 
+  /** Every selected passage, joined by line breaks as a multi-cursor copy is. */
+  const selectedText = (): string => {
+    const editor = editorRef.current
+    if (!editor) return ''
+    const text = editor.getText()
+    return editor
+      .getSelectionRanges()
+      .filter(({ start, end }) => start < end)
+      .map(({ start, end }) => text.slice(start, end))
+      .join('\n')
+  }
+
   const handleEditorPasteCapture = (event: ReactClipboardEvent<HTMLDivElement>) => {
     const pastedText = event.clipboardData.getData('text/plain')
     if (!pastedText || admitsPaste(pastedText)) return
@@ -442,17 +454,19 @@ export const TextEditor = memo(function TextEditor({
               closeContextMenu()
             }}
             onCut={() => {
-              const selection = editorRef.current?.getSelection()
-              if (selection) {
-                navigator.clipboard.writeText(selection.text).catch(() => {})
-                editorRef.current?.replaceSelection('')
-              }
               closeContextMenu()
+              const text = selectedText()
+              if (!text) return
+              /* Delete only once the text is safely on the clipboard. */
+              navigator.clipboard
+                .writeText(text)
+                .then(() => editorRef.current?.replaceSelection(''))
+                .catch(() => {})
             }}
             onCopy={() => {
-              const selection = editorRef.current?.getSelection()
-              if (selection) navigator.clipboard.writeText(selection.text).catch(() => {})
               closeContextMenu()
+              const text = selectedText()
+              if (text) navigator.clipboard.writeText(text).catch(() => {})
             }}
             onCopyAll={() => {
               navigator.clipboard.writeText(editorRef.current?.getText() ?? '').catch(() => {})

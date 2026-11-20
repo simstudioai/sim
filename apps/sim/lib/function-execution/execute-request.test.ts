@@ -846,6 +846,7 @@ describe('Function execution request', () => {
 
     it.each([
       ['a require call', 'const path = require("node:path")\nreturn path.sep', 1],
+      ['an optional require call', 'const path = require?.("node:path")\nreturn path.sep', 1],
       ['code that does not parse', 'import path from "node:path"\nreturn (', 0],
       [
         'code whose only error a parser can recover from',
