@@ -146,6 +146,53 @@ describe("references into a start trigger's declared inputs", () => {
   })
 })
 
+describe("a field hidden under the block's values", () => {
+  const DROPPED =
+    'so it never runs: an apply does not save it over the stored value, and the source it writes back drops this line.'
+
+  it('says the value is dropped, and names the condition it shows under', () => {
+    const [hidden] = findings(
+      run("const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x', limit: 3 })"),
+      'W_FIELD_NOT_APPLICABLE'
+    )
+    expect(hidden?.message).toBe(
+      `limit is hidden (it shows only when operation is list_channels), ${DROPPED}`
+    )
+    expect(hidden?.hint).toBe('Remove limit, or change the values that hide it so it runs.')
+  })
+
+  it('names the model a model-gated field does not apply to', () => {
+    const agentBlock = TEST_CATALOG.blocks.agent as CatalogBlock
+    const gated: BlockCatalog = {
+      ...TEST_CATALOG,
+      blocks: {
+        ...TEST_CATALOG.blocks,
+        agent: {
+          ...agentBlock,
+          subBlocks: agentBlock.subBlocks.map((sub) =>
+            sub.id === 'temperature'
+              ? {
+                  ...sub,
+                  condition: { opaque: true },
+                  visibleForModel: { 'gpt-5': false, 'claude-sonnet-4-5': true },
+                }
+              : sub
+          ),
+        },
+      },
+    }
+    const written = (model: string) =>
+      findings(
+        run(`const a = agent('A', { model: '${model}', temperature: 0.5 })`, undefined, gated),
+        'W_FIELD_NOT_APPLICABLE'
+      )
+    expect(written('gpt-5')[0]?.message).toBe(
+      `temperature is hidden (model gpt-5 does not use it), ${DROPPED}`
+    )
+    expect(written('claude-sonnet-4-5')).toEqual([])
+  })
+})
+
 describe('references into an agent responseFormat', () => {
   const FORMAT =
     "responseFormat: { name: 'classify', schema: { type: 'object', properties: { priority: { type: 'string' }, score: { type: 'number' } } } }"

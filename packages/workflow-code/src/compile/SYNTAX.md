@@ -84,7 +84,9 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
   `E_UNSUPPORTED_SYNTAX`.
 - A pinned param (`operation`, or a builder's `fixed` entry) is `E_FIXED_PARAM`; the compiler adds
   pinned values.
-- A param not visible under the block's values is `W_FIELD_NOT_APPLICABLE`. A required field left
+- A param not visible under the block's values is `W_FIELD_NOT_APPLICABLE`, naming the value that
+  hides it: it never runs, so apply keeps the stored value (preserved state) and the written-back
+  source drops the line. A required field left
   empty (or `todo()`) is `W_REQUIRED_MISSING`. A value whose JSON type differs from the field's is
   `W_VALUE_KIND`; it is never coerced.
 
@@ -416,7 +418,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_UNKNOWN_BUILDER` | A builder path the catalog does not have, a bare builder-shaped call (`apii('Name', …)`) nothing binds, or a namespace the SDK lacks or the file did not import; `hint` names the builder a common other name stands for (`http.request` → `api`), then prefers a synonymous verb (`postMessage` → `sendMessage`), then the closest path, then the namespace's builders. |
 | `E_UNKNOWN_PARAM` | A param the block does not have; the hint has a did-you-mean. |
 | `E_FIXED_PARAM` | A param the builder already pins. |
-| `W_FIELD_NOT_APPLICABLE` | A param not visible under the block's values. |
+| `W_FIELD_NOT_APPLICABLE` | A param not visible under the block's values; apply keeps the stored value and the written-back source drops it. |
 | `W_REQUIRED_MISSING` | A required field left empty, including `todo()`; not repeated for a field an `E_UNKNOWN_PARAM` did-you-mean names, or one written with a value that failed to compile. |
 | `W_UNKNOWN_OPTION` | A dropdown value none of its options names; `hint` lists them. |
 | `E_UNKNOWN_OPERATION` | An `operation` the block does not offer; `hint` lists them. A retired one the stored block holds is `W_UNKNOWN_OPTION`. |

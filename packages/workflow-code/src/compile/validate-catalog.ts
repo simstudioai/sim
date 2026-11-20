@@ -18,6 +18,49 @@ export function isVisible(sub: CatalogSubBlock, values: ReadonlyMap<string, Valu
   return evaluateCondition(sub, paramLookup(values)) !== false
 }
 
+/** A clause list longer than this is described by the value it rejects, not by what it lists. */
+const LISTED_VALUES = 3
+
+/**
+ * Why {@link isVisible} hides a field, as a clause: the value that hides it (`model gpt-5 does
+ * not use it`), or for a short data condition the values it shows under (`it shows only when
+ * operation is send`); `null` when the condition data does not say.
+ */
+export function hiddenReason(
+  sub: CatalogSubBlock,
+  values: ReadonlyMap<string, Value>
+): string | null {
+  const { condition, visibleFor, visibleForModel } = sub
+  const rejected = (field: string) => {
+    const value = values.get(field)
+    return `${field} ${value === undefined || value === null ? 'unset' : String(value)} does not use it`
+  }
+  if (!condition) return null
+  if ('opaque' in condition) {
+    const operation = values.get('operation')
+    if (typeof operation === 'string' && visibleFor?.[operation] === false) {
+      return rejected('operation')
+    }
+    const model = values.get('model')
+    if (typeof model === 'string' && visibleForModel?.[model] === false) return rejected('model')
+    return null
+  }
+  const lookup = paramLookup(values)
+  const failing = [condition, condition.and].find(
+    (part): part is NonNullable<typeof part> =>
+      part !== undefined &&
+      evaluateClause({ field: part.field, value: part.value, not: part.not }, lookup) === false
+  )
+  if (!failing) return null
+  if (Array.isArray(failing.value) && failing.value.length > LISTED_VALUES) {
+    return rejected(failing.field)
+  }
+  const wanted = Array.isArray(failing.value)
+    ? failing.value.map(String).join(' or ')
+    : String(failing.value)
+  return `it shows only when ${failing.field} is ${failing.not ? 'not ' : ''}${wanted}`
+}
+
 /**
  * The fields a block leaves empty although they are required under the values it runs with
  * (`W_REQUIRED_MISSING`). `values` are the block's compiled params, which already hold each

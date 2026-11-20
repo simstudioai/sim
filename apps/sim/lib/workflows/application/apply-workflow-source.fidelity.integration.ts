@@ -484,6 +484,53 @@ check(
 )
 
 check(
+  'a field the model hides, added in source, is reported as dropped and apply keeps the stored value',
+  async () => {
+    const workflowId = await insertWorkflow('Fidelity hidden field')
+    const start = generateId()
+    const agentId = generateId()
+    await putState(workflowId, {
+      blocks: {
+        [start]: block(start, 'start_trigger', 'Start'),
+        [agentId]: {
+          ...block(agentId, 'agent', 'Answer', {
+            model: { id: 'model', type: 'combobox', value: 'gpt-5.4' },
+          }),
+          advancedMode: true,
+        },
+      },
+      edges: [
+        {
+          id: generateId(),
+          source: start,
+          target: agentId,
+          sourceHandle: 'source',
+          targetHandle: 'target',
+        },
+      ],
+      loops: {},
+      parallels: {},
+      variables: {},
+    })
+    const source = await getSource(workflowId)
+    expect(source.files['workflow.ts']).not.toContain('temperature')
+    const before = await snapshot(workflowId)
+
+    const result = await applySource(
+      source,
+      editEntry(source.files, "model: 'gpt-5.4' }", "model: 'gpt-5.4', temperature: 0.5 }")
+    )
+    const dropped = result.diagnostics.filter((d) => d.code === 'W_FIELD_NOT_APPLICABLE')
+    expect(dropped.map((d) => d.message)).toEqual([
+      'temperature is hidden (model gpt-5.4 does not use it), so it never runs: an apply does not save it over the stored value, and the source it writes back drops this line.',
+    ])
+    expect(result.diff.noop).toBe(true)
+    expect(result.files['workflow.ts']).not.toContain('temperature')
+    expect(await snapshot(workflowId)).toEqual(before)
+  }
+)
+
+check(
   'a workflow built by editing operations and one created from its source read the same through the JSON API',
   async () => {
     const canvasId = await insertWorkflow('Fidelity canvas')

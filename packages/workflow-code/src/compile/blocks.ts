@@ -76,6 +76,7 @@ import type { Range } from './report'
 import { compileToolList } from './tools'
 import {
   fieldFor,
+  hiddenReason,
   isVisible,
   missingRequiredFields,
   paramLookup,
@@ -1521,6 +1522,15 @@ function valueKindHint(sub: CatalogSubBlock): string {
   }
 }
 
+/**
+ * `W_FIELD_NOT_APPLICABLE`: a hidden field never runs, and source holds only what runs, so an
+ * apply restores the stored value over it (preserved state) and the printed source drops it.
+ */
+function notApplicableMessage(param: string, reason: string | null): string {
+  const hidden = reason ? `hidden (${reason})` : "hidden under the block's current values"
+  return `${param} is ${hidden}, so it never runs: an apply does not save it over the stored value, and the source it writes back drops this line.`
+}
+
 /** Catalog warnings: visibility, required fields, value kinds, slider ranges. */
 function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState): void {
   const { decl, params } = state
@@ -1532,10 +1542,10 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
     if (!isVisible(sub, values)) {
       ctx.reporter.report(
         'W_FIELD_NOT_APPLICABLE',
-        `${entry.param} is hidden under the block's current values; it is kept but not used.`,
+        notApplicableMessage(entry.param, hiddenReason(sub, values)),
         rangeOf(ctx, entry.property),
         {
-          hint: 'Remove it; apply keeps the stored value.',
+          hint: `Remove ${entry.param}, or change the values that hide it so it runs.`,
           blockKey: decl.key,
           param: entry.param,
         }
