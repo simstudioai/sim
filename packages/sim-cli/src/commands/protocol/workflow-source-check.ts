@@ -80,6 +80,14 @@ const STRICT_CODES: ReadonlySet<string> = new Set([
 const STORED_EXEMPT_CODES: ReadonlySet<string> = new Set(['W_BRANCH_UNWIRED'])
 
 /**
+ * Warnings a check reports only on a block the lock does not bind (one added since the get), and
+ * on every block with `--strict`: printed source holds them on blocks nobody edited, and the
+ * server, which compares with the stored workflow, already reports them only for an edited field.
+ * `W_JSON_REF_UNTYPED`: a bare reference nothing types, in a JSON field.
+ */
+const EDIT_SCOPED_CODES: ReadonlySet<string> = new Set(['W_JSON_REF_UNTYPED'])
+
+/**
  * Which {@link STRICT_CODES} warnings fail a check: `new` those on a block the lock does not bind
  * (one added since the get, or every block of a workflow that has no lock yet), `all` every one,
  * `off` none. Printed source can hold such a warning on a block nobody edited (a field left empty
@@ -117,7 +125,8 @@ does not bind (a block added since the get, or every block of a new workflow):
 ${[...STRICT_CODES].map((code) => `  ${code}`).join(',\n')}.
 --strict fails on them in every block, except ${[...STORED_EXEMPT_CODES].join(', ')} on a block the
 lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict never
-fails on a warning.`
+fails on a warning. ${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not
+bind, and with --strict on every block.`
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
 export function strictFlags(command: Command): Command {
@@ -474,8 +483,11 @@ export async function checkWorkflowDir(
     !(STORED_EXEMPT_CODES.has(code) && bound(blockKey)) &&
     (options.strict === 'all' || (options.strict === 'new' && !bound(blockKey)))
   const prefix = options.prefix ?? ''
+  const reported = (code: string, blockKey: string | undefined) =>
+    !SERVER_ONLY_CODES.has(code) &&
+    !(EDIT_SCOPED_CODES.has(code) && options.strict !== 'all' && bound(blockKey))
   const findings = [
-    ...compiled.diagnostics.filter((diagnostic) => !SERVER_ONLY_CODES.has(diagnostic.code)),
+    ...compiled.diagnostics.filter((diagnostic) => reported(diagnostic.code, diagnostic.blockKey)),
     ...declared,
   ].map(({ code, severity, message, hint, frame, span, blockKey }): CheckFinding => {
     const raised = severity === 'warning' && fails(code, blockKey)

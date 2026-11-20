@@ -441,6 +441,31 @@ describe('sim workflows source check', () => {
     expect(process.exitCode).toBeUndefined()
   })
 
+  it('reports an untyped JSON reference only on a block the lock does not bind, and on all with --strict', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace(
+        "const done = response('Done', { body: { received: start.message } })",
+        "const call = api('Call', { url: 'https://x', method: 'POST', body: { n: start.missing.deep } })\n  const done = response('Done', { body: { received: start.message } })"
+      ).replace('import { response,', 'import { api, response,')
+    )
+    const untyped = () =>
+      ((result().diagnostics ?? []) as Array<{ code: string }>).filter(
+        (finding) => finding.code === 'W_JSON_REF_UNTYPED'
+      )
+
+    await check()
+    expect(untyped()).toHaveLength(1)
+
+    writeLock(['start', 'done', 'call'])
+    await check()
+    expect(untyped()).toEqual([])
+
+    await checkIn(dir, '--strict')
+    expect(untyped()).toHaveLength(1)
+  })
+
   it('fails on a bound block with --strict and on nothing with --no-strict', async () => {
     cacheCatalog()
     writeFileSync(join(dir, 'workflow.ts'), UNKNOWN_METHOD)
