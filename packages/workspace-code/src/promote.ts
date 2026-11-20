@@ -130,6 +130,25 @@ function withFingerprint(text: string, fingerprint: string): string | null {
   return `${JSON.stringify({ ...parsed.base, fingerprint }, null, 2)}\n`
 }
 
+/**
+ * The folder base of a workflow the last promotion left in target `workspaceId`, from its record:
+ * it names that workflow and the fingerprint the promotion left. The catalog it was printed with
+ * is not recorded, and a base naming a workflow the target no longer holds is never compiled.
+ */
+function recordedFolderBase(promoted: PromotedWorkflow, workspaceId: string): string {
+  return `${JSON.stringify(
+    {
+      version: 1,
+      workflowId: promoted.workflowId,
+      workspaceId,
+      fingerprint: promoted.fingerprint,
+      catalogHash: '',
+    },
+    null,
+    2
+  )}\n`
+}
+
 /** The workflow a folder base's text names, or `null` if unreadable. */
 function folderWorkflow(
   text: string | undefined
@@ -200,6 +219,18 @@ export function promotionSubmission(input: PromotionInput): PromotionSubmission 
     const targetBase = input.target.files[basePath]
     const live = folderWorkflow(targetBase)
     const promoted = input.record?.workflows[key]
+    if (targetBase === undefined && promoted) {
+      // Deleted in the target since the last promotion: the recorded base names the workflow it
+      // left there, so the apply keeps the deletion, or refuses an edit since as stale.
+      const unchanged = promoted.digest === folderDigest(key, input.files)
+      if (unchanged) {
+        for (const path of Object.keys(files)) {
+          if (path.startsWith(`${folder}/`)) delete files[path]
+        }
+      }
+      files[basePath] = recordedFolderBase(promoted, input.target.base.workspaceId)
+      continue
+    }
     if (targetBase === undefined || !live || promoted?.workflowId !== live.workflowId) {
       for (const path of [basePath, lockPath]) {
         const text = input.target.files[path]
@@ -229,6 +260,14 @@ export function promotionSubmission(input: PromotionInput): PromotionSubmission 
       return [[address, recorded?.id === live.id ? recorded : live] as const]
     })
   )
+  // A resource the last promotion left in the target that the target no longer holds was deleted
+  // there: its recorded entry stays in the base, so the apply keeps the deletion when the
+  // directory left it alone and refuses an edit since as stale, rather than creating it again.
+  for (const [address, recorded] of Object.entries(input.record?.resources ?? {})) {
+    if (Object.hasOwn(input.target.base.resources, address)) continue
+    const parsed = parseResourceAddress(address)
+    if (parsed && declared.get(parsed.kind)?.has(parsed.key)) resources[address] = recorded
+  }
   return { files, base: { ...input.target.base, resources } }
 }
 

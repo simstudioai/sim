@@ -76,6 +76,14 @@ description: House tone
 Be brief.
 `
 
+const NOTIFY = `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Notify', {}, () => {
+  trigger.start('Start', { inputFormat: { email: 'string' } })
+})
+`
+
 const DEV: Record<string, string> = {
   'tables/leads.ts': LEADS,
   'skills/tone.md': TONE,
@@ -274,6 +282,49 @@ describe('workspace source promotion', () => {
       const unchanged = await runner.get(prod)
       expect(unchanged.files['skills/tone.md']).toContain('Be brief, prod.')
       expect(unchanged.files['workflows/ingest/workflow.ts']).toContain('Prod hotfix.')
+    }
+  )
+
+  check(
+    'a resource deleted in the target since the last promotion stays deleted when the directory left it alone, and an edit of it since is refused as stale',
+    async () => {
+      const dev = await workspaces.create({ name: 'Dev', ownerId })
+      const prod = await workspaces.create({ name: 'Prod', ownerId })
+      await runner.apply(dev, { files: { ...DEV, 'workflows/notify/workflow.ts': NOTIFY } })
+      const first = await promoteRecorded(await runner.get(dev), prod, undefined)
+      expect(first.result.failed).toBeUndefined()
+
+      const prodRead = await runner.get(prod)
+      const removed = await runner.apply(prod, {
+        files: Object.fromEntries(
+          Object.entries(prodRead.files).filter(
+            ([path]) => path !== 'skills/tone.md' && !path.startsWith('workflows/notify/')
+          )
+        ),
+        base: prodRead.base,
+        allowDelete: true,
+      })
+      expect(
+        removed.applied.map((change) => `${change.action} ${change.kind}:${change.key}`).sort()
+      ).toEqual(['delete skill:tone', 'delete workflow:notify'])
+
+      const untouched = await promoteRecorded(await runner.get(dev), prod, first.record)
+      expect(untouched.result.applied).toEqual([])
+      expect(codes(untouched.result.diagnostics, 'info').sort()).toEqual([
+        'I_SERVER_DELETED',
+        'I_SERVER_DELETED',
+      ])
+      expect((await liveWorkflows(prod)).map((row) => row.name)).toEqual(['Ingest'])
+      expect((await runner.get(prod)).files['skills/tone.md']).toBeUndefined()
+
+      const edited = await editDev(dev, {
+        'skills/tone.md': TONE.replace('Be brief.', 'Be very brief.'),
+        'workflows/notify/workflow.ts': NOTIFY.replace("'Notify'", "'Notify v2'"),
+      })
+      const stale = await refusal(promoteRecorded(edited, prod, untouched.record))
+      expect(stale.stale).toBe(true)
+      expect(codes(stale.diagnostics)).toEqual(['E_APPLY_STALE', 'E_APPLY_STALE'])
+      expect((await liveWorkflows(prod)).map((row) => row.name)).toEqual(['Ingest'])
     }
   )
 
