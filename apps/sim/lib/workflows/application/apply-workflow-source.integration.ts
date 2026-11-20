@@ -2797,3 +2797,47 @@ export default workflow('Each item', {}, () => {
     }
   )
 })
+
+describe('workflow variables in source', () => {
+  /** `workflow.ts` with its `variables` option replaced by `variables` (source text). */
+  function withVariables(files: Record<string, string>, variables: string): Record<string, string> {
+    const entry = files['workflow.ts']
+    const edited = entry.replace(/variables: \{[^}]*\{[^}]*\}[^}]*\}/, `variables: ${variables}`)
+    expect(edited, 'the source declares its variables').not.toBe(entry)
+    return { ...files, 'workflow.ts': edited }
+  }
+
+  check('a variable renamed to a key of the same type keeps its id', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+
+    const result = await apply(
+      source,
+      withVariables(source.files, "{ limit: { type: 'number', value: 3 } }")
+    )
+
+    expect(result.applied).toBe(true)
+    const [row] = await db
+      .select({ variables: workflow.variables })
+      .from(workflow)
+      .where(eq(workflow.id, seeded.workflowId))
+    expect(Object.keys(row.variables as Record<string, unknown>)).toEqual([seeded.variableId])
+  })
+
+  check('deleting a variable is refused without allowDelete, like deleting a block', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    const files = withVariables(source.files, '{}')
+    const before = await snapshot(seeded.workflowId)
+
+    const error = await expectRejected(apply(source, files), 'E_APPLY_VARIABLE_DELETE')
+
+    expect(error.diagnostics.find((d) => d.code === 'E_APPLY_VARIABLE_DELETE')?.message).toContain(
+      'threshold'
+    )
+    expect(await snapshot(seeded.workflowId)).toEqual(before)
+    const allowed = await apply(source, files, { allowDelete: true })
+    expect(allowed.applied).toBe(true)
+    expect(allowed.diff.variables.removed).toEqual(['threshold'])
+  })
+})

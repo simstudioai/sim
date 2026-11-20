@@ -962,6 +962,7 @@ export type ApplyWorkflowSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
@@ -1453,6 +1454,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
       message: string
     }
@@ -1739,6 +1741,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
@@ -5405,6 +5408,7 @@ export type CreateWorkflowFromSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
@@ -10505,6 +10509,7 @@ export type GetWorkflowSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
@@ -11191,6 +11196,7 @@ export type GetWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
@@ -19587,7 +19593,7 @@ export const V2_OPERATIONS = {
       allowDelete: {
         kind: 'boolean',
         describe:
-          'Allow the apply to delete blocks the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE` naming them. Ignored when creating a workflow.',
+          'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.',
       },
     },
     body: {
@@ -21244,7 +21250,7 @@ export const V2_OPERATIONS = {
       allowDelete: {
         kind: 'boolean',
         describe:
-          'Allow the apply to delete blocks the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE` naming them. Ignored when creating a workflow.',
+          'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.',
       },
     },
     body: {

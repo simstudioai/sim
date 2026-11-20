@@ -48,7 +48,7 @@ const WORKFLOW_PRIMER = `# Sim workflow source: primer
 
 **Edit loop**: edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`) → \`sim workflows source check --dir .\` (offline; it also adds new blocks to \`tsconfig.json\`) → \`${typecheckCommand()}\` → \`sim workflows source apply --dir . --dry-run\` → \`--yes\`. Rerun each step until it exits 0. Apply saves the draft in canonical form: read \`${SOURCE_ENTRY_FILE}\` again before the next edit.
 
-- **Deletes**: removing a block's declaration deletes the block only with \`apply --allow-delete\`; without it the apply is refused (\`E_APPLY_BLOCK_DELETE\`).
+- **Deletes**: removing a block's declaration deletes the block only with \`apply --allow-delete\`; without it the apply is refused (\`E_APPLY_BLOCK_DELETE\`); so does removing a variable.
 - **Deploy**: apply saves a draft; \`apply --deploy\` also deploys it, or \`sim workflows deploy <workflowId>\` publishes the saved draft later.
 ${sharedRules('sim workflows source')}
 `
@@ -59,7 +59,7 @@ This directory is a Sim workspace as files (\`tables/\`, \`workflows/<key>/workf
 
 **Edit loop**: edit the files → \`sim workspaces source check --dir .\` (offline; regenerates \`.sim/sdk/workspace.d.ts\`, adds new blocks to \`tsconfig.json\`) → \`${typecheckCommand()}\` → \`sim workspaces source apply --dir . --dry-run\` (the plan) → \`--yes\`. Rerun each step until it exits 0. Apply rewrites the directory from what it stored: read a file again before the next edit.
 
-- **Deletes**: a removed file (a resource this directory managed), table column or workflow block is deleted only with \`apply --allow-delete\`; without it the apply is refused. A kind is managed only when its folder exists. Deletes cannot be undone.
+- **Deletes**: a removed file (a resource this directory managed), table column, workflow block or workflow variable is deleted only with \`apply --allow-delete\`; without it the apply is refused. A kind is managed only when its folder exists. Deletes cannot be undone.
 - **Deploy**: \`deployments/<workflow key>.ts\` (\`defineDeployment({ live: 'draft' })\`) deploys that workflow on apply; without one, apply never deploys.
 ${sharedRules('sim workspaces source')}
 `

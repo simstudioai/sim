@@ -499,6 +499,11 @@ const APPLY_DIAGNOSTIC_CODES = [
    * `allowDelete` (`--allow-delete`).
    */
   'E_APPLY_BLOCK_DELETE',
+  /**
+   * The apply removes workflow variables the source no longer declares and the caller did not pass
+   * `allowDelete` (`--allow-delete`), as for blocks.
+   */
+  'E_APPLY_VARIABLE_DELETE',
   /** The source renames the workflow to a name another workflow in its folder holds. */
   'E_NAME_TAKEN',
   /**

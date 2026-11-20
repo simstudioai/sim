@@ -338,9 +338,9 @@ function withEditedCodeFileRefsRefused(
  * The apply's handling of compile's `W_REF_OUT_OF_SCOPE`, an iteration field read from outside
  * its container: refused as `E_APPLY_REF_OUT_OF_SCOPE` on a block the write adds, changes or
  * moves (`changed`, by block key), which would fail at run time (a code file the edit changed
- * already refused it); a warning on a block the stored
- * workflow already holds as it is, so such a workflow still applies unchanged. The lint's finding
- * for the same block is dropped from `lint`, as compile's is the one located at the source line.
+ * already refused it); a warning on a block the stored workflow already holds as it is, so such a
+ * workflow still applies unchanged. The lint's finding for the same block is dropped from `lint`,
+ * as compile's is the one located at the source line.
  */
 function withOutOfScopeRefsRefused(
   diagnostics: readonly LocatedDiagnostic[],
@@ -888,6 +888,23 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     .map((key) => materialized.workflow.blocks[key])
   if (removedKeys.length > 0 && !input.allowDelete) {
     sourceRefusals.push(blockDeleteRefusal(removedBlocks, addedBlocks, metaSpan()))
+  }
+  const keptVariableIds = new Set(Object.values(materialized.identity.variables))
+  const removedVariables = isNew
+    ? []
+    : Object.entries(storedCanonical.identity.variables).flatMap(([key, id]) =>
+        keptVariableIds.has(id)
+          ? []
+          : [getOwn(storedCanonical.workflow.variables, key)?.name ?? key]
+      )
+  if (removedVariables.length > 0 && !input.allowDelete) {
+    sourceRefusals.push({
+      code: 'E_APPLY_VARIABLE_DELETE',
+      severity: 'error',
+      message: `This apply deletes ${removedVariables.length} variable${removedVariables.length === 1 ? '' : 's'} the source no longer declares: ${listNames(removedVariables)}.`,
+      hint: 'Pass --allow-delete (allowDelete=true) to delete them, or declare them again in workflow(name, { variables }) to keep them.',
+      ...withSpan(metaSpan()),
+    })
   }
   const renameWarnings = input.allowDelete
     ? probableRenames(removedBlocks, addedBlocks).map(

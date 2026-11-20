@@ -1395,7 +1395,7 @@ sim workflows source apply [workflowId] [options]
 | `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
 | `--deploy` | No | After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does). |
-| `--allow-delete` | No | Delete blocks the source no longer declares; without it, an apply that deletes a block is refused. |
+| `--allow-delete` | No | Delete blocks and variables the source no longer declares; without it, an apply that deletes one is refused. |
 
 </CommandTable>
 

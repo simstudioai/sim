@@ -474,7 +474,7 @@ export function attachWorkflowSourceApply(source: Command): void {
     )
     .option(
       '--allow-delete',
-      'Delete blocks the source no longer declares; without it, an apply that deletes a block is refused'
+      'Delete blocks and variables the source no longer declares; without it, an apply that deletes one is refused'
     )
     .allowExcessArguments(false)
     .description('Apply a workflow source directory to a workflow draft')

@@ -32,7 +32,7 @@ const applyWorkflowSourceQuerySchema = z
     allowDelete: booleanQueryFlagSchema
       .optional()
       .describe(
-        'Allow the apply to delete blocks the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE` naming them. Ignored when creating a workflow.'
+        'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.'
       ),
   })
   .strict()
