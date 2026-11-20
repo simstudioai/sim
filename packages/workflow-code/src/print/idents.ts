@@ -23,7 +23,7 @@ function isReservedIdentifier(name: string, extraReserved: ReadonlySet<string>):
  * usable hinted ident (lock or source meta) is claimed first, so a canvas rename keeps the
  * identifier; the rest derive camelCase from the display name, with a
  * numeric suffix on collision with another block, `SDK_RESERVED_IDENTIFIERS` or a name in
- * `reserved` (the catalog's builder namespaces).
+ * `reserved` (the builder namespaces the printed file may import).
  */
 export function assignIdentifiers(
   blocks: Array<{ key: BlockKey; name: string; hint: string | undefined }>,

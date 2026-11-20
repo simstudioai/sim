@@ -3,7 +3,7 @@
  * by name (`visibility`). Mirrors `compile/scope.ts`.
  */
 
-import { catalogBlock, catalogBuilderPaths } from '../catalog/view'
+import { catalogBlock, catalogBuildersOfType } from '../catalog/view'
 import type { BlockKey, CanonicalBlock } from '../model'
 import { getOwn } from '../records'
 import type { PrintContext } from './context'
@@ -135,18 +135,13 @@ export function orderDeclarations(ctx: PrintContext): void {
   }
   visit(null)
 
-  const reserved = new Set<string>()
-  for (const path of catalogBuilderPaths(ctx.catalog)) {
-    const [namespace] = path.split('.')
-    if (namespace) reserved.add(namespace)
-  }
   ctx.idents = assignIdentifiers(
     ctx.preorder.map((key) => ({
       key,
       name: ctx.blocks.get(key)?.name ?? key,
       hint: getOwn(ctx.hints.blocks, key)?.ident,
     })),
-    reserved
+    usableNamespaces(ctx)
   )
   const taken = new Set(ctx.idents.values())
   for (const key of ctx.preorder) {
@@ -156,6 +151,30 @@ export function orderDeclarations(ctx: PrintContext): void {
     while (taken.has(name)) name = `${name}_`
     ctx.paramNames.set(key, name)
   }
+}
+
+/**
+ * The builder namespaces the printed file may import: the first segment of every builder of a
+ * block or agent tool type the workflow holds. A block ident must not take one, or the const would
+ * shadow the import; any other namespace (`const stripe` beside `trigger.stripe.webhook`) is free.
+ */
+function usableNamespaces(ctx: PrintContext): Set<string> {
+  const types = new Set<string>()
+  for (const block of ctx.blocks.values()) {
+    types.add(block.type)
+    for (const param of Object.values(block.params)) {
+      if (param.kind !== 'tools') continue
+      for (const tool of param.tools) types.add(tool.type)
+    }
+  }
+  const namespaces = new Set<string>()
+  for (const type of types) {
+    for (const [path] of catalogBuildersOfType(ctx.catalog, type)) {
+      const [namespace] = path.split('.')
+      if (namespace) namespaces.add(namespace)
+    }
+  }
+  return namespaces
 }
 
 function blockRefHeads(block: CanonicalBlock): string[] {
