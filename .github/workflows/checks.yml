@@ -270,6 +270,18 @@ jobs:
         working-directory: packages/db
         run: bun scripts/tune-ci-postgres.ts
 
+      # Browser system libraries, as downloaded .deb files, per runner image and group (each group
+      # installs its own browsers); install-playwright.sh reads and fills it.
+      - name: Read the runner image
+        id: runner-image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      - name: Restore browser system packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ~/.cache/playwright-apt
+          key: playwright-apt-${{ steps.runner-image.outputs.version }}-${{ hashFiles('bun.lock') }}-${{ matrix.group }}
+
       # Migrations create their own extensions, as on a fresh self-hosted install.
       - name: Provision the database through migrations
         if: matrix.group != 'project-files'
@@ -322,7 +334,7 @@ jobs:
       - name: Run end-to-end suites
         timeout-minutes: 19
         working-directory: apps/sim
-        run: bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
+        run: PLAYWRIGHT_APT_CACHE="$HOME/.cache/playwright-apt" bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
 
       - name: Upload acceptance timing and coverage reports
         if: always()
