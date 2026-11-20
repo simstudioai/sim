@@ -136,22 +136,23 @@ export function refuseEditedFindings<D extends LocatedDiagnostic>(
   const listed: Array<D | LocatedDiagnostic> = compiled.diagnostics.map(
     (finding) => refused(finding) ?? finding
   )
-  const extra = compiled.withheld.flatMap((finding) => refused(finding) ?? [])
+  const extra = compiled.withheld.filter((finding) => refusalOf(finding, edit) !== undefined)
   const budget = Math.max(
     0,
     MAX_ERRORS - listed.filter((finding) => finding.severity === 'error').length
   )
-  if (extra.length <= budget) return [...listed, ...extra]
+  const raised = extra.slice(0, budget).flatMap((finding) => refused(finding) ?? [])
+  if (extra.length <= budget) return [...listed, ...raised]
   const [first] = extra.slice(budget)
   const omitted = extra.length - budget
   const summary: LocatedDiagnostic<'E_TOO_MANY_ERRORS'> = {
     code: 'E_TOO_MANY_ERRORS',
     severity: 'error',
-    message: `${omitted} more edited ${omitted === 1 ? 'finding is' : 'findings are'} refused, as the ones listed are. The next: ${first.message}`,
+    message: `${omitted} more edited ${omitted === 1 ? 'finding is' : 'findings are'} refused, as the ones listed are. The next: ${raisedMessage(first.message)}`,
     hint: 'Fix the errors listed and check again to see the rest.',
     span: first.span,
     ...(first.frame === undefined ? {} : { frame: first.frame }),
     ...(first.blockKey === undefined ? {} : { blockKey: first.blockKey }),
   }
-  return [...listed, ...extra.slice(0, budget), summary]
+  return [...listed, ...raised, summary]
 }

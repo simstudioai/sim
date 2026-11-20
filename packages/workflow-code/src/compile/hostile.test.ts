@@ -256,6 +256,30 @@ describe('hostile sources produce diagnostics only', () => {
     expect(reporter.diagnostics[0]?.hint).toBe('Did you mean y?')
   })
 
+  it('never computes the did-you-mean of a refusable warning it withholds until it is read', () => {
+    const reporter = new Reporter()
+    reporter.addFile('w.ts', 'x')
+    let computed = 0
+    for (let i = 0; i < 1_000; i++) {
+      reporter.report(
+        'W_UNRESOLVED_REF',
+        `x${i}`,
+        { file: 'w.ts', start: 0, end: 1 },
+        {
+          blockKey: `b${i}`,
+          hint: () => {
+            computed++
+            return 'Did you mean y?'
+          },
+        }
+      )
+    }
+    expect(reporter.withheld).toHaveLength(1_000 - MAX_WARNINGS_PER_CODE)
+    expect(computed).toBe(MAX_WARNINGS_PER_CODE)
+    expect({ ...reporter.withheld[0] }.hint).toBe('Did you mean y?')
+    expect(computed).toBe(MAX_WARNINGS_PER_CODE + 1)
+  })
+
   it('keeps infos from crowding out a warning', () => {
     const reporter = new Reporter()
     reporter.addFile('w.ts', 'x')

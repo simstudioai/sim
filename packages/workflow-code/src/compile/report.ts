@@ -54,7 +54,8 @@ export interface Range {
 interface ReportExtras {
   /**
    * A function is called only when the diagnostic is recorded, so a costly did-you-mean is never
-   * computed for a warning past {@link MAX_WARNINGS}.
+   * computed for a warning past {@link MAX_WARNINGS}; a withheld warning computes it when its
+   * `hint` is first read.
    */
   hint?: string | (() => string | undefined)
   blockKey?: BlockKey
@@ -219,7 +220,23 @@ export class Reporter {
     const held = refusableKey(code, at, extras)
     if (held === undefined || this.refusableHeld.has(held)) return
     this.refusableHeld.add(held)
-    this.withheld.push(this.build(code, message, at, extras, framesSource(code)))
+    const { hint, ...listed } = extras
+    const diagnostic = this.build(code, message, at, listed, framesSource(code))
+    if (hint !== undefined) {
+      let resolved: { hint: string | undefined } | undefined
+      Object.defineProperty(diagnostic, 'hint', {
+        enumerable: true,
+        configurable: true,
+        get: () => {
+          if (!resolved) {
+            const text = typeof hint === 'function' ? hint() : hint
+            resolved = { hint: text === undefined ? undefined : capLength(text) }
+          }
+          return resolved.hint
+        },
+      })
+    }
+    this.withheld.push(diagnostic)
   }
 
   /** Records one diagnostic; `framed` is false when the finding at `at` is about a literal secret. */
