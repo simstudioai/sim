@@ -495,6 +495,31 @@ describe('rate limiting', () => {
     expect(written.join('')).toMatch(/Rate limited \(HTTP 429\); retrying in 7s \(retry 1 of 6\)/)
   })
 
+  it('clears a terminal progress line before saying it waits on a 429', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const written: string[] = []
+    const tty = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY')
+    Object.defineProperty(process.stderr, 'isTTY', { value: true, configurable: true })
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      written.push(String(chunk))
+      return true
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(limited('7'))
+        .mockResolvedValueOnce(Response.json({ data: {} }))
+    )
+
+    await settle(client().request('/api/v2/tables/tbl_1'))
+    write.mockRestore()
+    if (tty) Object.defineProperty(process.stderr, 'isTTY', tty)
+    else Reflect.deleteProperty(process.stderr, 'isTTY')
+
+    expect(written.join('')).toMatch(/^\r\u001b\[K.*Rate limited \(HTTP 429\)/)
+  })
+
   it('resends a GET answered 429 even when that response body is lost', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const lostBody = new Response(

@@ -797,8 +797,9 @@ export class SimClient {
       )
       const backoffMs = backoffWithJitter(rateLimitResends + 1, null, RATE_LIMIT_BACKOFF)
       const waitMs = Math.max(retryAfterMs ?? 0, backoffMs)
+      // On a terminal, clear a `fetched N…` paging line first, so the notice starts its own line.
       writeStderr(
-        `${styles().dim(`Rate limited (HTTP 429); retrying in ${Math.ceil(waitMs / 1000)}s (retry ${rateLimitResends + 1} of ${RATE_LIMIT_RETRIES}).`)}\n`
+        `${hasProgressTerminal() ? '\r\u001b[K' : ''}${styles().dim(`Rate limited (HTTP 429); retrying in ${Math.ceil(waitMs / 1000)}s (retry ${rateLimitResends + 1} of ${RATE_LIMIT_RETRIES}).`)}\n`
       )
       await interruptibleSleep(waitMs, caller)
       if (caller?.aborted) throw new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED)
