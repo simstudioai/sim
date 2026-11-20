@@ -120,6 +120,23 @@ describe('GET /api/v2/workflows/{workflowId}/source', () => {
     expect(mocks.read).not.toHaveBeenCalled()
   })
 
+  it('answers a stored draft whose canonicalize floods one warning with 20 of them and one I_FINDINGS_TRUNCATED', async () => {
+    const flood = Array.from({ length: 120 }, (_, index) => ({
+      code: 'W_CANON_UNRESOLVED_ID' as const,
+      severity: 'warning' as const,
+      message: `Table gone-${index} no longer exists.`,
+    }))
+    mocks.read.mockResolvedValue({ ...source, diagnostics: flood })
+
+    const response = await GET(request(), context)
+    const { data } = await response.json()
+
+    expect(response.status).toBe(200)
+    const codes = data.diagnostics.map((finding: { code: string }) => finding.code)
+    expect(codes.filter((code: string) => code === 'W_CANON_UNRESOLVED_ID')).toHaveLength(20)
+    expect(codes.filter((code: string) => code === 'I_FINDINGS_TRUNCATED')).toHaveLength(1)
+  })
+
   it('passes functionCode through, omitting it when absent', async () => {
     await GET(request('?functionCode=inline'), context)
     await GET(request(), context)

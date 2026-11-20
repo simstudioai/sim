@@ -83,4 +83,30 @@ describe('POST /api/v2/workspaces/{workspaceId}/source/plan', () => {
     expect(response.status).toBe(200)
     expect(Math.max(...charged.values())).toBe(3)
   })
+
+  it('answers a plan with at most 1000 findings, however many its workflows hold', async () => {
+    mocks.plan.mockResolvedValue({
+      workspaceId: WORKSPACE_ID,
+      dryRun: true,
+      plan: [],
+      applied: [],
+      needBlobs: [],
+      files: {},
+      base: { version: 1, workspaceId: WORKSPACE_ID, resources: {} },
+      diagnostics: Array.from({ length: 1_200 }, (_, index) => ({
+        code: 'W_CANON_UNRESOLVED_ID' as const,
+        severity: 'warning' as const,
+        message: `Table gone-${index} no longer exists.`,
+        kind: 'workflow' as const,
+        key: `w${index}`,
+      })),
+    })
+
+    const response = await plan({ 'workflows/a/workflow.ts': WORKFLOW })
+    const { data } = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.diagnostics).toHaveLength(1_001)
+    expect(data.diagnostics.at(-1)).toMatchObject({ code: 'I_FINDINGS_TRUNCATED' })
+  })
 })

@@ -8,17 +8,24 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ apply: vi.fn() }))
+const mocks = vi.hoisted(() => ({ apply: vi.fn(), read: vi.fn(), authorizeRead: vi.fn() }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/lib/workspace-source/application/apply-workspace-source', () => ({
   applyWorkspaceSource: { operation: { id: 'workspaces.source.apply' }, execute: mocks.apply },
 }))
+vi.mock('@/lib/workspace-source/application/read-workspace-source', () => ({
+  readWorkspaceSource: {
+    operation: { id: 'workspaces.source.read' },
+    authorize: mocks.authorizeRead,
+    execute: mocks.read,
+  },
+}))
 
 import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/application/types'
-import { POST } from '@/app/api/v2/workspaces/[workspaceId]/source/route'
+import { GET, POST } from '@/app/api/v2/workspaces/[workspaceId]/source/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 
@@ -50,7 +57,7 @@ function apply(query = '') {
   )
 }
 
-/** `count` errors of one workflow folder, as a commit refusal pins them to it. */
+/** `count` errors of one workflow folder, as a plan refusal pins them to it. */
 function folderErrors(count: number): WorkspaceSourceDiagnostic[] {
   return Array.from({ length: count }, (_, index) => ({
     code: 'E_UNKNOWN_IDENTIFIER' as const,
@@ -69,7 +76,7 @@ describe('POST /api/v2/workspaces/{workspaceId}/source', () => {
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
   })
 
-  it('answers a workflow refused at commit with at most 1000 findings, and one that counts the rest', async () => {
+  it('answers a plan refused before any write with at most 1000 findings, and one that counts the rest', async () => {
     mocks.apply.mockRejectedValue(new WorkspaceSourceRejectedError(folderErrors(1_500)))
 
     const response = await apply()
@@ -104,6 +111,49 @@ describe('POST /api/v2/workspaces/{workspaceId}/source', () => {
     })
 
     const response = await apply()
+    const { data } = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.diagnostics).toHaveLength(1_001)
+    expect(data.diagnostics.at(-1)).toMatchObject({ code: 'I_FINDINGS_TRUNCATED' })
+  })
+})
+
+/** `count` warnings, one per workflow, as a stored workspace whose tables are gone reads. */
+function unresolvedWarnings(count: number): WorkspaceSourceDiagnostic[] {
+  return Array.from({ length: count }, (_, index) => ({
+    code: 'W_CANON_UNRESOLVED_ID' as const,
+    severity: 'warning' as const,
+    message: `Table gone-${index} no longer exists.`,
+    kind: 'workflow' as const,
+    key: `w${index}`,
+  }))
+}
+
+describe('GET /api/v2/workspaces/{workspaceId}/source', () => {
+  beforeEach(() => {
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+  })
+
+  it('answers a read with at most 1000 findings, however many its workflows hold', async () => {
+    mocks.read.mockResolvedValue({
+      workspaceId: WORKSPACE_ID,
+      kinds: ['workflow'],
+      files: {},
+      blobs: [],
+      base: { version: 1, workspaceId: WORKSPACE_ID, resources: {} },
+      skipped: [],
+      diagnostics: unresolvedWarnings(1_200),
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/source`, {
+        headers: { 'x-api-key': 'key' },
+      }),
+      { params: Promise.resolve({ workspaceId: WORKSPACE_ID }) }
+    )
     const { data } = await response.json()
 
     expect(response.status).toBe(200)
