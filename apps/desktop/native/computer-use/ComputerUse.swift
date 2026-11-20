@@ -292,7 +292,18 @@ func contactItem(_ contact: CNContact) -> [String: Any] {
 func emailKey(_ email: String) -> String { email.lowercased() }
 /// A phone compared without its formatting, but with its dialing controls: `5550100,123` pauses
 /// before the extension and `5550100;123` waits, so they are different numbers.
-func phoneKey(_ phone: String) -> String { phone.filter { $0.isASCII && ($0.isNumber || "+*#,;".contains($0)) } }
+/// Digits from any script read as the same number.
+func phoneKey(_ phone: String) -> String {
+    String(phone.compactMap { character -> Character? in
+        if let digit = character.wholeNumberValue, character.isNumber, (0...9).contains(digit) { return Character(String(digit)) }
+        return "+*#,;".contains(character) ? character : nil
+    })
+}
+/// The contact with this id, or nil when there is none; any other Contacts failure is thrown, not read as missing.
+func fetchContact(_ store: CNContactStore, _ id: String) throws -> CNContact? {
+    do { return try store.unifiedContact(withIdentifier: id, keysToFetch: contactReadKeys) }
+    catch let error as CNError where error.code == .recordDoesNotExist { return nil }
+}
 /// Emails and phones a command adds, checked as a create checks them.
 func contactValues(_ command: AppCommand) throws -> (emails: [String], phones: [String]) {
     let emails = try (command.emails ?? []).map { try commandText($0, "Email", max: 320) }
@@ -414,7 +425,7 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
     case "find_contacts":
         let store = try contactStore()
         if let id = command.id {
-            let found = try? store.unifiedContact(withIdentifier: id, keysToFetch: contactReadKeys)
+            let found = try fetchContact(store, id)
             return ["kind": "command", "command": command.name, "contacts": found.map { [contactItem($0)] } ?? [], "truncated": false]
         }
         let name = try commandText(command.nameContains, "nameContains", max: 256)
@@ -426,7 +437,7 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
         let (emails, phones) = try contactValues(command)
         guard !emails.isEmpty || !phones.isEmpty || command.groupId != nil else { throw invalidCommand("An update needs an email, phone or group to add.") }
         let store = try contactStore()
-        guard let contact = try? store.unifiedContact(withIdentifier: id, keysToFetch: contactReadKeys), let changed = contact.mutableCopy() as? CNMutableContact else {
+        guard let contact = try fetchContact(store, id), let changed = contact.mutableCopy() as? CNMutableContact else {
             throw ComputerError("not_found", "No contact has this id; call find_contacts.", dispatchState: "not_started")
         }
         var group: CNGroup?
