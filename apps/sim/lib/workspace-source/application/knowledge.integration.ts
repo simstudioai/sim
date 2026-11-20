@@ -1380,6 +1380,40 @@ describe('knowledge bases as workspace source', () => {
   )
 
   check(
+    'refuses adopting a knowledge base the directory never read when it would replace a document or change a setting',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const { knowledgeBase: unbound } = await createKnowledgeBase.execute({
+        principal: owner,
+        input: { workspaceId, name: 'Policies', description: 'A teammate keeps this one' },
+      })
+      const teammate = Buffer.from('# Refunds\nA teammate wrote this.\n')
+      await uploadKnowledgeDocument.execute({
+        principal: owner,
+        input: {
+          knowledgeBaseId: unbound.id,
+          file: {
+            buffer: teammate,
+            filename: 'refunds.md',
+            fileSize: teammate.byteLength,
+            mimeType: 'text/markdown',
+          },
+        },
+      })
+      await indexed(workspaceId)
+      const before = await snapshot(workspaceId)
+
+      const refused = await refusal(apply(workspaceId, POLICIES))
+
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_NO_BASE'])
+      expect(refused.diagnostics.find((d) => d.code === 'E_APPLY_NO_BASE')?.message).toContain(
+        'description, docs/refunds.md (replace)'
+      )
+      expect(await snapshot(workspaceId)).toEqual(before)
+    }
+  )
+
+  check(
     'an adopt that fails partway leaves the key free, so the next apply adopts again',
     async () => {
       const workspaceId = await newWorkspace()

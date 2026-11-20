@@ -4,7 +4,8 @@
  * allowlist and SSRF checks included), audit and cache invalidation apply unchanged.
  *
  * A server's id derives from its URL (`generateMcpServerId`), so the URL is its identity: an
- * unbound server at the declared URL is adopted, two declarations of one URL refuse, and a URL
+ * unbound server at the declared URL is adopted when the declaration matches it (any other adopt is
+ * refused, see `refuseUnreadAdopt`), two declarations of one URL refuse, and a URL
  * that keeps the id (only its query string differs) is set in place through the reconfigure use
  * case, which validates the URL before it writes anything. A URL with a new id replaces the server
  * (created at the new URL, then the old one deleted). A replace breaks stored workflows that still
@@ -72,7 +73,12 @@ import {
   resolveStoredHeaders,
   storedFingerprint,
 } from '@/lib/workspace-source/application/kinds/mcp/stored'
-import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
+import {
+  holdsIn,
+  refuseUnreadAdopt,
+  resolveDeclared,
+  settle,
+} from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   KindAdapter,
@@ -218,6 +224,10 @@ async function planServer(
   }
   const record = planned.stored
   const changed = changedFields(declOf(record.state), decl)
+  if (planned.action === 'adopt' && !resumed) {
+    const refused = refuseUnreadAdopt(change, record, changed)
+    if (refused) return refused
+  }
   const update: McpChange = {
     ...change,
     action: planned.action,

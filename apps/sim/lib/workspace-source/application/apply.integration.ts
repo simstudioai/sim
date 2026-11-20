@@ -595,7 +595,7 @@ describe('workspace source apply', () => {
         input: {
           workspaceId,
           name: 'contacts',
-          schema: { columns: [{ name: 'email', type: 'string' }] },
+          schema: { columns: [{ name: 'email', type: 'string', required: true }] },
         },
       })
       const adopted = await apply(
@@ -1230,7 +1230,6 @@ export default workflow('Notes', {}, () => {
       expect(failed.failed).toMatchObject({ kind: 'table', key: 'leads', code: 'E_APPLY_FAILED' })
       expect(adds).toBe(1)
       expect(await tableSnapshot(workspaceId)).toEqual(before)
-      expect((await storedTable(workspaceId)).description ?? null).toBeNull()
       expect(
         await db.select().from(userTableRows).where(eq(userTableRows.workspaceId, workspaceId))
       ).toEqual(rows)
@@ -1427,12 +1426,7 @@ export default workflow('Notes', {}, () => {
           schema: { columns: [{ name: 'email', type: 'string', required: true }] },
         },
       })
-      const files = {
-        'tables/leads.ts': LEADS.replace(
-          "name: 'leads',",
-          "name: 'leads',\n  description: 'Inbound leads',"
-        ),
-      }
+      const files = { 'tables/leads.ts': LEADS }
       const before = await tableSnapshot(workspaceId)
       const failing = vi
         .spyOn(columnService, 'addTableColumn')
@@ -1446,7 +1440,6 @@ export default workflow('Notes', {}, () => {
       expect(failed.failed).toMatchObject({ kind: 'table', key: 'leads' })
       expect(failed.base.resources['table:leads']).toBeUndefined()
       expect(await tableSnapshot(workspaceId)).toEqual(before)
-      expect((await storedTable(workspaceId)).description ?? null).toBeNull()
 
       const rerun = await apply(workspaceId, files, {
         base: failed.base,

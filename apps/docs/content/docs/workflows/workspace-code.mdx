@@ -64,6 +64,8 @@ sim workspaces source apply --dir ./my-workspace --yes
 
 The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resource with the same name, `-` delete) and every error with its file and line. `--only tables,workflows` limits a get or an apply to some kinds.
 
+An apply adopts a resource it never read (one made in Sim under the name a new declaration gives) only when the declaration matches it, or only adds to it: a column, rows into an empty table, a document. An adopt that would change or remove anything the resource holds is refused with `E_APPLY_NO_BASE`, even with `--allow-delete`. Run `get` into a new directory to read the resource, then make your edit there, or give the declaration another name.
+
 `status` shows what would happen if you applied, without writing anything: the files you created, edited, or deleted, grouped by resource; what changed in Sim since the `get` (a resource edited, added, or deleted there, a workflow edited in the editor included); the conflicts, where a resource changed on both sides; and the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unapplied, and `12` when something changed in Sim since the `get`, so a script or an agent can branch on it. Without a connection it shows your edits only and says so; `--offline` skips the server. `diff [paths or kind:key…]` prints the edits as unified diffs (a binary file by its sizes), and `diff --server` compares the directory with what Sim holds now. Both take `--json` (or `--output json`).
 
 ## Workspace API keys [#workspace-api-keys]

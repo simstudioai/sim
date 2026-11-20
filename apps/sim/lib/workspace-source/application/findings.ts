@@ -86,6 +86,29 @@ export function noBaseFinding(kind: WorkspaceKind, key: string): WorkspaceSource
   )
 }
 
+/**
+ * `E_APPLY_NO_BASE` for an adopt: the server holds a resource of the declared name that no source
+ * has named and this directory never read, and adopting it would change or remove `changes` of
+ * what it holds.
+ */
+export function unreadAdoptFinding(
+  kind: WorkspaceKind,
+  key: string,
+  name: string,
+  changes: readonly string[]
+): WorkspaceSourceDiagnostic {
+  const noun = WORKSPACE_KIND_SPECS[kind].noun
+  return kindFinding(
+    kind,
+    key,
+    'E_APPLY_NO_BASE',
+    `${where(kind, key)} declares the ${noun} "${name}", which already exists and this directory never read; adopting it would change ${changes.join(', ')}. An apply never changes or removes what the directory has not read.`,
+    {
+      hint: `Run \`sim workspaces source get\` into a fresh directory to read the ${noun}, then make your edit there; or give the declaration another name to create a new ${noun}.`,
+    }
+  )
+}
+
 /** `I_SERVER_CHANGED`: the server drifted; the directory leaves the resource as it is. */
 export function serverChangedFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
   return kindFinding(

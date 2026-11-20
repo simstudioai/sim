@@ -4,6 +4,7 @@ import {
   serverChangedFinding,
   serverGoneFinding,
   staleFinding,
+  unreadAdoptFinding,
 } from '@/lib/workspace-source/application/findings'
 import type {
   KindChange,
@@ -90,7 +91,8 @@ export function holdsIn<S>(set: StoredSet<S>): (id: string) => boolean {
  * base (an earlier apply created it but never wrote its base back), and any other is
  * `no-base` (get it first). With nothing stored under the key, a resource the base records but
  * the server no longer holds was deleted there and stays deleted (`deleted`); otherwise an
- * unbound resource of the same name is adopted, else the resource is created.
+ * unbound resource of the same name is adopted (which may only add to it, see
+ * {@link refuseUnreadAdopt}), else the resource is created.
  */
 export function resolveDeclared<S>(input: {
   local: string
@@ -178,5 +180,31 @@ export function settle<S, C extends KindChange<WorkspaceKind>>(
       }
     default:
       return resolution
+  }
+}
+
+/**
+ * Refuses an adopt that would change or remove anything the stored resource holds: the directory
+ * never read that resource (no source named it), so like a bound resource without a base
+ * (`no-base`) it cannot tell its declaration from someone else's work. An adopt may still add
+ * what the resource lacks, so an apply that stopped after creating a resource (a knowledge base
+ * before its documents, a table before its rows) finishes it, and a declaration that matches the
+ * resource binds its key. `changes` names what the adopt would change or remove (the plan's
+ * field labels); empty lets the adopt go ahead and returns `undefined`.
+ */
+export function refuseUnreadAdopt<C extends KindChange<WorkspaceKind>>(
+  change: C,
+  stored: Pick<StoredResource<unknown>, 'id' | 'name'>,
+  changes: readonly string[]
+): C | undefined {
+  if (changes.length === 0) return undefined
+  return {
+    ...change,
+    action: 'noop',
+    storedId: stored.id,
+    diagnostics: [
+      ...change.diagnostics,
+      unreadAdoptFinding(change.kind, change.key, stored.name, changes),
+    ],
   }
 }

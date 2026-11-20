@@ -1,8 +1,9 @@
 /**
  * The plan and write rules of a kind whose resource is one record under a unique display name
  * (custom tools by title, skills by name): keys bind to stored ids, the three-way rule decides
- * each declared resource, an unbound record of the same name is adopted, and a name another
- * resource holds is `E_NAME_TAKEN` naming that resource's key.
+ * each declared resource, an unbound record of the same name is adopted only when the declaration
+ * matches it (see `refuseUnreadAdopt`), and a name another resource holds is `E_NAME_TAKEN` naming
+ * that resource's key.
  */
 import { isRecordLike } from '@sim/utils/object'
 import type { Json } from '@sim/workflow-code'
@@ -24,7 +25,12 @@ import {
   refuseDeclaredTwice,
 } from '@/lib/workspace-source/application/findings'
 import { pendingOf } from '@/lib/workspace-source/application/keys'
-import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
+import {
+  holdsIn,
+  refuseUnreadAdopt,
+  resolveDeclared,
+  settle,
+} from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   DeclOf,
@@ -144,6 +150,10 @@ export function planNamed<K extends NamedKindName, S>(
         named.codec.canonical(named.declOf(state)),
         named.codec.canonical(decl)
       )
+      if (planned.action === 'adopt') {
+        const refused = refuseUnreadAdopt(change, planned.stored, changed)
+        if (refused) return refused
+      }
       if (named.nameOf(named.declOf(state)) !== name) holderOf(id)
       return {
         ...change,

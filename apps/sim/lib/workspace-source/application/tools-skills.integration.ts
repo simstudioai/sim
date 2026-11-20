@@ -12,7 +12,6 @@ import { generateId } from '@sim/utils/id'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createWorkspaceCustomToolUseCase,
   deleteWorkspaceCustomToolUseCase,
@@ -23,6 +22,7 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   codes,
+  failKeyClaims,
   refusal,
   sourceChecks,
   sourceRunner,
@@ -104,6 +104,36 @@ const LEGACY_SCHEMA = {
 
 const TOOLS: Record<string, string> = { 'tools/lookup.ts': LOOKUP, 'tools/lookup.js': LOOKUP_CODE }
 const SKILLS: Record<string, string> = { 'skills/tone.md': TONE }
+
+/** The schema {@link LOOKUP} declares, as a tool made outside source stores it. */
+const LOOKUP_SCHEMA = {
+  type: 'function',
+  function: {
+    name: 'lookup_order',
+    parameters: { type: 'object', properties: { orderId: { type: 'string' } } },
+  },
+}
+
+/**
+ * A tool and a skill made outside source that hold exactly what {@link LOOKUP} (with `code`) and
+ * {@link TONE} declare, so an apply may adopt them by name.
+ */
+async function createMatching(workspaceId: string, code: string) {
+  const { tool } = await createWorkspaceCustomToolUseCase.execute({
+    principal: owner,
+    input: { workspaceId, title: 'Lookup order', schema: LOOKUP_SCHEMA, code },
+  })
+  const { skill: matching } = await createSkillUseCase.execute({
+    principal: owner,
+    input: {
+      workspaceId,
+      name: 'tone',
+      description: 'Voice: short and warm',
+      content: 'Write like a person.\n',
+    },
+  })
+  return { tool, skill: matching }
+}
 
 async function newWorkspace(): Promise<string> {
   return workspaces.create({
@@ -563,22 +593,7 @@ describe('workspace source: custom tools and skills', () => {
       expect(second.id).not.toBe(first.id)
 
       const fresh = await newWorkspace()
-      const { tool } = await createWorkspaceCustomToolUseCase.execute({
-        principal: owner,
-        input: {
-          workspaceId: fresh,
-          title: 'Lookup order',
-          schema: {
-            type: 'function',
-            function: { name: 'old', parameters: { type: 'object', properties: {} } },
-          },
-          code: 'return 1',
-        },
-      })
-      const { skill: unbound } = await createSkillUseCase.execute({
-        principal: owner,
-        input: { workspaceId: fresh, name: 'tone', description: 'Old', content: 'Old' },
-      })
+      const { tool, skill: unbound } = await createMatching(fresh, 'return 0\n')
       const adopted = await apply(fresh, {
         'tools/orders.ts': LOOKUP.replace('./lookup.js', './orders.js'),
         'tools/orders.js': 'return 0\n',
@@ -591,25 +606,70 @@ describe('workspace source: custom tools and skills', () => {
     }
   )
 
+  check(
+    'refuses adopting a tool or skill the directory never read whose content differs, and adopts one that matches',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await createWorkspaceCustomToolUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          title: 'Lookup order',
+          schema: {
+            type: 'function',
+            function: { name: 'old', parameters: { type: 'object', properties: {} } },
+          },
+          code: 'return 1',
+        },
+      })
+      await createSkillUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'tone',
+          description: 'Hand-written',
+          content: 'A teammate wrote this.',
+        },
+      })
+      const before = await snapshot(workspaceId)
+
+      const refused = await refusal(apply(workspaceId, { ...TOOLS, ...SKILLS }))
+
+      expect(
+        refused.diagnostics
+          .filter((finding) => finding.severity === 'error')
+          .map(({ code, kind, key }) => `${code} ${kind}:${key}`)
+      ).toEqual(['E_APPLY_NO_BASE custom-tool:lookup', 'E_APPLY_NO_BASE skill:tone'])
+      expect(refused.diagnostics.find((finding) => finding.kind === 'skill')?.message).toContain(
+        'description, content'
+      )
+      expect(await snapshot(workspaceId)).toEqual(before)
+
+      const matching = await newWorkspace()
+      const { skill: same } = await createSkillUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId: matching,
+          name: 'tone',
+          description: 'Voice: short and warm',
+          content: 'Write like a person.\n',
+        },
+      })
+      const adopted = await apply(matching, SKILLS)
+      expect(adopted.failed).toBeUndefined()
+      expect(adopted.applied).toMatchObject([{ action: 'adopt', key: 'tone', id: same.id }])
+    }
+  )
+
   check('applies a workflow using a tool and a skill the same apply adopts', async () => {
     const workspaceId = await newWorkspace()
-    const { tool } = await createWorkspaceCustomToolUseCase.execute({
-      principal: owner,
-      input: {
-        workspaceId,
-        title: 'Lookup order',
-        schema: {
-          type: 'function',
-          function: { name: 'old', parameters: { type: 'object', properties: {} } },
-        },
-        code: 'return 1',
-      },
-    })
-    const { skill: adoptedSkill } = await createSkillUseCase.execute({
-      principal: owner,
-      input: { workspaceId, name: 'tone', description: 'Old', content: 'Old' },
-    })
-    const files = { ...TOOLS, ...SKILLS, 'workflows/support/workflow.ts': SUPPORT_WITH_SKILL }
+    const { tool, skill: adoptedSkill } = await createMatching(workspaceId, 'return 0\n')
+    const files = {
+      ...TOOLS,
+      'tools/lookup.js': 'return 0\n',
+      ...SKILLS,
+      'workflows/support/workflow.ts': SUPPORT_WITH_SKILL,
+    }
     const kinds: ApplyWorkspaceSourceInput['kinds'] = ['custom-tool', 'skill', 'workflow']
 
     const dryRun = await apply(workspaceId, files, { kinds, dryRun: true })
@@ -733,45 +793,24 @@ describe('workspace source: custom tools and skills', () => {
     expect((await snapshot(workspaceId)).tools).toHaveLength(extra)
   })
 
-  check('binds an adopted key only once its write succeeds', async () => {
-    const workspaceId = await newWorkspace()
-    await createWorkspaceCustomToolUseCase.execute({
-      principal: owner,
-      input: {
-        workspaceId,
-        title: 'Lookup order',
-        schema: {
-          type: 'function',
-          function: { name: 'old', parameters: { type: 'object', properties: {} } },
-        },
-        code: 'return 1',
-      },
-    })
-    await createSkillUseCase.execute({
-      principal: owner,
-      input: { workspaceId, name: 'tone', description: 'Old', content: 'Old' },
-    })
-    const raced = new OrchestrationError('conflict', 'Another write took this name.')
-    const toolWrite = vi
-      .spyOn(updateWorkspaceCustomToolUseCase, 'execute')
-      .mockRejectedValueOnce(raced)
-    const skillWrite = vi.spyOn(updateSkillUseCase, 'execute').mockRejectedValueOnce(raced)
-
-    try {
-      for (const files of [TOOLS, SKILLS]) {
-        const failed = await apply(workspaceId, files)
+  check(
+    'a create whose key claim failed leaves a record matching the declaration, which the next apply adopts',
+    async () => {
+      const workspaceId = await newWorkspace()
+      for (const [key, files] of [
+        ['lookup', TOOLS],
+        ['tone', SKILLS],
+      ] as const) {
+        const restore = await failKeyClaims(key)
+        const failed = await apply(workspaceId, files).finally(restore)
         expect(failed.failed).toBeDefined()
-        expect(failed.applied).toEqual([])
 
         const retried = await apply(workspaceId, files)
         expect(retried.failed).toBeUndefined()
         expect(retried.applied.map(({ action }) => action)).toEqual(['adopt'])
       }
-    } finally {
-      toolWrite.mockRestore()
-      skillWrite.mockRestore()
     }
-  })
+  )
 
   check('a tool delete refuses a tool edited after the plan read it', async () => {
     const workspaceId = await newWorkspace()

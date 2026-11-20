@@ -21,6 +21,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { updateTableColumnUseCase } from '@/lib/table/application/columns'
 import { createTableRows } from '@/lib/table/application/rows'
+import { createTableUseCase } from '@/lib/table/application/tables'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import { getTableById } from '@/lib/table/service'
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
@@ -729,6 +730,45 @@ export default defineTable({
       { code: 'team', seats: 10, tier: 'pro' },
     ])
   })
+
+  check(
+    'refuses adopting a table the directory never read when it would drop its columns or rows, even with --allow-delete',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await createTableUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'plans',
+          schema: {
+            columns: [
+              { name: 'code', type: 'string', required: true, unique: true },
+              { name: 'seats', type: 'number' },
+              { name: 'notes', type: 'string' },
+            ],
+          },
+        },
+      })
+      for (const code of ['solo', 'team', 'ent']) await addUiRow(workspaceId, { code, notes: code })
+      const columnsBefore = (await storedTable(workspaceId)).schema.columns
+      const rowsBefore = await storedRows(workspaceId)
+
+      const refused = await refusal(
+        apply(
+          workspaceId,
+          { 'tables/plans.ts': MANAGED, 'tables/plans.rows.jsonl': ROWS },
+          { allowDelete: true }
+        )
+      )
+
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_NO_BASE'])
+      expect(
+        refused.diagnostics.find((finding) => finding.code === 'E_APPLY_NO_BASE')?.message
+      ).toContain('columns.notes (drop)')
+      expect((await storedTable(workspaceId)).schema.columns).toEqual(columnsBefore)
+      expect(await storedRows(workspaceId)).toEqual(rowsBefore)
+    }
+  )
 
   check('seeds a new table once, and only a new or empty one', async () => {
     const workspaceId = await newWorkspace()

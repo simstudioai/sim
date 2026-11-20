@@ -12,7 +12,9 @@
  * refuses a row version that moved since the plan. The reshape writes only the rows that differ,
  * matched by the key column (`writeKeyedRowsWithTx`): an unchanged row keeps its id and run state
  * and fires no trigger. Removing a stored row needs `--allow-delete`. Seed rows are inserted into
- * a table the apply creates, or adopts while it holds no rows.
+ * a table the apply creates, or adopts while it holds no rows. A table adopted by name (one the
+ * directory never read) may only gain columns and rows into an empty table; any other change to
+ * it is refused (`refuseUnreadAdopt`).
  */
 import { setOwn } from '@sim/workflow-code'
 import {
@@ -86,7 +88,12 @@ import {
   storedFingerprint,
   tableAsDecl,
 } from '@/lib/workspace-source/application/kinds/table/stored'
-import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
+import {
+  holdsIn,
+  refuseUnreadAdopt,
+  resolveDeclared,
+  settle,
+} from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   KindAdapter,
@@ -496,6 +503,24 @@ function columnsRenamedOnServer(
   })
 }
 
+/**
+ * What adopting a table would change or remove of what it holds (see `refuseUnreadAdopt`): every
+ * table and column change but an added column, and the rows when it writes over stored ones or
+ * stops managing them. Rows written into an empty table only add to it.
+ */
+function changedOnAdopt(
+  changes: TableChanges,
+  rows: RowsOutcome,
+  state: StoredTableState
+): string[] {
+  const fields = changes.fields.filter((field) => !field.endsWith(' (add)'))
+  const rowsChanged =
+    rows.plan !== undefined &&
+    state.table.rowCount > 0 &&
+    (rows.plan.write !== undefined || rows.plan.mark === null)
+  return rowsChanged ? [...fields, ...rows.fields] : fields
+}
+
 async function planTable(
   key: string,
   decl: TableDecl,
@@ -584,6 +609,14 @@ async function planTable(
         ctx
       )
       const changes = await diffTable(key, decl, state, bindings, rows.kept)
+      if (planned.action === 'adopt') {
+        const refused = refuseUnreadAdopt(
+          change,
+          planned.stored,
+          changedOnAdopt(changes, rows, state)
+        )
+        if (refused) return refused
+      }
       change.diagnostics.push(...changes.diagnostics, ...rows.diagnostics)
       const changed =
         changes.columns.length > 0 || changes.fields.length > 0 || rows.plan !== undefined
