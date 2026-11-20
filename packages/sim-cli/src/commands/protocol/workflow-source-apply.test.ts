@@ -1099,7 +1099,7 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     )
   })
 
-  it('refuses to create a starter in a profile workspace other than its own, creating nothing', async () => {
+  it('creates a starter in the workspace it was typed for, whatever the profile default', async () => {
     setTerminal(false)
     vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
     const starter = join(dir, 'new')
@@ -1109,11 +1109,8 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     contextMockState.workspaceSource = 'config'
 
     try {
-      await expect(create('--dir', starter, '--yes')).rejects.toMatchObject({
-        code: 'SOURCE_OTHER_WORKSPACE',
-        message: expect.stringContaining(`--workspace ${WORKSPACE_ID}`),
-      })
-      expect(createCalls()).toEqual([])
+      await create('--dir', starter, '--yes')
+      expect(createCalls()).toEqual([`/api/v2/workspaces/${WORKSPACE_ID}/workflows/source`])
     } finally {
       contextMockState.workspaceId = WORKSPACE_ID
     }

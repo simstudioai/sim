@@ -75,8 +75,8 @@ command with --yes to apply it).`
 const CREATE_EXIT_CODES_HELP = `
 Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each
 printed as file:line:column with its frame and hint), the workflow name is taken
-(SOURCE_NAME_TAKEN: pass --name), a starter written for another workspace
-(SOURCE_OTHER_WORKSPACE: pass --workspace), or the command failed; 6 the folder is locked; 7 the
+(SOURCE_NAME_TAKEN: pass --name), or the command failed (a starter is created in the
+workspace its types were written for unless --workspace names another); 6 the folder is locked; 7 the
 source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created:
 wait a minute and run it again; 14 without --yes and with no terminal to ask: the plan was
 printed with no errors and nothing was created (run the same command with --yes).`
@@ -551,12 +551,11 @@ export function attachWorkflowSourceCreate(source: Command): void {
         }
         assertDeployable(options)
         const { client, profile } = connectCreate()
-        const workspaceId = client.requireWorkspace()
-        await assertStarterWorkspace(
-          options.dir,
-          workspaceId,
-          profile.sources.workspaceId === 'flag'
-        )
+        // A starter is bound to the workspace its types were written for, as a get directory
+        // is to the one it was read from; --workspace still chooses another.
+        const starterWorkspace =
+          profile.sources.workspaceId === 'flag' ? null : await readStarterWorkspace(options.dir)
+        const workspaceId = client.requireWorkspace(starterWorkspace ?? undefined)
         const files = await readSourceFiles(options.dir, null)
         await runSourceWrite<'createWorkflowFromSource'>({
           options,
@@ -586,25 +585,6 @@ export function attachWorkflowSourceCreate(source: Command): void {
 /** The create command for `dir` in `workspaceId`, as the next step a starter prints. */
 function createCommand(dir: string, workspaceId: string): string {
   return `sim workflows source create --dir ${dir} --workspace ${workspaceId}`
-}
-
-/**
- * Refuses a create into another workspace than the one a starter's types were written for
- * ({@link SOURCE_STARTER_FILE}), unless `--workspace` names it: the profile's default workspace
- * silently differing from the starter's sent the workflow somewhere its author never looked.
- */
-async function assertStarterWorkspace(
-  dir: string,
-  workspaceId: string,
-  explicit: boolean
-): Promise<void> {
-  const starterWorkspace = await readStarterWorkspace(dir)
-  if (starterWorkspace === null || starterWorkspace === workspaceId || explicit) return
-  throw new SimApiError(
-    `${dir} holds a starter written for workspace ${starterWorkspace}, but this profile targets ${workspaceId}; nothing was created. Run \`${createCommand(dir, starterWorkspace)}\` to create it where its types came from, or pass --workspace ${workspaceId} to create it there.`,
-    0,
-    'SOURCE_OTHER_WORKSPACE'
-  )
 }
 
 /**
