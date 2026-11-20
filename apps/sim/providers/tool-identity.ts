@@ -33,8 +33,8 @@ function buildProviderAlias(toolId: string, occurrence: number, attempt: number)
  *
  * The first occurrence and every already-unique tool with a provider-safe id keep it for backwards
  * compatibility. An id with characters no provider accepts (a custom tool titled `Get Weather`) is
- * sent with them replaced by `_`, and when that collides with another tool's id it is aliased like
- * a later occurrence. Later occurrences receive opaque ordinal aliases; resource and credential ids
+ * sent with them replaced by `_`, and one longer than the strictest provider limit is cut to it;
+ * when either collides with another tool's id it is aliased like a later occurrence. Later occurrences receive opaque ordinal aliases; resource and credential ids
  * never enter the provider-visible name. Tool objects are updated in place so their instance-bound
  * params and secret provenance remain attached to the exact object selected by provider adapters.
  */
@@ -60,8 +60,8 @@ export function assignProviderToolIdentities<
     occurrences.set(canonicalId, occurrence)
 
     const safeId = toProviderSafeToolId(canonicalId)
-    let wireId = safeId
-    if (usedWireIds.has(wireId) || (safeId !== canonicalId && reservedIds.has(safeId))) {
+    let wireId = safeId.slice(0, MAX_PROVIDER_TOOL_ID_LENGTH)
+    if (usedWireIds.has(wireId) || (wireId !== canonicalId && reservedIds.has(wireId))) {
       let attempt = 0
       do {
         wireId = buildProviderAlias(safeId, occurrence, attempt)
