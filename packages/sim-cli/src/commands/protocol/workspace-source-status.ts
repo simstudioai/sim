@@ -397,6 +397,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             server,
             ...(note ? { note } : {}),
             ...status,
+            ...(local.submission.unnamed.length > 0 ? { unnamed: local.submission.unnamed } : {}),
             plan,
             next:
               (login

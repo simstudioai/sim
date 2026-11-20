@@ -6,7 +6,9 @@
  */
 import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { compareStrings } from '@sim/utils/string'
 import type { WorkflowInput } from '@sim/workflow-code'
+import { SOURCE_CODE_DIR, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import {
   SOURCE_COMPILER_OPTIONS,
   typecheckCommand,
@@ -77,6 +79,7 @@ import {
   TSCONFIG_FULL_FILE,
   TSCONFIG_MARKER,
 } from './source-tree'
+import { codeFilePaths } from './workflow-dir'
 import { statDigest } from './workspace-source-blobs'
 
 /** Where the workspace declaration SDK is written: `@sim/workflow-sdk/workspace` resolves here. */
@@ -552,8 +555,44 @@ export interface WorkspaceSubmission {
   base?: ApplyWorkspaceSourceBody['base']
   /** Files under a kind folder that are not sent: hidden names and unsupported characters. */
   ignored: string[]
+  /**
+   * Files under a workflow folder's `functions/` that neither its `workflow.ts` nor its lock names:
+   * never sent, as a workflow directory's apply never sends them.
+   */
+  unnamed: string[]
   /** The blobs this read hashed or reused a recorded digest for, with their stats. */
   hashed: ReadonlyMap<string, StatDigest>
+}
+
+/**
+ * Drops from `files` each file under a workflow folder's `functions/` that neither the folder's
+ * `workflow.ts` nor its lock names ({@link codeFilePaths}, the rule a workflow directory's apply
+ * and status read), returning their paths: an apply never sends one, so a status never counts it
+ * as a change and the folder is not sent as edited for it.
+ */
+function dropUnnamedCodeFiles(files: Record<string, string>): string[] {
+  const named = new Map<string, Set<string>>()
+  const unnamed: string[] = []
+  for (const path of Object.keys(files)) {
+    if (kindOfPath(path) !== 'workflow') continue
+    const segments = path.split('/')
+    if (segments[2] !== SOURCE_CODE_DIR) continue
+    const folder = segments.slice(0, 2).join('/')
+    let sent = named.get(folder)
+    if (!sent) {
+      let lock: unknown = null
+      try {
+        lock = JSON.parse(files[`${folder}/${SOURCE_LOCK_FILE}`] ?? 'null')
+      } catch {}
+      sent = new Set(codeFilePaths(files[`${folder}/${SOURCE_ENTRY_FILE}`] ?? null, lock))
+      named.set(folder, sent)
+    }
+    if (!sent.has(segments.slice(2).join('/'))) {
+      unnamed.push(path)
+      delete files[path]
+    }
+  }
+  return unnamed.sort(compareStrings)
 }
 
 /**
@@ -647,6 +686,7 @@ export async function readWorkspaceDir(
     const text = texts[index]
     if (text !== null) files[path] = text
   })
+  const unnamed = dropUnnamedCodeFiles(files)
   if (!options.whole) pruneUnchangedWorkflows(files, written, workspaceId)
   const root = await realpath(dir)
   const verified = new Set<string>()
@@ -681,7 +721,7 @@ export async function readWorkspaceDir(
       )
     }
   }
-  return { kinds, files, blobs, ignored, hashed, ...(base ? { base } : {}) }
+  return { kinds, files, blobs, ignored, unnamed, hashed, ...(base ? { base } : {}) }
 }
 
 /** `.sim/skipped.json`, or `null` when nothing was skipped. */

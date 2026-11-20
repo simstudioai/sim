@@ -390,6 +390,36 @@ describe('workspaces source status', () => {
     })
   })
 
+  it('leaves out a function file no codeFile() names, as an apply never sends it: clean, exit 0, naming it', async () => {
+    write('workflows/ingest/functions/scratch.js', 'return 1\n')
+    mockRequest.mockResolvedValue(dryRun())
+
+    await run('status')
+
+    expect(printed()).toMatchObject({
+      state: 'clean',
+      local: [],
+      unnamed: ['workflows/ingest/functions/scratch.js'],
+    })
+    expect(sentFiles()[0]['workflows/ingest/functions/scratch.js']).toBeUndefined()
+    expect(process.exitCode ?? 0).toBe(0)
+  })
+
+  it('still counts a new function file the lock names as a local change', async () => {
+    write(
+      'workflows/ingest/.sim/lock.json',
+      JSON.stringify({ version: 1, blocks: { run: { id: 'b1', codeFile: 'functions/run.js' } } })
+    )
+    write('workflows/ingest/functions/run.js', 'return 1\n')
+    mockRequest.mockResolvedValue(dryRun())
+
+    await run('status')
+
+    expect(printed()).not.toHaveProperty('unnamed')
+    expect(sentFiles()[0]['workflows/ingest/functions/run.js']).toBe('return 1\n')
+    expect(process.exitCode).toBe(11)
+  })
+
   it('sends every workflow folder whole to the plan read, so it compares each with the stored workflow', async () => {
     mockRequest.mockResolvedValue(dryRun())
 
