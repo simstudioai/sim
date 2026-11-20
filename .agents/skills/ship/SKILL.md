@@ -47,19 +47,14 @@ When the user runs `/ship`:
   - Run `/db-migrate` to review the migration for zero-downtime safety (expand/contract phasing, backward-compatibility with the deployed app version).
   - `(cd packages/db && bunx drizzle-kit generate && git status --porcelain ./migrations)` must print nothing (CI's schema/migration sync step).
   - `bun run check:migrations origin/staging` must pass (staging is the PR base). Do not silence a flagged statement with a `-- migration-safe:` annotation unless `/db-migrate` confirmed the old code no longer depends on it; otherwise split the destructive change into a later deploy.
-6. **Run pre-ship checks** from the repo root before staging. This has two phases: first **regenerate** every committed artifact so generated files never drift into a CI failure (this is what catches things like `agent-stream-docs` going stale after a `models.ts` edit), then run the **full audit suite** CI's `lint` job enforces. Both phases parallelize — but only across commands that write **disjoint** outputs — and a bare `wait` swallows child exit codes, so both phases below explicitly collect each job's status and abort ship if any failed.
+6. **Run pre-ship checks** from the repo root before staging. This has two phases: first **regenerate** every committed artifact so generated files never drift into a CI failure (this is what catches things like `agent-stream-docs` going stale after a `models.ts` edit), then run the **full audit suite** CI's `lint` job enforces. Both phases abort ship if any generator or audit fails: their runners (`scripts/generate-all.ts`, `scripts/run-audits.ts`) collect each job's exit code and exit non-zero, so never replace them with a backgrounded loop and a bare `wait`, which swallows child exit codes.
 
-  **Phase A — regenerate the always-in-repo committed artifacts (parallel), then let step 7 stage whatever changed.** Regenerate only the generators whose inputs live entirely in this repo and that any ordinary code change can drift — `generate:agent-stream-docs` (derives from the provider model registry), `generate:docs-manifest` (derives from docs page paths), `generate:tool-metadata` (derives from the tool registry), and `skills:sync` (derives from `.agents/skills/**`). They write disjoint outputs (`apps/docs/…/agent.mdx`, `apps/sim/lib/mothership/generated/docs-manifest.ts`, `apps/sim/tools/generated/*`, and `.claude/skills` links), so they parallelize safely, and each is idempotent (a no-op when already in sync):
+  **Phase A — regenerate the always-in-repo committed artifacts, then let step 7 stage whatever changed.** Run the umbrella generator. It derives its list from package.json (every `generate:<x>` that has a matching `check:<x>`, plus `skills:sync`; see the header of `scripts/generate-all.ts`), so it covers every repo-local generator an ordinary code change can drift (a `models.ts` edit drifts `agent-stream-docs` and the SDK fixture catalog, a tool change drifts `tool-metadata`), runs them in the order their inputs require, and each is idempotent (a no-op when already in sync):
   ```bash
-  rm -f /tmp/ship-gen-results
-  for g in generate:agent-stream-docs generate:docs-manifest generate:tool-metadata skills:sync; do
-    ( bun run "$g" >"/tmp/ship-gen-${g//:/-}.log" 2>&1; echo "$? $g" >>/tmp/ship-gen-results ) &
-  done
-  wait
-  # any non-zero line is a FAILED generator — read /tmp/ship-gen-<name>.log and fix before shipping;
-  # a silently-failed generate leaves a stale artifact that Phase B / CI then rejects. Keep the
-  # `exit 1`: it is what makes the block's own status non-zero so a caller actually stops.
-  if grep -vE '^0 ' /tmp/ship-gen-results; then echo "❌ generator(s) failed — do not ship"; exit 1; fi
+  # A non-zero exit means a generator FAILED: the summary names it and its output is above. Fix it
+  # before shipping; a silently-failed generate leaves a stale artifact that Phase B / CI then
+  # rejects. Keep the `exit 1`: it makes the block's own status non-zero so a caller actually stops.
+  bun run generate || { echo "❌ generator(s) failed — do not ship"; exit 1; }
   echo "✅ artifacts regenerated"
   ```
   Then `git status --short` to see what regenerated — those files must be staged in step 7 alongside your own changes.
