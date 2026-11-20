@@ -752,6 +752,78 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     expect(printed.files).toBeGreaterThan(0)
   })
 
+  /** Answers the starter's catalog and manifest reads, and a create with a stored workflow. */
+  function answerStarterAndCreate() {
+    request.mockImplementation(async (path: string, init: { query?: { dryRun?: boolean } }) => {
+      if (path.endsWith('/workflows/source/catalog')) return { data: CATALOG }
+      if (path.endsWith('/workflows/source/resources')) return MANIFEST
+      if (path.endsWith('/workflows/source')) return outcome({ dryRun: init.query?.dryRun })
+      throw new Error(`unexpected request ${path}`)
+    })
+  }
+
+  function createCalls(): string[] {
+    return request.mock.calls
+      .map((call) => call[0] as string)
+      .filter((path) => path.endsWith('/workflows/source'))
+  }
+
+  it('records the workspace the starter was typed for and names it in the next step', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const empty = join(dir, 'new')
+    answerStarterAndCreate()
+
+    await create('--dir', empty)
+
+    expect(JSON.parse(readFileSync(join(empty, '.sim/starter.json'), 'utf8'))).toEqual({
+      workspaceId: WORKSPACE_ID,
+    })
+    expect(stderrLines().join('\n')).toContain(
+      `sim workflows source create --dir ${empty} --workspace ${WORKSPACE_ID} --yes`
+    )
+  })
+
+  it('refuses to create a starter in a profile workspace other than its own, creating nothing', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const starter = join(dir, 'new')
+    answerStarterAndCreate()
+    await create('--dir', starter)
+    contextMockState.workspaceId = 'ws_other'
+    contextMockState.workspaceSource = 'config'
+
+    try {
+      await expect(create('--dir', starter, '--yes')).rejects.toMatchObject({
+        code: 'SOURCE_OTHER_WORKSPACE',
+        message: expect.stringContaining(`--workspace ${WORKSPACE_ID}`),
+      })
+      expect(createCalls()).toEqual([])
+    } finally {
+      contextMockState.workspaceId = WORKSPACE_ID
+    }
+  })
+
+  it('creates a starter where --workspace names, and drops the starter record once created', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const starter = join(dir, 'new')
+    answerStarterAndCreate()
+    await create('--dir', starter)
+    contextMockState.workspaceId = 'ws_other'
+    contextMockState.workspaceSource = 'flag'
+
+    try {
+      await create('--dir', starter, '--yes')
+      expect(createCalls()).toEqual(['/api/v2/workspaces/ws_other/workflows/source'])
+      expect(existsSync(join(starter, '.sim/starter.json'))).toBe(false)
+      expect(existsSync(join(starter, '.sim/base.json'))).toBe(true)
+    } finally {
+      contextMockState.workspaceId = WORKSPACE_ID
+      contextMockState.workspaceSource = 'config'
+    }
+  })
+
   it.each(['--dry-run', '--yes'])('refuses %s instead of scaffolding', async (flag) => {
     setTerminal(false)
     vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))

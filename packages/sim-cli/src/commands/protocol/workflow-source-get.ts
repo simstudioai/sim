@@ -19,6 +19,7 @@ import {
   readSourceJson,
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_EXAMPLES_DIR,
+  SOURCE_STARTER_FILE,
   updateSourceDir,
   WORKSPACE_FOLDER_BUSY_HELP,
   withWorkspaceFolderLock,
@@ -91,7 +92,7 @@ An apply that deletes blocks (a declaration removed from \`${SOURCE_ENTRY_FILE}\
 
 Lines starting \`note:\` explain something the write did differently than the source says; read them.
 
-A new workflow: \`sim workflows source create --dir <new dir>\` (without \`--dry-run\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, these types, \`tsconfig.json\` and this guide, and creates nothing. Until the workflow exists there is no \`${SOURCE_BASE_FILE}\`, so \`status\`, \`diff\` and \`apply\` refuse the directory: edit the starter, run step 2 and 3, then \`sim workflows source create --dir <dir> --dry-run\` and \`sim workflows source create --dir <dir> --yes\`: it prints the new workflow id and writes the lock files. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`. To fork a workflow, copy its directory, delete the copy's \`.sim/\` and run \`sim workflows source create --dir <copy> --name <new name> --yes\`.
+A new workflow: \`sim workflows source create --dir <new dir> --workspace <workspaceId>\` (without \`--dry-run\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, the types of that workspace, \`tsconfig.json\` and this guide, records the workspace in \`${SOURCE_STARTER_FILE}\`, and creates nothing. Until the workflow exists there is no \`${SOURCE_BASE_FILE}\`, so \`status\`, \`diff\` and \`apply\` refuse the directory: edit the starter, run step 2 and 3, then \`sim workflows source create --dir <dir> --workspace <workspaceId> --dry-run\` and the same with \`--yes\` (the starter prints both with its workspace filled in): it prints the new workflow id and writes the lock files. A create into another workspace than the starter's is refused (\`SOURCE_OTHER_WORKSPACE\`) unless \`--workspace\` names it. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`. To fork a workflow, copy its directory, delete the copy's \`.sim/\` and run \`sim workflows source create --dir <copy> --workspace <workspaceId> --name <new name> --yes\`.
 
 ## File shape
 
@@ -187,7 +188,8 @@ export default workflow('New workflow', { description: 'Describe what this workf
 /**
  * Starts a new source directory: a starter `workflow.ts` plus the tree a get writes (the
  * declarations for the workspace catalog and its resources, `tsconfig.json`, the agent guide),
- * with no lock or base, since no workflow exists yet. Only for a directory with no `workflow.ts`.
+ * with no lock or base, since no workflow exists yet, and {@link SOURCE_STARTER_FILE} naming the
+ * workspace those declarations are for. Only for a directory with no `workflow.ts`.
  */
 export async function writeSourceScaffold(
   client: OperationClient<'getSourceCatalog' | 'getSourceResources'>,
@@ -202,7 +204,11 @@ export async function writeSourceScaffold(
   const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKFLOW_TREE, {
     sources: [STARTER_SOURCE],
   })
-  const write = [[SOURCE_ENTRY_FILE, STARTER_SOURCE] as const, ...tree.change.write]
+  const write = [
+    [SOURCE_ENTRY_FILE, STARTER_SOURCE] as const,
+    [SOURCE_STARTER_FILE, `${JSON.stringify({ workspaceId }, null, 2)}\n`] as const,
+    ...tree.change.write,
+  ]
   await updateSourceDir(dir, { ...tree.change, write })
   return finishTree(dir, write.length, workspaceTypes, tree.ownsTsconfig)
 }

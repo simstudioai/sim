@@ -63,6 +63,12 @@ export const SOURCE_GITIGNORE_FILE = '.gitignore'
  */
 export const SOURCE_WRITTEN_FILE = '.sim/written.json'
 /**
+ * The workspace a starter written by `workflows source create` was typed for, so the create that
+ * follows targets that workspace. The CLI's own record: never sent, and removed once the workflow
+ * exists.
+ */
+export const SOURCE_STARTER_FILE = '.sim/starter.json'
+/**
  * The edges of the workflow a get or apply printed, by lock key, with the base fingerprint they
  * belong to, so an offline check tells an edge the stored workflow holds from one the source
  * adds. The CLI's own record: never sent to the server.
@@ -173,6 +179,12 @@ export async function readSourceJson(dir: string, path: string): Promise<unknown
   } catch {
     return null
   }
+}
+
+/** The workspace {@link SOURCE_STARTER_FILE} names, or `null` when the directory holds no starter. */
+export async function readStarterWorkspace(dir: string): Promise<string | null> {
+  const workspaceId = toRecord(await readSourceJson(dir, SOURCE_STARTER_FILE)).workspaceId
+  return typeof workspaceId === 'string' ? workspaceId : null
 }
 
 /**

@@ -24,8 +24,11 @@ import {
   FILE_CONCURRENCY,
   lockCodeFiles,
   readSourceText,
+  readStarterWorkspace,
   SOURCE_AGENTS_FILE,
+  SOURCE_STARTER_FILE,
   sourceRelativePath,
+  updateSourceDir,
   WORKSPACE_FOLDER_BUSY_HELP,
   withWorkspaceFolderLock,
   writeBack,
@@ -378,9 +381,10 @@ export function attachWorkflowSourceCreate(source: Command): void {
             )
           }
           const { client, profile } = connectCreate()
-          const tree = await writeSourceScaffold(client, options.dir, client.requireWorkspace())
+          const workspaceId = client.requireWorkspace()
+          const tree = await writeSourceScaffold(client, options.dir, workspaceId)
           printError(
-            `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, then run \`sim workflows source create --dir ${options.dir} --yes\`.`
+            `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, then run \`${createCommand(options.dir, workspaceId)} --yes\`.`
           )
           printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
           return
@@ -388,6 +392,11 @@ export function attachWorkflowSourceCreate(source: Command): void {
         requireConsent(options, 'creates a workflow', 'create')
         const { client, profile } = connectCreate()
         const workspaceId = client.requireWorkspace()
+        await assertStarterWorkspace(
+          options.dir,
+          workspaceId,
+          profile.sources.workspaceId === 'flag'
+        )
         const files = await readSourceFiles(options.dir, null)
         await runSourceWrite<'createWorkflowFromSource'>({
           options,
@@ -400,6 +409,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
           ifAnswerLost: `It may have been created. Run this command again: a SOURCE_NAME_TAKEN refusal means it was, so find its id with \`sim workflows list\` and run \`sim workflows source get <workflowId> --dir ${options.dir} --force\`.`,
           save: async (data) => {
             await writeSourceDirectory(client, options.dir, data, [])
+            await updateSourceDir(options.dir, { write: [], remove: [SOURCE_STARTER_FILE] })
           },
           body: {
             files,
@@ -410,6 +420,30 @@ export function attachWorkflowSourceCreate(source: Command): void {
         })
       })
     )
+}
+
+/** The create command for `dir` in `workspaceId`, as the next step a starter prints. */
+function createCommand(dir: string, workspaceId: string): string {
+  return `sim workflows source create --dir ${dir} --workspace ${workspaceId}`
+}
+
+/**
+ * Refuses a create into another workspace than the one a starter's types were written for
+ * ({@link SOURCE_STARTER_FILE}), unless `--workspace` names it: the profile's default workspace
+ * silently differing from the starter's sent the workflow somewhere its author never looked.
+ */
+async function assertStarterWorkspace(
+  dir: string,
+  workspaceId: string,
+  explicit: boolean
+): Promise<void> {
+  const starterWorkspace = await readStarterWorkspace(dir)
+  if (starterWorkspace === null || starterWorkspace === workspaceId || explicit) return
+  throw new SimApiError(
+    `${dir} holds a starter written for workspace ${starterWorkspace}, but this profile targets ${workspaceId}; nothing was created. Run \`${createCommand(dir, starterWorkspace)}\` to create it where its types came from, or pass --workspace ${workspaceId} to create it there.`,
+    0,
+    'SOURCE_OTHER_WORKSPACE'
+  )
 }
 
 /** A create that did not apply stored nothing, so its provisional workflow id names no workflow. */
