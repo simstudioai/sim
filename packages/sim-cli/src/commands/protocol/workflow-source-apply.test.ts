@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { toRecord } from '@sim/utils/object'
@@ -1078,6 +1086,26 @@ describe('a standalone workflow directory', () => {
     expect(second).toMatchObject({ code: 'SOURCE_DIR_BUSY', exitCode: 10 })
     expect(request).toHaveBeenCalledTimes(1)
     expect(existsSync(join(dir, '.sim/command.lock'))).toBe(false)
+  })
+
+  it('dry-runs and plans a directory no one may write, and refuses to apply it, sending nothing', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true }))
+    for (const path of ['', '.sim']) chmodSync(join(dir, path), 0o555)
+    try {
+      await apply('--dir', dir, '--dry-run')
+      await apply('--dir', dir)
+      expect(dryRunFlags()).toEqual([true, true])
+
+      const refused = await apply('--dir', dir, '--yes').then(
+        () => null,
+        (error: unknown) => error
+      )
+      expect(refused).toMatchObject({ code: 'SOURCE_DIR_UNWRITABLE' })
+      expect(request).toHaveBeenCalledTimes(2)
+    } finally {
+      for (const path of ['', '.sim']) chmodSync(join(dir, path), 0o755)
+    }
   })
 })
 
