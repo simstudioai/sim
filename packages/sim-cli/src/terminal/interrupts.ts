@@ -1,5 +1,5 @@
 import { embedStore } from '#sim-cli/embed-context'
-import { printError } from '#sim-cli/output/io'
+import { flushOutput, printError } from '#sim-cli/output/io'
 
 const INTERRUPT_SIGNALS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM']
 
@@ -49,10 +49,18 @@ export async function deferInterrupts<T>(
     clearTimeout(bound)
     if (active === deferral) active = null
   }
+  /**
+   * Ends the process by `signal` once stdout and stderr have drained, as every other exit does,
+   * so a backed-up pipe still receives what was printed. The handler is already released: an
+   * interrupt while they drain ends the process at once.
+   */
+  const reraise = (signal: NodeJS.Signals) => {
+    void flushOutput().finally(() => process.kill(process.pid, signal))
+  }
   const abandon = (signal: NodeJS.Signals) => {
     release()
     printError(options.abandoned)
-    process.kill(process.pid, signal)
+    reraise(signal)
   }
   function onSignal(signal: NodeJS.Signals) {
     if (deferral.pending) {
@@ -71,6 +79,6 @@ export async function deferInterrupts<T>(
   } finally {
     const held = active === deferral ? deferral.pending : null
     release()
-    if (held) process.kill(process.pid, held)
+    if (held) reraise(held)
   }
 }
