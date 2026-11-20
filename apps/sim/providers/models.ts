@@ -2723,7 +2723,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
-        releaseDate: '2026-09-30',
+        releaseDate: '2026-10-13',
       },
       {
         id: 'gemini-3.8-flash',
