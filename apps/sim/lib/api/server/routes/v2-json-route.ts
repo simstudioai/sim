@@ -4,6 +4,7 @@ import { setRequestAuth } from '@sim/logger'
 import { LRUCache } from 'lru-cache'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
 import {
   type CopilotRouteUseCase,
@@ -164,7 +165,8 @@ const VALIDATED_BODY_CACHE_MAX = 4
  * The budget for writing workflow source (apply, dry run, and create from source), per subject
  * and on every plan. Each request parses, compiles, canonicalizes and diffs a body of up to
  * `SOURCE_REQUEST_MAX_BYTES`, so it costs far more than the row reads the generic budget is sized
- * for; a dry run costs nearly as much as an apply, so it is charged the same.
+ * for; a dry run costs nearly as much as an apply, so it is charged the same amount (a workspace
+ * dry run on the plan bucket instead, see `sourceApply`).
  */
 const V2_SOURCE_WRITE_RATE_LIMIT: TokenBucketConfig = {
   maxTokens: 40,
@@ -193,6 +195,14 @@ const V2_SOURCE_PLAN_RATE_LIMIT: TokenBucketConfig = {
   maxTokens: 60,
   refillRate: 30,
   refillIntervalMs: 60_000,
+}
+
+/** Whether `request` asks for a dry run (`?dryRun=true`), as the source apply contract reads it. */
+function isDryRunRequest(request: NextRequest): boolean {
+  const flag = booleanQueryFlagSchema.safeParse(
+    request.nextUrl.searchParams.get('dryRun') ?? undefined
+  )
+  return flag.success && flag.data
 }
 
 /**
@@ -241,6 +251,26 @@ export const v2RateLimits = {
     maxCost: V2_SOURCE_PLAN_RATE_LIMIT.maxTokens,
     async enforce(request, auth, _operation, cost = 1) {
       return enforceV2Buckets(request, auth, 'source.plan', V2_SOURCE_PLAN_RATE_LIMIT, cost)
+    },
+  } satisfies V2RateLimitPolicy,
+  /**
+   * A source apply route that also serves dry runs (`?dryRun=true`): a dry run writes nothing and
+   * runs what a plan runs, so it draws on the {@link V2_SOURCE_PLAN_RATE_LIMIT} bucket as the plan
+   * routes do, and only a real apply spends the {@link V2_SOURCE_WRITE_RATE_LIMIT} bucket applies
+   * need. Capped at the smaller bucket, so the largest request fits either.
+   */
+  sourceApply: {
+    maxCost: Math.min(V2_SOURCE_WRITE_RATE_LIMIT.maxTokens, V2_SOURCE_PLAN_RATE_LIMIT.maxTokens),
+    async enforce(request, auth, _operation, cost = 1) {
+      return isDryRunRequest(request)
+        ? enforceV2Buckets(request, auth, 'source.plan', V2_SOURCE_PLAN_RATE_LIMIT, cost)
+        : enforceV2Buckets(
+            request,
+            auth,
+            'workflows.source.write',
+            V2_SOURCE_WRITE_RATE_LIMIT,
+            cost
+          )
     },
   } satisfies V2RateLimitPolicy,
   /** {@link V2_SOURCE_BLOB_STAGE_RATE_LIMIT}, shared by staging and asking what is staged. */

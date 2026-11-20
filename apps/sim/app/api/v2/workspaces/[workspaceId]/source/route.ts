@@ -43,14 +43,16 @@ export const GET = defineV2JsonRoute({
  * POST /api/v2/workspaces/[workspaceId]/source — applies a workspace source directory. Any error
  * in the plan writes nothing (400, 409 stale, 423 locked, 413 over a limit); a dry run answers
  * 200 with its findings. A write that fails mid-apply answers 200 with `failed` and what was
- * written before it. Draws on the source-write budget (see `workspaceApplyRateCost`); a server
- * already running as many applies as it allows answers 429.
+ * written before it. A real apply draws on the source-write budget and a dry run, which writes
+ * nothing, on the source-plan budget the status plan route uses (`v2RateLimits.sourceApply`), each
+ * charged per workflow folder sent with its files (`workspaceApplyRateCost`); a server already
+ * running as many applies as it allows answers 429.
  */
 export const POST = defineV2JsonRoute({
   contract: v2ApplyWorkspaceSourceContract,
   auth: v2ApiKeyAuth,
   operation: workspaceSourceOperations.apply,
-  rateLimit: v2RateLimits.sourceWrite,
+  rateLimit: v2RateLimits.sourceApply,
   errorPolicy: v2WorkspaceSourceErrorPolicy,
   parseOptions: { maxBodyBytes: WORKSPACE_SOURCE_REQUEST_MAX_BYTES },
   mapInput: ({ params, query, body }) => ({
