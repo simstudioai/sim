@@ -89,8 +89,9 @@ function locationOf(diagnostic: Diagnostic): string {
 /**
  * Prints a write's findings on stderr for a person: every error with its location, frame and
  * hint; the first warning of each code the same way, and the rest of that code on one line
- * listing where they are (one fix usually serves them all, and twenty frames of the same warning
- * buried the errors); each info code folded into one line.
+ * listing where they are, each with its own message when it differs from the first (one fix
+ * usually serves them all, and twenty frames of the same warning buried the errors); each info
+ * code folded into one line.
  */
 function printDiagnostics(diagnostics: readonly Diagnostic[]): void {
   const groups = new Map<string, Diagnostic[]>()
@@ -115,7 +116,15 @@ function printDiagnostics(diagnostics: readonly Diagnostic[]): void {
     }
     printError(formatDiagnostic(first))
     if (rest.length === 0) continue
-    const listed = rest.slice(0, COLLAPSED_LOCATIONS).map(locationOf).filter(Boolean)
+    // A collapsed finding saying something else than the first keeps its words beside its place.
+    const listed = rest
+      .slice(0, COLLAPSED_LOCATIONS)
+      .map((diagnostic) => {
+        const location = locationOf(diagnostic)
+        if (diagnostic.message === first.message) return location
+        return location ? `${location} (${diagnostic.message})` : diagnostic.message
+      })
+      .filter(Boolean)
     const unlisted = rest.length - listed.length
     printError(
       `  ${rest.length} more ${first.code} like it${listed.length > 0 ? `: ${listed.join(', ')}` : ''}${unlisted > 0 && listed.length > 0 ? `, and ${unlisted} more` : ''}`
@@ -281,10 +290,16 @@ const DETAILS_REFERENCE = / See details\.diagnostics\.$/
  * Re-throws an API refusal after printing its diagnostics, so each shows its source line, with
  * the exit status a script branches on. In a machine `format` the error document keeps the
  * refusal's details with each finding as a success result carries it ({@link resultDiagnostics});
- * a display format prints the findings once, above the error. `ifAnswerLost` is the next step for
- * a write whose answer never came back, appended to its message.
+ * a display format prints the findings once, above the error, and `verbose` keeps info findings in
+ * the machine document as it does in a result. `ifAnswerLost` is the next step for a write whose
+ * answer never came back, appended to its message.
  */
-export function printRefusal(error: unknown, format: OutputFormat, ifAnswerLost?: string): never {
+export function printRefusal(
+  error: unknown,
+  format: OutputFormat,
+  options: { ifAnswerLost?: string; verbose?: boolean } = {}
+): never {
+  const { ifAnswerLost, verbose = false } = options
   if (!(error instanceof SimApiError)) throw error
   const details = toRecord(error.details)
   const diagnostics = details.diagnostics
@@ -304,7 +319,7 @@ export function printRefusal(error: unknown, format: OutputFormat, ifAnswerLost?
     hint ? `${message} ${hint}` : message,
     error.status,
     error.code,
-    printed ? refusalDetails(format, details, diagnostics) : error.details,
+    printed ? refusalDetails(format, details, diagnostics, verbose) : error.details,
     refusalExitCode(error, details.code),
     error.requestId
   )
@@ -314,9 +329,10 @@ export function printRefusal(error: unknown, format: OutputFormat, ifAnswerLost?
 function refusalDetails(
   format: OutputFormat,
   details: Record<string, unknown>,
-  diagnostics: Diagnostic[]
+  diagnostics: Diagnostic[],
+  verbose: boolean
 ): Record<string, unknown> | undefined {
-  const flattened = resultDiagnostics(format, diagnostics)
+  const flattened = resultDiagnostics(format, diagnostics, verbose)
   return flattened.diagnostics ? { ...details, ...flattened } : undefined
 }
 

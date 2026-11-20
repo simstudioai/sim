@@ -525,7 +525,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
         try {
           staged = await stageBlobs(client, workspaceId, options.dir, submission.blobs, paths)
         } catch (error) {
-          return printRefusal(error, profile.output)
+          return printRefusal(error, profile.output, { verbose: options.verbose === true })
         }
         if (staged.count > 0) {
           printError(`Uploaded ${staged.count} binary file(s), ${staged.bytes} bytes.`)
@@ -551,11 +551,10 @@ export function attachWorkspaceSourceApply(source: Command): void {
             refusal = error
           }
         }
-        return printRefusal(
-          refusal,
-          profile.output,
-          dryRun ? undefined : answerLostHint(options.dir)
-        )
+        return printRefusal(refusal, profile.output, {
+          ...(dryRun ? {} : { ifAnswerLost: answerLostHint(options.dir) }),
+          verbose: options.verbose === true,
+        })
       }
 
       await withSourceDirLock(

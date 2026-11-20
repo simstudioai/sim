@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { toRecord } from '@sim/utils/object'
 import { compileWorkflow } from '@sim/workflow-code'
 import { fingerprintOf } from '@sim/workspace-code'
 import { Command } from 'commander'
@@ -701,8 +702,42 @@ describe('sim workflows source apply', () => {
       const lines = stderrLines()
       expect(lines.filter((line) => line.includes('> '))).toHaveLength(1)
       expect(lines).toContain(
-        '  3 more W_JSON_REF_UNTYPED like it: workflow.ts:5:7, workflow.ts:6:7, workflow.ts:7:7'
+        '  3 more W_JSON_REF_UNTYPED like it: workflow.ts:5:7 (Nothing declares the type of <score.result.n5>.), workflow.ts:6:7 (Nothing declares the type of <score.result.n6>.), workflow.ts:7:7 (Nothing declares the type of <score.result.n7>.)'
       )
+    })
+
+    it('in a display format, names each collapsed warning by location alone when they say the same', async () => {
+      setTerminal(false)
+      contextMockState.output = 'text'
+      request.mockResolvedValue(
+        outcome({
+          dryRun: true,
+          diagnostics: [4, 5].map((line) => ({ ...untyped(line), message: 'Same words.' })),
+        })
+      )
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+      expect(stderrLines()).toContain('  1 more W_JSON_REF_UNTYPED like it: workflow.ts:5:7')
+    })
+
+    it('with --output json and --verbose, keeps info findings in a refusal too', async () => {
+      setTerminal(false)
+      request.mockRejectedValue(
+        new SimApiError('Refused. See details.diagnostics.', 422, 'SOURCE_REJECTED', {
+          diagnostics: [layout, STALE],
+        })
+      )
+
+      const refused = await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--verbose').then(
+        () => null,
+        (error: unknown) => error as SimApiError
+      )
+
+      expect(toRecord(refused?.details).diagnostics).toEqual([
+        expect.objectContaining({ code: 'I_MAT_NEEDS_LAYOUT' }),
+        expect.objectContaining({ code: 'E_APPLY_STALE' }),
+      ])
     })
 
     it('lists the workflow and blocks a create made, with their ids', async () => {

@@ -283,7 +283,10 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       })
       return response.data
     } catch (error) {
-      return printRefusal(error, args.output, dryRun ? undefined : args.ifAnswerLost)
+      return printRefusal(error, args.output, {
+        ...(dryRun ? {} : { ifAnswerLost: args.ifAnswerLost }),
+        verbose: options.verbose === true,
+      })
     }
   }
   const findings = findingsOutput(args.output, options.verbose)
