@@ -9,7 +9,7 @@ import {
   SUBFLOW_TYPES,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
-import { and, eq, getTableColumns, inArray, isNull, type SQLWrapper, sql } from 'drizzle-orm'
+import { and, asc, eq, getTableColumns, inArray, isNull, type SQLWrapper, sql } from 'drizzle-orm'
 import { clampParallelBatchSize } from './subflow-helpers'
 import type { DbOrTx, NormalizedWorkflowData } from './types'
 
@@ -181,7 +181,10 @@ export async function loadWorkflowsFromNormalizedTablesRaw(
 
 /**
  * The block, edge and subflow rows of `workflowIds`: a list, or a query of ids that each graph
- * query embeds as a subquery.
+ * query embeds as a subquery. Each table's rows come in creation order, ties by id, so the
+ * assembled graph's block and edge order (which the executor reads, e.g. a router's or
+ * condition's first matching edge) is a fact of the stored rows, not of where an update left
+ * them in the heap.
  */
 async function selectGraphRows(tx: DbOrTx, workflowIds: string[] | (() => SQLWrapper)) {
   const ids = () => (typeof workflowIds === 'function' ? workflowIds() : workflowIds)
@@ -192,9 +195,18 @@ async function selectGraphRows(tx: DbOrTx, workflowIds: string[] | (() => SQLWra
         updatedAtText: sql<string | null>`${workflowBlocks.updatedAt}::text`,
       })
       .from(workflowBlocks)
-      .where(inArray(workflowBlocks.workflowId, ids())),
-    tx.select().from(workflowEdges).where(inArray(workflowEdges.workflowId, ids())),
-    tx.select().from(workflowSubflows).where(inArray(workflowSubflows.workflowId, ids())),
+      .where(inArray(workflowBlocks.workflowId, ids()))
+      .orderBy(asc(workflowBlocks.createdAt), asc(workflowBlocks.id)),
+    tx
+      .select()
+      .from(workflowEdges)
+      .where(inArray(workflowEdges.workflowId, ids()))
+      .orderBy(asc(workflowEdges.createdAt), asc(workflowEdges.id)),
+    tx
+      .select()
+      .from(workflowSubflows)
+      .where(inArray(workflowSubflows.workflowId, ids()))
+      .orderBy(asc(workflowSubflows.createdAt), asc(workflowSubflows.id)),
   ])
   return { blocks, edges, subflows }
 }

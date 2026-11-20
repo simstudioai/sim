@@ -8,9 +8,18 @@
  * repeated in one state and an edge to a block the state does not hold.
  */
 import { db } from '@sim/db'
-import { user, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
+import {
+  user,
+  workflow,
+  workflowBlocks,
+  workflowEdges,
+  workflowSubflows,
+  workspace,
+} from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import type { DbOrTx } from '@sim/workflow-persistence/types'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
@@ -18,6 +27,7 @@ import { asc, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 const ownerId = generateId()
+const workspaceId = generateId()
 
 /** Deterministic PRNG (mulberry32) so a failing sequence replays from its seed. */
 function seededRandom(seed: number): () => number {
@@ -72,7 +82,8 @@ async function insertWorkflow(): Promise<string> {
   await db.insert(workflow).values({
     id,
     userId: ownerId,
-    name: 'Normalized save fixture',
+    workspaceId,
+    name: `Normalized save fixture ${id}`,
     lastSynced: now,
     createdAt: now,
     updatedAt: now,
@@ -218,9 +229,16 @@ beforeAll(async () => {
     createdAt: now,
     updatedAt: now,
   })
+  await insertWorkspaceFixture(db, {
+    id: workspaceId,
+    name: 'Normalized save fixture',
+    ownerId,
+    billedAccountUserId: ownerId,
+  })
 })
 
 afterAll(async () => {
+  await deleteWorkspaceFixture(db, eq(workspace.ownerId, ownerId))
   await db.delete(user).where(eq(user.id, ownerId))
 })
 
@@ -282,6 +300,33 @@ describe('saveWorkflowToNormalizedTables', () => {
     const after = await blockUpdatedAt(workflowId)
     const rewritten = [...after].filter(([id, at]) => before.get(id) !== at).map(([id]) => id)
     expect(rewritten).toEqual([edited[7].id])
+  })
+
+  it('loads blocks and edges in creation order, whatever rows a later save rewrote', async () => {
+    const workflowId = await insertWorkflow()
+    const blocks = ['b1', 'b2', 'b3'].map((id, index) =>
+      functionBlock(`${workflowId}-${id}`, `Block ${index}`, index * 100)
+    )
+    const [first, second, third] = blocks.map((block) => block.id)
+    const edges = [
+      { id: `${workflowId}-e1`, source: first, target: third },
+      { id: `${workflowId}-e2`, source: second, target: third },
+    ]
+    expect(await saveWorkflowToNormalizedTables(workflowId, stateOf(blocks, edges))).toEqual({
+      success: true,
+    })
+
+    const edited = structuredClone(blocks)
+    edited[0].name = 'Renamed'
+    const added = { id: `${workflowId}-e0`, source: first, target: second }
+    const editedEdges = [{ ...edges[0], sourceHandle: 'error' }, edges[1], added]
+    expect(await saveWorkflowToNormalizedTables(workflowId, stateOf(edited, editedEdges))).toEqual({
+      success: true,
+    })
+    const loaded = await loadWorkflowFromNormalizedTablesRaw(workflowId)
+
+    expect(Object.keys(loaded?.blocks ?? {})).toEqual([first, second, third])
+    expect(loaded?.edges.map((edge) => edge.id)).toEqual([edges[0].id, edges[1].id, added.id])
   })
 
   it('refuses a block id another workflow owns and leaves the stored graph as it was', async () => {
