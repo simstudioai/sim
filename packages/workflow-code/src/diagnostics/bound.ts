@@ -107,8 +107,8 @@ type TruncationFinding = ReturnType<typeof findingsTruncated>
  * warnings before infos when `total` cuts (and among errors those `classify` classes before the
  * rest), and at most `warningsPerCode` warnings of one code. A list it cuts ends in one
  * `I_FINDINGS_TRUNCATED` counting what it left out, in place of any the list carried (where a
- * stage stopped listing), so an answer never holds a second; a list it does not cut keeps those
- * as they are. The marker is an info, so cutting a list never refuses it nor changes its class.
+ * stage stopped listing), so a cut list never holds a second; a list it does not cut keeps those
+ * as they are, one per stage that stopped. The marker is an info, so cutting a list never refuses it nor changes its class.
  */
 export function boundAnswerFindings<D extends BoundedFinding>(
   list: readonly D[],
