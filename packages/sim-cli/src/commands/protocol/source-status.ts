@@ -76,27 +76,33 @@ export function statusExitCode(state: SourceStatus['state'], login: string | nul
 const UNREACHABLE_STATUSES = new Set([502, 503, 504])
 
 /**
+ * Whether `error` says this profile cannot authenticate: the CLI's own refusal of a profile with
+ * no login, or a credential the server refused (`401`, which exits 13 like it).
+ */
+export function credentialRefused(error: unknown): boolean {
+  return (
+    error instanceof SimApiError &&
+    ((error.status === 0 && error.code === AUTH_REQUIRED_CODE) || error.status === 401)
+  )
+}
+
+/**
  * Why the server could not be reached (no connection, a timeout, a gateway that gave up, no login
- * on the profile), as a sentence, or `null` for any other failure (a cancelled request included),
- * which a status reports rather than hides.
+ * on the profile or a credential it refused), as a sentence, or `null` for any other failure (a
+ * cancelled request included), which a status reports rather than hides.
  */
 export function unreachableReason(error: unknown): string | null {
   if (!(error instanceof SimApiError)) return null
-  const offline =
-    noAnswer(error, UNREACHABLE_STATUSES) ||
-    (error.status === 0 && error.code === AUTH_REQUIRED_CODE)
-  if (!offline) return null
+  if (!noAnswer(error, UNREACHABLE_STATUSES) && !credentialRefused(error)) return null
   return /[.!?]$/.test(error.message) ? error.message : `${error.message}.`
 }
 
 /**
- * The login a status recommends when `error` is the CLI's own refusal of a profile with no login
- * (which a status treats as an unreachable server), or `null` for any other failure.
+ * The login a status recommends when `error` says the profile cannot authenticate (which a status
+ * treats as an unreachable server), or `null` for any other failure.
  */
 export function loginCommand(error: unknown, authProfile: string): string | null {
-  return error instanceof SimApiError && error.status === 0 && error.code === AUTH_REQUIRED_CODE
-    ? `sim login --profile ${authProfile}`
-    : null
+  return credentialRefused(error) ? `sim login --profile ${authProfile}` : null
 }
 
 const SERVER_WORDS = {

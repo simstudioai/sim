@@ -4,7 +4,6 @@ import { KIND_DIRS } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
 import { profileFrom } from '../../context'
-import { AUTH_REQUIRED_CODE } from '../../exit-codes'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
 import {
@@ -14,7 +13,7 @@ import {
   SOURCE_DIR_BUSY_HELP,
   withSourceDirLock,
 } from './source-dir'
-import { unreachableReason } from './source-status'
+import { credentialRefused, unreachableReason } from './source-status'
 import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
 import { verboseFlag } from './source-ui'
 import {
@@ -74,12 +73,9 @@ async function fetchedCatalog(
   try {
     return await loadCatalog(connection.client, { workspaceId, blockTypes: [] })
   } catch (error) {
-    // No login keeps its own refusal (exit 13, naming `sim login`); a server that did not answer
+    // No login, or a refused credential, keeps its own refusal (exit 13, naming `sim login`); a server that did not answer
     // leaves the catalog uncached, which the get that caches it fixes once the server answers.
-    const reason =
-      error instanceof SimApiError && error.code !== AUTH_REQUIRED_CODE
-        ? unreachableReason(error)
-        : null
+    const reason = credentialRefused(error) ? null : unreachableReason(error)
     if (reason === null) throw error
     throw new SimApiError(
       `No block catalog is cached for workspace ${workspaceId}, and downloading it failed: ${reason} Run \`sim workspaces source get --dir ${dir}\` once the server can be reached, then check again.`,

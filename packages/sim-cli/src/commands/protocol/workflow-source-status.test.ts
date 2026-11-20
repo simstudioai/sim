@@ -269,6 +269,28 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBe(13)
   })
 
+  it('degrades to the local view when the server refuses the credential, naming the login', async () => {
+    write(root, 'workflow.ts', `${ENTRY}// edited\n`)
+    mockRequest.mockRejectedValue(
+      new SimApiError(
+        'Invalid API key — run sim login --profile default',
+        401,
+        'UNAUTHORIZED',
+        undefined,
+        13
+      )
+    )
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({
+      server: 'unreachable',
+      state: 'local',
+      next: { command: 'sim login --profile default' },
+    })
+    expect(process.exitCode).toBe(13)
+  })
+
   it('fails on a cancelled request instead of reporting the server unreachable', async () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
     mockRequest.mockRejectedValue(new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED))
