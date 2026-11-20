@@ -1931,7 +1931,15 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 10,
           cachedInput: 1,
           output: 50,
-          updatedAt: '2026-09-14',
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 20,
+              cachedInput: 2,
+              output: 75,
+            },
+          ],
+          updatedAt: '2026-11-20',
         },
         capabilities: {
           reasoningEffort: {
@@ -1979,7 +1987,15 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2,
           cachedInput: 0.2,
           output: 12,
-          updatedAt: '2026-09-14',
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 4,
+              cachedInput: 0.4,
+              output: 18,
+            },
+          ],
+          updatedAt: '2026-11-20',
         },
         capabilities: {
           reasoningEffort: {
@@ -1999,7 +2015,15 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.2,
           cachedInput: 0.02,
           output: 1.2,
-          updatedAt: '2026-09-14',
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 0.4,
+              cachedInput: 0.04,
+              output: 1.8,
+            },
+          ],
+          updatedAt: '2026-11-20',
         },
         capabilities: {
           reasoningEffort: {
@@ -2019,7 +2043,15 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5,
           cachedInput: 0.5,
           output: 30,
-          updatedAt: '2026-09-14',
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 10,
+              cachedInput: 1,
+              output: 45,
+            },
+          ],
+          updatedAt: '2026-11-20',
         },
         capabilities: {
           reasoningEffort: {
@@ -2081,7 +2113,15 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.5,
           cachedInput: 0.25,
           output: 15.0,
-          updatedAt: '2026-06-11',
+          tiers: [
+            {
+              aboveInputTokens: 272000,
+              input: 5,
+              cachedInput: 0.5,
+              output: 22.5,
+            },
+          ],
+          updatedAt: '2026-11-20',
         },
         capabilities: {
           reasoningEffort: {
@@ -2419,13 +2459,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 128000,
           promptCaching: { minimumCacheableTokens: 512 },
           thinking: {
-            levels: ['low', 'medium', 'high', 'xhigh'],
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
             default: 'high',
             streamed: 'summary',
           },
         },
         contextWindow: 1000000,
         releaseDate: '2026-09-01',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'azure-anthropic/claude-fable-5',
@@ -2539,6 +2580,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-07-24',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'azure-anthropic/claude-opus-4-8',
@@ -2559,6 +2601,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-05-28',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'azure-anthropic/claude-opus-4-7',
@@ -2580,6 +2623,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-04-16',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'azure-anthropic/claude-opus-4-6',
@@ -2602,6 +2646,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-05',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'azure-anthropic/claude-opus-4-5',
@@ -2624,6 +2669,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-11-24',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'azure-anthropic/claude-sonnet-5',
@@ -2644,6 +2690,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-06-30',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'azure-anthropic/claude-sonnet-4-6',
@@ -2665,6 +2712,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-17',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'azure-anthropic/claude-sonnet-4-5',
@@ -3289,7 +3337,15 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.0,
           cachedInput: 0.2,
           output: 12.0,
-          updatedAt: '2026-06-11',
+          tiers: [
+            {
+              aboveInputTokens: 200000,
+              input: 4.0,
+              cachedInput: 0.4,
+              output: 18.0,
+            },
+          ],
+          updatedAt: '2026-11-20',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -5886,6 +5942,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-11-20',
         },
         capabilities: {
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
         },
         contextWindow: 1000000,
@@ -5900,6 +5958,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-11-20',
         },
         capabilities: {
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
         },
         contextWindow: 1000000,
@@ -5914,6 +5974,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-11-20',
         },
         capabilities: {
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
         },
         contextWindow: 1000000,
@@ -5937,6 +5999,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-11-20',
         },
         capabilities: {
+          nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
         },
         contextWindow: 1000000,
@@ -5951,10 +6014,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-11-20',
         },
         capabilities: {
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
         },
         contextWindow: 1000000,
         releaseDate: '2026-09-01',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/anthropic.claude-opus-5',
@@ -5965,10 +6031,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-09-14',
         },
         capabilities: {
+          nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
         },
         contextWindow: 1000000,
         releaseDate: '2026-07-24',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/anthropic.claude-sonnet-5',
@@ -5979,10 +6047,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-09-14',
         },
         capabilities: {
+          nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
         },
         contextWindow: 1000000,
         releaseDate: '2026-06-30',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/anthropic.claude-fable-5',
@@ -5993,10 +6063,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-09-14',
         },
         capabilities: {
+          nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
         },
         contextWindow: 1000000,
         releaseDate: '2026-06-09',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/anthropic.claude-opus-4-8',
@@ -6007,10 +6079,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-09-14',
         },
         capabilities: {
+          nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
         },
         contextWindow: 1000000,
         releaseDate: '2026-05-28',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/anthropic.claude-opus-4-7',
@@ -6021,10 +6095,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-09-14',
         },
         capabilities: {
+          nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
         },
         contextWindow: 1000000,
         releaseDate: '2026-04-16',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/anthropic.claude-sonnet-4-6',
@@ -6041,6 +6117,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-17',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/anthropic.claude-opus-4-6-v1',
@@ -6057,6 +6134,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-05',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/anthropic.claude-opus-4-5-20251101-v1:0',
@@ -6073,6 +6151,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-11-24',
+        sunset: { status: 'legacy' },
       },
       {
         id: 'bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0',

@@ -1403,13 +1403,8 @@ describe('Cost Calculation', () => {
 
     /** xAI bills the whole request at the long-context rate once the prompt reaches 200k tokens. */
     it.each([
-      ['grok-4.7', 2, 0.5, 6, 4, 1, 12],
       ['grok-4.6', 2, 0.5, 6, 4, 1, 12],
-      ['grok-4.5', 2, 0.3, 6, 4, 0.6, 12],
       ['grok-4.3', 1.25, 0.2, 2.5, 2.5, 0.4, 5],
-      ['grok-4.20-0309-reasoning', 1.25, 0.2, 2.5, 2.5, 0.4, 5],
-      ['grok-4.20-0309-non-reasoning', 1.25, 0.2, 2.5, 2.5, 0.4, 5],
-      ['grok-4.20-multi-agent-0309', 1.25, 0.2, 2.5, 2.5, 0.4, 5],
     ])(
       'applies %s long-context rates from 200k prompt tokens, including cached input',
       (model, input, cached, output, longInput, longCached, longOutput) => {
