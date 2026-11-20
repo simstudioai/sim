@@ -115,6 +115,40 @@ describe('markdown paste', () => {
     expect(structural).toEqual(['heading', 'bulletList', 'blockquote'])
   })
 
+  it.each([
+    ['setext heading', 'Paste title\n===========', 'heading', 'Paste title'],
+    ['tilde fence', '~~~js\nconst answer = 42\n~~~', 'codeBlock', 'const answer = 42'],
+    ['indented code', '    const answer = 42', 'codeBlock', 'const answer = 42'],
+    ['parenthesized ordered list', '1) one\n2) two', 'orderedList', 'onetwo'],
+    ['thematic break', '---', 'horizontalRule', ''],
+    ['reference link', '[Guide][ref]\n\n[ref]: https://example.com', 'paragraph', 'Guide'],
+  ])(
+    'renders pasted %s as Markdown and preserves it after reopening',
+    (_, text, type, expectedText) => {
+      const editor = mount()
+      dispatchPaste(editor, text)
+      const first = editor.state.doc.firstChild
+      expect(first?.type.name).toBe(type)
+      if (type === 'paragraph') expect(editor.getHTML()).toContain('href="https://example.com"')
+      expect(first?.textContent).toBe(expectedText)
+      const reopened = mount()
+      reopened.commands.setContent(editor.getMarkdown(), { contentType: 'markdown' })
+      expect(reopened.getJSON()).toEqual(editor.getJSON())
+    }
+  )
+
+  it.each(['Paste title', ''])(
+    'honors explicit Markdown provenance with plain fallback %j',
+    (fallback) => {
+      const editor = mount()
+      dispatchPaste(editor, fallback, '<b>Wrong representation</b>', {
+        'text/markdown': 'Paste title\n===========',
+      })
+      expect(editor.getHTML()).toContain('<h1>Paste title</h1>')
+      expect(editor.getText()).not.toContain('Wrong representation')
+    }
+  )
+
   it('strips <style>/<script> from pasted HTML so their text never leaks into the doc', () => {
     const editor = mount()
     const gsheets =
