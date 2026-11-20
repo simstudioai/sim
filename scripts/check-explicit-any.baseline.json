@@ -326,7 +326,7 @@
     "apps/sim/stores/workflow-diff/utils.ts": 2,
     "apps/sim/stores/workflows/subblock/store.ts": 5,
     "apps/sim/stores/workflows/utils.ts": 1,
-    "apps/sim/stores/workflows/workflow/store.ts": 6,
+    "apps/sim/stores/workflows/workflow/store.ts": 4,
     "apps/sim/stores/workflows/workflow/types.ts": 2,
     "apps/sim/tools/ahrefs/anchors.ts": 1,
     "apps/sim/tools/ahrefs/backlinks.ts": 1,

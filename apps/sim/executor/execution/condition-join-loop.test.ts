@@ -3,19 +3,14 @@ import {
   createSerializedBlock,
   createSerializedWorkflow,
 } from '@sim/testing/factories/serialized-block.factory'
-import { describe, expect, it, vi } from 'vitest'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { DAGExecutor } from '@/executor/execution/executor'
 import { ConditionBlockHandler } from '@/executor/handlers/condition/handler'
 import type { SerializedWorkflow } from '@/serializer/types'
 
-/** Condition code runs as plain JavaScript instead of through the sandboxed function tool. */
-vi.mock('@/tools', () => ({
-  executeTool: vi.fn(async (_toolId: string, params: { code: string }) => ({
-    success: true,
-    output: { result: new Function(params.code)() },
-  })),
-}))
+vi.mock('@/tools', () => toolsMock)
 
 /** Real condition handler; every other block answers with its own name. */
 vi.mock('@/executor/handlers/registry', () => ({
@@ -79,6 +74,16 @@ function joinInLoop(branchEdgeOrder: ['la' | 'lb', 'la' | 'lb']): SerializedWork
 }
 
 describe('a condition joining two branches inside a loop', () => {
+  /** Condition code runs as plain JavaScript instead of through the sandboxed function tool. */
+  beforeEach(() => {
+    toolsMockFns.mockExecuteTool.mockImplementation(
+      async (_toolId: string, params: { code: string }) => ({
+        success: true,
+        output: { result: new Function(params.code)() },
+      })
+    )
+  })
+
   it.each([
     ['la', 'lb'],
     ['lb', 'la'],
