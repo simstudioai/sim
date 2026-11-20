@@ -19,7 +19,7 @@ import {
 } from '@/lib/api/mcp/dispatch'
 import { createConcurrencyLimit } from '@/lib/core/utils/concurrency'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
-import { loadTypeScript } from '@/lib/execution/typescript'
+import { stripTypes } from '@/lib/execution/typescript'
 import { structuredToolResult, toolError } from '@/lib/mcp/tool-result'
 import { SIM_API_CODE_MAX_TIMEOUT_MS } from '@/sandboxes/sim-api-code'
 
@@ -128,24 +128,16 @@ function envelopeFailure(status: number, text: string): SimApiAnswer {
  * value or error, is recorded for `finalize` rather than lost to the worker.
  * Syntax errors come back with lines numbered as the caller wrote them.
  */
-async function compileProgram(code: string): Promise<{ script: string } | { error: string }> {
-  const ts = await loadTypeScript()
-  const { outputText, diagnostics } = ts.transpileModule(
-    `const __simProgram = async () => {\n${code}\n};`,
-    {
-      reportDiagnostics: true,
-      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-    }
-  )
-  const problems = (diagnostics ?? []).flatMap((diagnostic) => {
-    if (!diagnostic.file || diagnostic.start === undefined) return []
-    const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
-    const { line } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start)
-    return [`Line ${Math.max(1, line)}: ${message}`]
-  })
-  if (problems.length > 0) return { error: `The program does not parse.\n${problems.join('\n')}` }
+function compileProgram(code: string): { script: string } | { error: string } {
+  const stripped = stripTypes(`const __simProgram = async () => {\n${code}\n};`)
+  if ('errors' in stripped) {
+    const problems = stripped.errors.map(
+      ({ line, message }) => `Line ${Math.max(1, line - 1)}: ${message}`
+    )
+    return { error: `The program does not parse.\n${problems.join('\n')}` }
+  }
   return {
-    script: `${outputText}\ntry { __simCodeSettle(true, await __simProgram()); } catch (error) { __simCodeSettle(false, error); }`,
+    script: `${stripped.code}\ntry { __simCodeSettle(true, await __simProgram()); } catch (error) { __simCodeSettle(false, error); }`,
   }
 }
 
@@ -192,7 +184,7 @@ export async function runCodeMode(
       codeSha256: sha256Hex(input.code),
     })
 
-  const compiled = await compileProgram(input.code)
+  const compiled = compileProgram(input.code)
   if ('error' in compiled) {
     summary('syntax_error')
     return toolError(compiled.error)

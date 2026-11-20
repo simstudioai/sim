@@ -12,15 +12,11 @@ const URL_PROPERTIES = [
  *
  * `AbortError` is what a fetch rejects with once its `AbortSignal` fires —
  * React Query aborts in-flight queries on unmount and on refetch, so this is
- * routine teardown. `Canceled` is Monaco's `CancellationError`
- * (`monaco-editor/esm/vs/base/common/errors.js` sets both `name` and `message`
- * to the bare string), raised whenever a language-service request is superseded
- * by a newer keystroke.
- *
- * Neither can be acted on: there is no defect to fix and no user impact, but
- * both fire often enough per session to bury real crashes in the issue list.
+ * routine teardown. It cannot be acted on: there is no defect to fix and no
+ * user impact, but it fires often enough per session to bury real crashes in
+ * the issue list.
  */
-const CANCELLATION_ERROR_NAMES = new Set(['AbortError', 'Canceled'])
+const CANCELLATION_ERROR_NAMES = new Set(['AbortError'])
 
 /**
  * Exception messages that carry no diagnosable content.
@@ -73,8 +69,8 @@ function isBrowserRaised(exceptions: CapturedException[]): boolean {
  * Whether this is a cancellation, testing both shapes PostHog can produce.
  *
  * Which field carries the error's `name` depends on which coercer ran. A plain
- * `Error` keeps its `name` as `type`, so Monaco's `CancellationError` arrives as
- * type `Canceled`. A `DOMException` — what `fetch` rejects with when its signal
+ * `Error` keeps its `name` as `type`, so one named `AbortError` arrives as type
+ * `AbortError`. A `DOMException` — what `fetch` rejects with when its signal
  * fires — always coerces to type `DOMException`, with the name folded into the
  * front of the value as `"AbortError: signal is aborted without reason"`.
  * Matching on `type` alone therefore misses every real aborted request.

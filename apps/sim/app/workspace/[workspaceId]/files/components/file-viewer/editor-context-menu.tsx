@@ -8,7 +8,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Blimp, Clipboard, Duplicate, Scissors, Search, SelectAll } from '@sim/emcn/icons'
+import { Blimp, Clipboard, Duplicate, Scissors, SelectAll } from '@sim/emcn/icons'
 
 interface EditorContextMenuProps {
   isOpen: boolean
@@ -21,7 +21,6 @@ interface EditorContextMenuProps {
   onCopyAll: () => void
   onPaste: () => void
   onSelectAll: () => void
-  onFind: () => void
   /** Adds the current selection to Chat as a reference. Omit to hide the item. */
   onAddToChat?: () => void
 }
@@ -37,7 +36,6 @@ export function EditorContextMenu({
   onCopyAll,
   onPaste,
   onSelectAll,
-  onFind,
   onAddToChat,
 }: EditorContextMenuProps) {
   return (
@@ -102,11 +100,6 @@ export function EditorContextMenu({
           <SelectAll />
           Select all
           <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onFind}>
-          <Search />
-          Find
-          <DropdownMenuShortcut>⌘F</DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

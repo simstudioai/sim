@@ -91,6 +91,8 @@ interface CSPDirectives {
 const STATIC_SCRIPT_SRC = [
   "'self'",
   "'unsafe-inline'",
+  // Compiles WebAssembly and nothing else (no JS eval): the code editor's highlighter is Wasm.
+  "'wasm-unsafe-eval'",
   ...(isDev ? ["'unsafe-eval'"] : []),
   'https://*.google.com',
   'https://apis.google.com',

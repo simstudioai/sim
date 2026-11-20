@@ -1,24 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Badge, Button, Tooltip, useCopyToClipboard } from '@sim/emcn'
 import { BookOpen, Check, TerminalWindow } from '@sim/emcn/icons'
 import { BLOCK_OPERATIONS, BLOCKS_OPERATIONS } from '@sim/realtime-protocol/constants'
 import { slugify } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
-import type { editor } from 'monaco-editor'
+import { CodeEditor } from '@/components/code-editor/code-editor'
 import { DOCS_URL } from '@/lib/help-links'
-import {
-  MonacoEditor,
-  TEXT_EDITOR_OPTIONS,
-  useMonacoTheme,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/monaco-editor'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
-import {
-  registerSourceLanguage,
-  SOURCE_LANGUAGE_ID,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/code/source-language'
-import { minimalTextEdit } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/code/text-edit'
 import { subscribeToDraftChanges } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-draft-workflow-state'
 import { useWorkflowSourceText, workflowSourceKeys } from '@/hooks/queries/workflow-source'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
@@ -26,8 +16,6 @@ import type { QueuedOperation } from '@/stores/operation-queue/types'
 
 /** Quiet period after the last edit before the source is re-read. */
 const REFRESH_DEBOUNCE_MS = 750
-
-const CODE_VIEW_OPTIONS = { ...TEXT_EDITOR_OPTIONS, readOnly: true, domReadOnly: true }
 
 const WORKFLOW_CODE_DOCS_URL = `${DOCS_URL}/workflows/code`
 
@@ -91,33 +79,6 @@ function useRefreshWhenDraftSettles(workflowId: string | null) {
       unsubscribeQueue()
     }
   }, [workflowId, queryClient])
-}
-
-/**
- * Brings the editor's model to `text` with the one edit that differs, so a refresh keeps the
- * scroll position, cursor and tokens of every unchanged line. Replacing the value instead (what
- * the `value` prop does for a read-only editor) would jump to line 1 and re-tokenize the file.
- */
-function useSyncedModelText(view: editor.IStandaloneCodeEditor | null, text: string) {
-  useEffect(() => {
-    const model = view?.getModel()
-    if (!model) return
-    const edit = minimalTextEdit(model.getValue(), text)
-    if (!edit) return
-    const start = model.getPositionAt(edit.start)
-    const end = model.getPositionAt(edit.end)
-    model.applyEdits([
-      {
-        range: {
-          startLineNumber: start.lineNumber,
-          startColumn: start.column,
-          endLineNumber: end.lineNumber,
-          endColumn: end.column,
-        },
-        text: edit.text,
-      },
-    ])
-  }, [view, text])
 }
 
 interface CodeHeaderProps {
@@ -194,8 +155,6 @@ interface CodeProps {
 /** The workflow draft as read-only TypeScript source. */
 export function Code({ isActive, workflowName }: CodeProps) {
   const { workflowId } = useWorkflowScope()
-  const monacoTheme = useMonacoTheme()
-  const [view, setView] = useState<editor.IStandaloneCodeEditor | null>(null)
   const {
     data: text,
     error,
@@ -204,7 +163,6 @@ export function Code({ isActive, workflowName }: CodeProps) {
     enabled: isActive,
   })
   useRefreshWhenDraftSettles(workflowId)
-  useSyncedModelText(view, text ?? '')
 
   return (
     <div className='flex h-full flex-col'>
@@ -221,15 +179,7 @@ export function Code({ isActive, workflowName }: CodeProps) {
         <div className='px-3 py-2 text-[var(--text-tertiary)] text-small'>Loading code…</div>
       ) : (
         <div className='min-h-0 flex-1'>
-          <MonacoEditor
-            defaultValue={text}
-            language={SOURCE_LANGUAGE_ID}
-            theme={monacoTheme}
-            options={CODE_VIEW_OPTIONS}
-            beforeMount={registerSourceLanguage}
-            onMount={setView}
-            className='h-full'
-          />
+          <CodeEditor value={text} fileName='workflow.ts' readOnly />
         </div>
       )}
     </div>
