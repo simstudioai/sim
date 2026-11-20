@@ -811,6 +811,7 @@ describe('ConditionBlockHandler', () => {
         workspaceId: 'test-workspace-id',
         workflow: parallelWorkflow,
         blockStates: parallelBlockStates,
+        executedBlocks: new Set(parallelBlockStates.keys()),
         blockLogs: [],
         completedBlocks: new Set(),
         decisions: {

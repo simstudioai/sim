@@ -569,7 +569,8 @@ export class ConditionBlockHandler implements BlockHandler {
    * The block whose output the condition evaluates against and passes on: of the blocks with an
    * edge into it (each as its own branch's copy inside a parallel, when that copy ran), the first
    * that ran in this execution, else the first. A condition joining an if/else so reads the
-   * branch that ran, whichever edge was drawn first.
+   * branch that ran, whichever edge was drawn first. "Ran" reads `executedBlocks`, which a loop
+   * clears between iterations; a block state keeps `executed` from earlier iterations.
    */
   private resolveSourceBlockId(
     ctx: ExecutionContext,
@@ -583,7 +584,7 @@ export class ConditionBlockHandler implements BlockHandler {
         const virtualSourceId = buildBranchNodeId(conn.source, branchIndex)
         return ctx.blockStates.has(virtualSourceId) ? virtualSourceId : conn.source
       })
-    return sources.find((id) => ctx.blockStates.get(id)?.executed) ?? sources[0]
+    return sources.find((id) => ctx.executedBlocks.has(id)) ?? sources[0]
   }
 
   private findConnectionForCondition(
