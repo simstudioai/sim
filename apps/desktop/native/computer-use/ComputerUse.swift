@@ -299,6 +299,18 @@ func phoneKey(_ phone: String) -> String {
         return "+*#,;".contains(character) ? character : nil
     })
 }
+/// Whether the contact has a record in this account. A unified contact links records from several
+/// accounts and its own id names no container, so the account's contacts are searched for it too.
+func contactHasRecord(_ store: CNContactStore, _ id: String, in account: String) throws -> Bool {
+    if try store.containers(matching: CNContainer.predicateForContainerOfContact(withIdentifier: id)).first?.identifier == account { return true }
+    let request = CNContactFetchRequest(keysToFetch: [CNContactIdentifierKey as CNKeyDescriptor])
+    request.predicate = CNContact.predicateForContactsInContainer(withIdentifier: account)
+    var found = false
+    try store.enumerateContacts(with: request) { candidate, stop in
+        if candidate.identifier == id { found = true; stop.pointee = true }
+    }
+    return found
+}
 /// The contact with this id, or nil when there is none; any other Contacts failure is thrown, not read as missing.
 func fetchContact(_ store: CNContactStore, _ id: String) throws -> CNContact? {
     do { return try store.unifiedContact(withIdentifier: id, keysToFetch: contactReadKeys) }
@@ -446,9 +458,8 @@ func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -
                 throw ComputerError("list_unavailable", "No contact group has this id; call list_contact_groups.", dispatchState: "not_started")
             }
             // A group's members must live in the group's own account.
-            let groupAccount = try store.containers(matching: CNContainer.predicateForContainerOfGroup(withIdentifier: found.identifier)).first?.identifier
-            let contactAccount = try store.containers(matching: CNContainer.predicateForContainerOfContact(withIdentifier: contact.identifier)).first?.identifier
-            guard groupAccount != nil, groupAccount == contactAccount else {
+            guard let groupAccount = try store.containers(matching: CNContainer.predicateForContainerOfGroup(withIdentifier: found.identifier)).first?.identifier,
+                  try contactHasRecord(store, contact.identifier, in: groupAccount) else {
                 throw ComputerError("group_other_account", "This group is in a different account from the contact; add it in Contacts.", dispatchState: "not_started")
             }
             group = found
