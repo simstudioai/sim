@@ -1,6 +1,6 @@
+import { boundAnswerFindings } from '@sim/workflow-code/diagnostics'
 import { utf8Bytes } from '@sim/workflow-code/limits'
-import type { BlobEntry } from '@sim/workspace-code'
-import { budgetOfPath } from '@sim/workspace-code'
+import { type BlobEntry, budgetOfPath, WORKSPACE_ANSWER_BOUND } from '@sim/workspace-code'
 import { KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { workflowCodec, workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import { kindOfPath } from '@sim/workspace-code/layout'
@@ -8,13 +8,15 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
 import { renderSourceSlotBusy } from '@/lib/workflows/api/source-slots'
 import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
+import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/application/types'
 import { WorkspaceSourceBusyError } from '@/lib/workspace-source/lease/store'
 import { SourceStagingFullError } from '@/lib/workspace-source/staging/store'
 import { v2CaughtOrchestrationError, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
 /**
  * Workspace source routes conceal an unreachable workspace as absent. A refused apply answers its
- * status (`400`, `409` stale, `423` locked, `413` over a limit) with `details.diagnostics`;
+ * status (`400`, `409` stale, `423` locked, `413` over a limit) with `details.diagnostics`,
+ * bounded as every answer's are;
  * `details.code` is `SOURCE_STALE` when a resource changed since the directory was read, else
  * `SOURCE_REJECTED`. An apply while another one writes the workspace answers `409` with
  * `details.code` `SOURCE_BUSY`. Staging past the caller's staging caps answers `413` with
@@ -28,7 +30,7 @@ export const v2WorkspaceSourceErrorPolicy = createV2ResourceConcealmentPolicy({
     if (error instanceof WorkspaceSourceRejectedError) {
       return v2ErrorForOrchestration(error.code, error.message, {
         code: error.stale ? 'SOURCE_STALE' : 'SOURCE_REJECTED',
-        diagnostics: error.diagnostics,
+        diagnostics: boundAnswerFindings(error.diagnostics, WORKSPACE_ANSWER_BOUND),
       })
     }
     if (error instanceof WorkspaceSourceBusyError) {
@@ -40,6 +42,16 @@ export const v2WorkspaceSourceErrorPolicy = createV2ResourceConcealmentPolicy({
     return v2CaughtOrchestrationError(error)
   },
 })
+
+/**
+ * `result` as a workspace source route answers it: its findings bounded once, here at the edge
+ * (`WORKSPACE_ANSWER_BOUND`), whichever kinds and stages they came from.
+ */
+export function withBoundWorkspaceFindings<
+  R extends { diagnostics: readonly WorkspaceSourceDiagnostic[] },
+>(result: R) {
+  return { ...result, diagnostics: boundAnswerFindings(result.diagnostics, WORKSPACE_ANSWER_BOUND) }
+}
 
 /** Non-workflow text bytes (declarations and table rows) one source-write unit covers. */
 const TEXT_BYTES_PER_UNIT = 2_000_000

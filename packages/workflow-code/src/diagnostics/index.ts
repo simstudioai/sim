@@ -1,8 +1,4 @@
-export {
-  boundDiagnostics,
-  boundFindingText,
-  findingsTruncated,
-} from './bound'
+export { type AnswerBound, boundAnswerFindings, boundFindingText } from './bound'
 export {
   type ApplyDiagnosticCode,
   type DiagnosticCode,

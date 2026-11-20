@@ -27,7 +27,6 @@ import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
-  boundFindings,
   finding,
   kindLimitFinding,
   overKindLimit,
@@ -288,7 +287,7 @@ export async function buildWorkspacePlan(
   if (diagnostics.some((finding) => finding.severity === 'error')) {
     return {
       changes: [],
-      diagnostics: boundFindings(diagnostics),
+      diagnostics,
       base,
       needBlobs: [],
       staged: new Map(),
@@ -447,7 +446,7 @@ export async function buildWorkspacePlan(
 
   return {
     changes,
-    diagnostics: boundFindings(diagnostics),
+    diagnostics,
     base,
     needBlobs: blobs.missing,
     staged: blobs.staged,

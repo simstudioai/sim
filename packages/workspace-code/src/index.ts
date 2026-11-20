@@ -13,6 +13,7 @@ export {
   type FlatDiagnostic,
   flattenDiagnostic,
   refusalClass,
+  WORKSPACE_ANSWER_BOUND,
   type WorkspaceDiagnosticCode,
 } from './diagnostics'
 export { fingerprintOf } from './fingerprint'

@@ -385,7 +385,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_WORKFLOW_EXPORT` | Not exactly one `export default workflow(…)`. |
 | `E_LIMIT_EXCEEDED` | Over the block, edge, total-byte, depth or `codeFile()` reference cap (`SOURCE_LIMITS`). Apply answers 413. |
 | `E_TOO_MANY_ERRORS` | The compile stopped after 100 errors; fix those and compile again to see the rest. |
-| `I_FINDINGS_TRUNCATED` | 100 warnings, or 20 of one code, were listed and the rest omitted, so a flood of one finding never hides another. A finding repeated at the same place is listed once. Infos are capped apart (100, the rest dropped), so they never displace a warning, and errors are never displaced by either. An answer that merges findings from several stages is capped the same way as a whole and ends in one more `I_FINDINGS_TRUNCATED` counting what it left out. |
+| `I_FINDINGS_TRUNCATED` | 100 warnings, or 20 of one code, were listed and the rest omitted, so a flood of one finding never hides another. A finding repeated at the same place is listed once. Infos are capped apart (100, the rest dropped), so they never displace a warning, and errors are never displaced by either. An answer that merges findings from several stages is capped the same way as a whole; when that cuts it, it ends in one `I_FINDINGS_TRUNCATED` counting what it left out, in place of the stages' own. |
 | `E_DUPLICATE_NAME` | Two blocks normalize to one key. |
 | `E_RESERVED_NAME` | A block name normalizes to `loop`, `parallel` or `variable`. |
 | `E_KEY_OVERRIDE` | A `meta.key` that is not a legacy key the stored workflow already has. |

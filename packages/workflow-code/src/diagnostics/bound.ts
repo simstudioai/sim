@@ -10,9 +10,10 @@
  */
 import { truncateAtCodePoint } from '@sim/utils/string'
 import { diagnostic } from './factory'
+import { type RefusalClass, refusalClass } from './refusals'
 import type { DiagnosticSeverity } from './severity'
 
-/** The limits {@link boundDiagnostics} applies. */
+/** The limits {@link boundAnswerFindings} applies. */
 export interface FindingLimits {
   /** Findings of one severity. */
   perSeverity: number
@@ -32,7 +33,7 @@ export const FINDING_LIMITS: Readonly<FindingLimits> = {
   textLength: 1_000,
 }
 
-/** The fields {@link boundDiagnostics} reads. */
+/** The fields {@link boundAnswerFindings} reads. */
 interface BoundedFinding {
   code: string
   severity: DiagnosticSeverity
@@ -40,25 +41,27 @@ interface BoundedFinding {
   hint?: string
 }
 
-/** What a bound left out of a list, by severity, with the length of the list it cut. */
+/** What a bound left out of a list, by severity, beside how long the list was. */
 export interface DroppedFindings {
+  /** Findings in the list, the `I_FINDINGS_TRUNCATED` it already carried aside. */
   total: number
   error: number
   warning: number
   info: number
+  /** `I_FINDINGS_TRUNCATED` the list carried, where a stage stopped listing its own findings. */
+  stopped: number
 }
 
-/** How {@link boundDiagnostics} cuts one list. */
-export interface BoundOptions<D, M> {
-  /** The `I_FINDINGS_TRUNCATED` finding that ends a cut list, given what was left out. */
-  marker: (dropped: DroppedFindings) => M
+/** How one answer's findings are bounded. */
+export interface AnswerBound {
   /** Limits beside the defaults ({@link FINDING_LIMITS}). */
   limits?: Partial<FindingLimits>
   /**
-   * Errors kept ahead of the others when errors are cut, such as the codes that class a refusal
-   * (stale, locked, too large), so a cut list still shows why the refusal is classed as it is.
+   * The vocabulary's refusal classifier: errors it classes (stale, locked, too large) are kept
+   * ahead of the other errors when errors are cut, so a cut list still shows why the refusal is
+   * classed as it is. The workflow vocabulary's by default.
    */
-  first?: (finding: D) => boolean
+  classify?: (codes: Iterable<string>) => RefusalClass
 }
 
 const SEVERITY_RANK: Readonly<Record<DiagnosticSeverity, number>> = {
@@ -83,29 +86,54 @@ export function boundFindingText<D extends BoundedFinding>(
   }
 }
 
+/** The `I_FINDINGS_TRUNCATED` that ends a list one answer cut, counting what it left out. */
+function findingsTruncated(dropped: DroppedFindings) {
+  const left = dropped.error + dropped.warning + dropped.info
+  const stopped =
+    dropped.stopped > 0 ? ' Some checks also stopped listing their own findings early.' : ''
+  return diagnostic(
+    'I_FINDINGS_TRUNCATED',
+    `There are ${dropped.total} findings; ${left} more${dropped.error > 0 ? ` (${dropped.error} of them errors)` : ''} are left out.${stopped}`,
+    { hint: 'Fix the findings shown, then check again to see the rest.' }
+  )
+}
+
+/** The `I_FINDINGS_TRUNCATED` a cut list ends in. */
+type TruncationFinding = ReturnType<typeof findingsTruncated>
+
 /**
- * `list` within the limits, in its own order, each finding's text cut (see
- * {@link boundFindingText}). Which findings stay: per severity the first ones, errors before
- * warnings before infos when `total` cuts (and among errors `first` before the rest), and at most
- * `warningsPerCode` warnings of one code. When any is left out the list ends in `marker` of what
- * was; a marker is an info, so cutting a list never refuses it nor changes how it is classed.
+ * `list` as one answer lists it: within the limits, in its own order, each finding's text cut
+ * (see {@link boundFindingText}). Which findings stay: per severity the first ones, errors before
+ * warnings before infos when `total` cuts (and among errors those `classify` classes before the
+ * rest), and at most `warningsPerCode` warnings of one code. A list it cuts ends in one
+ * `I_FINDINGS_TRUNCATED` counting what it left out, in place of any the list carried (where a
+ * stage stopped listing), so an answer never holds a second; a list it does not cut keeps those
+ * as they are. The marker is an info, so cutting a list never refuses it nor changes its class.
  */
-export function boundDiagnostics<D extends BoundedFinding, M extends BoundedFinding>(
+export function boundAnswerFindings<D extends BoundedFinding>(
   list: readonly D[],
-  options: BoundOptions<D, M>
-): Array<D | M> {
-  const limits = { ...FINDING_LIMITS, ...options.limits }
+  bound: AnswerBound = {}
+): Array<D | TruncationFinding> {
+  const limits = { ...FINDING_LIMITS, ...bound.limits }
+  const classify = bound.classify ?? refusalClass
   const rank = (finding: D) =>
     SEVERITY_RANK[finding.severity] * 2 +
-    (finding.severity === 'error' && !(options.first?.(finding) ?? false) ? 1 : 0)
+    (finding.severity === 'error' && classify([finding.code]) === 'validation' ? 1 : 0)
   const order = list
     .map((finding, index) => ({ finding, index }))
+    .filter(({ finding }) => finding.code !== 'I_FINDINGS_TRUNCATED')
     .sort((a, b) => rank(a.finding) - rank(b.finding) || a.index - b.index)
 
   const kept = new Set<number>()
   const bySeverity: Record<DiagnosticSeverity, number> = { error: 0, warning: 0, info: 0 }
   const warningsByCode = new Map<string, number>()
-  const dropped: DroppedFindings = { total: list.length, error: 0, warning: 0, info: 0 }
+  const dropped: DroppedFindings = {
+    total: order.length,
+    error: 0,
+    warning: 0,
+    info: 0,
+    stopped: list.length - order.length,
+  }
   for (const { finding, index } of order) {
     const ofCode = finding.severity === 'warning' ? (warningsByCode.get(finding.code) ?? 0) : 0
     if (
@@ -121,22 +149,8 @@ export function boundDiagnostics<D extends BoundedFinding, M extends BoundedFind
     if (finding.severity === 'warning') warningsByCode.set(finding.code, ofCode + 1)
   }
 
-  const listed: Array<D | M> = list.flatMap((finding, index) =>
-    kept.has(index) ? [boundFindingText(finding, limits.textLength)] : []
-  )
-  if (kept.size === list.length) return listed
-  return [...listed, boundFindingText(options.marker(dropped), limits.textLength)]
-}
-
-/**
- * The `I_FINDINGS_TRUNCATED` that ends a cut list of workflow source findings, counting what it
- * left out.
- */
-export function findingsTruncated(dropped: DroppedFindings) {
-  const left = dropped.error + dropped.warning + dropped.info
-  return diagnostic(
-    'I_FINDINGS_TRUNCATED',
-    `There are ${dropped.total} findings; ${left} more${dropped.error > 0 ? ` (${dropped.error} of them errors)` : ''} are left out.`,
-    { hint: 'Fix the findings shown, then check again to see the rest.' }
-  )
+  const bounded = (finding: D) => boundFindingText(finding, limits.textLength)
+  if (kept.size === order.length) return list.map(bounded)
+  const listed = list.flatMap((finding, index) => (kept.has(index) ? [bounded(finding)] : []))
+  return [...listed, boundFindingText(findingsTruncated(dropped), limits.textLength)]
 }

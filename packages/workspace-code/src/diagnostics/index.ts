@@ -8,6 +8,7 @@ export {
   MAX_FINDINGS_PER_FILE,
   resourceOf,
   sourceLocator,
+  WORKSPACE_ANSWER_BOUND,
   type WorkspaceDiagnostic,
   wholeFile,
 } from './finding'

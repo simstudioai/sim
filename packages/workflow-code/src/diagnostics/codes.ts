@@ -51,7 +51,8 @@ const COMPILE_SYNTAX_CODES = [
 /**
  * The one truncation marker, in every vocabulary: a list of findings was cut, and this info ends
  * it. The compile records it where its warning caps (`FINDING_LIMITS`) leave the next warning (of
- * that code) out; an answer's list (`boundDiagnostics`) ends in one that counts what it left out.
+ * that code) out; an answer's list it cuts (`boundAnswerFindings`) ends in one that counts what it
+ * left out, in place of the compile's.
  * Informational: the findings it follows decide whether a write is refused.
  */
 const TRUNCATION_CODES = ['I_FINDINGS_TRUNCATED'] as const

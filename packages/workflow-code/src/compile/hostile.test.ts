@@ -208,6 +208,30 @@ describe('hostile sources produce diagnostics only', () => {
     expect(capped?.frame).toBeUndefined()
   })
 
+  it('records one I_FINDINGS_TRUNCATED however many warnings come past the total cap', () => {
+    const reporter = new Reporter()
+    reporter.addFile('w.ts', 'x')
+    const at = { file: 'w.ts', start: 0, end: 1 }
+    // Spread over enough codes that none reaches its own cap before the total cap.
+    const spread = [
+      'W_SUBFLOW_COUNT',
+      'W_FORWARD_REF',
+      'W_VALUE_KIND',
+      'W_OUT_OF_RANGE',
+      'W_UNKNOWN_OPTION',
+      'W_REQUIRED_MISSING',
+      'W_ENV_UNKNOWN',
+      'W_REF_NOT_NORMALIZED',
+    ] as const
+    expect(FINDING_LIMITS.perSeverity / spread.length).toBeLessThan(FINDING_LIMITS.warningsPerCode)
+    for (let i = 0; i < FINDING_LIMITS.perSeverity + 50; i++) {
+      reporter.report(spread[i % spread.length], `x${i}`, at)
+    }
+
+    const markers = reporter.diagnostics.filter((d) => d.code === 'I_FINDINGS_TRUNCATED')
+    expect(markers).toHaveLength(1)
+  })
+
   it('checks the precision of a 100 KB numeric literal in linear time', () => {
     const source = (zeros: number) =>
       wrap(`const a = api('A', { url: 'x', timeout: 0.1${'0'.repeat(zeros)}1 })`)

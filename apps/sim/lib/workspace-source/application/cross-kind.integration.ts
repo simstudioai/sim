@@ -78,6 +78,7 @@ import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { duplicateWorkflow } from '@/lib/workflows/application/duplicate-workflow'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
+import { withBoundWorkspaceFindings } from '@/lib/workspace-source/api/route-policies'
 import {
   type ApplyWorkspaceSourceInput,
   type ApplyWorkspaceSourceResult,
@@ -1168,8 +1169,9 @@ export default workflow('Big', {}, () => {
       })
     )
 
-    expect(planned.diagnostics).toHaveLength(1_001)
-    expect(planned.diagnostics.at(-1)).toMatchObject({
+    const answered = withBoundWorkspaceFindings(planned).diagnostics
+    expect(answered).toHaveLength(1_001)
+    expect(answered.at(-1)).toMatchObject({
       code: 'I_FINDINGS_TRUNCATED',
       severity: 'info',
       message: expect.stringContaining('500 more (500 of them errors)'),
@@ -1205,7 +1207,7 @@ export default workflow('Big', {}, () => {
   })
 
   check(
-    'a plan over 1000 info findings still applies, and keeps every warning ahead of the infos',
+    'a plan over 1000 info findings still applies, and its answer keeps every warning while it cuts infos',
     async () => {
       const workspaceId = await newWorkspace()
       const notes = Array.from(
@@ -1238,8 +1240,9 @@ export default workflow('Secret', {}, () => {
       expect(codes(result.diagnostics)).toEqual([])
       expect(result.failed).toBeUndefined()
       expect(result.applied).toHaveLength(6)
-      expect(codes(result.diagnostics, 'warning')).toContain('W_LITERAL_SECRET')
-      expect(codes(result.diagnostics, 'info')).toContain('I_FINDINGS_TRUNCATED')
+      const answered = withBoundWorkspaceFindings(result).diagnostics
+      expect(codes(answered, 'warning')).toContain('W_LITERAL_SECRET')
+      expect(codes(answered, 'info')).toContain('I_FINDINGS_TRUNCATED')
     }
   )
 

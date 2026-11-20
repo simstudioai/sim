@@ -6,13 +6,14 @@ import {
   type SourceSpan,
 } from '@sim/workflow-code'
 import {
+  type AnswerBound,
   boundFindingText,
   type DiagnosticSeverity,
   type SeverityOf,
   diagnostic as sharedDiagnostic,
 } from '@sim/workflow-code/diagnostics'
 import type { WorkspaceKind } from '../kind'
-import type { WorkspaceDiagnosticCode } from './codes'
+import { refusalClass, type WorkspaceDiagnosticCode } from './codes'
 
 /** The resource a finding is about: the CLI joins a finding to its planned change by both. */
 export interface FindingResource {
@@ -57,8 +58,8 @@ export function findingLimitReached(extras: DiagnosticExtras = {}): WorkspaceDia
 
 /**
  * A workspace finding with its severity filled in from the code. Its message and hint are cut as
- * the compile cuts its own (`boundFindingText`), so a finding never holds more of the source it
- * quotes than an answer could show.
+ * the compile cuts its own (`boundFindingText`): a limit that stops work, so a finding never holds
+ * more of the source it quotes (a 50 KB key, a hundred times in one file) than an answer could show.
  */
 export function diagnostic<C extends WorkspaceDiagnosticCode>(
   code: C,
@@ -66,6 +67,21 @@ export function diagnostic<C extends WorkspaceDiagnosticCode>(
   extras: DiagnosticExtras = {}
 ): WorkspaceDiagnostic<C> {
   return boundFindingText(sharedDiagnostic(code, message, extras)) as WorkspaceDiagnostic<C>
+}
+
+/**
+ * How one workspace answer bounds its findings (`boundAnswerFindings`): at most 1,000, errors
+ * first and those of a classed refusal (stale, locked, too large) first of all, then warnings,
+ * then infos. No per-severity or per-code cap: a status reads every server-change finding of the
+ * resources it lists.
+ */
+export const WORKSPACE_ANSWER_BOUND: AnswerBound = {
+  limits: {
+    total: 1_000,
+    perSeverity: Number.POSITIVE_INFINITY,
+    warningsPerCode: Number.POSITIVE_INFINITY,
+  },
+  classify: refusalClass,
 }
 
 /** Spans and code frames in one file, splitting its lines once however many it locates. */
