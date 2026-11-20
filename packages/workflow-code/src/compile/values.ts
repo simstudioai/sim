@@ -857,9 +857,14 @@ export function checkDynamicOutputRefs(
  * that names no block (a block's ident, a renamed block's old key, a typo) or a variable that does
  * not exist is `W_UNRESOLVED_REF`, and a path no output has is `W_UNKNOWN_OUTPUT_PATH`. Warnings,
  * not errors, because stored code may already hold a dangling reference and must round-trip; at
- * run time such a token is spliced into the code as text, which fails as JavaScript.
+ * run time such a token is spliced into the code as text, which fails as JavaScript. A head that
+ * is the stored key of a block the source renamed (`renamed`, stored key → source key) resolves:
+ * an apply rewrites it to the new key, so its path is checked against the renamed block.
  */
-export function checkCodeFileRefs(ctx: CompileContext): void {
+export function checkCodeFileRefs(
+  ctx: CompileContext,
+  renamed: ReadonlyMap<BlockKey, BlockKey>
+): void {
   for (const { path, blockKey, refs } of ctx.codeFiles.chains) {
     for (const ref of refs) {
       const at: Range = { file: path, start: ref.start, end: ref.end }
@@ -887,7 +892,10 @@ export function checkCodeFileRefs(ctx: CompileContext): void {
         continue
       }
       if (isReservedWorkflowBlockName(head.name)) continue
-      const target = ctx.declsByKey.get(head.name)
+      const renamedTo = renamed.get(head.name)
+      const target =
+        ctx.declsByKey.get(head.name) ??
+        (renamedTo === undefined ? undefined : ctx.declsByKey.get(renamedTo))
       if (target) {
         checkOutputPath(ctx, at, target, rest, blockKey)
         continue

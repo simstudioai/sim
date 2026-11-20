@@ -4,10 +4,13 @@ import { workflowBlocks } from '@sim/db/schema'
 import { isRecordLike } from '@sim/utils/object'
 import {
   type BlockCatalog,
+  type CanonicalBlock,
   type CanonicalWorkflow,
   type CanonicalWorkflowMeta,
+  type CompileResult,
   canonicalize,
   canonicalizeUnderLock,
+  compileWorkflow,
   type Diagnostic,
   diffCanonical,
   encodeAnchor,
@@ -20,6 +23,7 @@ import {
   renamesBetween,
   type SourceBase,
   type SourceHints,
+  type SourceSpan,
   type WorkflowLockBlock,
   type WorkflowLockV1,
   type WorkflowSourceMetaV1,
@@ -229,6 +233,102 @@ function withoutPendingReferences(
   }
 }
 
+/**
+ * `lint` without the block-output references compile already reported in a function's code
+ * file (`W_UNRESOLVED_REF` on that block, located at the file line): the same dangling `$ref`
+ * is one warning there, as an offline check reports it, not also a lint error on the
+ * `codeFile()` call.
+ */
+function withoutCodeFileReferences(
+  lint: WorkflowLintReport,
+  compiled: CompileResult['diagnostics'],
+  keyOf: (id: string) => string | undefined
+): WorkflowLintReport {
+  const reported = new Set(
+    compiled.flatMap((diagnostic) =>
+      diagnostic.code === 'W_UNRESOLVED_REF' &&
+      diagnostic.blockKey !== undefined &&
+      diagnostic.span.file !== SOURCE_ENTRY_FILE
+        ? [diagnostic.blockKey]
+        : []
+    )
+  )
+  if (reported.size === 0) return lint
+  return {
+    ...lint,
+    unresolvedReferences: lint.unresolvedReferences.filter((reference) => {
+      const key = keyOf(reference.blockId)
+      return !(
+        reference.kind === 'block-output' &&
+        reference.field === 'code' &&
+        key !== undefined &&
+        reported.has(key)
+      )
+    }),
+  }
+}
+
+/**
+ * `diagnostics` without the code-file `W_UNRESOLVED_REF` findings a block rename resolves: an
+ * apply rewrites every `<old key.path>` to the new key, so `$ref.<old key>` runs. The compile
+ * already knew the renames the lock names by ident; a rename materialize inferred (name and
+ * const both changed) is known only now, so the source is compiled again with every rename and
+ * a finding stays only where that compile still reports it.
+ */
+function withoutRenamedCodeFileRefs(
+  diagnostics: CompileResult['diagnostics'],
+  renames: ReadonlyMap<string, string>,
+  recompile: () => CompileResult
+): CompileResult['diagnostics'] {
+  if (renames.size === 0 || !diagnostics.some((d) => d.code === 'W_UNRESOLVED_REF')) {
+    return diagnostics
+  }
+  const at = (d: CompileResult['diagnostics'][number]) =>
+    `${d.span.file}:${d.span.line}:${d.span.column}`
+  const still = new Set(
+    recompile()
+      .diagnostics.filter((d) => d.code === 'W_UNRESOLVED_REF')
+      .map(at)
+  )
+  return diagnostics.filter((d) => d.code !== 'W_UNRESOLVED_REF' || still.has(at(d)))
+}
+
+/** Names in a refusal, the first ten and a count of the rest. */
+function listNames(names: readonly string[]): string {
+  const shown = names.slice(0, 10).join(', ')
+  return names.length > 10 ? `${shown}, and ${names.length - 10} more` : shown
+}
+
+/**
+ * `E_APPLY_BLOCK_DELETE` for the stored blocks an apply removes. When the source adds blocks of
+ * a removed block's type, they may be renames whose name and const both changed, which no rule
+ * could tie to the stored blocks (several alike, and none reads as the one renamed): the finding
+ * names them and says how to keep the ids, instead of offering to delete.
+ */
+function blockDeleteRefusal(
+  removed: readonly CanonicalBlock[],
+  added: readonly CanonicalBlock[],
+  span: SourceSpan | undefined
+): Diagnostic {
+  const removedTypes = new Set(removed.map((block) => block.type))
+  const lookalikes = added.filter((block) => removedTypes.has(block.type))
+  const deletes = `This apply deletes ${removed.length} block${removed.length === 1 ? '' : 's'} the source no longer declares: ${listNames(removed.map((block) => block.name))}.`
+  return {
+    code: 'E_APPLY_BLOCK_DELETE',
+    severity: 'error',
+    ...(lookalikes.length > 0
+      ? {
+          message: `${deletes} It adds ${listNames(lookalikes.map((block) => block.name))} of the same type: if those are the same blocks renamed, both their name and const changed, so nothing ties them to the stored blocks and they would get new ids.`,
+          hint: 'To rename a block and keep its id, change its name or its const in one apply and the other in the next (the lock binds a block by either); or declare the removed blocks again.',
+        }
+      : {
+          message: deletes,
+          hint: 'Pass --allow-delete (allowDelete=true) to delete them, or declare them again to keep them.',
+        }),
+    ...(span ? { span } : {}),
+  }
+}
+
 /** Everything a commit (or a dry run) writes and reports, once every check passed. */
 export interface SourcePlan {
   /**
@@ -411,7 +511,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     input.storedCanonical.canonical,
     lock
   )
-  const compiled = compileSource({
+  const compileInput = {
     entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
     files: new Map(Object.entries(files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
     catalog,
@@ -420,10 +520,9 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       ...Object.keys(lock.blocks),
       ...Object.keys(storedCanonical.identity.blocks),
     ]),
-    stored: storedCanonical.workflow,
-    lock,
     envNames: input.envNames,
-  })
+  }
+  const compiled = compileSource({ ...compileInput, stored: storedCanonical.workflow, lock })
   const compiledWorkflow = compiled.workflow
   if (!compiledWorkflow || hasErrors(compiled.diagnostics)) {
     const refused: Diagnostic[] = [...compiled.diagnostics]
@@ -609,10 +708,15 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
    * so a field source never prints (a forEach loop's empty while condition, a pair's stored
    * member) that materialize keeps from the stored block is no change.
    */
+  const blockRenames = renamesBetween(storedCanonical.identity, materialized.identity)
   const canonicalDiff = diffCanonical(
     storedCanonical.workflow,
     { ...materialized.workflow, meta: storedCanonical.workflow.meta },
-    renamesBetween(storedCanonical.identity, materialized.identity)
+    blockRenames
+  )
+  const renamedKeys = new Map([...blockRenames].map(([key, storedKey]) => [storedKey, key]))
+  const compileDiagnostics = withoutRenamedCodeFileRefs(compiled.diagnostics, renamedKeys, () =>
+    compileWorkflow({ ...compileInput, stored: compiled.stored, renamedKeys })
   )
   const sourceRefusals: Diagnostic[] = []
   const headerSpan = compiled.spans[encodeAnchor({ kind: 'header' })]
@@ -641,15 +745,13 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   )
   const removedKeys = isNew ? [] : canonicalDiff.blocks.removed
   if (removedKeys.length > 0 && !input.allowDelete) {
-    const names = removedKeys.map((key) => storedCanonical.workflow.blocks[key]?.name ?? key)
-    const shown = names.slice(0, 10).join(', ')
-    sourceRefusals.push({
-      code: 'E_APPLY_BLOCK_DELETE',
-      severity: 'error',
-      message: `This apply deletes ${removedKeys.length} block${removedKeys.length === 1 ? '' : 's'} the source no longer declares: ${shown}${names.length > 10 ? `, and ${names.length - 10} more` : ''}.`,
-      hint: 'Pass --allow-delete (allowDelete=true) to delete them, or declare them again to keep them.',
-      ...(headerSpan ? { span: headerSpan } : {}),
-    })
+    sourceRefusals.push(
+      blockDeleteRefusal(
+        removedKeys.map((key) => storedCanonical.workflow.blocks[key]),
+        canonicalDiff.blocks.added.map((key) => materialized.workflow.blocks[key]),
+        headerSpan
+      )
+    )
   }
 
   const storedGraph: SourceGraph = { blocks: state.blocks, edges: state.edges }
@@ -718,13 +820,17 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   )
   const changedIds = new Set([...graphDiff.added, ...graphDiff.modified.map((m) => m.id)])
   const diagnostics = [
-    ...compiled.diagnostics,
+    ...compileDiagnostics,
     ...keptDiagnostics,
     ...materializeDiagnostics,
     ...refusals,
     ...normalized.diagnostics,
     ...lintDiagnostics(
-      withoutPendingReferences(lint, input.pendingResources ?? []),
+      withoutCodeFileReferences(
+        withoutPendingReferences(lint, input.pendingResources ?? []),
+        compileDiagnostics,
+        (id) => keyById.get(id)
+      ),
       changedIds,
       (id) => keyById.get(id)
     ),

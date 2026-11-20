@@ -83,6 +83,13 @@ export interface CompileInput {
    */
   storedUnreadEdges?: ReadonlyArray<StoredEdgeRef>
   /**
+   * Stored block keys the source renamed, stored key → source key (`lockIdentRenames`, which the
+   * server computes against `stored`; with `storedUnread` the compile computes them itself). An
+   * apply rewrites every `<stored.path>` to the new key, so a code file's `$ref.<stored key>`
+   * still resolves and is checked against the renamed block instead of warning.
+   */
+  renamedKeys?: ReadonlyMap<BlockKey, BlockKey>
+  /**
    * The env variable names a run resolves (the workspace's plus the caller's personal ones).
    * `env.NAME` outside it compiles with `W_ENV_UNKNOWN`; absent, no name is checked.
    */
@@ -615,7 +622,11 @@ function compileEntry(
     })
   }
 
-  checkCodeFileRefs(ctx)
+  const unread = input.stored === undefined ? input.storedUnread : undefined
+  const unreadRenames = unread
+    ? lockIdentRenames(hints, unread, (key) => Object.hasOwn(unread.blocks, key))
+    : new Map<BlockKey, BlockKey>()
+  checkCodeFileRefs(ctx, new Map([...unreadRenames, ...(input.renamedKeys ?? [])]))
 
   const refTypes: RefTypeScope = {
     catalog: input.catalog,
@@ -641,16 +652,13 @@ function compileEntry(
 
   checkDynamicOutputRefs(ctx, (key) => compiled.get(key))
 
-  const unread = input.stored === undefined ? input.storedUnread : undefined
   const edges = new EdgeCollector(
     ctx,
     compiled,
     unread && {
       lockKeys: new Map([
         ...Object.keys(unread.blocks).map((key) => [key, key] as const),
-        ...[...lockIdentRenames(hints, unread, (key) => Object.hasOwn(unread.blocks, key))].map(
-          ([lockKey, key]) => [key, lockKey] as const
-        ),
+        ...[...unreadRenames].map(([lockKey, key]) => [key, lockKey] as const),
       ]),
       ...(input.storedUnreadEdges
         ? {
