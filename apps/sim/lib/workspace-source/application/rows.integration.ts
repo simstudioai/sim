@@ -15,6 +15,7 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
@@ -1144,7 +1145,7 @@ export default defineTable({
           .from(userTableRows)
           .where(and(eq(userTableRows.tableId, table.id), sql`${userTableRows.data} ? ${tierId}`))
         if (holding === 0) break
-        await new Promise((resolve) => setTimeout(resolve, 100))
+        await sleep(100)
       }
 
       const planned = await apply(workspaceId, dropped.files, {
