@@ -255,6 +255,40 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
     expect(mocks.apply).not.toHaveBeenCalled()
   })
 
+  it('refuses a provenance repo carrying credentials in any form before applying, so none reaches the audit log', async () => {
+    const credentialed = [
+      'https://x-access-token:ghp_x@github.com/a/b.git',
+      'https://ghp_x@github.com/a/b.git',
+      ' https://ghp_x@github.com/a/b.git',
+      '\thttps://ghp_x@github.com/a/b.git',
+      'git+https://ghp_x@github.com/a/b.git',
+      'https://github.com/a/b.git?access_token=ghp_x',
+      'https://u:pa/ss@github.com/a/b.git',
+      'ssh://git:secret@github.com/a/b.git',
+      'user:secret@github.com:a/b.git',
+    ]
+    for (const repo of credentialed) {
+      const response = await POST(
+        applyRequest({ ...applyBody, provenance: { client: 'cli', repo } }),
+        context
+      )
+      expect({ repo, status: response.status }).toEqual({ repo, status: 400 })
+    }
+    expect(mocks.apply).not.toHaveBeenCalled()
+
+    for (const repo of [
+      'https://github.com/a/b.git',
+      'ssh://git@github.com/a/b.git',
+      'git@github.com:a/b.git',
+    ]) {
+      const response = await POST(
+        applyRequest({ ...applyBody, provenance: { client: 'cli', repo } }),
+        context
+      )
+      expect({ repo, status: response.status }).toEqual({ repo, status: 200 })
+    }
+  })
+
   it('passes x- extension fields on the lock, its blocks and their layout through to apply', async () => {
     const lock = {
       ...source.lock,
