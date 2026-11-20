@@ -48,7 +48,7 @@ export const relevanceAiProfile: CompetitorProfile = {
     {
       question: 'Can I self-host Relevance AI, or do I need a platform like Sim?',
       answer:
-        "Relevance AI cannot be self-hosted: it runs as a multi-tenant hosted service, its security page says single-tenant options are still in the works, and its code is not published. Sim's core is Apache 2.0 licensed and can be self-hosted with Docker Compose or Kubernetes (Helm), so your team runs the whole platform. Relevance AI's answer to data location is a region choice at signup (US, EU, or Australia), which cannot be changed later.",
+        "Relevance AI cannot be self-hosted: it runs as a multi-tenant hosted service, its security page says single-tenant options are still in the works, and its code is not published. Sim's core is Apache 2.0 licensed and can be self-hosted with Docker Compose or Kubernetes (Helm), so your team runs the whole platform. Relevance AI's answer to data location is a region choice at signup (US, EU, or Australia); changing it afterwards means contacting support.",
     },
     {
       question: 'How does Relevance AI pricing compare to Sim?',
@@ -154,8 +154,8 @@ export const relevanceAiProfile: CompetitorProfile = {
       shortDescription:
         'SSO, RBAC, audit logs, and evals need Enterprise; RBAC is still rolling out.',
       source: {
-        url: 'https://relevanceai.com/docs/get-started/pricing',
-        label: 'Pricing | Relevance AI Docs',
+        url: 'https://relevanceai.com/docs/enterprise/rbac',
+        label: 'Role-based access controls (RBAC) | Relevance AI Docs',
         asOf: '2026-11-19',
       },
     },
