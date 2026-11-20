@@ -198,7 +198,7 @@ case "$group" in
     export WORKFLOW_CODE=true
     export PEOPLE=true
     export CRON_SECRET=people-directory-sync-local-e2e-secret
-    start_browser_install people chromium
+    start_browser_install people --only-shell chromium
     start_app scim 3017 SCIM record-http-status
     wait_for_browsers
     export PEOPLE_E2E_SCREENSHOT_DIR="$report_dir/people-ui-report.json.artifacts"
