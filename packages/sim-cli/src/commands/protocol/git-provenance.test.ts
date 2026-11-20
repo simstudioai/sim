@@ -57,6 +57,7 @@ describe('gitProvenance', () => {
       'https:/ghp_x@github.com/acme/flows.git',
       'deploy:secret@github.com:acme/flows.git',
       'git@github.com:acme/flows.git#ghp_x',
+      '/srv/shared repos/flows.git',
     ]) {
       git('remote', 'set-url', 'origin', remote)
 

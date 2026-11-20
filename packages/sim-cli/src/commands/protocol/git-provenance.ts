@@ -38,13 +38,14 @@ function git(dir: string, args: readonly string[]): Promise<string | null> {
  * A remote URL with its credentials, query and fragment dropped (`https://token@host/x` →
  * `https://host/x`); an scp-style address (`git@host:org/repo.git`) carries none and is kept.
  * `null` for one too long to record, or another address the server would refuse as carrying
- * credentials: a query or fragment, a `scheme:/` form with a user, or a user with a password.
+ * credentials: whitespace or a control character (a local path with a space), a query or
+ * fragment, a `scheme:/` form with a user, or a user with a password.
  */
 function sanitizedRepoUrl(remote: string): string | null {
   let repo = remote
   if (!remote.includes('://')) {
     if (
-      /[?#\s]/.test(remote) ||
+      /[?#\s\p{Cc}]/u.test(remote) ||
       /^[a-z][a-z0-9+.-]*:\/*[^/@]*@/i.test(remote) ||
       /^[^@/]*:[^@/]*@/.test(remote)
     ) {
