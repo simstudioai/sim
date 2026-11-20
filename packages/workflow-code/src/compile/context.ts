@@ -288,7 +288,8 @@ export function reportNotImported(
 
 /**
  * Reports an identifier `scope` does not bind: `E_OUT_OF_SCOPE` when a block inside another loop or
- * parallel holds the name, else `E_UNKNOWN_IDENTIFIER` with a did-you-mean over the visible names.
+ * parallel holds the name, else `E_UNKNOWN_IDENTIFIER` with a did-you-mean over the visible names
+ * (an SDK export not imported names the import, after any did-you-mean).
  * `at` is what the out-of-scope error covers (a whole member chain for a reference). Returns `null`.
  */
 export function reportUnresolvedIdentifier(
@@ -311,7 +312,22 @@ export function reportUnresolvedIdentifier(
     return null
   }
   if (isSdkImportable(ctx, identifier.name)) {
-    return reportNotImported(ctx, 'E_UNKNOWN_IDENTIFIER', identifier.name, identifier, blockKey)
+    // A read of `agent` beside a block named agent1 is a typo of the handle more often than a
+    // missing import: the did-you-mean leads, and the import is the second clause.
+    const near = didYouMean(identifier.name, visibleNames(scope))
+    if (!near) {
+      return reportNotImported(ctx, 'E_UNKNOWN_IDENTIFIER', identifier.name, identifier, blockKey)
+    }
+    ctx.reporter.report(
+      'E_UNKNOWN_IDENTIFIER',
+      `${identifier.name} is not defined.`,
+      rangeOf(ctx, identifier),
+      {
+        hint: `${near} (${identifier.name} is also an SDK export, which needs adding to the import from '${SDK_MODULE}'.)`,
+        blockKey,
+      }
+    )
+    return null
   }
   ctx.reporter.report(
     'E_UNKNOWN_IDENTIFIER',

@@ -522,6 +522,29 @@ describe('an SDK export the file did not import', () => {
       }))
     )
   })
+
+  it('suggests the block handle a read of an unimported SDK name is close to, before the import', () => {
+    const result = compileWith(
+      'fn, js, trigger, workflow',
+      [
+        START,
+        "const api1 = fn('Api', { code: 'return 1' })",
+        "const next = fn('Next', { code: js`return ${api.result}` })",
+        'start.to(api1)',
+        'api1.to(next)',
+      ].join('\n')
+    )
+    expect(
+      result.diagnostics
+        .filter((d) => d.severity === 'error')
+        .map((d) => ({ message: d.message, hint: d.hint }))
+    ).toEqual([
+      {
+        message: 'api is not defined.',
+        hint: "Did you mean api1? (api is also an SDK export, which needs adding to the import from '@sim/workflow-sdk'.)",
+      },
+    ])
+  })
 })
 
 describe('a misspelled required param', () => {
