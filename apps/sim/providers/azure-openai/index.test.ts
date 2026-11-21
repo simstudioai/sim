@@ -256,7 +256,12 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       expect('stream' in result).toBe(true)
       if (!('stream' in result)) throw new Error('Expected streaming execution')
       expect(result.execution.output.content).toBe('done')
-      expect(result.execution.output.tokens).toEqual({ input: 6, output: 3, total: 9 })
+      expect(result.execution.output.tokens).toEqual({
+        input: 6,
+        output: 3,
+        cacheRead: 0,
+        total: 9,
+      })
       expect(result.execution.output.providerTiming?.iterations).toBe(2)
       expect(
         result.execution.output.providerTiming?.timeSegments?.filter(
