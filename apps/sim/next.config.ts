@@ -166,6 +166,11 @@ const nextConfig: NextConfig = {
      */
     turbopackFileSystemCacheForDev: true,
     /**
+     * Off, explicitly: Next enables it by default, and a CI build compiles code its cache has
+     * never seen, so it only pays for writing the cache back (15-37s) on a disk that is discarded.
+     */
+    turbopackFileSystemCacheForBuild: false,
+    /**
      * TypeScript 7 ships no JavaScript compiler API until 7.1, so Next's default
      * checker cannot load it — this shells out to the project-local `tsc` instead.
      * Pinned because the failure mode is not slower type checking but none at all:
