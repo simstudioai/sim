@@ -62,7 +62,27 @@ const FILE_EDIT_HELP =
  * shape guessable, the same way `TABLE_FILTER_HELP` does for the predicate.
  */
 const WORKFLOW_OPERATIONS_HELP =
-  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"success":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId. To move an existing block into a loop or parallel (keeping its id), edit it with params {"parentId":"<loop-id>"}; {"parentId":null} moves it out'
+  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"source":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId. To move an existing block into a loop or parallel (keeping its id), edit it with params {"parentId":"<loop-id>"}; {"parentId":null} moves it out'
+/** How `--operations` wires and unwires edges, and what a rename rewrites. */
+const WORKFLOW_OPERATIONS_GUIDE = `
+Edges:
+  connections maps a source handle to its targets: {"source":"<id>"}, {"source":["<a>","<b>"]},
+  or {"source":{"block":"<id>","handle":"<target handle>"}}; "success" is an alias of "source".
+  An add's connections create the new block's edges. An edit's connections REPLACE every
+  outgoing edge of that block, on every handle: list again each edge to keep.
+  To remove one edge, edit its source block with
+  {"removeEdges":[{"targetBlockId":"<id>","sourceHandle":"source"}]} (sourceHandle defaults to
+  "source").
+Source handles:
+  source               the normal path
+  error                a failure (a block that has an error output)
+  if, else-if-0, else  a condition's branches, in order (else-if-1, … for more)
+  route-0, route-1, …  a router's routes, in order
+  loop-start-source    a loop into its body; loop-end-source after the loop
+  parallel-start-source, parallel-end-source  the same for a parallel
+Renames:
+  An edit's {"name":"New name"} also rewrites every <old key.field> reference to the block, in
+  other blocks' inputs and in a loop's or parallel's collection and condition.`
 const WORKFLOW_SET_BLOCK_ENABLED_HELP =
   'Blocks to enable or disable, applied after --operations: [{"block_id":"<uuid>","enabled":false}]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined'
 const WORKFLOW_VARIABLE_OPERATIONS_HELP =
@@ -680,6 +700,7 @@ export const CLI_CONTRACT: CliContract = {
   applyWorkflowOperations: {
     command: 'workflows operations apply',
     describe: 'Edit a workflow’s blocks, connections and settings with a batch of operations',
+    helpText: WORKFLOW_OPERATIONS_GUIDE,
     confirm:
       'This edits the draft graph: the batch adds, edits, or deletes blocks and their edges as written.',
     flags: {

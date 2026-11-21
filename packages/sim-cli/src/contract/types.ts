@@ -300,6 +300,8 @@ export interface CommandSpec {
   variants?: readonly CommandVariantSpec[]
   /** One-line help. Falls back to the OpenAPI summary for the operation. */
   describe?: string
+  /** Prose `--help` prints after the options: how the fields combine, where one flag cannot say. */
+  helpText?: string
   /** Per-field flag overrides, keyed by the contract's field name. */
   flags?: Record<string, FlagSpec>
   /** Friendly mutually-exclusive flags for an otherwise opaque union body. */
