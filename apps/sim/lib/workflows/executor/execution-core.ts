@@ -1187,6 +1187,7 @@ async function executeWorkflowCoreImpl(
       })
       processedInput = await redactObjectStrings(processedInput, inputOpts)
     }
+    executorInput = processedInput
 
     if (piiRedaction.blockOutputs.enabled) {
       // Resume / run-from-block restore prior block outputs into state. If those
@@ -1364,7 +1365,6 @@ async function executeWorkflowCoreImpl(
       }
     }
 
-    executorInput = processedInput
     const executorInstance = new Executor({
       workflow: serializedWorkflow,
       envVarValues: decryptedEnvVars,

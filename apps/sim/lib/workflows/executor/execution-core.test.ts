@@ -1097,6 +1097,31 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       }
     )
 
+    it('logs the redacted input of a run that fails after its input stage, before it runs', async () => {
+      const state = createRestoredState(createManifest())
+      state.blockStates = { previous: { output: { result: 'restored alice@example.com' } } }
+      maskBatchMock
+        .mockImplementationOnce(async (texts: string[]) => ({
+          masked: texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>')),
+          scrubbedCount: 0,
+        }))
+        .mockRejectedValue(new Error('PII service unavailable'))
+
+      await expect(
+        executeWorkflowCore({
+          snapshot: createPiiSnapshot(state, { email: 'alice@example.com' }),
+          callbacks: {},
+          loggingSession: loggingSession as unknown as LoggingSession,
+        })
+      ).rejects.toThrow()
+
+      expect(executorExecuteMock).not.toHaveBeenCalled()
+      expect(safeCompleteWithErrorMock).toHaveBeenCalledOnce()
+      expect(safeCompleteWithErrorMock.mock.calls[0]?.[0]?.workflowInput).toEqual({
+        email: '<EMAIL_ADDRESS>',
+      })
+    })
+
     it.each([
       ['another workspace', 'workspace-2', 'workflow-1', 'source-execution'],
       ['another workflow', 'workspace-1', 'workflow-2', 'source-execution'],
