@@ -271,6 +271,8 @@ describe('useWorkspaceFileContent stale storage key', () => {
     const refetchQueries = vi.spyOn(queryClient, 'refetchQueries')
 
     await vi.waitFor(() => expect(refetchQueries).toHaveBeenCalled())
+    // Settled, so a fetch or refetch that would follow the first one has had its chance to show.
+    await vi.waitFor(() => expect(queryClient.isFetching()).toBe(0))
 
     expect(fetchCount).toBe(1)
     expect(refetchQueries).toHaveBeenCalledWith(
