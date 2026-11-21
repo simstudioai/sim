@@ -286,6 +286,10 @@ Migrations are Drizzle SQL files plus registered script (data) migrations, appli
 - **Kubernetes** — an **init container on the app Deployment**. Every app pod waits for migrations to complete before it starts, so a failed migration blocks the rollout instead of starting an app against a mismatched schema.
 - **Docker Compose** — a one-shot `migrations` service with `restart: no` that runs before the app.
 
+<Callout type="warn">
+  Only the app waits for migrations. The realtime service starts without them: on Helm its pods have no migrations init container, and on Compose `realtime` does not depend on the `migrations` service. A realtime pod of the new release that starts before its migrations finish fails the editor writes that read a new table or column, such as deleting a block or a variable, until they do. Run the migrations before new realtime pods start: run the migration image yourself before `helm upgrade` (see [Migration environment](#migration-environment)), or stop `realtime` until the `migrations` service has exited successfully.
+</Callout>
+
 Migrations are **forward-only**. Take the backup described in the upgrade procedure before applying them; there are no down-migrations.
 
 <Callout type="warn">
