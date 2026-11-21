@@ -325,8 +325,9 @@ creates and dry runs, are resent up to 6 times first, each wait the longer of `R
 release both exited 1. Ctrl-C exits 130; a source apply or create already sent is finished and
 saved into its directory first. The `workflows source` and `workspaces source` commands also use
 5 (stale), 6 (a locked workflow or folder; a locked block exits 1), 7 (too large), 8 (a workspace
-apply stopped part-way), 10 (busy), 11 (status: local changes) and 12 (status: the server
-changed). Command-specific codes: [Exit codes](https://docs.sim.ai/cli/scripting#exit-codes).
+apply stopped part-way), 10 (busy), 11 (status: local changes), 12 (status: the server changed),
+14 (a write without `--yes` where no terminal can ask: it printed the plan and wrote nothing) and 15
+(a workspace apply wrote part of its plan and held the rest back). Command-specific codes: [Exit codes](https://docs.sim.ai/cli/scripting#exit-codes).
 
 ## Workflows and workspaces as code
 

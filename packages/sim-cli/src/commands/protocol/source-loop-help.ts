@@ -52,7 +52,8 @@ ${loopRows([
 Promote dev to prod: \`sim workspaces source apply --dir ./ws --to <workspaceId> --dry-run\`, then
 --yes.
 
-Flags the loop needs: --allow-delete (apply: a removed file, column, block or variable is refused
-without it), --force (get: replace edits no apply has saved). A workflow deploys on apply when
+Flags the loop needs: --allow-delete (apply: removing a resource, a column, rows or a document,
+or a workflow's block or variable, is refused without it), --force (get: replace edits no apply
+has saved). A workflow deploys on apply when
 deployments/<key>.ts declares it.
 ${statusLine('sim workspaces source', './ws')}`
