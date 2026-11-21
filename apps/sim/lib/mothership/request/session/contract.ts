@@ -4,6 +4,7 @@ import type {
   MothershipStreamV1EventEnvelope,
   MothershipStreamV1StreamRef,
   MothershipStreamV1StreamScope,
+  MothershipStreamV1SubagentSpanData,
   MothershipStreamV1Trace,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
@@ -438,7 +439,8 @@ export function isSubagentSpanStreamEvent(
 }
 
 /** What a subagent span's `data` carries: the lane `name` on start, its `error` on a failed end. */
-export function subagentSpanData(data: unknown): { name?: string; error?: string } {
+/** Reads a subagent span's untrusted `data`, keeping only non-empty string fields. */
+export function subagentSpanData(data: unknown): MothershipStreamV1SubagentSpanData {
   if (!isRecordLike(data)) return {}
   return {
     ...(typeof data.name === 'string' && data.name ? { name: data.name } : {}),

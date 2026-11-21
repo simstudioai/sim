@@ -156,9 +156,15 @@ export interface MothershipStreamV1ToolResultPayload extends StreamToolReplay {
 }
 
 /** A subagent lane opens (`data: {name}`) or closes (`data: {error}` when it failed). */
+/** A subagent lane's display title (on start) or failure (on end). */
+export interface MothershipStreamV1SubagentSpanData {
+  name?: string;
+  error?: string;
+}
+
 export interface MothershipStreamV1SubagentSpanPayload {
   agent?: string;
-  data?: unknown;
+  data?: MothershipStreamV1SubagentSpanData;
   event: "start" | "end";
   kind: "subagent";
 }
