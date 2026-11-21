@@ -912,7 +912,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               `Held back, not written: ${held.map((change) => `${change.kind} ${change.key}`).join(', ')}. Fix what each one's error names, then apply again.`
             )
             // Written in part is not the same outcome as nothing written: a script must tell them apart.
-            setSoftExitCode(!data.dryRun && data.applied.length > 0 ? SOURCE_HELD_EXIT_CODE : 1)
+            setSoftExitCode(data.applied.length > 0 ? SOURCE_HELD_EXIT_CODE : 1)
           }
           if (data.failed) {
             printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
@@ -949,7 +949,9 @@ function planMarkdown(data: ApplyData, workspaceId: string): string {
   const lines = [
     `### Sim workspace ${data.dryRun ? 'plan' : 'apply'}: ${cell(workspaceId)}`,
     '',
-    `${summary.created.length} to create, ${summary.updated} to update, ${summary.deleted} to delete, ${summary.unchanged} unchanged; ${summary.errors} error(s), ${summary.warnings} warning(s).`,
+    data.dryRun
+      ? `${summary.created.length} to create, ${summary.updated} to update, ${summary.deleted} to delete, ${summary.unchanged} unchanged; ${summary.errors} error(s), ${summary.warnings} warning(s).`
+      : `${summary.created.length} created, ${summary.updated} updated, ${summary.deleted} deleted, ${summary.unchanged} unchanged; ${summary.errors} error(s), ${summary.warnings} warning(s).`,
     ...(rows.length > 0
       ? [
           '',

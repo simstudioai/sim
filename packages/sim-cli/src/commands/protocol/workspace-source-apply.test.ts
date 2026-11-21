@@ -1714,6 +1714,20 @@ describe('workspaces source apply', () => {
     ])
   })
 
+  it('says what an apply wrote in the step summary, not what it would write', async () => {
+    const summary = join(dir, 'step-summary.md')
+    vi.stubEnv('GITHUB_ACTIONS', 'true')
+    vi.stubEnv('GITHUB_STEP_SUMMARY', summary)
+    const created = { kind: 'table' as const, key: 'leads', action: 'create' as const }
+    request.mockResolvedValue(answer({ plan: [created], applied: [created] }))
+
+    await apply('--yes')
+
+    const markdown = readFileSync(summary, 'utf8')
+    expect(markdown).toContain('### Sim workspace apply: ws_local')
+    expect(markdown).toContain('1 created, 0 updated, 0 deleted')
+  })
+
   it('exits 1, not 15, when every change it would write was held back and nothing was written', async () => {
     request.mockResolvedValue(
       answer({
