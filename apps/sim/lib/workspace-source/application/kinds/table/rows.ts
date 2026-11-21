@@ -56,8 +56,9 @@ function sourceCell(column: ColumnDefinition, value: unknown): Json {
 /**
  * Reads every row of `table`: the cells of each column `keyById` names (column id → column key).
  * The version is read first, so rows written while the listing pages read as a server change on
- * the next apply. The rows a rows file prints (those holding `rowKey`) are counted as they page
- * in, and the read stops once they pass `maxRowsBytes`, which no directory could hold.
+ * the next apply. The rows a rows file prints (those holding `rowKey`) are counted as each one
+ * is read, and the read stops at the row that takes them past `maxRowsBytes`, which no directory
+ * could hold.
  */
 export async function readStoredRows(
   ctx: SourceContext,
@@ -94,15 +95,15 @@ export async function readStoredRows(
         const key = keyById.get(columnId)
         if (column && key !== undefined) cells[key] = sourceCell(column, value)
       }
+      if (hasRowKey(cells, rowKey)) printedBytes += printedRowBytes(cells)
+      if (printedBytes > WORKSPACE_SOURCE_LIMITS.maxRowsBytes) {
+        throw new OrchestrationError(
+          'payload_too_large',
+          `The rows of table "${table.name}" pass the ${WORKSPACE_SOURCE_LIMITS.maxRowsBytes}-byte limit a directory's rows files hold.`
+        )
+      }
       data.push(cells)
       byColumnId.push(row.data)
-      if (hasRowKey(cells, rowKey)) printedBytes += printedRowBytes(cells)
-    }
-    if (printedBytes > WORKSPACE_SOURCE_LIMITS.maxRowsBytes) {
-      throw new OrchestrationError(
-        'payload_too_large',
-        `The rows of table "${table.name}" pass the ${WORKSPACE_SOURCE_LIMITS.maxRowsBytes}-byte limit a directory's rows files hold.`
-      )
     }
     cursor = page.nextCursor ?? undefined
   } while (cursor)
