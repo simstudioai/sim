@@ -619,8 +619,12 @@ describe('a falsy loop or parallel count', () => {
     expect(validationErrors).toEqual([
       expect.objectContaining({ blockType: 'loop', field: 'iterations', value: iterations }),
     ])
-    const added = Object.values(state.blocks).find((block) => block.name === 'Loop 2')
-    expect(added?.data?.count).toBeUndefined()
+    expect(Object.values(state.blocks)).toContainEqual(
+      expect.objectContaining({
+        name: 'Loop 2',
+        data: expect.not.objectContaining({ count: expect.anything() }),
+      })
+    )
   })
 
   it('refuses count 0 on an added parallel', () => {
