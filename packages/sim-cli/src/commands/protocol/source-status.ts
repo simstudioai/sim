@@ -152,11 +152,11 @@ export function printStatusReport<Plan>(
   findings: readonly Diagnostic[]
 ): void {
   const shown = findingsOutput(format, false, report.dir)
+  shown.print(findings)
   if (shown.machine) {
     printDocument(format, findings.length > 0 ? { ...report, ...shown.result(findings) } : report)
     return
   }
-  shown.print(findings)
   const s = styles()
   const lines = [s.bold(sanitize(heading))]
   if (report.local.length === 0) lines.push('No local changes.')

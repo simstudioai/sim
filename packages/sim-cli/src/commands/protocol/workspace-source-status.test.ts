@@ -160,6 +160,14 @@ describe('workspaces source status', () => {
     await run('status')
 
     expect(printed()).toMatchObject({ plan: { warnings: 1 }, diagnostics: [warning] })
+    expect(vi.mocked(console.error)).not.toHaveBeenCalled()
+
+    vi.stubEnv('GITHUB_ACTIONS', 'true')
+    await run('status')
+
+    expect(vi.mocked(console.error).mock.calls.map((call) => call.join(' '))).toEqual([
+      `::warning file=${join(dir, warning.file)},line=1,col=8,title=W_UNRESOLVED_REF::${warning.message}`,
+    ])
   })
 
   it('waits for no writer: a status while another command holds the directory exits 10, reading nothing', async () => {
