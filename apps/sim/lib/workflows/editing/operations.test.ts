@@ -692,12 +692,12 @@ describe('a block rename', () => {
 
   it('rewrites references a loop holds in its collection and conditions, and in the loop record', () => {
     const workflow = makeLoopWorkflow()
-    workflow.blocks['loop-1'].data = {
+    Object.assign(workflow.blocks['loop-1'].data, {
       loopType: 'forEach',
       collection: '<agent1.items>',
       whileCondition: '<agent1.more> === true',
       doWhileCondition: '<agent1.more>',
-    } as (typeof workflow.blocks)['loop-1']['data']
+    })
 
     const { state } = applyOperationsToWorkflowState(workflow, [
       { operation_type: 'edit', block_id: 'agent-1', params: { name: 'Fetcher' } },
