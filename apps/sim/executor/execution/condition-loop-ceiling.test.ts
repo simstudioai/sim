@@ -3,11 +3,7 @@ import {
   createSerializedBlock,
   createSerializedWorkflow,
 } from '@sim/testing/factories/serialized-block.factory'
-import {
-  evaluateLoopIndexCheck,
-  isolatedVmMock,
-  isolatedVmMockFns,
-} from '@sim/testing/mocks/isolated-vm.mock'
+import { isolatedVmMock, isolatedVmMockFns } from '@sim/testing/mocks/isolated-vm.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType, DEFAULTS } from '@/executor/constants'
 import { DAGExecutor } from '@/executor/execution/executor'
@@ -78,9 +74,9 @@ describe('condition-driven loop iteration ceiling', () => {
     bodyRuns.count = 0
     conditionResult.stopAfter = Number.POSITIVE_INFINITY
     runaway.controller = new AbortController()
-    /** Count conditions evaluate; user conditions stay opaque and hold until `stopAfter`. */
-    isolatedVmMockFns.mockExecuteInIsolatedVM.mockImplementation(async ({ code }) => ({
-      result: evaluateLoopIndexCheck(code) ?? bodyRuns.count < conditionResult.stopAfter,
+    /** Only user conditions reach the sandbox; they stay opaque and hold until `stopAfter`. */
+    isolatedVmMockFns.mockExecuteInIsolatedVM.mockImplementation(async () => ({
+      result: bodyRuns.count < conditionResult.stopAfter,
     }))
   })
 
