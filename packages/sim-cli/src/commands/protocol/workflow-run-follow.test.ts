@@ -372,7 +372,7 @@ describe('sim workflows run --follow', () => {
 
   it('refuses an empty --stop-after rather than running the whole draft', async () => {
     await expect(run(WORKFLOW_ID, '--stop-after', '')).rejects.toThrow(
-      '--stop-after requires a block ID'
+      '--stop-after requires a block id, name or key'
     )
     expect(requestRaw).not.toHaveBeenCalled()
   })

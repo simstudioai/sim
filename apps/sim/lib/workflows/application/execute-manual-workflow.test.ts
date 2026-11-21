@@ -408,6 +408,77 @@ describe('manual workflow execution application operations', () => {
     expect(mocks.executeService).not.toHaveBeenCalled()
   })
 
+  it('resolves a stop or entry block named by its display name or reference key', async () => {
+    mockLoadManualState.mockResolvedValue({
+      blocks: {
+        'trigger-1': { name: 'Lead in' },
+        'agent-1': { name: 'Score lead' },
+        'agent-2': { name: 'Reply' },
+      },
+      edges: [
+        { source: 'trigger-1', target: 'agent-1' },
+        { source: 'agent-1', target: 'agent-2' },
+      ],
+    })
+    mocks.loadSourceState.mockResolvedValue({ blockStates: {} })
+
+    await executeManualWorkflowOperation.execute({
+      principal,
+      input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'Score lead' },
+    })
+    expect(mocks.executeService).toHaveBeenLastCalledWith(
+      expect.objectContaining({ stopAfterBlockId: 'agent-1' })
+    )
+
+    await executeManualWorkflowFromBlockOperation.execute({
+      principal,
+      input: {
+        ...baseInput,
+        blockId: 'scorelead',
+        sourceRunId: 'source-run-1',
+        stopAfterBlockId: 'reply',
+      },
+    })
+    expect(mocks.executeService).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        stopAfterBlockId: 'agent-2',
+        runFromBlock: expect.objectContaining({ startBlockId: 'agent-1' }),
+      })
+    )
+  })
+
+  it('refuses a block selector naming no block or several, listing the candidates', async () => {
+    mockLoadManualState.mockResolvedValue({
+      blocks: {
+        'trigger-1': { name: 'Start' },
+        'agent-1': { name: 'Score lead' },
+        'agent-2': { name: 'Score  Lead' },
+      },
+      edges: [{ source: 'trigger-1', target: 'agent-1' }],
+    })
+
+    await expect(
+      executeManualWorkflowOperation.execute({
+        principal,
+        input: { ...baseInput, useMockPayload: false, stopAfterBlockId: 'scorer' },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('"Score lead" (agent-1)'),
+    })
+    await expect(
+      executeManualWorkflowFromBlockOperation.execute({
+        principal,
+        input: { ...baseInput, blockId: 'scorelead', sourceRunId: 'source-run-1' },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('names 2 blocks'),
+    })
+    expect(mocks.loadSourceState).not.toHaveBeenCalled()
+    expect(mocks.executeService).not.toHaveBeenCalled()
+  })
+
   it('rejects a stop block named by an inherited object key', async () => {
     await expect(
       executeManualWorkflowOperation.execute({
