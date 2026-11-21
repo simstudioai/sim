@@ -15,7 +15,10 @@ import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/sourc
 import { type CommitTarget, targetIds } from '@/lib/workflows/application/source-pipeline/load'
 import type { PlannedSource, RefusedSource } from '@/lib/workflows/application/source-pipeline/plan'
 import { type PrintedSource, printStoredSource } from '@/lib/workflows/code/print-stored'
-import { checkDraftNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import {
+  checkDraftNeedsRedeployment,
+  checkNeedsRedeployment,
+} from '@/lib/workflows/deployment-status'
 
 const logger = createLogger('ApplyWorkflowSource')
 
@@ -127,14 +130,22 @@ export function printWritten(
 }
 
 /**
+ * Whether the draft as it is differs from its deployment, for a dry run that leaves it so (a no-op
+ * or a refusal); a new workflow has none. Run only once the plan says so: a dry run that would
+ * change the draft compares what it would write instead.
+ */
+async function draftNeedsRedeployment(target: CommitTarget): Promise<boolean> {
+  return target.kind === 'new' ? false : checkNeedsRedeployment(target.context.workflowId)
+}
+
+/**
  * The dry run of a plan: what a commit would store, re-printed, and whether the draft would then
- * differ from its deployment. A graph no-op reports the source meta a commit would store, and
- * `draftNeedsRedeployment`, the deployment check of the draft as it is, run only for a no-op.
+ * differ from its deployment. A graph no-op reports the source meta a commit would store, and the
+ * deployment check of the draft as it is.
  */
 export async function previewSource(
   principal: Principal,
-  planned: PlannedSource,
-  draftNeedsRedeployment: () => Promise<boolean>
+  planned: PlannedSource
 ): Promise<SourceOutcome> {
   const { plan, loaded, target } = planned
   const frame = {
@@ -151,7 +162,7 @@ export async function previewSource(
         workflowName: plan.meta.name,
         diff: plan.diff,
         diagnostics: plan.diagnostics,
-        needsRedeployment: await draftNeedsRedeployment(),
+        needsRedeployment: await draftNeedsRedeployment(target),
       })
     }
     const preview = await previewSourceCommit(planned.workflowId, plan)
@@ -181,13 +192,12 @@ export async function previewSource(
  * The dry-run answer for a refused plan: its findings with a 200, echoing the submission. It echoes
  * the caller's own base fingerprint, so applying its response after a stale or mismatched read
  * still fails the freshness check rather than overwriting the newer draft, and the deployment check
- * of the draft as it is (`draftNeedsRedeployment`).
+ * of the draft as it is.
  */
 export async function refusedOutcome(
   refused: RefusedSource,
   target: CommitTarget,
-  submission: { files: Record<string, string>; lock: WorkflowLockV1 },
-  draftNeedsRedeployment: () => Promise<boolean>
+  submission: { files: Record<string, string>; lock: WorkflowLockV1 }
 ): Promise<SourceOutcome> {
   return shapeOutcome(
     {
@@ -201,7 +211,7 @@ export async function refusedOutcome(
       applied: false,
       diff: emptyDiffSummary(),
       diagnostics: refused.diagnostics,
-      needsRedeployment: await draftNeedsRedeployment(),
+      needsRedeployment: await draftNeedsRedeployment(target),
     }
   )
 }

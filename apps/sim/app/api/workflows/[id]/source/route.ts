@@ -36,12 +36,9 @@ const SOURCE_READ_RATE_LIMIT: TokenBucketConfig = {
  * The bare fingerprint would not do: it ignores what it does not hash (canvas positions,
  * comments), which the printed files and lock can still carry.
  *
- * The tag is taken after the read, so a `304` still loads, canonicalizes and prints the draft: the
- * printed resource keys are known only once the stored graph is canonicalized (a reference the
- * graph gained loads its key then), and a workspace apply that rebinds or releases a key changes
- * the print without touching this workflow's rows, so no tag taken before that would be sound. Like the v2
- * read, it runs in a source read slot, and a server already running as many answers `429` with
- * `Retry-After`.
+ * Runs in a source read slot, like the v2 read (`429` with `Retry-After` when the server is full).
+ * The tag is taken after the read: the printed resource keys are known only once the graph is
+ * canonicalized, so no earlier tag would be sound.
  *
  * `headSafe: false` because the first read that references a resource with no key allocates one
  * (`workspace_resource_key`), so a `HEAD` probe must not run it.

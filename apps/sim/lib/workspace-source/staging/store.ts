@@ -15,9 +15,13 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
-import { and, asc, eq, gt, inArray, isNull, lt, lte, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, lt, lte, notInArray, sql } from 'drizzle-orm'
+import { workspacesPaidBy } from '@/lib/billing/core/payer-context'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
-import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
+import {
+  resolveStorageBillingContext,
+  type StorageBillingContext,
+} from '@/lib/billing/storage/context'
 import {
   checkStorageQuotaForBillingContext,
   isStorageEnforcementEnabled,
@@ -127,30 +131,21 @@ async function payerStagedBytes(tx: DbTransaction, payer: BillingEntity): Promis
     })
     .from(workspaceSourceStagedBlob)
     .innerJoin(workspace, eq(workspace.id, workspaceSourceStagedBlob.workspaceId))
-    .where(
-      and(
-        gt(workspaceSourceStagedBlob.expiresAt, new Date()),
-        payer.type === 'organization'
-          ? eq(workspace.organizationId, payer.id)
-          : and(isNull(workspace.organizationId), eq(workspace.billedAccountUserId, payer.id))
-      )
-    )
+    .where(and(gt(workspaceSourceStagedBlob.expiresAt, new Date()), workspacesPaidBy(payer)))
   return Number(usage?.bytes ?? 0)
 }
 
 /**
- * Refuses staging `bytes` more in `workspaceId` when the bytes its payer stores, plus those staged
- * in any of the payer's workspaces, plus these would pass the payer's storage quota. Holds the
+ * Refuses staging `bytes` more in `billing`'s workspace when the bytes its payer stores, plus those
+ * staged in any of the payer's workspaces, plus these would pass the payer's storage quota. Holds the
  * payer's staging lock until `tx` ends, so concurrent staging in another workspace of the same
  * payer cannot pass the check together.
  */
 async function assertStagingWithinQuota(
   tx: DbTransaction,
-  workspaceId: string,
+  billing: StorageBillingContext,
   bytes: number
 ): Promise<void> {
-  if (!isStorageEnforcementEnabled()) return
-  const billing = await resolveStorageBillingContext(workspaceId, tx)
   const { type, id } = billing.billingEntity
   await acquireAdvisoryXactLock(
     tx,
@@ -215,6 +210,11 @@ export async function stageBlobs(
   const keys = new Map<string, string>()
   const replaced: string[] = []
   let recorded = new Map<string, StagedBlob>()
+  // The payer resolves before the transaction, so its locks are held only for the quota sums.
+  const billing =
+    fresh.length > 0 && isStorageEnforcementEnabled()
+      ? await resolveStorageBillingContext(target.workspaceId)
+      : null
   try {
     for (const blob of fresh) {
       const key = newStorageKey(target, blob.sha256)
@@ -253,7 +253,7 @@ export async function stageBlobs(
         bytes: fresh.reduce((sum, blob) => sum + blob.bytes.byteLength, 0),
       }
       assertStagingFits(await stagedUsage(target, tx), adding)
-      await assertStagingWithinQuota(tx, target.workspaceId, adding.bytes)
+      if (billing) await assertStagingWithinQuota(tx, billing, adding.bytes)
       const hashes = fresh.map((blob) => blob.sha256)
       // An expired row of the same hash is replaced, so the unique index admits the new one.
       const expired = await tx

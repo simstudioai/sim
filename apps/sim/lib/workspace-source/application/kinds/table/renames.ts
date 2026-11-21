@@ -119,18 +119,19 @@ export async function checkColumnRenamesInUse(
       c.kind === 'workflow' && c.action === 'delete' && c.storedId !== undefined ? [c.storedId] : []
     )
   )
-  const checks = tables.flatMap((table) =>
-    (using.get(table.tableId) ?? [])
-      .filter((workflow) => !deleted.has(workflow.id))
-      .map((workflow) => ({ table, workflow }))
-  )
-  // Each check loads a workflow's draft, source or live version: independent reads, run a few at
-  // once, their findings kept in check order.
-  const found = await mapWithConcurrency(checks, READ_CONCURRENCY, async ({ table, workflow }) => {
-    const findings: WorkspaceSourceDiagnostic[] = []
+  const checks = tables.flatMap((table) => {
     const columns = new Map([
       [table.tableId, { name: table.tableName, columnNames: table.columnNames }],
     ])
+    return (using.get(table.tableId) ?? [])
+      .filter((workflow) => !deleted.has(workflow.id))
+      .map((workflow) => ({ table, columns, workflow }))
+  })
+  // Each check loads a workflow's draft, source or live version: independent reads, run a few at
+  // once, their findings kept in check order.
+  const found = await mapWithConcurrency(checks, READ_CONCURRENCY, async (check) => {
+    const { table, columns, workflow } = check
+    const findings: WorkspaceSourceDiagnostic[] = []
     const folder = declared.get(workflow.id)
     /** `blockId:field` of each finding already made from the draft. */
     const reported = new Set<string>()
@@ -171,9 +172,9 @@ export async function checkColumnRenamesInUse(
         )
       }
     }
-    if (!workflow.live || replacedLive.has(workflow.id)) return findings
+    if (!workflow.live || replacedLive.has(workflow.id)) return { table, findings }
     const live = await liveBlocks(workflow.id)
-    if (!live) return findings
+    if (!live) return { table, findings }
     for (const issue of collectTableBlockFieldIssues(live, columns)) {
       if (!table.renamed.has(issue.field) || reported.has(`${issue.blockId}:${issue.field}`)) {
         continue
@@ -192,9 +193,7 @@ export async function checkColumnRenamesInUse(
         )
       )
     }
-    return findings
+    return { table, findings }
   })
-  checks.forEach(({ table }, index) => {
-    table.change.diagnostics.push(...found[index])
-  })
+  for (const { table, findings } of found) table.change.diagnostics.push(...findings)
 }

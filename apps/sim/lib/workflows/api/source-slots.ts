@@ -16,8 +16,8 @@ const LANE_NOUNS: Record<SourceLane, string> = { read: 'gets', plan: 'plans', ap
 
 const runningSourceRequests: Record<SourceLane, number> = { read: 0, plan: 0, apply: 0 }
 
-/** Seconds a request refused for want of a slot is told to wait. */
-const SOURCE_BUSY_RETRY_AFTER_SECONDS = 5
+/** The wait a request refused for want of a slot is told to take. */
+const SOURCE_BUSY_HEADERS = { 'Retry-After': '5' }
 
 /** A source request refused because this process already runs as many as it may. */
 class SourceSlotBusyError extends Error {
@@ -32,7 +32,8 @@ class SourceSlotBusyError extends Error {
 /**
  * `useCase`, run in one of its lane's slots (`laneOf`, or the lane it picks for the input): a get,
  * plan or apply (each holds a workflow's or a directory's worth of text, stored state and
- * canonical forms in memory) waits for nothing, and is refused with a `429` (see {@link renderSourceSlotBusy}) when the process already runs
+ * canonical forms in memory) waits for nothing, and is refused with a `429` (see
+ * {@link renderSourceSlotBusy}) when the process already runs
  * {@link MAX_CONCURRENT_SOURCE_REQUESTS} of them, so a burst cannot run the process out of memory.
  */
 export function withSourceSlot<O extends ApplicationOperation, I, R>(
@@ -67,19 +68,11 @@ export function applyOrDryRunLane(input: { dryRun?: boolean }): SourceLane {
 /** A request {@link withSourceSlot} refused, as `429` with `Retry-After`; `null` for any other error. */
 export function renderSourceSlotBusy(error: unknown): NextResponse | null {
   if (!(error instanceof SourceSlotBusyError)) return null
-  return v2Error('RATE_LIMITED', error.message, {
-    headers: { 'Retry-After': String(SOURCE_BUSY_RETRY_AFTER_SECONDS) },
-  })
+  return v2Error('RATE_LIMITED', error.message, { headers: SOURCE_BUSY_HEADERS })
 }
 
 /** {@link renderSourceSlotBusy} for an internal route. */
 export function projectInternalSourceSlotBusy(error: unknown): JsonErrorResponseDescriptor | null {
   if (!(error instanceof SourceSlotBusyError)) return null
-  return internalErrorResponse(
-    429,
-    { error: error.message },
-    {
-      'Retry-After': String(SOURCE_BUSY_RETRY_AFTER_SECONDS),
-    }
-  )
+  return internalErrorResponse(429, { error: error.message }, SOURCE_BUSY_HEADERS)
 }

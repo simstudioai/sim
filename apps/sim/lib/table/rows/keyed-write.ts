@@ -4,9 +4,9 @@
  * row service's transaction-bound writers: stored rows whose key no declared row has are deleted,
  * rows whose declared cells changed are patched (cells of other columns, a workflow group's
  * outputs say, are left alone), and new keys are inserted. A stored row with no key value (the
- * grid's "add row" makes one) is no declared row's, so it is kept, and counts toward the table's row
- * limit with the rest. An unchanged row is not touched, so
- * its id, `updated_at`, run state and provenance stay, and no trigger fires for it.
+ * grid's "add row" makes one) is no declared row's, so it is kept, and counts toward the table's
+ * row limit with the rest. An unchanged row is not touched, so its id, `updated_at`, run state and
+ * provenance stay, and no trigger fires for it.
  */
 
 import { isDeepStrictEqual } from 'node:util'
@@ -37,10 +37,10 @@ export interface KeyedRows {
   /** Whether stored rows no declared row matches are deleted; otherwise they refuse the write. */
   allowDelete: boolean
   /**
-   * The plan's row limit for the table (negative: unlimited). The write is refused when the rows
-   * it leaves, the stored rows with no key value it keeps included, would cross it.
+   * The plan's row limit for the table, when it has one: the write is refused when the rows it
+   * leaves, the stored rows with no key value it keeps included, would cross it.
    */
-  rowLimit: number
+  rowLimit?: number
 }
 
 /** What a keyed write changed, and the triggers to fire once the transaction commits. */
@@ -138,8 +138,12 @@ export async function writeKeyedRowsWithTx(
       `${removed.length} stored row(s) of "${table.name}" match no declared row; deleting them needs allow-delete.`
     )
   }
-  if (wouldExceedRowLimit(declared.rowLimit, stored.length - removed.length, inserts.length)) {
-    throw new TableRowLimitError(declared.rowLimit)
+  const { rowLimit } = declared
+  if (
+    rowLimit !== undefined &&
+    wouldExceedRowLimit(rowLimit, stored.length - removed.length, inserts.length)
+  ) {
+    throw new TableRowLimitError(rowLimit)
   }
 
   const deletion =

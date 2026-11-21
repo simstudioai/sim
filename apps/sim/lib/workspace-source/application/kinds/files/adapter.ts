@@ -227,6 +227,19 @@ async function stateOf(ctx: SourceContext, fileId: string): Promise<WorkspaceFil
   return state
 }
 
+/**
+ * Rethrows a write's `conflict` (the file's content moved past the revision the plan saw) as the
+ * change being stale, and any other error as it is.
+ */
+function staleAs(change: PlannedChange) {
+  return (error: unknown): never => {
+    if (error instanceof OrchestrationError && error.code === 'conflict') {
+      throw new ResourceChangedError(change)
+    }
+    throw error
+  }
+}
+
 /** Why a directory never writes a file at a workflow test's path. */
 const WORKFLOW_TEST_REASON = 'is where a workflow test lives, which is not a plain workspace file'
 
@@ -578,20 +591,12 @@ export const fileAdapter: KindAdapter<'file', StoredFileState> = {
       const fileId = change.storedId
       const rev = change.detail?.rev
       if (!fileId || rev === undefined) throw new Error('A file delete needs its plan')
-      if ((await stateOf(ctx, fileId)).rev !== rev) {
-        throw new ResourceChangedError(change)
-      }
-      try {
-        await deleteWorkspaceFileOperation.execute({
+      await deleteWorkspaceFileOperation
+        .execute({
           principal,
           input: { fileId, assertedWorkspaceId: workspaceId, expectedRevision: rev },
         })
-      } catch (error) {
-        if (error instanceof OrchestrationError && error.code === 'conflict') {
-          throw new ResourceChangedError(change)
-        }
-        throw error
-      }
+        .catch(staleAs(change))
       return { id: fileId, text: {} }
     }
     const { content, sha256 } = await contentOf(change, ctx)
@@ -617,8 +622,8 @@ export const fileAdapter: KindAdapter<'file', StoredFileState> = {
     const fileId = change.storedId
     const rev = change.detail?.rev
     if (!fileId || rev === undefined) throw new Error('A file update needs its plan')
-    try {
-      await updateWorkspaceFileContentFromBuffer.execute({
+    await updateWorkspaceFileContentFromBuffer
+      .execute({
         principal,
         input: {
           fileId,
@@ -628,12 +633,7 @@ export const fileAdapter: KindAdapter<'file', StoredFileState> = {
           expectedRevision: rev,
         },
       })
-    } catch (error) {
-      if (error instanceof OrchestrationError && error.code === 'conflict') {
-        throw new ResourceChangedError(change)
-      }
-      throw error
-    }
+      .catch(staleAs(change))
     return written(ctx, change.key, fileId, sha256)
   },
 

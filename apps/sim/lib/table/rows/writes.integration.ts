@@ -361,7 +361,6 @@ describe('table row writes against real PostgreSQL', () => {
           columnIds: ['key', 'note'],
           rows: [{ key: 'kept', note: 'new' }],
           allowDelete: true,
-          rowLimit: -1,
         },
         { userId, capabilityGovernedUserId: null },
         'keyed-timeout'

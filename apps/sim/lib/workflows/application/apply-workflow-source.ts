@@ -29,7 +29,6 @@ import {
   sourceApplyAudit,
   sourceCreateAudit,
 } from '@/lib/workflows/application/source-pipeline'
-import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface ApplyWorkflowSourceInput {
@@ -67,15 +66,6 @@ export interface CreateWorkflowFromSourceInput {
 }
 
 /**
- * Whether the draft as it is differs from its deployment, for a dry run that leaves it so (a no-op
- * or a refusal). A new workflow has no deployment. A dry run that would change the draft compares
- * what it would write instead, so this runs only once the plan says it will not.
- */
-async function draftNeedsRedeployment(target: SourceTarget): Promise<boolean> {
-  return target.kind === 'new' ? false : checkNeedsRedeployment(target.context.workflowId)
-}
-
-/**
  * Plans the submission onto `target`, then answers: a refused plan throws (409 when stale, else
  * 400), or on a dry run answers 200 with its findings; a planned one is previewed on a dry run
  * and committed otherwise.
@@ -91,11 +81,10 @@ async function writeSource(
     if (planned.kind === 'refused') throw refusalError(planned)
     return commitSource(principal, planned, target)
   }
-  const needsRedeployment = () => draftNeedsRedeployment(target)
   const planned = await planSource(principal, target, submission, { allocate: false })
   return planned.kind === 'refused'
-    ? refusedOutcome(planned, target, submission, needsRedeployment)
-    : previewSource(principal, planned, needsRedeployment)
+    ? refusedOutcome(planned, target, submission)
+    : previewSource(principal, planned)
 }
 
 /**

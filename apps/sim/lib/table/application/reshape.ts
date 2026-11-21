@@ -332,7 +332,7 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
           columnIds: rows.columns.flatMap((name) => idByName.get(name) ?? []),
           rows: stored,
           allowDelete: rows.allowDelete,
-          rowLimit: rowLimit ?? -1,
+          ...(rowLimit !== null ? { rowLimit } : {}),
         },
         actor,
         requestId
