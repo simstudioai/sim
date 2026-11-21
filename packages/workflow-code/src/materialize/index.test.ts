@@ -974,6 +974,28 @@ describe('materialize: identity', () => {
     expect(ids(renamed('count', 'number', 'Rows to fetch'))).toEqual(['new-1', 'f-q'])
   })
 
+  it('keeps the stored variable order when source lists the variables in another order', () => {
+    const pulled = workflowState([blockState('a1', 'function', 'Fetch', { code: 'return 1' })], {
+      variables: {
+        'var-z': { id: 'var-z', name: 'Zeta', type: 'number', value: 1 },
+        'var-a': { id: 'var-a', name: 'Alpha', type: 'number', value: 1 },
+      },
+    })
+    const edited = edit(canonical(pulled).workflow, (draft) => {
+      draft.variables = {
+        alpha: { ...draft.variables.alpha, value: 2 },
+        new: { key: 'new', name: 'New', type: 'number', value: 3 },
+        zeta: draft.variables.zeta,
+      }
+    })
+
+    expect(Object.keys(run(edited, null, { prev: pulled }).state.variables ?? {})).toEqual([
+      'var-z',
+      'var-a',
+      'new-1',
+    ])
+  })
+
   it('keeps the id of the one variable renamed to a key of the same type', () => {
     const pulled = base()
     const renamed = (type: 'number' | 'plain') =>
