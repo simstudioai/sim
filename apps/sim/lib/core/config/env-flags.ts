@@ -177,7 +177,7 @@ if (isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)) {
   import('@sim/logger')
     .then(({ createLogger }) => {
       createLogger('EnvFlags').error(
-        'ALLOW_PRIVATE_DATABASE_HOSTS was removed and has no effect; allow specific database hosts with EGRESS_ALLOWED_HOSTS instead'
+        'ALLOW_PRIVATE_DATABASE_HOSTS was removed and has no effect; allow specific database hostnames with EGRESS_ALLOWED_HOSTS, or a database IP address (including IPv6) with a single-address EGRESS_ALLOWED_IP_RANGES entry'
       )
     })
     .catch(() => {
