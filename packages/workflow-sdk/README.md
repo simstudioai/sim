@@ -165,8 +165,8 @@ files are stored verbatim. One file per block; imports between function files ar
 
 | Path | Contents |
 |------|----------|
-| `src/core.d.ts` | Authoring types. Exports exactly `SDK_CORE_EXPORTS` from `@sim/workflow-code`; after editing run `bun scripts/generate-embedded-text.ts`. |
-| `cookbook/examples/*.ts` | The examples the CLI writes into `.sim/examples/`. After editing run `bun scripts/generate-embedded-text.ts`; `apps/sim/lib/workflows/code/real-catalog.test.ts` type-checks and compiles each against the real catalog (its `COOKBOOK_WORKSPACE` lists the resources they name). |
+| `src/core.d.ts` | Authoring types. Exports exactly `SDK_CORE_EXPORTS` from `@sim/workflow-code`; after editing run `bun run generate:workflow-sdk-embedded-text` from the repository root (`check:workflow-sdk-embedded-text`, part of `bun run check:audits`, fails when it is stale). |
+| `cookbook/examples/*.ts` | The examples the CLI writes into `.sim/examples/`. After editing run `bun run generate:workflow-sdk-embedded-text`; `apps/sim/lib/workflows/code/real-catalog.test.ts` type-checks and compiles each against the real catalog (its `COOKBOOK_WORKSPACE` lists the resources they name). |
 | `src/runtime.ts` | The runtime entry: every export throws `SimSdkNotExecutable`. |
 | `src/codegen/` | `generateSdkTypes(catalog, { blockTypes })` (catalog → `.d.ts` and the `INDEX.md` builder list, for every block or a directory's subset, deterministic, sorted by path), `describeBuilder`/`lookupBuilder` (one builder's params and outputs, for `sim workflows source params`), `generateWorkspaceTypes(manifest)` (`workspace.d.ts`), and `layout.ts`: which declaration files a directory's tsconfig files include. |
 | `test/examples` | Five example workflows, also compiled against the real catalog with zero diagnostics in `apps/sim/lib/workflows/code/sdk-examples.test.ts`. |
