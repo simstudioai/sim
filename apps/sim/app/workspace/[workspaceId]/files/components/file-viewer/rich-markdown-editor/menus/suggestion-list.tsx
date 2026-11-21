@@ -64,6 +64,7 @@ export function SuggestionList<T>({
   const activeOptionId = hasOptions ? `${optionIdPrefix}-${activeIndex}` : null
 
   useEffect(() => {
+    if (editor.isDestroyed) return
     const dom = editor.view.dom
     dom.setAttribute('aria-haspopup', 'listbox')
     dom.setAttribute('aria-expanded', 'true')
@@ -76,6 +77,7 @@ export function SuggestionList<T>({
   }, [editor])
 
   useEffect(() => {
+    if (editor.isDestroyed) return
     const dom = editor.view.dom
     if (activeOptionId) {
       dom.setAttribute('aria-controls', listboxId)

@@ -221,6 +221,7 @@ export function EditorBubbleMenu({
    * preventing a lost pointer release from suppressing later keyboard selections.
    */
   useEffect(() => {
+    if (editor.isDestroyed) return
     const dom = editor.view.dom
     const onPointerDown = () => {
       isPointerDownRef.current = true
@@ -255,6 +256,7 @@ export function EditorBubbleMenu({
   }
 
   useEffect(() => {
+    if (editor.isDestroyed) return
     const dom = editor.view.dom
     const openLinkOnShortcut = (event: KeyboardEvent) => {
       if (!editor.isEditable) return

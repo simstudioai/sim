@@ -21,6 +21,7 @@ export function bubbleMenuAnchorRange(selection: Selection): { from: number; to:
  * editor mounts so the caller skips positioning.
  */
 function selectionVirtualElement(editor: Editor) {
+  if (editor.isDestroyed) return null
   const { view, state } = editor
   if (!view.dom.isConnected) return null
   const { from, to } = bubbleMenuAnchorRange(state.selection)
@@ -53,10 +54,11 @@ export function useBubbleMenuFloating(
 
   useEffect(() => {
     const menu = menuRef.current
-    if (!menu) return
+    if (!menu || editor.isDestroyed) return
     let stop: (() => void) | undefined
     const trackSelection = () => {
       stop?.()
+      if (editor.isDestroyed) return
       const { node } = editor.view.domAtPos(editor.state.selection.from)
       const reference = node instanceof Element ? node : (node.parentElement ?? editor.view.dom)
       stop = autoUpdate(reference, menu, () => {
