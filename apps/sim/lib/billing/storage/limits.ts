@@ -57,6 +57,8 @@ interface StorageQuotaSnapshot {
 interface StorageQuotaResult extends StorageQuotaSnapshot {
   allowed: boolean
   error?: string
+  /** The usage or limit could not be read, so the quota refuses without having been checked. */
+  unavailable?: true
 }
 
 type SubscriptionErrorBehavior = 'return-null' | 'throw'
@@ -167,6 +169,7 @@ function evaluateStorageQuota(
       currentUsage: 0,
       limit: 0,
       error: 'Failed to check storage quota',
+      unavailable: true,
     }
   }
 

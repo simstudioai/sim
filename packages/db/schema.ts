@@ -2937,6 +2937,11 @@ export const workspaceSourceStagedBlob = pgTable(
     storageKey: text('storage_key').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     expiresAt: timestamp('expires_at').notNull(),
+    /**
+     * When an apply wrote these bytes into the workspace, which then stores (and charges for) them:
+     * a consumed blob no longer counts toward the payer's storage quota. Staging it again clears it.
+     */
+    consumedAt: timestamp('consumed_at'),
   },
   (table) => ({
     scopeHashUnique: uniqueIndex('workspace_source_staged_blob_scope_hash_unique').on(

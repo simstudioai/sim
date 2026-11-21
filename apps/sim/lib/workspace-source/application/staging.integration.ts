@@ -31,6 +31,29 @@ vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
+/** While `fail` is set, the payer quota check reads its counter through a connection that errors. */
+const quotaReads = vi.hoisted(() => ({ fail: false }))
+vi.mock('@/lib/billing/storage/limits', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/billing/storage/limits')>()
+  return {
+    ...actual,
+    checkStorageQuotaForBillingContext: (
+      ...[context, bytes, executor]: Parameters<typeof actual.checkStorageQuotaForBillingContext>
+    ) =>
+      actual.checkStorageQuotaForBillingContext(
+        context,
+        bytes,
+        quotaReads.fail && executor
+          ? new Proxy(executor, {
+              get(target, property) {
+                if (property === 'select') throw new Error('Connection terminated unexpectedly')
+                return Reflect.get(target, property)
+              },
+            })
+          : executor
+      ),
+  }
+})
 
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import {
@@ -38,7 +61,9 @@ import {
   stageSourceBlobs,
 } from '@/lib/workspace-source/application/stage-blobs'
 import {
+  blobManifest,
   sourceChecks,
+  sourceRunner,
   sourceWorkspaces,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 import { sweepExpiredStagedBlobs } from '@/lib/workspace-source/staging/store'
@@ -53,6 +78,9 @@ const reader = createSessionPrincipal({ userId: readerId, sessionId: generateId(
 /** A payer of its own, so no other check's staged bytes count toward its storage quota. */
 const payerId = generateId()
 const payer = createSessionPrincipal({ userId: payerId, sessionId: generateId() })
+/** A second payer of its own, whose stored bytes an apply changes. */
+const applierId = generateId()
+const applier = createSessionPrincipal({ userId: applierId, sessionId: generateId() })
 const { check, writeReport } = sourceChecks(
   'WORKSPACE_SOURCE_STAGING_REPORT_PATH',
   'workspace-source-staging.json'
@@ -143,7 +171,7 @@ beforeAll(async () => {
   )
   const now = new Date()
   await db.insert(user).values(
-    [ownerId, writerId, readerId, payerId].map((id) => ({
+    [ownerId, writerId, readerId, payerId, applierId].map((id) => ({
       id,
       name: 'Workspace source staging fixture',
       email: `${id}@workspace-source.invalid`,
@@ -158,7 +186,7 @@ afterAll(async () => {
   await writeReport()
   resetUploadsSetupMock()
   await workspaces.cleanup()
-  await db.delete(user).where(inArray(user.id, [ownerId, writerId, readerId, payerId]))
+  await db.delete(user).where(inArray(user.id, [ownerId, writerId, readerId, payerId, applierId]))
   await rm(storageRoot, { recursive: true, force: true })
 })
 
@@ -232,6 +260,61 @@ describe('workspace source staging', () => {
         expect(await rows(second)).toEqual([])
         expect(objectsUnder(second)).toEqual([])
       } finally {
+        vi.unstubAllEnvs()
+      }
+    }
+  )
+
+  check(
+    'a blob an apply wrote stops counting toward the quota, since the workspace now stores it; staging it again counts it again',
+    async () => {
+      const quota = 1024 ** 3
+      await db
+        .insert(userStats)
+        .values({ id: generateId(), userId: applierId, storageUsedBytes: quota - 20 })
+      const workspaceId = await workspaces.create({ name: 'Staging consumed', ownerId: applierId })
+      const notes = Buffer.from('twelve bytes')
+      vi.stubEnv('FREE_STORAGE_LIMIT_GB', '1')
+      try {
+        const applied = await sourceRunner(['file'], applier).apply(workspaceId, {
+          files: {},
+          blobs: blobManifest({ 'files/notes.txt': notes }, () => true),
+        })
+        expect(applied.failed).toBeUndefined()
+        const [usage] = await db
+          .select({ storageUsedBytes: userStats.storageUsedBytes })
+          .from(userStats)
+          .where(eq(userStats.userId, applierId))
+        expect(usage.storageUsedBytes).toBe(quota - 20 + notes.byteLength)
+
+        // Stored 8 short of the quota: 6 more fit, unless the 12 applied bytes count twice.
+        await stage(applier, workspaceId, [blob('six b3')])
+
+        await stage(applier, workspaceId, [
+          { sha256: sha256Hex(notes), size: notes.byteLength, content: notes },
+        ])
+        const refused = await failure(stage(applier, workspaceId, [blob('1')]))
+        expect(refused).toMatchObject({ name: 'SourceStagingFullError' })
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    }
+  )
+
+  check(
+    'a quota that cannot be read refuses staging as unavailable, never as a full staging area',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Staging quota down', ownerId: payerId })
+      vi.stubEnv('FREE_STORAGE_LIMIT_GB', '1')
+      quotaReads.fail = true
+      try {
+        const refused = await failure(stage(payer, workspaceId, [blob('quota down')]))
+        expect(refused).toMatchObject({ code: 'unavailable' })
+        expect(refused).not.toMatchObject({ name: 'SourceStagingFullError' })
+        expect(await rows(workspaceId)).toEqual([])
+        expect(objectsUnder(workspaceId)).toEqual([])
+      } finally {
+        quotaReads.fail = false
         vi.unstubAllEnvs()
       }
     }
