@@ -140,6 +140,7 @@ import {
 } from '@/lib/mothership/generated/protocol'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
+import { persistedStreamRecoveryConfig } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import {
   isToolCallStreamEvent,
@@ -1401,7 +1402,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       const run = await admitChatTurn.execute({ principal: admissionPrincipal, input })
       expect(run.streamId).toBe(input.message.id)
       expect(run.requestContext).toMatchObject({
-        recovery: input.recovery,
+        recovery: persistedStreamRecoveryConfig(input.recovery),
         controllerToken: input.lease.value,
       })
       const messages = await loadCopilotChatMessages(input.chatId)
