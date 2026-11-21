@@ -181,10 +181,12 @@ export async function loadWorkflowsFromNormalizedTablesRaw(
 
 /**
  * The order a workflow's block, edge or subflow rows load in: creation order. A save stamps the
- * rows it inserts together a microsecond apart, in the order the state listed them, so this is
- * that order; rows written in one statement with one timestamp (older saves, a duplicate, a
- * paste) keep the order they were inserted in. The executor reads it for a condition or router
- * edge with no handle, and the editor for its node order.
+ * rows it inserts together a microsecond apart, in the order the state listed them, so those rows
+ * keep that order however often they are rewritten later. Rows that share one timestamp (older
+ * saves, a duplicate, a paste, realtime batch adds) load in physical (`ctid`) order, as they
+ * always did: insertion order until a row is rewritten, which moves it to the end of its tie
+ * group. The executor reads the order for a condition or router edge with no handle, and the
+ * editor for its node order.
  */
 export function creationOrder(table: GraphTable) {
   return [asc(table.createdAt), sql`ctid`] as const
