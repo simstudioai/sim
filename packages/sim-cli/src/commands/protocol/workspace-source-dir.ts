@@ -36,6 +36,7 @@ import {
   type TableDecl,
 } from '@sim/workspace-code/kinds/table'
 import { parseTableRows, tableRowsPath } from '@sim/workspace-code/kinds/table-rows'
+import { toolCodec, toolDeclarationPath } from '@sim/workspace-code/kinds/tools'
 import { unchangedFiles, workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import {
   DECLARATION_EXTENSION,
@@ -556,8 +557,9 @@ export interface WorkspaceSubmission {
   /** Files under a kind folder that are not sent: hidden names and unsupported characters. */
   ignored: string[]
   /**
-   * Files under a workflow folder's `functions/` that neither its `workflow.ts` nor its lock names:
-   * never sent, as a workflow directory's apply never sends them.
+   * Code files nothing names: under a workflow folder's `functions/`, one neither its `workflow.ts`
+   * nor its lock names, and a tool's code file its declaration does not name. Never sent, as a
+   * workflow directory's apply never sends them.
    */
   unnamed: string[]
   /** The blobs this read hashed or reused a recorded digest for, with their stats. */
@@ -565,15 +567,37 @@ export interface WorkspaceSubmission {
 }
 
 /**
- * Drops from `files` each file under a workflow folder's `functions/` that neither the folder's
- * `workflow.ts` nor its lock names ({@link codeFilePaths}, the rule a workflow directory's apply
- * and status read), returning their paths: an apply never sends one, so a status never counts it
- * as a change and the folder is not sent as edited for it.
+ * Whether `path` is a tool's code file (`tools/<key>.js`) that the tool's declaration does not
+ * name: the declaration reads whole without it (its code is `stored()` or inline), so the server
+ * would only refuse it as unused (`E_TOOL_CODE`). One with no declaration is still sent, so the
+ * server names what is missing.
+ */
+function isUnnamedToolCode(files: Readonly<Record<string, string>>, path: string): boolean {
+  if (kindOfPath(path) !== 'custom-tool') return false
+  const [key] = KIND_LAYOUTS['custom-tool'].group([path]).groups.keys()
+  if (key === undefined) return false
+  const declaration = toolDeclarationPath(key)
+  const text = files[declaration]
+  if (path === declaration || text === undefined) return false
+  return toolCodec.parse(key, { [declaration]: text }).decl !== undefined
+}
+
+/**
+ * Drops from `files` each code file nothing names, returning their paths: a file under a workflow
+ * folder's `functions/` that neither the folder's `workflow.ts` nor its lock names
+ * ({@link codeFilePaths}, the rule a workflow directory's apply and status read), and a tool's code
+ * file its declaration does not name ({@link isUnnamedToolCode}). An apply never sends one, so a
+ * status never counts it as a change and the folder is not sent as edited for it.
  */
 function dropUnnamedCodeFiles(files: Record<string, string>): string[] {
   const named = new Map<string, Set<string>>()
   const unnamed: string[] = []
   for (const path of Object.keys(files)) {
+    if (isUnnamedToolCode(files, path)) {
+      unnamed.push(path)
+      delete files[path]
+      continue
+    }
     if (kindOfPath(path) !== 'workflow') continue
     const segments = path.split('/')
     if (segments[2] !== SOURCE_CODE_DIR) continue

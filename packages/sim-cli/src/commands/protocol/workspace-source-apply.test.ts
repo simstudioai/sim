@@ -814,24 +814,29 @@ describe('workspaces source apply', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
-  it('removes the code file of a tool the apply reprinted as stored(), from disk and the record', async () => {
-    const declaration = (code: string) =>
-      `// @sim-sdk 1\nexport default defineTool({ title: 'Lookup', code: ${code} })\n`
-    write('tools/lookup.ts', declaration("codeFile('./lookup.js')"))
+  it('keeps the code file of a tool the apply reprinted as stored(), warns, and never sends it again', async () => {
+    const schema = "{ type: 'function', function: { name: 'lookup', parameters: {} } }"
+    const declaration = (call: 'codeFile' | 'stored', code: string) =>
+      `// @sim-sdk 1\nimport { ${call}, defineTool } from '@sim/workflow-sdk/workspace'\n\nexport default defineTool({ title: 'Lookup', schema: ${schema}, code: ${code} })\n`
+    write('tools/lookup.ts', declaration('codeFile', "codeFile('./lookup.js')"))
     write('tools/lookup.js', 'return 1\n')
     write('tools/other.js', 'return 2\n')
     request.mockResolvedValue(
       answer({
         applied: [{ kind: 'custom-tool', key: 'lookup', action: 'update', id: 'tool_1' }],
-        files: { 'tools/lookup.ts': declaration('stored()') },
+        files: { 'tools/lookup.ts': declaration('stored', 'stored()') },
       })
     )
 
     await apply('--yes')
 
     expect(bodies()[0].files['tools/lookup.js']).toBe('return 1\n')
-    expect(existsSync(join(dir, 'tools/lookup.js'))).toBe(false)
+    // The person's only copy of the code: like a workflow's function file, it is never deleted.
+    expect(readFileSync(join(dir, 'tools/lookup.js'), 'utf8')).toBe('return 1\n')
     expect(readFileSync(join(dir, 'tools/other.js'), 'utf8')).toBe('return 2\n')
+    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain(
+      'warning: tools/lookup.js is no longer named by tools/lookup.ts'
+    )
     const record = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8'))
     expect(Object.keys(record.files)).toContain('tools/lookup.ts')
     expect(Object.keys(record.files)).not.toContain('tools/lookup.js')

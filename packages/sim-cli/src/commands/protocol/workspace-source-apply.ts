@@ -353,10 +353,9 @@ async function deletedRecordedPaths(
 
 /**
  * The text files the directory sent for a resource the apply reprinted that the reprint no longer
- * holds: a tool whose code the server keeps as `stored()` (a credential in it) is reprinted
- * without `tools/<key>.js`, which left on disk would refuse the next apply (`E_TOOL_CODE`).
- * Workflow folders keep files no lock named, so their function files are pruned by lock instead
- * ({@link orphanedWorkflowFiles}); blobs are never reprinted.
+ * holds, such as a tool whose code the server keeps as `stored()` (a credential in it), reprinted
+ * without `tools/<key>.js`. Workflow folders keep files no lock named, so their function files are
+ * pruned by lock instead ({@link orphanedWorkflowFiles}); blobs are never reprinted.
  */
 function droppedResourceFiles(
   sent: Readonly<Record<string, string>>,
@@ -385,8 +384,10 @@ function droppedResourceFiles(
  * their digests in `.sim/written.json` (`written` is what it held), beside the digests of the
  * blobs the server now holds. The function files a written workflow no longer uses, and the files
  * a reprinted resource no longer has, are removed from disk and the record; the record also drops
- * the files of resources the apply deleted ({@link deletedRecordedPaths}). `records` are the
- * stored-edges records of the workflows it reprinted.
+ * the files of resources the apply deleted ({@link deletedRecordedPaths}). A tool's code file the
+ * reprint no longer names is the person's only copy of that code, so like a workflow's function
+ * file it stays on disk, leaves the record, and is named in a warning; no apply sends it again.
+ * `records` are the stored-edges records of the workflows it reprinted.
  */
 async function saveApplied(
   dir: string,
@@ -396,13 +397,15 @@ async function saveApplied(
   records: ReadonlyArray<readonly [string, string]>
 ): Promise<void> {
   assertWorkspacePaths(Object.keys(data.files))
+  const dropped = droppedResourceFiles(submission.files, data.files)
+  const toolCode = dropped.filter((path) => kindOfPath(path) === 'custom-tool')
   const orphaned = [
     ...(await orphanedWorkflowFiles(dir, data.files, written.digests)),
-    ...droppedResourceFiles(submission.files, data.files),
+    ...dropped.filter((path) => kindOfPath(path) !== 'custom-tool'),
   ]
   const kept = { ...written.digests, ...appliedBlobDigests(submission, data.base) }
   const deleted = await deletedRecordedPaths(dir, written.digests, submission.kinds, data.base)
-  for (const path of [...orphaned, ...deleted]) delete kept[path]
+  for (const path of [...orphaned, ...deleted, ...toolCode]) delete kept[path]
   const record = writtenRecord(
     data.files,
     kept,
@@ -417,6 +420,11 @@ async function saveApplied(
     ],
     remove: [...orphaned, ...removedWorkflowRecords(deleted)],
   })
+  for (const path of toolCode) {
+    printError(
+      `warning: ${path} is no longer named by ${path.replace(/\.js$/, '.ts')} (its code is now kept as stored() or printed inline), so it was left on disk as written and no apply sends it: delete it, or name it again with codeFile(). Never commit one that holds a credential.`
+    )
+  }
 }
 
 /** The workflow a directory's base belongs to (a workflow source directory), or `null`. */
