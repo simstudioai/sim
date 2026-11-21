@@ -67,8 +67,9 @@ export function printAnnotations(lines: readonly string[]): void {
 }
 
 /**
- * Appends `markdown()` (built only then) to the job's step summary, when this is a GitHub Actions step that has one. A
- * summary that cannot be written is reported and skipped: the command's own result stands.
+ * Appends `markdown()` (built only then) to the job's step summary, when this is a GitHub Actions
+ * step that has one. A summary that cannot be written is reported and skipped: the command's own
+ * result stands.
  */
 export function appendStepSummary(
   markdown: () => string,

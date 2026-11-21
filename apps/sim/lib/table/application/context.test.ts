@@ -97,10 +97,12 @@ describe('table application context', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(findByName).not.toHaveBeenCalled()
 
-    // A name never reaches past the asserted workspace, and without one it is not looked up.
+    // A name never reaches past the asserted workspace, even if the lookup returned a foreign row.
+    findByName.mockResolvedValueOnce([{ id: 'table-1', workspaceId: 'workspace-1', name: 'leads' }])
     await expect(
       resolveActiveTableContext({ tableId: 'leads', assertedWorkspaceId: 'workspace-2' })
     ).rejects.toMatchObject({ code: 'not_found' })
+    expect(findByName).toHaveBeenLastCalledWith('workspace-2', 'leads')
     findByName.mockClear()
     await expect(resolveActiveTableContext({ tableId: 'leads' })).rejects.toMatchObject({
       code: 'not_found',

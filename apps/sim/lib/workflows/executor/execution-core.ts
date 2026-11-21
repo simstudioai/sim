@@ -707,7 +707,7 @@ async function executeWorkflowCoreImpl(
   }
 
   let processedInput = input || {}
-  /** The input the executor ran with, once the input stage (file fields, PII redaction) finished. */
+  // Set once the input stage (file fields, PII redaction) finishes.
   let executorInput: unknown
   let deploymentVersionId: string | undefined
   let loggingStarted = false

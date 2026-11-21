@@ -182,7 +182,6 @@ export interface SessionCancelledParams {
   endedAt?: string
   totalDurationMs?: number
   traceSpans?: TraceSpan[]
-  /** The input the run started with. */
   workflowInput?: unknown
   executionState?: SerializableExecutionState
 }
