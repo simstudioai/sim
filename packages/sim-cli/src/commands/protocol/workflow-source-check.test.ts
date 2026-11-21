@@ -336,6 +336,21 @@ describe('sim workflows source check', () => {
     expect(vi.mocked(console.error)).not.toHaveBeenCalled()
   })
 
+  it('with --output json in a GitHub Actions job, still annotates each finding on stderr, as a workflow command only', async () => {
+    vi.stubEnv('GITHUB_ACTIONS', 'true')
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace('{ body: { received: start.message } }', '{ bdy: { received: start.message } }')
+    )
+
+    await check()
+
+    expect(stdoutJson()).toMatchObject({ diagnostics: [{ code: 'E_UNKNOWN_PARAM' }] })
+    const stderr = vi.mocked(console.error).mock.calls.map((call) => call.join(' '))
+    expect(stderr).toEqual([expect.stringMatching(/^::error file=.*,title=E_UNKNOWN_PARAM::/)])
+  })
+
   it('leaves stored() to the server, which holds the stored values', async () => {
     cacheCatalog()
     writeFileSync(
