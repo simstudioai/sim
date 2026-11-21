@@ -131,7 +131,7 @@ function applyLoopOrParallelContainerData(
       ...(loopType === 'forEach' &&
         params.inputs?.collection && { collection: params.inputs.collection }),
       ...(loopType === 'for' &&
-        params.inputs?.iterations && {
+        params.inputs?.iterations !== undefined && {
           count: containerCount(
             block,
             'iterations',
@@ -156,7 +156,7 @@ function applyLoopOrParallelContainerData(
       ...(parallelType === 'collection' &&
         params.inputs?.collection && { collection: params.inputs.collection }),
       ...(parallelType === 'count' &&
-        params.inputs?.count && {
+        params.inputs?.count !== undefined && {
           count: containerCount(
             block,
             'count',
@@ -250,7 +250,7 @@ function updateLoopOrParallelContainerData(
       }
     }
     const effectiveLoopType = params.inputs?.loopType ?? block.data.loopType ?? 'for'
-    if (params.inputs?.iterations && effectiveLoopType === 'for') {
+    if (params.inputs?.iterations !== undefined && effectiveLoopType === 'for') {
       block.data.count = containerCount(
         block,
         'iterations',
@@ -281,7 +281,7 @@ function updateLoopOrParallelContainerData(
       }
     }
     const effectiveParallelType = params.inputs?.parallelType ?? block.data.parallelType ?? 'count'
-    if (params.inputs?.count && effectiveParallelType === 'count') {
+    if (params.inputs?.count !== undefined && effectiveParallelType === 'count') {
       block.data.count = containerCount(
         block,
         'count',
