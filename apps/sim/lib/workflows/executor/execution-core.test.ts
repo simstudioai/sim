@@ -1099,7 +1099,13 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     it('logs the redacted input of a run that fails after its input stage, before it runs', async () => {
       const state = createRestoredState(createManifest())
-      state.blockStates = { previous: { output: { result: 'restored alice@example.com' } } }
+      state.blockStates = {
+        previous: {
+          output: { result: 'restored alice@example.com' },
+          executed: true,
+          executionTime: 0,
+        },
+      }
       maskBatchMock
         .mockImplementationOnce(async (texts: string[]) => ({
           masked: texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>')),
