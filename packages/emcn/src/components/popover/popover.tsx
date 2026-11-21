@@ -135,17 +135,10 @@ function getItemStateClasses(colorScheme: PopoverColorScheme, isActive: boolean)
 }
 
 interface PopoverContextValue {
-  openFolder: (
-    id: string,
-    title: string,
-    onLoad?: () => void | Promise<void>,
-    onSelect?: () => void
-  ) => void
+  openFolder: (id: string, onLoad?: () => void | Promise<void>) => void
   closeFolder: () => void
   currentFolder: string | null
   isInFolder: boolean
-  folderTitle: string | null
-  onFolderSelect: (() => void) | null
   size: PopoverSize
   colorScheme: PopoverColorScheme
   /** ID of the last hovered item (for hover submenus) */
@@ -206,8 +199,6 @@ const Popover: React.FC<PopoverProps> = ({
 }) => {
   const insideModal = React.useContext(InsideModalContext)
   const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
-  const [folderTitle, setFolderTitle] = React.useState<string | null>(null)
-  const [onFolderSelect, setOnFolderSelect] = React.useState<(() => void) | null>(null)
   const [lastHoveredItem, setLastHoveredItem] = React.useState<string | null>(null)
   const [isKeyboardNav, setIsKeyboardNav] = React.useState(false)
   const [selectedIndex, setSelectedIndex] = React.useState(-1)
@@ -230,8 +221,6 @@ const Popover: React.FC<PopoverProps> = ({
   /** Resets all navigation state to initial values */
   const resetState = React.useCallback(() => {
     setCurrentFolder(null)
-    setFolderTitle(null)
-    setOnFolderSelect(null)
     setLastHoveredItem(null)
     setIsKeyboardNav(false)
     setSelectedIndex(-1)
@@ -254,22 +243,15 @@ const Popover: React.FC<PopoverProps> = ({
     [onOpenChange]
   )
 
-  const openFolder = React.useCallback(
-    (id: string, title: string, onLoad?: () => void | Promise<void>, onSelect?: () => void) => {
-      setCurrentFolder(id)
-      setFolderTitle(title)
-      setOnFolderSelect(() => onSelect ?? null)
-      if (onLoad) {
-        void Promise.resolve(onLoad())
-      }
-    },
-    []
-  )
+  const openFolder = React.useCallback((id: string, onLoad?: () => void | Promise<void>) => {
+    setCurrentFolder(id)
+    if (onLoad) {
+      void Promise.resolve(onLoad())
+    }
+  }, [])
 
   const closeFolder = React.useCallback(() => {
     setCurrentFolder(null)
-    setFolderTitle(null)
-    setOnFolderSelect(null)
   }, [])
 
   const setKeyboardNav = React.useCallback((value: boolean) => {
@@ -284,8 +266,6 @@ const Popover: React.FC<PopoverProps> = ({
       closeFolder,
       currentFolder,
       isInFolder: currentFolder !== null,
-      folderTitle,
-      onFolderSelect,
       size,
       colorScheme,
       lastHoveredItem,
@@ -302,8 +282,6 @@ const Popover: React.FC<PopoverProps> = ({
       openFolder,
       closeFolder,
       currentFolder,
-      folderTitle,
-      onFolderSelect,
       size,
       colorScheme,
       lastHoveredItem,
@@ -849,8 +827,6 @@ interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 
   icon?: React.ReactNode
   /** Callback when folder opens (for lazy loading) */
   onOpen?: () => void | Promise<void>
-  /** Callback when folder title is selected from within folder view */
-  onSelect?: () => void
   /** Folder contents */
   children?: React.ReactNode
   /** Whether currently active/selected */
@@ -871,18 +847,7 @@ interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 
  */
 const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
   (
-    {
-      className,
-      id,
-      title,
-      icon,
-      onOpen,
-      onSelect,
-      children,
-      active,
-      expandOnHover = false,
-      ...props
-    },
+    { className, id, title, icon, onOpen, children, active, expandOnHover = false, ...props },
     ref
   ) => {
     const {
@@ -931,7 +896,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
     if (currentFolder === id) return <>{children}</>
 
     const handleClickOpen = () => {
-      openFolder(id, title, onOpen, onSelect)
+      openFolder(id, onOpen)
     }
 
     const handleClick = (e: React.MouseEvent) => {

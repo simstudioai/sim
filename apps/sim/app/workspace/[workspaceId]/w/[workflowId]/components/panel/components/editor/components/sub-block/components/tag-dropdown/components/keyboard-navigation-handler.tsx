@@ -49,7 +49,6 @@ const findFolderInfoForTag = (
   group: NestedBlockTagGroup
 ): {
   id: string
-  title: string
   parentTag: string
   group: NestedBlockTagGroup
   nestedTag: NestedTag
@@ -61,7 +60,6 @@ const findFolderInfoForTag = (
     ) {
       return {
         id: `${group.blockId}-${nestedTag.key}`,
-        title: nestedTag.display,
         parentTag: nestedTag.parentTag,
         group,
         nestedTag,
@@ -193,15 +191,9 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
   const handleKeyboardEvent = useEffectEvent((e: KeyboardEvent) => {
     if (!flatTagList.length) return
 
-    const openFolderWithSelection = (
-      folderId: string,
-      folderTitle: string,
-      parentTag: string,
-      group: BlockTagGroup
-    ) => {
+    const openFolderWithSelection = (folderId: string, parentTag: string) => {
       const parentIdx = flatTagList.findIndex((item) => item.tag === parentTag)
-      const selectionCallback = () => handleTagSelect(parentTag, group)
-      openFolder(folderId, folderTitle, undefined, selectionCallback)
+      openFolder(folderId)
       if (parentIdx >= 0) {
         setSelectedIndex(parentIdx)
       }
@@ -212,7 +204,6 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
 
     let currentFolderInfo: {
       id: string
-      title: string
       parentTag: string
       group: NestedBlockTagGroup
       nestedTag: NestedTag
@@ -292,12 +283,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
           if (isInFolder && nestedNav) {
             nestedNav.navigateIn(currentFolderInfo.nestedTag, currentFolderInfo.group)
           } else {
-            openFolderWithSelection(
-              currentFolderInfo.id,
-              currentFolderInfo.title,
-              currentFolderInfo.parentTag,
-              currentFolderInfo.group
-            )
+            openFolderWithSelection(currentFolderInfo.id, currentFolderInfo.parentTag)
             onFolderEnter?.()
           }
         }

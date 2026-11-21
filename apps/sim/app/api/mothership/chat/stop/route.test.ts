@@ -66,7 +66,7 @@ function mockReads(opts: {
   dbChainMockFns.limit.mockResolvedValueOnce(opts.last ? [opts.last] : [])
 }
 
-describe('copilot chat stop route', () => {
+describe('mothership chat stop route', () => {
   beforeEach(() => {
     // Drain the once-queue (clearAllMocks/resetDbChainMock don't), then restore defaults.
     dbChainMockFns.limit.mockReset()

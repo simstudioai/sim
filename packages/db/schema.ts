@@ -2026,7 +2026,7 @@ export interface SessionPolicySettings {
   idleTimeoutHours?: number | null
 }
 
-// contract-pending(after the release that stops declaring it is deployed): drop organization.whitelabel_settings — whitelabeling was removed
+// contract-pending(after the release that stops declaring it is deployed): drop organization.whitelabel_settings — whitelabeling was removed and no code reads or writes it after this release; earlier releases still select it explicitly, so dropping it now would break them mid-rollout
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),

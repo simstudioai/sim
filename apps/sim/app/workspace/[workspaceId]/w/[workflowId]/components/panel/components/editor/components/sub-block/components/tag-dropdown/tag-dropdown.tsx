@@ -590,11 +590,6 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
         id={folderId}
         title={nestedTag.display}
         active={parentGlobalIndex === selectedIndex && parentGlobalIndex >= 0}
-        onSelect={() => {
-          if (nestedTag.parentTag) {
-            handleTagSelect(nestedTag.parentTag, group)
-          }
-        }}
         onMouseEnter={() => {
           if (isKeyboardNav) return
           setKeyboardNav(false)

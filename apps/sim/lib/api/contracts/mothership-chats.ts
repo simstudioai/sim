@@ -331,15 +331,6 @@ export const mothershipChatAbortContract = defineRouteContract({
   },
 })
 
-/**
- * The abort route's old path, served for browser tabs loaded before it moved to
- * `/api/mothership/chat/abort`. Delete it with its route after the next release.
- */
-export const legacyCopilotChatAbortContract = defineRouteContract({
-  ...mothershipChatAbortContract,
-  path: '/api/copilot/chat/abort',
-})
-
 export const mothershipChatSchema = z.object({
   mode: z.enum(['agent', 'assistant', 'plan']),
   id: z.string(),

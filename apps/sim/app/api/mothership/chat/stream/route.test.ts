@@ -71,7 +71,7 @@ async function readAllChunks(response: Response): Promise<string[]> {
   return chunks
 }
 
-describe('copilot chat stream replay route', () => {
+describe('mothership chat stream replay route', () => {
   afterEach(() => {
     vi.useRealTimers()
   })

@@ -39,39 +39,33 @@ describe('workspace file content revision repair in PostgreSQL', () => {
       connection: { search_path: schemaName, TimeZone: 'UTC' },
     })
     await sql`CREATE TABLE workspace_files (
-      id text PRIMARY KEY, workspace_id text, context text NOT NULL, deleted_at timestamp,
-      content_updated_at timestamp NOT NULL DEFAULT now(), secret_provenance_version integer
+      id text PRIMARY KEY, workspace_id text, project_id text, context text NOT NULL,
+      deleted_at timestamp, content_updated_at timestamp NOT NULL DEFAULT now(),
+      secret_provenance_version integer
     )`
     await sql`CREATE TABLE workspace_file_secret_provenance (
       file_id text PRIMARY KEY REFERENCES workspace_files(id) ON DELETE CASCADE,
       content_updated_at timestamp NOT NULL, status text NOT NULL,
       entries jsonb NOT NULL DEFAULT '[]', updated_at timestamp NOT NULL DEFAULT now()
     )`
-    await sql`CREATE TABLE workspace_file_search_index (
-      file_id text NOT NULL, workspace_id text NOT NULL, source_content_updated_at timestamp NOT NULL,
-      status text NOT NULL DEFAULT 'pending', partial boolean NOT NULL DEFAULT false,
-      failure_reason text, line_count integer NOT NULL DEFAULT 0,
-      indexed_bytes integer NOT NULL DEFAULT 0, dispatched_at timestamp,
-      created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now(),
-      PRIMARY KEY (file_id, source_content_updated_at)
+    await sql`CREATE TABLE workspace_file_search_build (id text PRIMARY KEY, expires_at timestamp)`
+    await sql`CREATE TABLE workspace_file_search_revision (
+      file_id text PRIMARY KEY, workspace_id text, entity_type text, entity_id text,
+      source_content_updated_at timestamp NOT NULL, build_id text
     )`
-    await sql`CREATE TABLE workspace_file_search_segment (
-      file_id text NOT NULL, workspace_id text NOT NULL, source_content_updated_at timestamp NOT NULL,
-      line_number integer NOT NULL, segment_number integer NOT NULL, content text NOT NULL,
-      line_length integer NOT NULL DEFAULT 0, segment_start integer NOT NULL DEFAULT 0,
-      PRIMARY KEY (file_id, source_content_updated_at, line_number, segment_number)
+    await sql`CREATE TABLE file_search_dispatch_queue (
+      entity_type text NOT NULL, entity_id text NOT NULL,
+      updated_at timestamp NOT NULL DEFAULT now(), PRIMARY KEY (entity_type, entity_id)
     )`
-    await sql`CREATE TABLE workspace_file_search_dispatch_queue (
-      workspace_id text PRIMARY KEY, enqueued_at timestamp NOT NULL DEFAULT now(),
-      updated_at timestamp NOT NULL DEFAULT now(), last_dispatched_at timestamp
-    )`
+    await applyMigration(sql, '0468_retire_legacy_search_and_contracts.sql', (statement) =>
+      statement.includes('CREATE OR REPLACE FUNCTION workspace_file_search_mark_pending()')
+    )
     await applyMigration(
       sql,
       '0313_puzzling_zodiak.sql',
       (statement) =>
-        statement.includes('workspace_file_search_mark_pending') &&
-        (statement.startsWith('CREATE OR REPLACE FUNCTION') ||
-          statement.startsWith('CREATE TRIGGER'))
+        statement.startsWith('CREATE TRIGGER') &&
+        statement.includes('workspace_file_search_mark_pending')
     )
     await applyMigration(
       sql,
@@ -95,8 +89,7 @@ describe('workspace file content revision repair in PostgreSQL', () => {
 
   beforeEach(async () => {
     await sql`TRUNCATE workspace_files, workspace_file_secret_provenance,
-      workspace_file_search_index, workspace_file_search_segment,
-      workspace_file_search_dispatch_queue`
+      workspace_file_search_build, workspace_file_search_revision, file_search_dispatch_queue`
   })
 
   afterAll(async () => {
@@ -260,9 +253,9 @@ describe('workspace file content revision repair in PostgreSQL', () => {
       expect(await revisionOf('promoted')).toBe(MILLISECOND_REVISION)
       const [row] = await sql<{ version: number; indexed: string | null }[]>`
         SELECT file.secret_provenance_version AS version,
-          (SELECT search_index.source_content_updated_at::text
-           FROM workspace_file_search_index AS search_index
-           WHERE search_index.file_id = file.id) AS indexed
+          (SELECT revision.source_content_updated_at::text
+           FROM workspace_file_search_revision AS revision
+           WHERE revision.file_id = file.id) AS indexed
         FROM workspace_files AS file WHERE file.id = 'promoted'`
       expect(row.indexed).toBe(MILLISECOND_REVISION)
       expect(row.version).toBe(1)

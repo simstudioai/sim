@@ -181,9 +181,12 @@ describe('chunked workspace file search on PostgreSQL', () => {
     ]) {
       await applyMigration(migration)
     }
-    // The scratch schema has no settings, copilot, or token tables: take only the trigger and legacy-table retirement.
-    await applyMigration('0468_retire_legacy_search_and_contracts.sql', (statement) =>
-      /\b(?:CREATE OR REPLACE FUNCTION|DROP TABLE IF EXISTS)\b/.test(statement)
+    // Take only the trigger redefinition and the legacy search-table drops: any other unqualified DROP falls through search_path to public.
+    await applyMigration(
+      '0468_retire_legacy_search_and_contracts.sql',
+      (statement) =>
+        /\bCREATE OR REPLACE FUNCTION workspace_file_search_mark_pending\b/.test(statement) ||
+        /\bDROP TABLE IF EXISTS "workspace_file_search_/.test(statement)
     )
     database.current = drizzle(connection)
     database.search = drizzle(searchConnection, {

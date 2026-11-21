@@ -170,6 +170,8 @@ docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile
 docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile "$PROFILE" up -d
 ```
 
+A stack started from the previous, standalone `docker-compose.ollama.yml` ran under the project name `sim-with-ollama`. Upgrading it to the overlay without carrying that name over starts Sim on an empty database: stop it with `docker compose -p sim-with-ollama down` (no `-v`), then set `COMPOSE_PROJECT_NAME=sim-with-ollama` and its `POSTGRES_PASSWORD` (`postgres` unless you set one) in `.env` before starting the overlay. See [Migrating from the previous Ollama stack](/platform/self-hosting/docker#migrating-from-the-previous-ollama-stack). Ollama is no longer published on host port `11434`; use `docker compose exec`.
+
 <Callout type="warn">
   `sim-setup update` refuses two install kinds outright rather than doing something surprising:
 

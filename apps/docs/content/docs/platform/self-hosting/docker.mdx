@@ -181,6 +181,28 @@ docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile
 docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile cpu exec ollama-cpu ollama pull llama3.2
 ```
 
+#### Migrating from the previous Ollama stack
+
+The previous `docker-compose.ollama.yml` was a standalone stack with the fixed project name `sim-with-ollama`, so its database and models live in the `sim-with-ollama_postgres_data` and `sim-with-ollama_ollama_data` volumes. The overlay takes its project name from `docker-compose.prod.yml`, and started as-is it creates empty volumes instead. To keep your data:
+
+1. From the repository directory, stop the old stack without `-v`, so its volumes are kept. The old file is gone, so name the project instead:
+
+   ```bash
+   docker compose -p sim-with-ollama down
+   ```
+
+2. Add the old project name and database password to `.env`, so the overlay and the `sim-setup` CLI both resolve the same project and volumes. The old stack's password defaulted to `postgres` unless you set one:
+
+   ```bash
+   COMPOSE_PROJECT_NAME=sim-with-ollama
+   POSTGRES_PASSWORD=postgres
+   OLLAMA_URL=http://ollama:11434
+   ```
+
+3. Start the stack with the overlay and your profile, as above.
+
+Ollama is no longer published on host port `11434`. Reach it with `docker compose exec`, as in the model pull commands above.
+
 ## LM Studio
 
 Start [LM Studio's local server](https://lmstudio.ai/docs/developer/core/server), load a model, enable **Serve on Local Network**, and [configure API authentication](https://lmstudio.ai/docs/developer/core/authentication). Save these values beside your Compose file:

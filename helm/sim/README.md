@@ -236,9 +236,11 @@ helm uninstall sim --namespace sim
 **The Postgres PVCs are not deleted by `helm uninstall`** (they come from StatefulSet volume claim templates). The Ollama PVC is a chart-managed resource, so `helm uninstall` deletes it along with its downloaded models. If you want to wipe the remaining data too:
 
 ```bash
-# WARNING: this destroys all remaining Postgres data.
+# WARNING: this destroys all remaining Postgres data. The second selector term
+# spares shared-storage PVCs kept with helm.sh/resource-policy=keep when
+# upgrading past chart 1.13; drop it to delete those too.
 kubectl delete pvc --namespace sim \
-  -l app.kubernetes.io/instance=sim
+  -l 'app.kubernetes.io/instance=sim,sim.ai/volume-type!=shared-storage'
 
 # Or list and delete by name
 kubectl get pvc --namespace sim
