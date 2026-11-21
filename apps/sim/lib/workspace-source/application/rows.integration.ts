@@ -1209,6 +1209,41 @@ export default defineTable({
   )
 
   check(
+    'edits and shrinks a managed table whose declared rows alone already pass its row limit, as after a plan downgrade',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const three = `${ROWS}{"code":"ent","seats":50,"tier":"pro"}\n`
+      const created = await apply(workspaceId, {
+        'tables/plans.ts': MANAGED,
+        'tables/plans.rows.jsonl': three,
+      })
+      expect(created.failed).toBeUndefined()
+      planRowLimit.value = 1
+      try {
+        const read = await runner.get(workspaceId)
+        const twelve = three.replace('"seats":10', '"seats":12')
+        const edited = await apply(
+          workspaceId,
+          { ...read.files, 'tables/plans.rows.jsonl': twelve },
+          { base: read.base }
+        )
+        expect(edited.failed).toBeUndefined()
+
+        const reread = await runner.get(workspaceId)
+        const shrunk = await apply(
+          workspaceId,
+          { ...reread.files, 'tables/plans.rows.jsonl': twelve.split('\n').slice(1).join('\n') },
+          { base: reread.base, allowDelete: true }
+        )
+        expect(shrunk.failed).toBeUndefined()
+      } finally {
+        planRowLimit.value = undefined
+      }
+      expect((await storedRows(workspaceId)).map((row) => row.seats).sort()).toEqual([12, 50])
+    }
+  )
+
+  check(
     'refuses at plan time a column made required that a row the UI added leaves empty, though the rows file is unchanged',
     async () => {
       const workspaceId = await newWorkspace()
