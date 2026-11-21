@@ -301,7 +301,8 @@ async function notifyBatchedTableChanges(
  * A table filed inside one of the selected folders is skipped: the folder
  * operation already carries it, and acting on it separately would either pull
  * it out of the folder it is travelling with or archive it under a second
- * timestamp its folder's restore could never recover.
+ * timestamp its folder's restore could never recover. A table named twice (by
+ * its id and by its name, say) is acted on once.
  */
 async function runTableItems(
   tableIds: readonly string[],
@@ -313,10 +314,13 @@ async function runTableItems(
   succeeded: BulkTableItem[],
   outcome: BulkTablesOutcome
 ): Promise<unknown | undefined> {
+  const seen = new Set<string>()
   for (const tableId of tableIds) {
     let tableName = tableId
     try {
       const canonical = await resolveActiveTableInWorkspace(tableId, workspace)
+      if (seen.has(canonical.table.id)) continue
+      seen.add(canonical.table.id)
       tableName = canonical.table.name
       if (canonical.table.folderId && covered.has(canonical.table.folderId)) {
         outcome.skipped.push({ kind: 'table', id: canonical.table.id, name: tableName })
