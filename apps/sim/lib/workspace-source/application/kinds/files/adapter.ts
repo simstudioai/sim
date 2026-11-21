@@ -3,7 +3,8 @@
  * and name, synced by SHA-256 through staged blobs. Creates go through
  * `createWorkspaceFileBufferByPath` (which creates missing folders), content changes through
  * `updateWorkspaceFileContentFromBuffer` guarded by the revision the plan saw (each one records a
- * new version), deletes through `deleteWorkspaceFileOperation` (Recently Deleted keeps the file).
+ * new version), deletes through `deleteWorkspaceFileOperation` guarded the same way (Recently
+ * Deleted keeps the file).
  * Only `context = 'workspace'` files are read; a file over the blob cap, or one whose path no
  * directory can hold, is left out of a get and never touched by an apply (a declaration of one is
  * refused, unless it is unchanged since a get that read the file). A path is the key, so a
@@ -580,10 +581,17 @@ export const fileAdapter: KindAdapter<'file', StoredFileState> = {
       if ((await stateOf(ctx, fileId)).rev !== rev) {
         throw new ResourceChangedError(change)
       }
-      await deleteWorkspaceFileOperation.execute({
-        principal,
-        input: { fileId, assertedWorkspaceId: workspaceId },
-      })
+      try {
+        await deleteWorkspaceFileOperation.execute({
+          principal,
+          input: { fileId, assertedWorkspaceId: workspaceId, expectedRevision: rev },
+        })
+      } catch (error) {
+        if (error instanceof OrchestrationError && error.code === 'conflict') {
+          throw new ResourceChangedError(change)
+        }
+        throw error
+      }
       return { id: fileId, text: {} }
     }
     const { content, sha256 } = await contentOf(change, ctx)
