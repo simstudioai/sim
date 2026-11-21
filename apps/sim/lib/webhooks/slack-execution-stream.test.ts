@@ -33,6 +33,7 @@ vi.mock('@/lib/webhooks/slack-stream-sessions', () => ({
   unregisterSlackStreamSession: mockUnregisterSlackStreamSession,
 }))
 
+import { slackHandler } from '@/lib/webhooks/providers/slack'
 import type { SlackStreamChunk } from '@/lib/webhooks/slack-agent-api'
 import { SlackDeliveryError } from '@/lib/webhooks/slack-delivery-error'
 import { SlackExecutionStreamController } from '@/lib/webhooks/slack-execution-stream'
@@ -727,6 +728,45 @@ describe('SlackExecutionStreamController', () => {
     expect(sentText()).toBe('Safe {{SECRET}}')
     expect(JSON.stringify(mockAppendSlackAgentStream.mock.calls)).not.toContain('private-token')
     controller.assertSucceeded()
+  })
+
+  it('streams a button click into the thread of the clicked message for the clicking user', async () => {
+    const { input } = await slackHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'workflow-1', userId: 'user-1' },
+      body: {
+        type: 'block_actions',
+        user: { id: 'U9', username: 'erin', team_id: 'T9' },
+        team: { id: 'T-install' },
+        channel: { id: 'C777' },
+        message: { ts: '1700000005.000500', thread_ts: '1700000000.000100', text: '' },
+        actions: [{ action_id: 'followup_0', type: 'button', value: 'Check the NAT gateway' }],
+      },
+      headers: {},
+      requestId: 'slack-click-test',
+    })
+
+    await createController(BASE_CONFIG, input as Record<string, unknown>)
+
+    const target = {
+      channel: 'C777',
+      threadTs: '1700000000.000100',
+      initiatorUserId: 'U9',
+      recipientUserId: 'U9',
+      recipientTeamId: 'T9',
+    }
+    expect(mockRegisterSlackStreamSession).toHaveBeenCalledWith('cred-1', target, {
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+    expect(mockSetSlackAgentSessionStatus).toHaveBeenCalledWith(
+      'xoxb-token',
+      target,
+      'processing',
+      undefined
+    )
   })
 
   it('rejects credentials that do not belong to the workflow workspace', async () => {

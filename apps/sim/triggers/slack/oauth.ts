@@ -178,7 +178,7 @@ export const slackOAuthTrigger: TriggerConfig = {
       type: 'switch',
       defaultValue: false,
       description:
-        'Create a Slack agent session and stream selected workflow outputs into the conversation that started this run. Custom bots only.',
+        'Create a Slack agent session and stream selected workflow outputs into the conversation that started this run (for a button click, the thread of the clicked message). Custom bots only.',
       required: false,
       mode: 'trigger',
       condition: { field: 'eventType', value: SLACK_STREAM_RESPONSE_EVENTS },
