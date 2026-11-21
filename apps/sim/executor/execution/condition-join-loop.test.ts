@@ -12,6 +12,13 @@ import type { SerializedWorkflow } from '@/serializer/types'
 
 vi.mock('@/tools', () => toolsMock)
 
+/** The loop's continuation check runs as plain JavaScript instead of through the Redis-leased isolate. */
+vi.mock('@/lib/execution/isolated-vm', () => ({
+  executeInIsolatedVM: vi.fn(async ({ code }: { code: string }) => ({
+    result: new Function(code)(),
+  })),
+}))
+
 /** Real condition handler; every other block answers with its own name. */
 vi.mock('@/executor/handlers/registry', () => ({
   createBlockHandlers: () => [
