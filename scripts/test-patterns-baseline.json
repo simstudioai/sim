@@ -143,8 +143,6 @@
   "real-wait\tapps/sim/hooks/queries/mothership-chats.test.ts\tsleep() #2",
   "real-wait\tapps/sim/hooks/queries/organization-accounts.test.tsx\tsleep() #1",
   "real-wait\tapps/sim/hooks/queries/workflow-mcp-servers.test.tsx\tsleep() #1",
-  "real-wait\tapps/sim/hooks/queries/workspace-files.test.tsx\tsleep() #1",
-  "real-wait\tapps/sim/hooks/queries/workspace-files.test.tsx\tsleep() #2",
   "real-wait\tapps/sim/hooks/queries/workspace.test.tsx\tsleep() #1",
   "real-wait\tapps/sim/lib/billing/core/reporting-usage-cache.test.ts\tsleep() #1",
   "real-wait\tapps/sim/lib/billing/core/reporting-usage-cache.test.ts\tsleep() #2",
