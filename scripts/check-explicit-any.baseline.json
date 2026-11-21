@@ -1486,7 +1486,6 @@
     "apps/sim/lib/mothership/agent-cli/resource-owner.test.ts": 1,
     "apps/sim/lib/mothership/agent-cli/run-cli-files.test.ts": 1,
     "apps/sim/lib/mothership/agent-cli/saved-run-read.live.test.ts": 18,
-    "apps/sim/lib/mothership/agent-cli/workbench-file-provenance.integration.ts": 4,
     "apps/sim/lib/mothership/agent-cli/workbench-file-provenance.ts": 2,
     "apps/sim/lib/mothership/assistant/tool-policy.test.ts": 2,
     "apps/sim/lib/mothership/async-runs/orphaned-runs.integration.ts": 9,
