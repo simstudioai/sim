@@ -36,7 +36,8 @@ const SOURCE_READ_RATE_LIMIT: TokenBucketConfig = {
  * The bare fingerprint would not do: it ignores what it does not hash (canvas positions,
  * comments), which the printed files and lock can still carry.
  *
- * Runs in a source read slot, like the v2 read (`429` with `Retry-After` when the server is full).
+ * Runs in a source slot of the editor's own lane, so API and CLI gets never starve the Code tab
+ * (`429` with `Retry-After` when the server already runs as many Code tab reads as it may).
  * The tag is taken after the read: the printed resource keys are known only once the graph is
  * canonicalized, so no earlier tag would be sound.
  *
@@ -57,7 +58,7 @@ export const GET = defineInternalJsonRoute({
     workflowId: params.id,
     ...(query.functionCode ? { functionCode: query.functionCode } : {}),
   }),
-  useCase: withSourceSlot(readWorkflowSource, 'read'),
+  useCase: withSourceSlot(readWorkflowSource, 'editor'),
   entityTag: (source) => `${source.base.fingerprint}.${sha256Hex(JSON.stringify(source))}`,
   present: (source) => ({ data: withBoundSourceFindings(source) }),
 })

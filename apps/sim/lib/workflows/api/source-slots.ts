@@ -6,15 +6,23 @@ import { v2Error } from '@/app/api/v2/lib/response'
 
 /**
  * Source requests of one lane this server process runs at once. Plans have a lane of their own,
- * so a read-role caller asking for a status never takes a slot an apply needs.
+ * so a read-role caller asking for a status never takes a slot an apply needs, and the editor's
+ * Code tab reads in its own, so API and CLI gets and the editor never starve each other. A table
+ * plan inside one slot may run a few workflow reads at once (`kinds/table`), so the bound is per
+ * request, not per workflow load.
  */
-const MAX_CONCURRENT_SOURCE_REQUESTS = { read: 4, plan: 4, apply: 4 } as const
+const MAX_CONCURRENT_SOURCE_REQUESTS = { read: 4, editor: 4, plan: 4, apply: 4 } as const
 
 type SourceLane = keyof typeof MAX_CONCURRENT_SOURCE_REQUESTS
 
-const LANE_NOUNS: Record<SourceLane, string> = { read: 'gets', plan: 'plans', apply: 'applies' }
+const LANE_NOUNS: Record<SourceLane, string> = {
+  read: 'gets',
+  editor: 'Code tab reads',
+  plan: 'plans',
+  apply: 'applies',
+}
 
-const runningSourceRequests: Record<SourceLane, number> = { read: 0, plan: 0, apply: 0 }
+const runningSourceRequests: Record<SourceLane, number> = { read: 0, editor: 0, plan: 0, apply: 0 }
 
 /** The wait a request refused for want of a slot is told to take. */
 const SOURCE_BUSY_HEADERS = { 'Retry-After': '5' }

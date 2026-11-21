@@ -1,4 +1,5 @@
 import { authMockFns } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,6 +18,8 @@ vi.mock('@/lib/workflows/application/read-workflow-source', () => ({
   },
 }))
 
+import { withSourceSlot } from '@/lib/workflows/api/source-slots'
+import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { GET } from '@/app/api/workflows/[id]/source/route'
 
 const WORKFLOW_ID = 'workflow-123'
@@ -55,6 +58,23 @@ describe('GET /api/workflows/[id]/source', () => {
       user: { id: 'user-123' },
       session: { id: 'session-123' },
     })
+  })
+
+  it('reads in a lane of its own: API and CLI source gets filling theirs never refuse the Code tab', async () => {
+    const finish: Array<() => void> = []
+    mockRead.mockImplementation(() => new Promise((resolve) => finish.push(() => resolve(source))))
+    const apiGet = withSourceSlot(readWorkflowSource, 'read')
+    const principal = createSessionPrincipal({ userId: 'user-123', sessionId: 'session-123' })
+    const running = Array.from({ length: 4 }, () =>
+      apiGet.execute({ principal, input: { workflowId: WORKFLOW_ID } })
+    )
+    await vi.waitFor(() => expect(finish).toHaveLength(4))
+    mockRead.mockResolvedValueOnce(source)
+
+    expect((await read()).status).toBe(200)
+
+    for (const done of finish) done()
+    await Promise.all(running)
   })
 
   it('answers 429 with Retry-After to a read past the source gets this server runs at once', async () => {
