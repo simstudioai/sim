@@ -16,14 +16,19 @@ afterEach(() => {
   editor = null
 })
 
-function runPaste(ed: Editor, text: string, html = ''): { handled: boolean; prevented: boolean } {
+function runPaste(
+  ed: Editor,
+  text: string,
+  html = '',
+  extra: Record<string, string> = {}
+): { handled: boolean; prevented: boolean } {
   let prevented = false
   const event = {
     clipboardData: {
       getData: (type: string) => {
         if (type === 'text/plain') return text
         if (type === 'text/html') return html
-        return ''
+        return extra[type] ?? ''
       },
     },
     preventDefault: () => {
@@ -38,11 +43,11 @@ function runPaste(ed: Editor, text: string, html = ''): { handled: boolean; prev
   return { handled: false, prevented }
 }
 
-function dispatchPaste(ed: Editor, text: string) {
+function dispatchPaste(ed: Editor, text: string, extra: Record<string, string> = {}) {
   const event = new Event('paste', { bubbles: true, cancelable: true })
   Object.defineProperty(event, 'clipboardData', {
     value: {
-      getData: (type: string) => (type === 'text/plain' ? text : ''),
+      getData: (type: string) => (type === 'text/plain' ? text : (extra[type] ?? '')),
       files: [],
       items: [],
     },
@@ -136,23 +141,62 @@ describe('rich Markdown paste admission', () => {
     expect(onRejected).toHaveBeenCalledOnce()
   })
 
-  it('rejects before downstream paste parsing when projected bytes exceed the document limit', () => {
-    const onRejected = vi.fn()
-    editor = new Editor({
-      extensions: [
-        ...createMarkdownContentExtensions(),
-        createRichMarkdownPasteAdmission({
-          maxResultBytes: 10,
-          getCurrentText: () => '123456',
-          onRejected,
-        }),
-      ],
-      content: '<p>123456</p>',
-    })
+  it.each(['text/plain', 'text/markdown'])(
+    'rejects oversized %s before downstream paste parsing',
+    (type) => {
+      const onRejected = vi.fn()
+      editor = new Editor({
+        extensions: [
+          ...createMarkdownContentExtensions(),
+          createRichMarkdownPasteAdmission({
+            maxResultBytes: 10,
+            getCurrentText: () => '123456',
+            onRejected,
+          }),
+        ],
+        content: '<p>123456</p>',
+      })
 
-    expect(runPaste(editor, 'abcde')).toEqual({ handled: true, prevented: true })
-    expect(onRejected).toHaveBeenCalledOnce()
-  })
+      expect(
+        runPaste(editor, type === 'text/plain' ? 'abcde' : 'x', '', { [type]: 'abcde' })
+      ).toEqual({ handled: true, prevented: true })
+      expect(onRejected).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each(['plain shortcut', 'code block', 'inline code'])(
+    'budgets the consumed plain representation for %s',
+    (context) => {
+      const onRejected = vi.fn()
+      editor = new Editor({
+        extensions: [
+          ...createMarkdownContentExtensions(),
+          MarkdownPaste,
+          createRichMarkdownPasteAdmission({
+            maxResultBytes: 64,
+            getCurrentText: () => editor?.getMarkdown() ?? '',
+            onRejected,
+          }),
+        ],
+        enablePasteRules: false,
+      })
+      if (context === 'code block') editor.commands.setCodeBlock()
+      else if (context === 'inline code') editor.commands.setCode()
+      else
+        editor.view.dom.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'v',
+            keyCode: 86,
+            ctrlKey: true,
+            shiftKey: true,
+            bubbles: true,
+          })
+        )
+      dispatchPaste(editor, 'x', { 'text/markdown': '# '.repeat(100) })
+      expect(editor.state.doc.textContent).toBe('x')
+      expect(onRejected).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects oversized rich HTML before downstream parsing', () => {
     const onRejected = vi.fn()

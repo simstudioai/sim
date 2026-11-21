@@ -9,7 +9,7 @@
  * renderer is the drift that makes a failover fail at the worst moment.
  *
  * The copilot repo holds the equivalent lists for the shell and doc sandboxes
- * (`copilot/scripts/sandbox/packages.ts`); the Pi image lives here because Sim
+ * (`sandbox/packages.ts`); the Pi image lives here because Sim
  * owns the Pi block.
  */
 
