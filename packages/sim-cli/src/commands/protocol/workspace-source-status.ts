@@ -26,6 +26,7 @@ import {
 import type { Command } from 'commander'
 import { profileFrom } from '../../context'
 import { setSoftExitCode } from '../../embed-context'
+import { SOURCE_STALE_EXIT_CODE } from '../../exit-codes'
 import type {
   GetWorkspaceSourceResponse,
   PlanWorkspaceSourceBody,
@@ -194,6 +195,8 @@ interface WorkspacePlanSummary {
   delete: number
   unchanged: number
   held: number
+  /** Resources changed on both sides: while any stands, an apply is refused as stale. */
+  conflicts: number
   /** Errors other than the server changes the status lists. */
   errors: number
   warnings: number
@@ -202,15 +205,10 @@ interface WorkspacePlanSummary {
 type PlannedChange = PlanData['plan'][number]
 
 /**
- * The dry run's plan as an apply to `target` would make it. The status sends every workflow folder
- * whole, so the server plans an update for one changed only on the server, but an apply sends a
- * folder without local edits by its base alone, which the server leaves unchanged.
+ * The workflow folders an apply to `target` sends by their base alone: those without local edits.
+ * The status sends every folder whole, to compare each with the stored workflow.
  */
-function planAsApplied(
-  plan: readonly PlannedChange[],
-  local: LocalWorkspace,
-  target: string
-): PlannedChange[] {
+function workflowsSentByBase(local: LocalWorkspace, target: string): Set<string> {
   const sent = withUnchangedWorkflowsPruned(local.submission, local.written, target).files
   const workflowPaths = Object.keys(local.submission.files).filter(
     (path) => kindOfPath(path) === 'workflow'
@@ -219,37 +217,70 @@ function planAsApplied(
   for (const [key, paths] of KIND_LAYOUTS.workflow.group(workflowPaths).groups) {
     if (paths.some((path) => !Object.hasOwn(sent, path))) byBase.add(key)
   }
+  return byBase
+}
+
+/** Whether `change` or `finding` is about a workflow folder an apply sends by its base alone. */
+function aboutWorkflowSentByBase(
+  { kind, key }: { kind?: string; key?: string },
+  byBase: ReadonlySet<string>
+): boolean {
+  return kind === 'workflow' && key !== undefined && byBase.has(key)
+}
+
+/**
+ * The dry run's plan as an apply would make it: the server plans an update for a folder changed
+ * only on the server, but leaves a folder sent by its base unchanged.
+ */
+function planAsApplied(
+  plan: readonly PlannedChange[],
+  byBase: ReadonlySet<string>
+): PlannedChange[] {
   return plan.map((change) =>
-    change.kind === 'workflow' && byBase.has(change.key) && change.action !== 'noop'
+    aboutWorkflowSentByBase(change, byBase) && change.action !== 'noop'
       ? { kind: change.kind, key: change.key, action: 'noop' }
       : change
   )
 }
 
-/** The dry run's findings the plan counts: all but the server changes the status lists. */
-function workspacePlanFindings(data: PlanData): Diagnostic[] {
-  return planFindings(data.diagnostics, isServerChangeFinding)
+/**
+ * The dry run's findings the plan counts, as an apply's dry run would report them: all but the
+ * server changes the status lists, and none about a workflow folder an apply sends by its base
+ * (the server compiles and lints only a folder sent whole).
+ */
+function workspacePlanFindings(data: PlanData, byBase: ReadonlySet<string>): Diagnostic[] {
+  return planFindings(data.diagnostics, isServerChangeFinding).filter(
+    (finding) => !aboutWorkflowSentByBase(finding, byBase)
+  )
 }
 
-function planSummary(data: PlanData, plan: readonly PlannedChange[]): WorkspacePlanSummary {
+function planSummary(
+  findings: readonly Diagnostic[],
+  plan: readonly PlannedChange[],
+  conflicts: number
+): WorkspacePlanSummary {
   const count = (...actions: string[]) =>
     plan.filter((change) => actions.includes(change.action)).length
-  const planned = workspacePlanFindings(data)
-  const findings = (severity: string) =>
-    planned.filter((finding) => finding.severity === severity).length
+  const severity = (level: string) =>
+    findings.filter((finding) => finding.severity === level).length
   return {
     create: count('create'),
     update: count('update', 'adopt'),
     delete: count('delete'),
     unchanged: count('noop'),
     held: plan.filter((change) => change.held).length,
-    errors: findings('error'),
-    warnings: findings('warning'),
+    conflicts,
+    errors: severity('error'),
+    warnings: severity('warning'),
   }
 }
 
+/** The plan line: what applying would write, or that it is refused while a conflict stands. */
 function planLine(plan: WorkspacePlanSummary): string {
-  return `Applying would: ${plan.create} create, ${plan.update} update, ${plan.delete} delete (${plan.unchanged} unchanged); ${plan.errors} error(s), ${plan.warnings} warning(s).`
+  const counts = `${plan.create} create, ${plan.update} update, ${plan.delete} delete (${plan.unchanged} unchanged); ${plan.errors} error(s), ${plan.warnings} warning(s)`
+  return plan.conflicts > 0
+    ? `Applying would be refused as stale (exit ${SOURCE_STALE_EXIT_CODE}): ${plan.conflicts} conflict(s) above. Without them it would: ${counts}.`
+    : `Applying would: ${counts}.`
 }
 
 /**
@@ -330,6 +361,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
           let note: string | undefined = options.offline ? 'Skipped with --offline.' : undefined
           let data: PlanData | null = null
           let applyPlan: PlannedChange[] = []
+          let byBase: ReadonlySet<string> = new Set()
           let workspaceId = local.readFrom
           // The scope every recommended command carries, so it acts on what this status showed.
           const onlyScope = only ? ` --only ${only.map((kind) => KIND_DIRS[kind]).join(',')}` : ''
@@ -373,7 +405,8 @@ export function attachWorkspaceSourceStatus(source: Command): void {
                   })
               )
               data = response.data
-              applyPlan = planAsApplied(data.plan, local, target)
+              byBase = workflowsSentByBase(local, target)
+              applyPlan = planAsApplied(data.plan, byBase)
             } catch (error) {
               const reason = unreachableReason(error)
               if (reason === null) throw withSourceExitCode(error)
@@ -392,7 +425,8 @@ export function attachWorkspaceSourceStatus(source: Command): void {
                 )
               : []
           )
-          const plan = data ? planSummary(data, applyPlan) : null
+          const planned = data ? workspacePlanFindings(data, byBase) : []
+          const plan = data ? planSummary(planned, applyPlan, status.conflicts.length) : null
           const report: StatusReport<WorkspacePlanSummary> & { workspaceId: string | null } = {
             workspaceId,
             dir: options.dir,
@@ -421,7 +455,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             `Workspace ${workspaceId ?? '(no base)'} in ${options.dir}`,
             report,
             planLine,
-            data ? workspacePlanFindings(data) : []
+            planned
           )
           setSoftExitCode(statusExitCode(status.state, login))
         },

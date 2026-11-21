@@ -128,7 +128,16 @@ describe('workspaces source status', () => {
       local: [],
       drift: [],
       conflicts: [],
-      plan: { create: 0, update: 0, delete: 0, unchanged: 0, held: 0, errors: 0, warnings: 0 },
+      plan: {
+        create: 0,
+        update: 0,
+        delete: 0,
+        unchanged: 0,
+        held: 0,
+        conflicts: 0,
+        errors: 0,
+        warnings: 0,
+      },
       next: null,
     })
     expect(process.exitCode ?? 0).toBe(0)
@@ -145,6 +154,7 @@ describe('workspaces source status', () => {
       kind: 'workflow',
       key: 'ingest',
     }
+    write('workflows/ingest/workflow.ts', INGEST.replace("'Ingest'", "'Ingest v2'"))
     mockRequest.mockResolvedValue(dryRun([], [warning]))
 
     await run('status')
@@ -543,6 +553,51 @@ describe('workspaces source status', () => {
     expect(printed().plan).toMatchObject({ update: 0, unchanged: 1 })
   })
 
+  it('leaves out lint findings on a workflow an apply sends by its base, as its dry run does', async () => {
+    mockRequest.mockResolvedValue(
+      dryRun(
+        [{ kind: 'workflow', key: 'ingest', action: 'noop' }],
+        [
+          {
+            code: 'W_APPLY_LINT',
+            severity: 'warning',
+            message: 'Start must be connected',
+            kind: 'workflow',
+            key: 'ingest',
+          },
+        ]
+      )
+    )
+
+    await run('status')
+
+    const report = printed()
+    expect(report.plan).toMatchObject({ errors: 0, warnings: 0 })
+    expect(report.diagnostics ?? []).toEqual([])
+  })
+
+  it('keeps lint findings on a workflow edited here, which an apply sends whole', async () => {
+    write('workflows/ingest/workflow.ts', INGEST.replace("'Ingest'", "'Ingest v2'"))
+    mockRequest.mockResolvedValue(
+      dryRun(
+        [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+        [
+          {
+            code: 'W_APPLY_LINT',
+            severity: 'warning',
+            message: 'Start must be connected',
+            kind: 'workflow',
+            key: 'ingest',
+          },
+        ]
+      )
+    )
+
+    await run('status')
+
+    expect(printed().plan).toMatchObject({ warnings: 1 })
+  })
+
   it('counts an edited workflow as the update its dry run plans', async () => {
     write('workflows/ingest/workflow.ts', INGEST.replace("'Ingest'", "'Ingest v2'"))
     mockRequest.mockResolvedValue(dryRun([{ kind: 'workflow', key: 'ingest', action: 'update' }]))
@@ -586,7 +641,30 @@ describe('workspaces source status', () => {
     expect(report.next).toMatchObject({
       command: 'sim workspaces source get --dir <fresh dir>',
     })
+    expect(report.plan).toMatchObject({ conflicts: 1, errors: 0 })
     expect(process.exitCode).toBe(12)
+  })
+
+  it('says a conflict refuses the apply, never "0 error(s)" alone, for a person', async () => {
+    write('tables/leads.ts', `${LEADS}// edited\n`)
+    mockRequest.mockResolvedValue(
+      dryRun(
+        [{ kind: 'table', key: 'leads', action: 'noop' }],
+        [{ code: 'E_APPLY_STALE', severity: 'error', message: 'm', kind: 'table', key: 'leads' }]
+      )
+    )
+    mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: WORKSPACE_ID,
+      output: 'text',
+    })
+
+    await run('status')
+
+    const screen = String(vi.mocked(console.log).mock.calls.at(-1)?.[0])
+    expect(screen).toContain(
+      'Applying would be refused as stale (exit 5): 1 conflict(s) above. Without them it would:'
+    )
   })
 
   it('degrades to the local view when the server cannot be reached, and says so', async () => {
