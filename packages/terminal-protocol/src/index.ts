@@ -13,9 +13,10 @@
  * One is active at a time; agent tools act on the active one unless they name
  * another.
  *
- * Tool names and parameter shapes mirror the mothership tool catalog
- * (`copilot/internal/tools/catalog/terminal` in the mothership repo) — that
- * catalog is the source of truth for what the model can call; this package is
+ * Tool names and parameter shapes mirror the mothership worker's tool catalog
+ * (`worker/packages/contracts/tool-catalog-v1.json`, with desktop tool
+ * definitions in `worker/apps/server/src/protocol/desktop-tools.ts`, in the
+ * mothership repo) — that catalog is the source of truth for what the model can call; this package is
  * the source of truth for how those calls travel to the desktop main process.
  */
 
