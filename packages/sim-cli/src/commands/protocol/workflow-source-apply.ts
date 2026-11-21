@@ -13,6 +13,13 @@ import type {
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
+import {
+  type DeployedUrl,
+  deployedUrls,
+  deployedUrlsText,
+  lockBlockNames,
+  namedUrls,
+} from './deployed-urls'
 import { gitProvenance } from './git-provenance'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
@@ -171,6 +178,7 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
         ...(deployment.deployed
           ? { deployed: `version ${deployment.deployed.version ?? '?'}` }
           : {}),
+        ...(deployment.urls?.length ? { urls: deployedUrlsText(deployment.urls) } : {}),
       }
     )
   }
@@ -229,6 +237,8 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
 interface DeployOutcome {
   deployed?: { version?: number; isDeployed: boolean; warnings?: string[] }
   needsRedeployment?: boolean
+  /** The URL of each webhook the live deployment serves. */
+  urls?: DeployedUrl[]
   next?: NextStep
 }
 
@@ -276,6 +286,7 @@ async function deployStep(
           isDeployed: true,
         },
         needsRedeployment: false,
+        ...urlsOf(namedUrls(status.webhooks, lockBlockNames(data.lock))),
       }
     }
   }
@@ -301,7 +312,21 @@ async function deployStep(
       ...(options.machine && deployed.warnings.length > 0 ? { warnings: deployed.warnings } : {}),
     },
     needsRedeployment: false,
+    ...(deployed.isDeployed ? await liveUrls(client, data) : {}),
   }
+}
+
+/** The live deployment's webhook URLs, each named as the stored lock names its block. */
+async function liveUrls(
+  client: OperationClient<'getWorkflowDeployment'>,
+  data: SourceApplyData
+): Promise<Pick<DeployOutcome, 'urls'>> {
+  return urlsOf(await deployedUrls(client, data.workflowId, lockBlockNames(data.lock)))
+}
+
+/** `urls` as a deploy outcome's field: absent when there are none. */
+function urlsOf(urls: DeployedUrl[]): Pick<DeployOutcome, 'urls'> {
+  return urls.length > 0 ? { urls } : {}
 }
 
 /** A failed deploy after a saved write, saying the write itself stands and how to deploy it. */

@@ -936,15 +936,63 @@ describe('sim workflows source apply', () => {
       },
     }
 
-    it('deploys through the deploy operation once the apply is saved', async () => {
+    const STATUS_PATH = `/api/v2/workflows/${WORKFLOW_ID}/deployment`
+    const HOOK_URL = 'https://sim.example/api/webhooks/trigger/abc'
+    /** A deployment status serving one webhook from the block `b-hook`. */
+    const liveStatus = {
+      data: {
+        ...deployed.data,
+        needsRedeployment: false,
+        isPublicApi: false,
+        webhooks: [{ blockId: 'b-hook', provider: 'generic', url: HOOK_URL }],
+      },
+    }
+    /** An apply whose stored lock binds `b-hook` as the block `leadin`, const `hook`. */
+    const withHookLock = () => {
+      const answer = outcome()
+      answer.data.lock = {
+        ...LOCK,
+        blocks: { leadin: { id: 'b-hook', parent: null, ident: 'hook', order: 0 } },
+      } as typeof LOCK
+      return answer
+    }
+
+    it('names each webhook URL the deploy made live, by its block and const', async () => {
       setTerminal(false)
       request.mockImplementation(async (path: string) =>
-        path === DEPLOY_PATH ? deployed : outcome()
+        path === DEPLOY_PATH ? deployed : path === STATUS_PATH ? liveStatus : withHookLock()
       )
 
       await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
 
-      expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH, DEPLOY_PATH])
+      expect(request.mock.calls.map((call) => call[0])).toEqual([
+        APPLY_PATH,
+        DEPLOY_PATH,
+        STATUS_PATH,
+      ])
+      expect(stdoutJson()).toMatchObject({ urls: [{ block: 'leadin (hook)', url: HOOK_URL }] })
+
+      vi.mocked(console.log).mockClear()
+      contextMockState.output = 'text'
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+      expect(vi.mocked(console.log).mock.calls.map((call) => call.join(' '))).toContain(
+        `urls\tleadin (hook) ${HOOK_URL}`
+      )
+    })
+
+    it('deploys through the deploy operation once the apply is saved', async () => {
+      setTerminal(false)
+      request.mockImplementation(async (path: string) =>
+        path === DEPLOY_PATH ? deployed : path === STATUS_PATH ? liveStatus : outcome()
+      )
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+
+      expect(request.mock.calls.map((call) => call[0])).toEqual([
+        APPLY_PATH,
+        DEPLOY_PATH,
+        STATUS_PATH,
+      ])
       // The deploy names the draft the apply stored, so an edit made since is never published.
       expect(request.mock.calls[1][1].body).toEqual({
         expectedDraftFingerprint: outcome().data.base.fingerprint,
@@ -959,7 +1007,6 @@ describe('sim workflows source apply', () => {
 
     it('deploys no new version when a no-op apply leaves the live version matching the draft', async () => {
       setTerminal(false)
-      const STATUS_PATH = `/api/v2/workflows/${WORKFLOW_ID}/deployment`
       const noop = outcome()
       noop.data.applied = false
       noop.data.diff.noop = true
@@ -997,6 +1044,7 @@ describe('sim workflows source apply', () => {
         APPLY_PATH,
         STATUS_PATH,
         DEPLOY_PATH,
+        STATUS_PATH,
       ])
     })
 

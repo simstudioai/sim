@@ -1636,6 +1636,41 @@ describe('workspaces source apply', () => {
     expect(warned).toContain('Held back, not written: workflow ingest')
   })
 
+  it('names the webhook URLs of each workflow it deployed, by workflow, block and const', async () => {
+    const hookUrl = 'https://sim.example/api/webhooks/trigger/abc'
+    const lock = {
+      version: 1,
+      blocks: { leadin: { id: 'b-hook', parent: null, ident: 'hook', order: 0 } },
+      variables: {},
+    }
+    request.mockImplementation(async (path: string) =>
+      path === '/api/v2/workflows/wf_1/deployment'
+        ? {
+            data: {
+              id: 'wf_1',
+              isDeployed: true,
+              webhooks: [{ blockId: 'b-hook', provider: 'generic', url: hookUrl }],
+            },
+          }
+        : answer({
+            plan: [{ kind: 'deployment', key: 'ingest', action: 'create' }],
+            applied: [{ kind: 'deployment', key: 'ingest', action: 'create' }],
+            files: { 'workflows/ingest/.sim/lock.json': JSON.stringify(lock) },
+            base: { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } },
+          })
+    )
+
+    await apply('--yes')
+
+    const printed = vi
+      .mocked(console.log)
+      .mock.calls.map(([line]) => String(line))
+      .join('\n')
+    expect(JSON.parse(printed)).toMatchObject({
+      urls: [{ workflow: 'ingest', block: 'leadin (hook)', url: hookUrl }],
+    })
+  })
+
   it('exits 1, not 15, when every change it would write was held back and nothing was written', async () => {
     request.mockResolvedValue(
       answer({

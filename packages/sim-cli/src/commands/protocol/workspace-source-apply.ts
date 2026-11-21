@@ -32,6 +32,7 @@ import type {
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
+import { type DeployedUrl, deployedUrls, deployedUrlsText, lockBlockNames } from './deployed-urls'
 import { gitProvenance } from './git-provenance'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
@@ -678,6 +679,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     'stageWorkspaceSourceBlobs',
     'getWorkspaceSource',
     'getSourceCatalog',
+    'getWorkflowDeployment',
   ])
   absoluteDirOption(command)
   verboseFlag(command)
@@ -826,13 +828,21 @@ export function attachWorkspaceSourceApply(source: Command): void {
           const notSent = notSentFindings(submission.ignored)
           findings.print(notSent)
           /** Prints `data` as the result, with the findings about files the CLI did not send. */
-          const report = (data: ApplyData, next?: NextStep) => {
+          const report = (data: ApplyData, next?: NextStep, urls: WorkflowUrl[] = []) => {
             const diagnostics = [...notSent, ...data.diagnostics]
-            const result = { ...summarize({ ...data, diagnostics }), ...(next ? { next } : {}) }
+            const result = {
+              ...summarize({ ...data, diagnostics }),
+              ...(urls.length > 0 ? { urls } : {}),
+              ...(next ? { next } : {}),
+            }
             printProtocolResult(
               profile.output,
               { ...result, ...findings.result(diagnostics) },
-              { created: createdText(result.created), ...(next ? { next: next.command } : {}) }
+              {
+                created: createdText(result.created),
+                ...(urls.length > 0 ? { urls: workflowUrlsText(urls) } : {}),
+                ...(next ? { next: next.command } : {}),
+              }
             )
           }
           const data = await runSourceWrite<ApplyData>({
@@ -893,11 +903,57 @@ export function attachWorkspaceSourceApply(source: Command): void {
             printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
             setSoftExitCode(failedExitCode(data.failed))
           }
-          report(data)
+          report(data, undefined, await deploymentUrls(client, data))
         },
         { readOnly: mode === 'dry-run' || mode === 'plan' }
       )
     })
+}
+
+/** A webhook URL of a workflow an apply deployed, named by the workflow's key and the block's. */
+interface WorkflowUrl extends DeployedUrl {
+  workflow: string
+}
+
+/** The URLs as one display line: `lead-intake: leadin (hook) https://…; …`. */
+function workflowUrlsText(urls: readonly WorkflowUrl[]): string {
+  const byWorkflow = new Map<string, DeployedUrl[]>()
+  for (const { workflow, ...url } of urls) {
+    byWorkflow.set(workflow, [...(byWorkflow.get(workflow) ?? []), url])
+  }
+  return [...byWorkflow]
+    .map(([workflow, each]) => `${workflow}: ${deployedUrlsText(each)}`)
+    .join('; ')
+}
+
+/**
+ * The webhook URLs of each workflow a written apply deployed (a `deployments/<key>.ts` it created
+ * or updated), in the workspace it wrote: a promotion's are the target's, which are new URLs.
+ * Each block is named as the workflow's reprinted lock names it.
+ */
+async function deploymentUrls(
+  client: OperationClient<'getWorkflowDeployment'>,
+  data: ApplyData
+): Promise<WorkflowUrl[]> {
+  if (data.dryRun) return []
+  const base = parseWorkspaceBase(data.base).base
+  const deployed = data.applied.filter(
+    (change) => change.kind === 'deployment' && change.action !== 'delete'
+  )
+  const perWorkflow = await Promise.all(
+    deployed.map(async ({ key }): Promise<WorkflowUrl[]> => {
+      const workflowId = base?.resources[`workflow:${key}`]?.id
+      if (!workflowId) return []
+      const lockText = data.files[`${KIND_DIRS.workflow}/${key}/${SOURCE_LOCK_FILE}`]
+      let lock: unknown = null
+      try {
+        lock = lockText === undefined ? null : JSON.parse(lockText)
+      } catch {}
+      const named = await deployedUrls(client, workflowId, lockBlockNames(lock))
+      return named.map((url) => ({ workflow: key, ...url }))
+    })
+  )
+  return perWorkflow.flat()
 }
 
 /** This apply as a command, without `--yes` or `--dry-run`: what a plan run names next. */

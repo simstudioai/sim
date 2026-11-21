@@ -86,7 +86,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
    sim workflows source apply --dir ./support-triage --yes
    ```
 
-   The workflow builder updates for anyone who has the workflow open. Deploy when you are ready, or add `--deploy` to deploy right after the save; without it, a deployed workflow whose draft now differs prints the `sim workflows deploy` command to run. `--yes` refuses everything a dry run would, so step 4 is optional: without `--yes`, and with no terminal to ask, `apply` prints the plan, writes nothing and exits `14`. The save rewrites `workflow.ts` in canonical form, so read it again before the next edit.
+   The workflow builder updates for anyone who has the workflow open. Deploy when you are ready, or add `--deploy` to deploy right after the save, which also prints the URL of each webhook the workflow now serves; without it, a deployed workflow whose draft now differs prints the `sim workflows deploy` command to run. `--yes` refuses everything a dry run would, so step 4 is optional: without `--yes`, and with no terminal to ask, `apply` prints the plan, writes nothing and exits `14`. The save rewrites `workflow.ts` in canonical form, so read it again before the next edit.
 
    Editing the name or description in `workflow('…')` renames or redescribes the workflow; a name another workflow in its folder already has is refused with `E_NAME_TAKEN`. Lines starting with `note:` report something the save did beyond what the file says; read them.
 
