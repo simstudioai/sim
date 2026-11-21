@@ -885,6 +885,90 @@ describe('Public file shares against PostgreSQL and private storage', () => {
   )
 
   check(
+    'public share content saved during an object read is delivered from a fresh snapshot, never mixed',
+    async () => {
+      const { updateProjectFileShare } = await import('@/lib/projects/files/application/shares')
+      const {
+        authorizePublicFileShare,
+        readPublicFileShareContent,
+        retryOnSharedFileRevisionChange,
+      } = await import('@/lib/public-shares/application')
+      // A Markdown file streams from storage; a page is rendered whole. Both see the save.
+      const saved = 'Saved while read'
+      const shared = {
+        streamed: { input: createInput, source: '' },
+        rendered: {
+          input: (projectId: string) => ({
+            ...createInput(projectId, '---\ntitle: Architecture\n---\n\nShared page'),
+            name: 'Architecture',
+            contentType: 'text/x-sim-page',
+          }),
+          source: '---\ntitle: Architecture\n---\n\n',
+        },
+      }
+      for (const { input, source } of Object.values(shared))
+        for (const saves of ['once', 'every read'] as const) {
+          const f = await fixture()
+          const { file } = await createProjectFile.execute({
+            principal: f.principal,
+            input: input(f.projectId),
+          })
+          const { share } = await updateProjectFileShare.execute({
+            principal: f.principal,
+            input: { projectId: f.projectId, fileId: file.id, isActive: true },
+          })
+          const access = await authorizePublicFileShare({
+            token: share.token,
+            credential: { method: 'GET' },
+          })
+          if (!access.authorized) throw new Error('Public fixture rejected')
+          // A collaborative save commits while the object is being read, buffered or streamed alike.
+          let written = 0
+          let saving = false
+          const save = async () => {
+            if (saving || (saves === 'once' && written > 0)) return
+            saving = true
+            written++
+            try {
+              await updateProjectFileContent.execute({
+                principal: f.principal,
+                input: {
+                  projectId: f.projectId,
+                  fileId: file.id,
+                  content: `${source}${saved} ${written}`,
+                  encoding: 'utf-8',
+                },
+              })
+            } finally {
+              saving = false
+            }
+          }
+          const download = storage.downloadFile
+          const downloadStream = storage.downloadFileStream
+          const spies = [
+            vi.spyOn(storage, 'downloadFile').mockImplementation(async (options) => {
+              const result = await download(options)
+              await save()
+              return result
+            }),
+            vi.spyOn(storage, 'downloadFileStream').mockImplementation(async (options) => {
+              const result = await downloadStream(options)
+              await save()
+              return result
+            }),
+          ]
+          const delivered = retryOnSharedFileRevisionChange(() =>
+            sharedBytes(readPublicFileShareContent({ grant: access.grant }))
+          )
+          if (saves === 'once') expect((await delivered).toString()).toContain(`${saved} 1`)
+          else await expect(delivered).rejects.toMatchObject({ code: 'conflict' })
+          expect(written).toBe(saves === 'once' ? 1 : 3)
+          for (const spy of spies) spy.mockRestore()
+        }
+    }
+  )
+
+  check(
     'public share grants cannot be cloned or reused after Project archive and preserve workspace links',
     async () => {
       const { updateProjectFileShare } = await import('@/lib/projects/files/application/shares')

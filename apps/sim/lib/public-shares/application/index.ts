@@ -10,4 +10,5 @@ export {
   readPublicFileShare,
   readPublicFileShareContent,
   readPublicFileShareInline,
+  retryOnSharedFileRevisionChange,
 } from './read'
