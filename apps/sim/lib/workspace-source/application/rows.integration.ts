@@ -15,7 +15,6 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
-import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
@@ -1192,16 +1191,13 @@ export default defineTable({
         { base: read.base, allowDelete: true }
       )
       expect(dropped.failed).toBeUndefined()
-      // Once the dropped column's cells are gone from every row, nothing is left to write them.
+      // The apply strips the dropped column's cells in its own transaction, so none are left.
       const table = await storedTable(workspaceId)
-      for (let waited = 0; waited < 50; waited++) {
-        const [{ holding }] = await db
-          .select({ holding: sql<number>`count(*)::int` })
-          .from(userTableRows)
-          .where(and(eq(userTableRows.tableId, table.id), sql`${userTableRows.data} ? ${tierId}`))
-        if (holding === 0) break
-        await sleep(100)
-      }
+      const [{ holding }] = await db
+        .select({ holding: sql<number>`count(*)::int` })
+        .from(userTableRows)
+        .where(and(eq(userTableRows.tableId, table.id), sql`${userTableRows.data} ? ${tierId}`))
+      expect(holding).toBe(0)
 
       const planned = await apply(workspaceId, dropped.files, {
         base: dropped.base,

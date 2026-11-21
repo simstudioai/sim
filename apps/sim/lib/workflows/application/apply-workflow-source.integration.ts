@@ -1562,8 +1562,10 @@ describe('source apply edge cases', () => {
 
       const result = await apply(source, edit(source.files, 'return 1', 'return 2'))
 
-      expect(source.files['workflow.ts']).toContain("language: raw('cobol')")
       expect(result.applied).toBe(true)
+      const stored = (await snapshot(workflowId)).state?.blocks[score.id]
+      expect(stored?.subBlocks.code?.value).toBe('return 2')
+      expect(stored?.subBlocks.language?.value).toBe('cobol')
     }
   )
 
