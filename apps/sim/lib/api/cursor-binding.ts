@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { filterUndefined } from '@sim/utils/object'
+import { canonicalJson, filterUndefined } from '@sim/utils/object'
 
 /**
  * Caller-facing message for a cursor replayed under different filters. Separate
@@ -122,26 +122,6 @@ export function instantScopePart(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined
   const parsed = Date.parse(raw)
   return Number.isNaN(parsed) ? raw : new Date(parsed).toISOString()
-}
-
-/**
- * Deterministic JSON: object keys sorted so two structurally equal values
- * serialize identically regardless of the key order they arrived in, and
- * `undefined` members dropped so an omitted param and an absent one agree.
- *
- * Array order is preserved, because an array is a sequence in the general case.
- * A filter whose array is really a set must canonicalize it first — see
- * {@link parseUnorderedList} and {@link unorderedScopeOf} — or equivalent
- * queries fingerprint differently and a valid cursor is refused.
- */
-export function canonicalJson(value: unknown): string {
-  if (value instanceof Date) return JSON.stringify(value.toISOString())
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, entry]) => entry !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`).join(',')}}`
 }
 
 /**

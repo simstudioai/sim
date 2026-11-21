@@ -90,3 +90,19 @@ export function parseStoredList(raw: unknown): unknown[] | undefined {
   const parsed = typeof raw === 'string' ? parseJsonContainer(raw) : undefined
   return Array.isArray(parsed) ? parsed : undefined
 }
+
+/** Appends `item` to the list `map` holds under `key`, starting the list if there is none. */
+export function pushTo<K, V>(map: Map<K, V[]>, key: K, item: V): void {
+  const list = map.get(key)
+  if (list) list.push(item)
+  else map.set(key, [item])
+}
+
+/** Every string under `value`, depth first. */
+export function* strings(value: unknown): Generator<string> {
+  if (typeof value === 'string') yield value
+  else if (Array.isArray(value)) for (const item of value) yield* strings(item)
+  else if (value !== null && typeof value === 'object') {
+    for (const item of Object.values(value)) yield* strings(item)
+  }
+}

@@ -57,6 +57,7 @@ import {
   containerKindOf,
   enclosingContainers,
   type JsonFieldEntry,
+  type LiteralTag,
   lookup,
   rangeOf,
   reportNotImported,
@@ -247,9 +248,11 @@ function checkIterationTag(
 }
 
 /**
- * `W_REF_NOT_NORMALIZED` for each hand-written `<Name.path>` in literal text whose head is not a
- * normalized block key, or names no declared block. Such text is kept verbatim, so a rename in the
- * same apply never rewrites it; the block's ident is the reference that follows the block.
+ * Checks each hand-written `<Name.path>` in literal text whose head is not a normalized block key,
+ * or names no declared block. Such text is kept verbatim, so a rename in the same apply never
+ * rewrites it; the block's ident is the reference that follows the block. A head written other
+ * than as its block's key is `W_REF_NOT_NORMALIZED`. A path whose head names no block at all
+ * waits for {@link checkUnresolvedTags}, which knows the apply's renames.
  */
 function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: ValueSite): void {
   // A note never runs, so nothing in it resolves: `<b>` in its markdown is text, not a reference.
@@ -267,18 +270,59 @@ function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: V
       checkIterationTag(ctx, rangeOf(ctx, node), site.decl.key, segments)
       continue
     }
-    const target = ctx.declsByKey.get(normalized)
-    ctx.reporter.report(
-      'W_REF_NOT_NORMALIZED',
-      normalized === head.name
-        ? `${token.value} names no block; the text is kept as written.`
-        : `${token.value} is not written with the block key ${normalized}; the text is kept as written.`,
-      rangeOf(ctx, node),
-      {
-        hint: target?.ident
-          ? `Write \${${formatMemberPath(target.ident, segments.slice(1))}} in a template, so a rename follows the block.`
+    const tag = {
+      token: token.value,
+      segments,
+      normalized,
+      at: rangeOf(ctx, node),
+      blockKey: site.decl.key,
+    }
+    if (!ctx.declsByKey.has(normalized) && segments.length > 1) ctx.unresolvedTags.push(tag)
+    else reportNotNormalized(ctx, tag)
+  }
+}
+
+function reportNotNormalized(ctx: CompileContext, tag: LiteralTag): void {
+  const target = ctx.declsByKey.get(tag.normalized)
+  ctx.reporter.report(
+    'W_REF_NOT_NORMALIZED',
+    target
+      ? `${tag.token} is not written with the block key ${tag.normalized}; the text is kept as written.`
+      : `${tag.token} names no block; the text is kept as written.`,
+    tag.at,
+    {
+      hint: () =>
+        target?.ident
+          ? `Write \${${formatMemberPath(target.ident, tag.segments.slice(1))}} in a template, so a rename follows the block.`
           : 'Reference a declared block through its ident, so a rename follows the block.',
-        blockKey: site.decl.key,
+      blockKey: tag.blockKey,
+    }
+  )
+}
+
+/**
+ * Reports each literal `<name.path>` whose head names no block once the apply's renames are known
+ * (`renamed`, stored key → source key). The apply rewrites a renamed block's stored key to its new
+ * one, so such a head still resolves and stays `W_REF_NOT_NORMALIZED`; any other names no block,
+ * which the run cannot resolve: `W_UNRESOLVED_REF`, refused on a block the edit changed, as the
+ * server's lint refuses a dangling reference.
+ */
+export function checkUnresolvedTags(
+  ctx: CompileContext,
+  renamed: ReadonlyMap<BlockKey, BlockKey>
+): void {
+  for (const tag of ctx.unresolvedTags) {
+    if (renamed.has(tag.normalized)) {
+      reportNotNormalized(ctx, tag)
+      continue
+    }
+    ctx.reporter.report(
+      'W_UNRESOLVED_REF',
+      `${tag.token} names no block, so it does not resolve at run time.`,
+      tag.at,
+      {
+        hint: 'Reference a declared block through its ident, so a rename follows the block.',
+        blockKey: tag.blockKey,
       }
     )
   }
@@ -611,7 +655,7 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
           `No workflow variable is keyed ${name}.`,
           rangeOf(ctx, first),
           {
-            hint: didYouMean(key, ctx.variables.keys(), (known) => `vars.${known}`),
+            hint: () => didYouMean(key, ctx.variables.keys(), (known) => `vars.${known}`),
             blockKey: site.decl.key,
           }
         )
@@ -732,17 +776,20 @@ function segmentsOf(
  */
 function checkEnvName(ctx: CompileContext, name: string, at: Range, blockKey: BlockKey): void {
   ctx.envReferences.add(name)
-  if (!ctx.envNames || ctx.envNames.has(name)) return
-  const near = didYouMean(name, ctx.envNames)
+  const envNames = ctx.envNames
+  if (!envNames || envNames.has(name)) return
   ctx.reporter.report(
     'W_ENV_UNKNOWN',
     `The workspace has no env variable ${name}, so it resolves to nothing at run time.`,
     at,
     {
-      hint: ctx.envDeclaredIn
-        ? `${near ? `${near} Otherwise d` : 'D'}eclare ${name} in ${ctx.envDeclaredIn} and set its value with \`sim secrets set ${name} --scope workspace\`.`
-        : (near ??
-          `Add ${name} under the workspace's or your environment variables, or use a name .sim/sdk/workspace.d.ts lists.`),
+      hint: () => {
+        const near = didYouMean(name, envNames)
+        return ctx.envDeclaredIn
+          ? `${near ? `${near} Otherwise d` : 'D'}eclare ${name} in ${ctx.envDeclaredIn} and set its value with \`sim secrets set ${name} --scope workspace\`.`
+          : (near ??
+              `Add ${name} under the workspace's or your environment variables, or use a name .sim/sdk/workspace.d.ts lists.`)
+      },
       blockKey,
     }
   )
@@ -997,7 +1044,7 @@ export function checkCodeFileRefs(
           hint: suggested
             ? `${ref.tag ? 'A tag' : REF_ROOT} names a block by its key: write ${rewritten(suggested.key)}.`
             : ctx.knownKeys.has(head.name)
-              ? formerBlockHint(ctx, head.name, renamed, rewritten, spell)
+              ? () => formerBlockHint(ctx, head.name, renamed, rewritten, spell)
               : () =>
                   didYouMean(head.name, ctx.declsByKey.keys(), (key) =>
                     spell([{ kind: 'name', name: key }])

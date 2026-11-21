@@ -18,8 +18,8 @@
  * {@link assertCursorQueryBinding}.
  */
 
-import { isRecordLike } from '@sim/utils/object'
-import { canonicalJson, canonicalUnorderedArray, fingerprint } from '@/lib/api/cursor-binding'
+import { canonicalJson, isRecordLike } from '@sim/utils/object'
+import { canonicalUnorderedArray, fingerprint } from '@/lib/api/cursor-binding'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type { Filter, Sort, TablePredicate, TableRow, TableRowsCursor } from '@/lib/table/types'
 

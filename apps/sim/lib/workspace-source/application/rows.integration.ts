@@ -180,6 +180,15 @@ async function addUiRow(workspaceId: string, data: Record<string, string | numbe
   })
 }
 
+/** Adds keyed rows until the table's managed rows print past `maxRowsBytes`. */
+async function growPastRowsBytes(workspaceId: string) {
+  const filler = 'x'.repeat(370_000)
+  const rows = Math.ceil(WORKSPACE_SOURCE_LIMITS.maxRowsBytes / filler.length) + 1
+  for (let index = 0; index < rows; index++) {
+    await addUiRow(workspaceId, { code: `big${index}-${filler}`, seats: index })
+  }
+}
+
 /** A managed `plans` table applied from scratch, then read back. */
 async function managedPlans(workspaceId: string) {
   const created = await apply(workspaceId, {
@@ -809,6 +818,66 @@ export default defineTable({
 
       expect(created.failed).toBeUndefined()
       expect((await storedTable(workspaceId)).rowCount).toBe(count)
+    }
+  )
+
+  check('skips a table whose managed rows pass the rows byte limit, naming the table', async () => {
+    const workspaceId = await newWorkspace()
+    await managedPlans(workspaceId)
+    await growPastRowsBytes(workspaceId)
+
+    const read = await runner.get(workspaceId)
+
+    expect(read.files['tables/plans.rows.jsonl']).toBeUndefined()
+    expect(read.skipped).toEqual([
+      {
+        kind: 'table',
+        key: 'plans',
+        reason: expect.stringContaining(
+          `rows of table "plans" pass the ${WORKSPACE_SOURCE_LIMITS.maxRowsBytes}-byte`
+        ),
+      },
+    ])
+  })
+
+  check(
+    'saves a table edit whose managed rows grew past the rows byte limit, keeping the rows file as sent',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await managedPlans(workspaceId)
+      await growPastRowsBytes(workspaceId)
+      const described = {
+        ...read.files,
+        'tables/plans.ts': MANAGED.replace(
+          "name: 'plans',",
+          "name: 'plans',\n  description: 'Seats',"
+        ),
+      }
+
+      const saved = await apply(workspaceId, described, { base: read.base })
+
+      expect(saved.failed).toBeUndefined()
+      expect(saved.applied).toMatchObject([{ kind: 'table', key: 'plans', action: 'update' }])
+      expect((await storedTable(workspaceId)).description).toBe('Seats')
+      expect(saved.files).toEqual(described)
+      const entry = saved.base.resources['table:plans']
+      expect(entry?.fingerprint).not.toBe(read.base.resources['table:plans']?.fingerprint)
+      expect(entry?.rows).toEqual(read.base.resources['table:plans']?.rows)
+      expect(
+        saved.diagnostics
+          .filter((finding) => finding.code === 'W_SERVER_CHANGED')
+          .map((finding) => finding.message)
+      ).toContainEqual(
+        expect.stringContaining(
+          `rows of table "plans" pass the ${WORKSPACE_SOURCE_LIMITS.maxRowsBytes}-byte`
+        )
+      )
+
+      // The saved base applies again as a no-op, keeping the server's rows.
+      const again = await apply(workspaceId, saved.files, { base: saved.base })
+      expect(again.failed).toBeUndefined()
+      expect(again.applied).toEqual([])
+      expect(codes(again.diagnostics, 'warning')).toEqual(['W_SERVER_CHANGED'])
     }
   )
 

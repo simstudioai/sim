@@ -5911,7 +5911,7 @@
       "get": {
         "operationId": "getWorkflowSource",
         "summary": "Get workflow source",
-        "description": "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and its `base`. The lock binds each block key in the source to its stored id; `base` records the workflow, workspace, freshness fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear by their resource key: allocated from the resource's name the first time source names it, then never changed, so renaming the resource keeps its key. An id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. A workflow too large to apply back as source (more than 2000 blocks, over 4000000 bytes of files in all, or nested deeper than 200 levels) returns `413` naming the measured size. This read records no audit event. `HEAD` checks access as `GET` does and answers with no body, without reading the draft, so it never reports a too-large workflow. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
+        "description": "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and its `base`. The lock binds each block key in the source to its stored id; `base` records the workflow, workspace, freshness fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear by their resource key: allocated from the resource's name the first time source names it, then never changed, so renaming the resource keeps its key. An id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. A workflow too large to apply back as source (more than 2000 blocks or 2000 variables, over 4000000 bytes of files in all, or nested deeper than 200 levels) returns `413` naming the measured size. This read records no audit event. `HEAD` checks access as `GET` does and answers with no body, without reading the draft, so it never reports a too-large workflow. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.source.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -18953,6 +18953,7 @@
                     "description": "Lock format version."
                   },
                   "blocks": {
+                    "description": "Block key → identity.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"
@@ -19065,18 +19066,17 @@
                         "description": "An `x-` extension field, kept verbatim."
                       },
                       "description": "One block’s identity."
-                    },
-                    "description": "Block key → identity."
+                    }
                   },
                   "variables": {
+                    "description": "Variable key → variable id.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"
                     },
                     "additionalProperties": {
                       "type": "string"
-                    },
-                    "description": "Variable key → variable id."
+                    }
                   }
                 },
                 "required": ["version", "blocks", "variables"],
@@ -19204,6 +19204,8 @@
                         "E_UNKNOWN_OPERATION",
                         "W_UNKNOWN_MODEL",
                         "W_LEGACY_BLOCK_TYPE",
+                        "W_UNKNOWN_BLOCK_TYPE",
+                        "W_TYPE_NOT_ADDABLE",
                         "I_SCHEDULE_UTC",
                         "E_STORED_VALUE_MISSING",
                         "W_VALUE_KIND",
@@ -19675,6 +19677,8 @@
                         "E_UNKNOWN_OPERATION",
                         "W_UNKNOWN_MODEL",
                         "W_LEGACY_BLOCK_TYPE",
+                        "W_UNKNOWN_BLOCK_TYPE",
+                        "W_TYPE_NOT_ADDABLE",
                         "I_SCHEDULE_UTC",
                         "E_STORED_VALUE_MISSING",
                         "W_VALUE_KIND",
@@ -19861,6 +19865,7 @@
                     "description": "Lock format version."
                   },
                   "blocks": {
+                    "description": "Block key → identity.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"
@@ -19973,18 +19978,17 @@
                         "description": "An `x-` extension field, kept verbatim."
                       },
                       "description": "One block’s identity."
-                    },
-                    "description": "Block key → identity."
+                    }
                   },
                   "variables": {
+                    "description": "Variable key → variable id.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"
                     },
                     "additionalProperties": {
                       "type": "string"
-                    },
-                    "description": "Variable key → variable id."
+                    }
                   }
                 },
                 "required": ["version", "blocks", "variables"],
@@ -20152,6 +20156,7 @@
                 "description": "Lock format version."
               },
               "blocks": {
+                "description": "Block key → identity.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -20264,18 +20269,17 @@
                     "description": "An `x-` extension field, kept verbatim."
                   },
                   "description": "One block’s identity."
-                },
-                "description": "Block key → identity."
+                }
               },
               "variables": {
+                "description": "Variable key → variable id.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
                 },
                 "additionalProperties": {
                   "type": "string"
-                },
-                "description": "Variable key → variable id."
+                }
               }
             },
             "required": ["version", "blocks", "variables"],
@@ -20347,33 +20351,7 @@
         "required": ["files", "lock", "base"],
         "additionalProperties": false,
         "title": "Apply workflow source body",
-        "description": "Edited source files with the lock and base they were read with.",
-        "examples": [
-          {
-            "files": {
-              "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
-            },
-            "lock": {
-              "version": 1,
-              "blocks": {
-                "start": {
-                  "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
-                  "parent": null,
-                  "ident": "start",
-                  "order": 0
-                }
-              },
-              "variables": {}
-            },
-            "base": {
-              "version": 1,
-              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-              "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
-              "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
-            }
-          }
-        ]
+        "description": "Edited source files with the lock and base they were read with."
       },
       "PlanWorkflowSourceResponse": {
         "type": "object",
@@ -20664,6 +20642,8 @@
                         "E_UNKNOWN_OPERATION",
                         "W_UNKNOWN_MODEL",
                         "W_LEGACY_BLOCK_TYPE",
+                        "W_UNKNOWN_BLOCK_TYPE",
+                        "W_TYPE_NOT_ADDABLE",
                         "I_SCHEDULE_UTC",
                         "E_STORED_VALUE_MISSING",
                         "W_VALUE_KIND",
@@ -20850,6 +20830,7 @@
                     "description": "Lock format version."
                   },
                   "blocks": {
+                    "description": "Block key → identity.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"
@@ -20962,18 +20943,17 @@
                         "description": "An `x-` extension field, kept verbatim."
                       },
                       "description": "One block’s identity."
-                    },
-                    "description": "Block key → identity."
+                    }
                   },
                   "variables": {
+                    "description": "Variable key → variable id.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"
                     },
                     "additionalProperties": {
                       "type": "string"
-                    },
-                    "description": "Variable key → variable id."
+                    }
                   }
                 },
                 "required": ["version", "blocks", "variables"],
@@ -21141,6 +21121,7 @@
                 "description": "Lock format version."
               },
               "blocks": {
+                "description": "Block key → identity.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -21253,18 +21234,17 @@
                     "description": "An `x-` extension field, kept verbatim."
                   },
                   "description": "One block’s identity."
-                },
-                "description": "Block key → identity."
+                }
               },
               "variables": {
+                "description": "Variable key → variable id.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
                 },
                 "additionalProperties": {
                   "type": "string"
-                },
-                "description": "Variable key → variable id."
+                }
               }
             },
             "required": ["version", "blocks", "variables"],
@@ -21312,33 +21292,7 @@
         "required": ["files", "lock", "base"],
         "additionalProperties": false,
         "title": "Plan workflow source body",
-        "description": "Edited source files with the lock and base they were read with.",
-        "examples": [
-          {
-            "files": {
-              "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
-            },
-            "lock": {
-              "version": 1,
-              "blocks": {
-                "start": {
-                  "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
-                  "parent": null,
-                  "ident": "start",
-                  "order": 0
-                }
-              },
-              "variables": {}
-            },
-            "base": {
-              "version": 1,
-              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-              "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
-              "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
-            }
-          }
-        ]
+        "description": "Edited source files with the lock and base they were read with."
       },
       "CreateWorkflowFromSourceResponse": {
         "type": "object",
@@ -21629,6 +21583,8 @@
                         "E_UNKNOWN_OPERATION",
                         "W_UNKNOWN_MODEL",
                         "W_LEGACY_BLOCK_TYPE",
+                        "W_UNKNOWN_BLOCK_TYPE",
+                        "W_TYPE_NOT_ADDABLE",
                         "I_SCHEDULE_UTC",
                         "E_STORED_VALUE_MISSING",
                         "W_VALUE_KIND",
@@ -21815,6 +21771,7 @@
                     "description": "Lock format version."
                   },
                   "blocks": {
+                    "description": "Block key → identity.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"
@@ -21927,18 +21884,17 @@
                         "description": "An `x-` extension field, kept verbatim."
                       },
                       "description": "One block’s identity."
-                    },
-                    "description": "Block key → identity."
+                    }
                   },
                   "variables": {
+                    "description": "Variable key → variable id.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"
                     },
                     "additionalProperties": {
                       "type": "string"
-                    },
-                    "description": "Variable key → variable id."
+                    }
                   }
                 },
                 "required": ["version", "blocks", "variables"],
@@ -26683,6 +26639,8 @@
                         "E_UNKNOWN_OPERATION",
                         "W_UNKNOWN_MODEL",
                         "W_LEGACY_BLOCK_TYPE",
+                        "W_UNKNOWN_BLOCK_TYPE",
+                        "W_TYPE_NOT_ADDABLE",
                         "I_SCHEDULE_UTC",
                         "E_STORED_VALUE_MISSING",
                         "W_VALUE_KIND",
@@ -27259,6 +27217,8 @@
                       "E_UNKNOWN_OPERATION",
                       "W_UNKNOWN_MODEL",
                       "W_LEGACY_BLOCK_TYPE",
+                      "W_UNKNOWN_BLOCK_TYPE",
+                      "W_TYPE_NOT_ADDABLE",
                       "I_SCHEDULE_UTC",
                       "E_STORED_VALUE_MISSING",
                       "W_VALUE_KIND",
@@ -27678,6 +27638,8 @@
                         "E_UNKNOWN_OPERATION",
                         "W_UNKNOWN_MODEL",
                         "W_LEGACY_BLOCK_TYPE",
+                        "W_UNKNOWN_BLOCK_TYPE",
+                        "W_TYPE_NOT_ADDABLE",
                         "I_SCHEDULE_UTC",
                         "E_STORED_VALUE_MISSING",
                         "W_VALUE_KIND",
@@ -28543,6 +28505,8 @@
                       "E_UNKNOWN_OPERATION",
                       "W_UNKNOWN_MODEL",
                       "W_LEGACY_BLOCK_TYPE",
+                      "W_UNKNOWN_BLOCK_TYPE",
+                      "W_TYPE_NOT_ADDABLE",
                       "I_SCHEDULE_UTC",
                       "E_STORED_VALUE_MISSING",
                       "W_VALUE_KIND",
@@ -28962,6 +28926,8 @@
                         "E_UNKNOWN_OPERATION",
                         "W_UNKNOWN_MODEL",
                         "W_LEGACY_BLOCK_TYPE",
+                        "W_UNKNOWN_BLOCK_TYPE",
+                        "W_TYPE_NOT_ADDABLE",
                         "I_SCHEDULE_UTC",
                         "E_STORED_VALUE_MISSING",
                         "W_VALUE_KIND",

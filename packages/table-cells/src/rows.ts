@@ -4,6 +4,7 @@
  * batch that repeat an earlier row's unique value. The server's table writes and the CLI's offline
  * check of a workspace directory's rows both run these, so they agree on every row.
  */
+import { canonicalJson } from '@sim/utils/object'
 import { cellRuleOf } from './rules'
 import type { CellColumn, CellRow, CellValue } from './types'
 
@@ -73,25 +74,11 @@ export function coerceRowCells(
 }
 
 /**
- * Deterministic JSON: object keys sorted and `undefined` members dropped, so two structurally
- * equal values serialize identically whatever their key order.
- */
-function canonicalCellJson(value: unknown): string {
-  if (value instanceof Date) return JSON.stringify(value.toISOString())
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
-  if (Array.isArray(value)) return `[${value.map(canonicalCellJson).join(',')}]`
-  const entries = Object.entries(value)
-    .filter(([, entry]) => entry !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${canonicalCellJson(entry)}`).join(',')}}`
-}
-
-/**
  * The key two unique-column values share when the unique check treats them as equal. Object keys
  * are sorted, since the check compares JSONB, where key order carries no meaning.
  */
 export function uniqueValueKey(value: CellValue, column: CellColumn): string {
-  return canonicalCellJson(cellRuleOf(column).valueForEquality?.(value) ?? value)
+  return canonicalJson(cellRuleOf(column).valueForEquality?.(value) ?? value)
 }
 
 /** The errors of each refused row of a batch, by its index. */

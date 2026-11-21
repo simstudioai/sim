@@ -1951,10 +1951,59 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
 /** Pass 2 for one declaration. `null` for declarations already reported as invalid. */
 export function compileBlock(ctx: CompileContext, decl: BlockDecl): CompiledBlock | null {
   if (decl.duplicate || decl.builder.kind === 'unknown') return null
-  if (decl.builder.kind !== 'container') checkLegacyType(ctx, decl)
+  if (decl.builder.kind !== 'container') {
+    checkLegacyType(ctx, decl)
+    checkUnplaceableType(ctx, decl)
+  }
   return decl.builder.kind === 'container'
     ? compileContainer(ctx, decl)
     : compileRegularBlock(ctx, decl)
+}
+
+/** Whether the lock of an unread stored workflow binds `decl`, by key or by ident. */
+function lockBinds(ctx: CompileContext, decl: BlockDecl): boolean {
+  const lock = ctx.storedUnread
+  return (
+    lock !== undefined &&
+    (Object.hasOwn(lock.blocks, decl.key) ||
+      (decl.ident !== null && ctx.storedUnreadIdents.has(decl.ident)))
+  )
+}
+
+/**
+ * A new block of a type an apply cannot place: `W_UNKNOWN_BLOCK_TYPE` for a `block()` of a type the
+ * catalog does not hold, `W_TYPE_NOT_ADDABLE` for one it keeps only for blocks already using it
+ * (`addable: false`). A block the stored workflow may continue stays quiet: one the lock binds,
+ * or any block of a type the stored workflow holds, since rename inference may bind it to one.
+ */
+function checkUnplaceableType(ctx: CompileContext, decl: BlockDecl): void {
+  const { builder } = decl
+  if (builder.kind !== 'generic' && builder.kind !== 'catalog') return
+  const notAddable = builder.block?.addable === false
+  const uncatalogued = builder.kind === 'generic' && !builder.block
+  if (!(notAddable || uncatalogued) || ctx.storedTypes.has(builder.type) || lockBinds(ctx, decl)) {
+    return
+  }
+  if (notAddable) {
+    ctx.reporter.report(
+      'W_TYPE_NOT_ADDABLE',
+      `${builder.type} can stay where a workflow already uses it, but an apply cannot add a new block of it.`,
+      rangeOf(ctx, decl.call),
+      { hint: 'Use a block type this workspace offers.', blockKey: decl.key }
+    )
+    return
+  }
+  ctx.reporter.report(
+    'W_UNKNOWN_BLOCK_TYPE',
+    `${builder.type} is not a block type this workspace offers, so an apply cannot add the block.`,
+    rangeOf(ctx, decl.call),
+    {
+      hint: () =>
+        didYouMean(builder.type, Object.keys(ctx.catalog.blocks)) ??
+        'Use a block type from the catalog, or a builder such as api() or fn().',
+      blockKey: decl.key,
+    }
+  )
 }
 
 /**
@@ -1968,15 +2017,7 @@ function checkLegacyType(ctx: CompileContext, decl: BlockDecl): void {
   const sunset = block?.lifecycle?.sunset
   if (!block || !sunset) return
   const stored = ctx.stored ? getOwn(ctx.stored.blocks, decl.key) : undefined
-  if (stored?.type === block.type) return
-  const lock = ctx.storedUnread
-  if (
-    lock &&
-    (Object.hasOwn(lock.blocks, decl.key) ||
-      Object.values(lock.blocks).some((entry) => entry.ident === decl.ident))
-  ) {
-    return
-  }
+  if (stored?.type === block.type || lockBinds(ctx, decl)) return
   const replacement = sunset.replacedBy
   const namespaces = replacement
     ? [

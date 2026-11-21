@@ -676,6 +676,23 @@ describe('materialize: identity', () => {
     }
   )
 
+  it('infers a rename by its renamed references beside a reference to no block', () => {
+    const prev = base()
+    const lock = lockFor(prev)
+    const target = edit(renameFetch(canonical(prev, lock).workflow), (draft) => {
+      draft.blocks.load.params.code = { kind: 'value', value: 'return 2' }
+      draft.blocks.report.params.code = {
+        kind: 'value',
+        value: 'return <load.result> + <nothing.x>',
+      }
+      draft.edges = draft.edges.filter((e) => e.from !== 'start')
+    })
+    const result = run(target, lock, { prev, compiledIdents: { load: 'x_load' } })
+    expect(result.entries).toContainEqual(
+      expect.objectContaining({ status: 'matched', key: 'load', id: 'a1', via: 'inferred' })
+    )
+  })
+
   it('infers a rename under a fresh lock when the ident changed too', () => {
     const prev = base()
     const lock = lockFor(prev)
@@ -956,6 +973,28 @@ describe('materialize: identity', () => {
     expect(ids(renamed('label', 'string'))).toEqual(['new-1', 'f-q'])
     // A shared type alone ties nothing: another field of that type is a delete and an add.
     expect(ids(renamed('count', 'number', 'Rows to fetch'))).toEqual(['new-1', 'f-q'])
+  })
+
+  it('keeps the stored variable order when source lists the variables in another order', () => {
+    const pulled = workflowState([blockState('a1', 'function', 'Fetch', { code: 'return 1' })], {
+      variables: {
+        'var-z': { id: 'var-z', name: 'Zeta', type: 'number', value: 1 },
+        'var-a': { id: 'var-a', name: 'Alpha', type: 'number', value: 1 },
+      },
+    })
+    const edited = edit(canonical(pulled).workflow, (draft) => {
+      draft.variables = {
+        alpha: { ...draft.variables.alpha, value: 2 },
+        new: { key: 'new', name: 'New', type: 'number', value: 3 },
+        zeta: draft.variables.zeta,
+      }
+    })
+
+    expect(Object.keys(run(edited, null, { prev: pulled }).state.variables ?? {})).toEqual([
+      'var-z',
+      'var-a',
+      'new-1',
+    ])
   })
 
   it('keeps the id of the one variable renamed to a key of the same type', () => {

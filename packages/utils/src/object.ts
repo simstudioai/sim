@@ -121,3 +121,19 @@ export function getValueAtPath(source: unknown, path: string): unknown {
   }
   return cursor
 }
+
+/**
+ * Deterministic JSON: object keys sorted so two structurally equal values serialize identically
+ * whatever order their keys arrived in, `undefined` members dropped so an omitted member and an
+ * absent one agree, and a `Date` written as its ISO string. Array order is kept: an array is a
+ * sequence, so a caller whose array is really a set sorts it first.
+ */
+export function canonicalJson(value: unknown): string {
+  if (value instanceof Date) return JSON.stringify(value.toISOString())
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
+  if (Array.isArray(value)) return `[${Array.from(value, canonicalJson).join(',')}]`
+  const entries = Object.entries(value)
+    .filter(([, entry]) => entry !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`).join(',')}}`
+}
