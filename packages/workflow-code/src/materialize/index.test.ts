@@ -676,6 +676,23 @@ describe('materialize: identity', () => {
     }
   )
 
+  it('infers a rename by its renamed references beside a reference to no block', () => {
+    const prev = base()
+    const lock = lockFor(prev)
+    const target = edit(renameFetch(canonical(prev, lock).workflow), (draft) => {
+      draft.blocks.load.params.code = { kind: 'value', value: 'return 2' }
+      draft.blocks.report.params.code = {
+        kind: 'value',
+        value: 'return <load.result> + <nothing.x>',
+      }
+      draft.edges = draft.edges.filter((e) => e.from !== 'start')
+    })
+    const result = run(target, lock, { prev, compiledIdents: { load: 'x_load' } })
+    expect(result.entries).toContainEqual(
+      expect.objectContaining({ status: 'matched', key: 'load', id: 'a1', via: 'inferred' })
+    )
+  })
+
   it('infers a rename under a fresh lock when the ident changed too', () => {
     const prev = base()
     const lock = lockFor(prev)

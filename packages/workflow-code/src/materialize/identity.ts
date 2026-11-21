@@ -741,7 +741,9 @@ function inferRenames(state: InferenceState): void {
       const [first, ...rest] = renamedReferrers(prevKey).map(referencedByTarget)
       referenced.set(
         prevKey,
-        [...(first ?? [])].filter((key) => rest.every((keys) => keys.has(key)))
+        [...(first ?? [])].filter(
+          (key) => sides.targets.has(key) && rest.every((keys) => keys.has(key))
+        )
       )
     }
     const referencing = invert(referenced)
