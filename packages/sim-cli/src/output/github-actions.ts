@@ -7,7 +7,7 @@
  * stays the one result document a script parses.
  */
 import { appendFileSync } from 'node:fs'
-import { isAbsolute, join, relative } from 'node:path'
+import { isAbsolute, relative, resolve } from 'node:path'
 import { getErrorMessage } from '@sim/utils/errors'
 import { embedStore } from '../embed-context'
 import { isEnabled } from '../environment'
@@ -53,11 +53,17 @@ export function annotationLine(
 
 /**
  * `file` (relative to the source directory `dir`) as the runner resolves an annotation's path:
- * relative to the job's working directory, where the checkout is. A path outside it stays absolute.
+ * relative to the repository root (`GITHUB_WORKSPACE`), whatever the step's working directory. A
+ * file outside the repository is given by its absolute path.
  */
-export function annotationPath(dir: string, file: string): string {
-  const path = relative(process.cwd(), isAbsolute(file) ? file : join(dir, file))
-  return path.startsWith('..') || isAbsolute(path) ? join(dir, file) : path
+export function annotationPath(
+  dir: string,
+  file: string,
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  const absolute = resolve(dir, file)
+  const path = relative(env.GITHUB_WORKSPACE || process.cwd(), absolute)
+  return path.startsWith('..') || isAbsolute(path) ? absolute : path
 }
 
 /** Prints `lines` as workflow commands, when this is a GitHub Actions step. */
