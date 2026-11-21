@@ -21,8 +21,8 @@ import {
 } from '@/lib/mothership/auth/application-delegation'
 import { computeEntitlements } from '@/lib/mothership/entitlements'
 import { WorkbenchBootstrap } from '@/lib/mothership/generated/workbench'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import {
   activeSandboxChatOwner,
@@ -85,7 +85,7 @@ async function workbenchCli(
   const baseURL =
     activeSandboxChatOwner()?.mothershipBaseURL ?? (await getMothershipBaseURL({ userId }))
   const deadline = AbortSignal.timeout(15_000)
-  const response = await fetchGo(`${baseURL}/api/workbench/bootstrap`, {
+  const response = await fetchWorker(`${baseURL}/api/workbench/bootstrap`, {
     headers: mothershipRequestHeaders(),
     redirect: 'error',
     signal: signal ? AbortSignal.any([signal, deadline]) : deadline,

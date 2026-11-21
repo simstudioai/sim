@@ -59,12 +59,6 @@ export const WORKFLOW_MUTATION_TOOL_NAMES: Set<string> = new Set([
   'rename_workflow',
 ])
 
-export type StreamPayload = Record<string, unknown>
-
-export function asPayloadRecord(value: unknown): StreamPayload | undefined {
-  return isRecordLike(value) ? value : undefined
-}
-
 /**
  * Settles every unfinished tool row (running, pending, or awaiting approval) at
  * a turn terminal by propagating the turn's outcome: a clean `complete` settles
@@ -176,7 +170,7 @@ function functionExecuteTitle(title: string | undefined): string {
  * streaming VFS targets. The trusted integration branding is the ICON, which
  * the row component derives deterministically from the streamed `toolId` (or
  * the rebound operation name) via Sim's block registry — the text carries no
- * integration name. After Go's authoritative frame rebinds the row to the
+ * integration name. After the worker's authoritative frame rebinds the row to the
  * exact operation (e.g. `gmail_read_v2`), the preserved
  * `integrationDescription` keeps the same text. Returns undefined until a
  * description is readable (callers fall back to the neutral gateway label).

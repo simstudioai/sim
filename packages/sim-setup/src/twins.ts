@@ -9,7 +9,7 @@ import { EMAIL_CAPABILITY, inspectCapability } from '@sim/deployment-config/env-
 /**
  * Server/client feature-flag pairs that must be set together — server code
  * reads the bare var, the browser bundle reads the NEXT_PUBLIC_ twin
- * (apps/sim/lib/core/config/env-flags.ts documents each).
+ * (apps/sim/lib/core/config/env.ts declares both halves of each pair).
  *
  * Enterprise features and `REGISTRATION_MODE` have no twins: the browser
  * receives the server-resolved state through the deployment-shape projection.
@@ -59,7 +59,11 @@ export const INERT_BROWSER_FLAGS: ReadonlyArray<{ client: string; server?: strin
 ]
 
 /** Self-host feature unlocks offered by the wizard's Custom flow. */
-export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; hint: string }> = [
+export const SELF_HOST_UNLOCKS: ReadonlyArray<{
+  server: string
+  label: string
+  hint?: string
+}> = [
   {
     server: ENTERPRISE_MASTER_ENV_VAR,
     label: 'All enterprise features',
@@ -67,7 +71,7 @@ export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; h
   },
   ...ENTERPRISE_FEATURE_KEYS.filter((key) => ENTERPRISE_FEATURES[key].setupUnlock).map((key) => {
     const feature = ENTERPRISE_FEATURES[key]
-    return { server: feature.envVar, label: feature.label, hint: feature.hint ?? '' }
+    return { server: feature.envVar, label: feature.label, hint: feature.hint }
   }),
 ]
 

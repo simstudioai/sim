@@ -34,7 +34,7 @@ import {
  * real HTTP boundary: registration, the SSE doorbell, the inbox pull, claim, lease renewal and
  * completion. No chat view is open at any point.
  *
- * Start the app with Redis configured, which the executor needs, for example:
+ * Start the app, for example:
  *   COPILOT_TOOL_PERMISSIONS_ENABLED=true REDIS_URL=redis://127.0.0.1:6379 bun run dev
  * then run:
  *   DESKTOP_INBOX_E2E_BASE_URL=http://127.0.0.1:3000 \
@@ -417,7 +417,7 @@ async function run() {
 
   await check('registers the desktop and receives the executor timing contract', async () => {
     const registration = await register(desktop)
-    assert.equal(registration.enabled, true, 'Start the app with REDIS_URL set')
+    assert.equal(registration.enabled, true)
     assert(registration.leaseRenewMs < registration.leaseMs)
     assert(registration.reconcileMs < PICKUP_GRACE_SECONDS * 1000)
   })

@@ -1,8 +1,5 @@
 import type { CopilotAsyncToolStatus, CopilotToolPermissionDecision } from '@sim/db/schema'
-import {
-  MothershipStreamV1AsyncToolRecordStatus,
-  MothershipStreamV1ToolOutcome,
-} from '@/lib/mothership/generated/mothership-stream-v1'
+import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
 
 /** Version 3 binds execution to the persisted invocation and supports reviewed argument edits. */
 export const SIM_TOOL_EXECUTION_VERSION = 3
@@ -14,7 +11,15 @@ export function supportsSimToolExecution(version: number | undefined): boolean {
   return SUPPORTED_SIM_TOOL_EXECUTION_VERSIONS.some((supported) => supported === version)
 }
 
-export const ASYNC_TOOL_STATUS = MothershipStreamV1AsyncToolRecordStatus
+/** The async tool record lifecycle, Sim's own `copilot_async_tool_status` column; not a wire field. */
+export const ASYNC_TOOL_STATUS = {
+  pending: 'pending',
+  running: 'running',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+  delivered: 'delivered',
+} as const satisfies { [K in CopilotAsyncToolStatus]: K }
 
 export const EXECUTABLE_TOOL_PERMISSION_DECISIONS = [
   'allow',

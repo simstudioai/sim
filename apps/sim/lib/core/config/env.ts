@@ -134,7 +134,7 @@ export const env = createEnv({
     EMAIL_PASSWORD_SIGNUP_ENABLED:         z.boolean().optional(),                 // Deprecated: false means REGISTRATION_MODE=no-email. Still honored (most restrictive wins)
     DISABLE_AUTH:                          z.boolean().optional(),                 // Bypass authentication entirely (self-hosted only, creates anonymous session)
     ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Removed; read only to log a startup error that it has no effect. Use EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES.
-    EGRESS_ALLOWED_HOSTS:                  z.string().optional(),                  // Comma-separated hostnames outbound requests may reach on a private network, leading wildcard allowed (e.g. "host.docker.internal,*.svc.cluster.local"). Self-hosted only; ignored on the hosted platform. Replaces ALLOW_PRIVATE_DATABASE_HOSTS.
+    EGRESS_ALLOWED_HOSTS:                  z.string().optional(),                  // Comma-separated hostnames outbound requests may reach on a private network, leading wildcard allowed (e.g. "host.docker.internal,*.svc.cluster.local"). Self-hosted only; ignored on the hosted platform.
     EGRESS_ALLOWED_IP_RANGES:              z.string().optional(),                  // Comma-separated CIDRs or IPs outbound requests may reach on a private network (e.g. "10.0.0.0/8,192.168.65.254/32"). Self-hosted only; never lifts the cloud-metadata block.
     DOMAIN_VERIFICATION_NAMESERVERS:       z.string().optional(),                  // Comma-separated nameserver IPs for the domain-verification TXT lookup (e.g. "10.0.0.2"). Defaults to 1.1.1.1 and 8.8.8.8; set it where outbound DNS is restricted to an internal resolver.
     ALLOWED_LOGIN_EMAILS:                  z.string().optional(),                  // Comma-separated list of allowed email addresses for login
@@ -349,7 +349,6 @@ export const env = createEnv({
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
     DOCKER_BUILD:                          z.boolean().optional(),                 // Flag indicating Docker build environment
-    NEXT_BUILD_PERSISTENT_CACHE:           z.boolean().optional(),                 // Enables incremental compiler state for qualified CI builds
     NEXT_BUILD_SKIP_SOURCE_MAPS:           z.boolean().optional(),                 // Omits unused browser source maps in acceptance builds
     NEXT_BUILD_SKIP_TYPE_CHECK:            z.boolean().optional(),                 // Skips `next build`'s TypeScript pass where another CI job type-checks
 

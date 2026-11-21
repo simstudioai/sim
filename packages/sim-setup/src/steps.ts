@@ -310,7 +310,7 @@ export async function promptUnlocks(vars: Map<string, string>): Promise<Record<s
     options: SELF_HOST_UNLOCKS.map((unlock) => ({
       value: unlock.server,
       label: unlock.label,
-      hint: unlock.hint || undefined,
+      hint: unlock.hint,
     })),
     initialValues: SELF_HOST_UNLOCKS.filter((u) => isTruthy(vars.get(u.server))).map(
       (u) => u.server

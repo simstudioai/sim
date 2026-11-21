@@ -39,4 +39,3 @@ export {
   AuthTextLink,
 } from './primitives'
 export { AuthGithubIcon, AuthGoogleIcon, AuthMicrosoftIcon } from './provider-icons'
-export { AuthWordmark } from './wordmark'

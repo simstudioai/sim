@@ -7,7 +7,7 @@ vi.mock('@/lib/mothership/chat/application/inline-images', () => ({
 
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import type { ExecutionContext, StreamEvent } from '@/lib/mothership/request/types'
-import { prepareStreamImages } from './inline-images'
+import { prepareStreamImages } from '@/lib/mothership/request/worker/inline-images'
 
 const chatId = '0518a4c3-f530-4520-8713-9bb3535ef605'
 const requestId = 'dbd59c19-ea27-43da-992d-71601358e667'

@@ -100,8 +100,8 @@ const CHANGED_BLOCK_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
  * changed: a dropdown value none of its options names, which the server's field gate refuses. A
  * value the stored block already holds outside its options prints as `raw()`, which the compile
  * does not check, and one written bare again is not a field the edit set, so only a value the
- * author changed is refused. `operation` is left out: an unknown one is already an error, and its warning means the
- * stored block holds a retired operation, which the gate keeps.
+ * author changed is refused. `operation` is left out: an unknown one is already an error, and its
+ * warning means the stored block holds a retired operation, which the gate keeps.
  */
 const PARAM_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_UNKNOWN_OPTION', 'E_APPLY_INVALID_SUBBLOCK_FIELD'],

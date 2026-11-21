@@ -332,7 +332,6 @@ export {
 } from './feature-flags.mock'
 // Isolated VM mocks (for @/lib/execution/isolated-vm)
 export {
-  evaluateLoopIndexCheck,
   isolatedVmMock,
   isolatedVmMockFns,
   resetIsolatedVmMock,
@@ -569,10 +568,6 @@ export {
   mothershipEnvironmentContextMockFns,
 } from './mothership-environment-context.mock'
 export {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from './mothership-go-fetch.mock'
-export {
   mothershipOrganizationChatsMock,
   mothershipOrganizationChatsMockFns,
 } from './mothership-organization-chats.mock'
@@ -582,6 +577,10 @@ export {
   mothershipOtelMock,
   mothershipOtelMockFns,
 } from './mothership-otel.mock'
+export {
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from './mothership-worker-fetch.mock'
 export {
   mothershipWorkspaceTargetMock,
   mothershipWorkspaceTargetMockFns,

@@ -166,7 +166,7 @@ mockGetBlock.mockImplementation((type: string) => MOCK_REGISTRY_BLOCKS[type])
 
 vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
-function makeLoopWorkflow() {
+function makeLoopWorkflow(loopData: Record<string, unknown> = { loopType: 'for', count: 5 }) {
   return {
     blocks: {
       'loop-1': {
@@ -177,7 +177,7 @@ function makeLoopWorkflow() {
         enabled: true,
         subBlocks: {},
         outputs: {},
-        data: { loopType: 'for', count: 5 },
+        data: loopData,
       },
       'condition-1': {
         id: 'condition-1',
@@ -691,8 +691,7 @@ describe('a block rename', () => {
   })
 
   it('rewrites references a loop holds in its collection and conditions, and in the loop record', () => {
-    const workflow = makeLoopWorkflow()
-    Object.assign(workflow.blocks['loop-1'].data, {
+    const workflow = makeLoopWorkflow({
       loopType: 'forEach',
       collection: '<agent1.items>',
       whileCondition: '<agent1.more> === true',

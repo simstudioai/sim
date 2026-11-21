@@ -3,7 +3,7 @@
  * rewrites the directory, so two commands on it never interleave their writes.
  */
 
-import { readFileSync, type Stats } from 'node:fs'
+import { rmSync, type Stats } from 'node:fs'
 import { lstat, mkdir, readFile, realpath, rm, rmdir, stat, writeFile } from 'node:fs/promises'
 import { hostname } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -183,38 +183,25 @@ export async function withSourceDirLock<T>(
   }
   const owner: LockOwner = { pid: process.pid, host: hostname() }
   // An interrupt (Ctrl-C) releases the lock too: a lock left behind is taken over only by a
-  // command on the same host, so one left on a folder shared with a container would stay.
-  // Once this command removes its lock the path may become another command's, which an interrupt
-  // must leave alone: past the owner record, the release removes the lock only while it still
-  // names this command.
-  let ownerRecorded = false
-  const ownedLock = (): string | null => {
-    if (!ownerRecorded) return lock
-    try {
-      const recorded = toRecord(JSON.parse(readFileSync(join(lock, LOCK_OWNER_FILE), 'utf8')))
-      return recorded.pid === owner.pid && recorded.host === owner.host ? lock : null
-    } catch {
-      return null
-    }
-  }
-  const disposeSignalRelease = removeStagingOnSignal(ownedLock)
+  // command on the same host, so one left on a folder shared with a container would stay. The
+  // release stays installed until the lock is gone, since an interrupt a deferred write held is
+  // raised again as `run` ends and would otherwise end the process mid-removal.
+  const disposeSignalRelease = removeStagingOnSignal(() => lock)
   try {
     await writeFile(join(lock, LOCK_OWNER_FILE), JSON.stringify(owner))
-    ownerRecorded = true
     return await run()
   } finally {
-    // The signal release stays installed until the lock is gone: an interrupt a deferred write
-    // held is raised again as `run` ends, and with no handler it would end the process mid-removal.
+    // An interrupt is handled only between turns of the event loop, so removing the lock and
+    // uninstalling its release in one synchronous step leaves no turn in which the release could
+    // remove a lock another command took after this one, or find this one half removed.
     try {
-      await rm(await checkedPath(root, SOURCE_DIR_LOCK, new Set()), {
-        recursive: true,
-        force: true,
-      })
-      // Folders the lock alone created go with it; one the command filled stays.
-      await removeCreatedFolders()
+      const held = await checkedPath(root, SOURCE_DIR_LOCK, new Set())
+      rmSync(held, { recursive: true, force: true })
     } finally {
       disposeSignalRelease()
     }
+    // Folders the lock alone created go with it; one the command filled stays.
+    await removeCreatedFolders()
   }
 }
 

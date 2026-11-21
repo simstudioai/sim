@@ -42,7 +42,6 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
   private pub: Redis
   private sub: Redis
   private handlers = new Set<(event: T) => void>()
-  private disposed = false
   /** Whether the current connection has subscribed; a dropped connection has to again. */
   private listening = false
   /** Counts closed connections, so a subscribe answered after its connection closed is ignored. */
@@ -128,7 +127,6 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
   }
 
   publish(event: T): void {
-    if (this.disposed) return
     this.pub.publish(this.config.channel, JSON.stringify(event)).catch((err) => {
       logger.error(`Failed to publish to ${this.config.label}:`, err)
     })
@@ -150,7 +148,6 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
   }
 
   onReady(listener: () => void): () => void {
-    if (this.disposed) return noop
     if (this.listening) {
       listener()
       return noop
@@ -168,7 +165,6 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
   }
 
   dispose(): void {
-    this.disposed = true
     this.handlers.clear()
     this.readyListeners.clear()
 

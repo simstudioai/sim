@@ -161,10 +161,7 @@ function updateBlockReferences(
         }
 
         if (subBlock.value !== undefined && subBlock.value !== null) {
-          const updatedValue = rewriteBlockNameReferences(
-            subBlock.value,
-            nameMap
-          ) as SubBlockState['value']
+          const updatedValue = rewriteBlockNameReferences(subBlock.value, nameMap)
           block.subBlocks[subBlockId] = { ...subBlock, value: updatedValue }
         }
       })

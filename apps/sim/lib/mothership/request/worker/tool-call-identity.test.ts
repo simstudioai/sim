@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createProviderToolCallIdentity,
-  PROVIDER_TOOL_CALL_IDENTITY_LIMITS,
-  restoreProviderToolCallId,
-  scopeProviderToolCallEvent,
-  scopeProviderToolCallId,
-} from '@/lib/mothership/request/go/tool-call-identity'
-import {
   markToolResultSeen,
   shouldSkipToolCallEvent,
   shouldSkipToolResultEvent,
 } from '@/lib/mothership/request/sse-utils'
 import type { StreamEvent } from '@/lib/mothership/request/types'
+import {
+  createProviderToolCallIdentity,
+  PROVIDER_TOOL_CALL_IDENTITY_LIMITS,
+  restoreProviderToolCallId,
+  scopeProviderToolCallEvent,
+  scopeProviderToolCallId,
+} from '@/lib/mothership/request/worker/tool-call-identity'
 
 function toolCall(toolCallId: string): StreamEvent {
   return {
@@ -87,7 +87,7 @@ describe('provider tool-call identity boundary', () => {
     expect(restoreProviderToolCallId(rawId)).toBe(rawId)
   })
 
-  it('refuses to send a canonical ID to Go after losing its reverse mapping', () => {
+  it('refuses to send a canonical ID to the worker after losing its reverse mapping', () => {
     const canonicalId = scopeProviderToolCallId('call-1', createProviderToolCallIdentity('run'))
     expect(() =>
       restoreProviderToolCallId(canonicalId, createProviderToolCallIdentity('run'))
@@ -137,14 +137,6 @@ describe('provider tool-call identity boundary', () => {
         executionId: 'execution',
         runId: 'provider-run',
         pendingToolCallIds: ['pending-only'],
-        frames: [
-          {
-            parentToolCallId: 'parent',
-            parentToolName: 'files',
-            pendingToolIds: ['pending-only'],
-            checkpointId: 'child-checkpoint',
-          },
-        ],
       },
     }
     const mapped = scopeProviderToolCallEvent(checkpoint, identity)
@@ -156,14 +148,6 @@ describe('provider tool-call identity boundary', () => {
       payload: {
         ...checkpoint.payload,
         pendingToolCallIds: [pendingId],
-        frames: [
-          {
-            parentToolCallId: parentId,
-            parentToolName: 'files',
-            pendingToolIds: [pendingId],
-            checkpointId: 'child-checkpoint',
-          },
-        ],
       },
     })
     expect(restoreProviderToolCallId(pendingId, identity)).toBe('pending-only')
@@ -175,27 +159,5 @@ describe('provider tool-call identity boundary', () => {
       payload: { ...call.payload, toolCallId: pendingId },
     })
     expect(scopeProviderToolCallEvent(call)).toBe(call)
-  })
-
-  it('maps both subagent span ID spellings and leaves structured result data opaque', () => {
-    const identity = createProviderToolCallIdentity('span-run')
-    const data = { tool_call_id: 'parent', toolCallId: 'parent', nested: { toolCallId: 'parent' } }
-    const span: StreamEvent = {
-      type: 'span',
-      payload: { kind: 'subagent', event: 'start', data },
-    }
-    const parentId = scopeProviderToolCallId('parent', identity)
-    expect(scopeProviderToolCallEvent(span, identity)).toEqual({
-      ...span,
-      payload: {
-        ...span.payload,
-        data: { ...data, tool_call_id: parentId, toolCallId: parentId },
-      },
-    })
-    const result: StreamEvent = {
-      type: 'span',
-      payload: { kind: 'structured_result', data },
-    }
-    expect(scopeProviderToolCallEvent(result, identity)).toBe(result)
   })
 })

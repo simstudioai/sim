@@ -150,12 +150,6 @@ interface PopoverContextValue {
   /** Currently selected item index for keyboard navigation */
   selectedIndex: number
   setSelectedIndex: (index: number) => void
-  /** Register a menu item and get its index. Returns a cleanup function. */
-  registerItem: (id: string) => number
-  /** Unregister a menu item */
-  unregisterItem: (id: string) => void
-  /** Get the total number of registered items */
-  itemCount: number
 }
 
 const PopoverContext = React.createContext<PopoverContextValue | null>(null)
@@ -202,21 +196,6 @@ const Popover: React.FC<PopoverProps> = ({
   const [lastHoveredItem, setLastHoveredItem] = React.useState<string | null>(null)
   const [isKeyboardNav, setIsKeyboardNav] = React.useState(false)
   const [selectedIndex, setSelectedIndex] = React.useState(-1)
-  const registeredItemsRef = React.useRef<string[]>([])
-
-  const registerItem = React.useCallback((id: string) => {
-    if (!registeredItemsRef.current.includes(id)) {
-      registeredItemsRef.current.push(id)
-    }
-    return registeredItemsRef.current.indexOf(id)
-  }, [])
-
-  const unregisterItem = React.useCallback((id: string) => {
-    const index = registeredItemsRef.current.indexOf(id)
-    if (index !== -1) {
-      registeredItemsRef.current.splice(index, 1)
-    }
-  }, [])
 
   /** Resets all navigation state to initial values */
   const resetState = React.useCallback(() => {
@@ -224,7 +203,6 @@ const Popover: React.FC<PopoverProps> = ({
     setLastHoveredItem(null)
     setIsKeyboardNav(false)
     setSelectedIndex(-1)
-    registeredItemsRef.current = []
   }, [])
 
   React.useEffect(() => {
@@ -258,8 +236,6 @@ const Popover: React.FC<PopoverProps> = ({
     setIsKeyboardNav(value)
   }, [])
 
-  const itemCount = registeredItemsRef.current.length
-
   const contextValue = React.useMemo<PopoverContextValue>(
     () => ({
       openFolder,
@@ -274,9 +250,6 @@ const Popover: React.FC<PopoverProps> = ({
       setKeyboardNav,
       selectedIndex,
       setSelectedIndex,
-      registerItem,
-      unregisterItem,
-      itemCount,
     }),
     [
       openFolder,
@@ -288,9 +261,6 @@ const Popover: React.FC<PopoverProps> = ({
       isKeyboardNav,
       setKeyboardNav,
       selectedIndex,
-      registerItem,
-      unregisterItem,
-      itemCount,
     ]
   )
 

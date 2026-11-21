@@ -23,7 +23,7 @@ const headerGetter = {
 
 /**
  * Injects W3C trace context (traceparent, tracestate) into outbound HTTP
- * headers so Go-side spans join the same OTel trace tree as the calling
+ * headers so the worker's spans join the same OTel trace tree as the calling
  * Sim span.
  *
  * Usage: spread the result into your fetch headers:
@@ -42,9 +42,9 @@ export function traceHeaders(
  * Extracts W3C trace context from incoming request headers (traceparent /
  * tracestate) and returns an OTel Context seeded with the upstream span.
  *
- * Use this at the top of inbound Sim route handlers that Go calls into
+ * Use this at the top of inbound Sim route handlers that the worker calls
  * (e.g. /api/billing/update-cost, /api/copilot/api-keys/validate) so the
- * Sim-side span becomes a proper child of the Go-side client span in the
+ * Sim-side span becomes a proper child of the worker's client span in the
  * same trace — closing the round trip in Jaeger.
  *
  * When no traceparent is present (e.g. calls from a browser or a client

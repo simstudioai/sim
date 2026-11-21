@@ -8,13 +8,6 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  if (url) process.env.REDIS_URL = url
-  return { redisUrl: url }
-})
-
 vi.mock('@/lib/auth', () => authMock)
 
 import { db } from '@sim/db'
@@ -62,7 +55,7 @@ function reconnect(streamId: string, batch: boolean) {
   )
 }
 
-describe.runIf(Boolean(redisUrl))('desktop executor binding on a chat stream', () => {
+describe('desktop executor binding on a chat stream', () => {
   beforeAll(async () => {
     const now = new Date()
     await db.insert(user).values({

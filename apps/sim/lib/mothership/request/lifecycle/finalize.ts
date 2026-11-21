@@ -6,15 +6,12 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import {
-  type RequestTraceV1Outcome,
-  RequestTraceV1Outcome as RequestTraceV1OutcomeConst,
-} from '@/lib/mothership/generated/request-trace-v1'
-import { CopilotFinalizeOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { CopilotFinalizeOutcome } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import type { StreamWriter } from '@/lib/mothership/request/session'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
+import { RequestTraceOutcome } from '@/lib/mothership/request/trace'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
 const logger = createLogger('CopilotStreamFinalize')
@@ -26,13 +23,13 @@ export async function finalizeStream(
   result: OrchestratorResult,
   publisher: StreamWriter,
   runId: string,
-  outcome: RequestTraceV1Outcome,
+  outcome: RequestTraceOutcome,
   requestId: string
 ): Promise<void> {
   const spanOutcome =
-    outcome === RequestTraceV1OutcomeConst.cancelled
+    outcome === RequestTraceOutcome.cancelled
       ? CopilotFinalizeOutcome.Aborted
-      : outcome === RequestTraceV1OutcomeConst.success
+      : outcome === RequestTraceOutcome.success
         ? CopilotFinalizeOutcome.Success
         : CopilotFinalizeOutcome.Error
   const span = getTracer().startSpan(TraceSpan.CopilotFinalizeStream, {
@@ -48,9 +45,9 @@ export async function finalizeStream(
     },
   })
   try {
-    if (outcome === RequestTraceV1OutcomeConst.cancelled) {
+    if (outcome === RequestTraceOutcome.cancelled) {
       await handleAborted(result, publisher, runId, requestId)
-    } else if (outcome === RequestTraceV1OutcomeConst.error) {
+    } else if (outcome === RequestTraceOutcome.error) {
       span.setStatus({
         code: SpanStatusCode.ERROR,
         message: result.error || 'orchestration failed',
@@ -61,7 +58,7 @@ export async function finalizeStream(
     }
     // Successful + cancelled paths fall through as status-unset → set
     // OK so dashboards don't show "incomplete" for normal terminals.
-    if (outcome !== RequestTraceV1OutcomeConst.error) {
+    if (outcome !== RequestTraceOutcome.error) {
       span.setStatus({ code: SpanStatusCode.OK })
     }
   } catch (error) {
@@ -142,7 +139,7 @@ async function handleError(
     toolCallCount,
   })
 
-  // Surface the real error (Go already classifies provider errors like
+  // Surface the real error (the worker already classifies provider errors like
   // "overloaded" into a friendly displayMessage). Don't clobber it with a
   // generic string.
   await publishThenSettle(

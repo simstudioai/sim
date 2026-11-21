@@ -24,13 +24,12 @@ export async function prepareStreamImages(
     return
   if (event.type === 'text' && !/[)\]\n]/.test(event.payload.text)) return
   const { chatId, requestId } = context
-  if (
-    !chatId ||
-    !requestId ||
-    (!execution.workspaceId && !execution.organizationId) ||
-    execution.copilotToolExecution !== true
-  )
-    return
+  const owner = execution.organizationId
+    ? { organizationId: execution.organizationId }
+    : execution.workspaceId
+      ? { workspaceId: execution.workspaceId }
+      : undefined
+  if (!chatId || !requestId || !owner || execution.copilotToolExecution !== true) return
   if (attempted.size >= MAX_INLINE_IMAGES_PER_TURN) return
   const content = context.accumulatedContent + (event.type === 'text' ? event.payload.text : '')
   if (!content.includes('![')) return
@@ -42,13 +41,7 @@ export async function prepareStreamImages(
     signal?.throwIfAborted()
     try {
       await materializeStreamImage(
-        {
-          userId: execution.userId,
-          ...(execution.organizationId
-            ? { organizationId: execution.organizationId }
-            : { workspaceId: execution.workspaceId! }),
-          chatId,
-        },
+        { userId: execution.userId, ...owner, chatId },
         { requestId, reference, signal }
       )
     } catch (error) {

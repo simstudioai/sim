@@ -222,7 +222,7 @@ GPG provenance format and will not work; use `cosign verify` above.
 ## Upgrading
 
 ```bash
-helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.5 --namespace sim --values my-values.yaml
+helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version <chart-version> --namespace sim --values my-values.yaml
 ```
 
 ---
@@ -482,7 +482,7 @@ Or on the CLI: `--set app.envDefaults.FREE_TABLES_LIMIT=null`.
 
 **Null the key in every layer that sets it.** `null` deletes the key from the map you null, not from the pod — so if a key is set in both `app.env` and `app.envDefaults`, nulling only the `app.env` entry makes the inline `envDefaults` value apply again and the variable stays on the pod. The same holds for `realtime.env` / `realtime.envDefaults`. Under ESO there is a third source: a key mapped in `externalSecrets.remoteRefs.app` keeps being synced into the Secret regardless of `app.env`, so remove that mapping too. Rendering the manifest (below) is the reliable way to confirm the key is actually gone.
 
-**Setting the key to `""` instead does not remove it.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates have to treat an empty string as "the operator said nothing" — if they did not, the eight placeholders that collide with a real `app.envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `ORGANIZATIONS_ENABLED`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`, …) would blank themselves out on every default install. An empty entry is a silent no-op; `null` is the deletion.
+**Setting the key to `""` instead does not remove it.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates have to treat an empty string as "the operator said nothing" — if they did not, the four placeholders that collide with a real `app.envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`) would blank themselves out on every default install. An empty entry is a silent no-op; `null` is the deletion.
 
 With the chart-managed Secret (the default), nulling a key the application cannot start without (`BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, or `CRON_SECRET` with `cronjobs.enabled=true`) fails at template time with the existing required-secret error rather than at runtime. In `existingSecret` mode the chart skips that validation entirely — those values come from your pre-created Secret, which the chart cannot read — so a null there renders successfully and the key is simply absent from `app.env`. Under ESO the key must still be mapped in `externalSecrets.remoteRefs.app`, which is validated at template time.
 
@@ -606,7 +606,7 @@ kubectl --namespace sim logs deploy/sim-app -c migrations
 
 ---
 
-## Upgrading to 1.13.0
+## Upgrading to 1.15.0
 
 * **Redis is required.** The application no longer falls back to PostgreSQL or in-memory state for rate limiting, OTPs, pub/sub, or realtime coordination, and refuses to start without `REDIS_URL`. Installs that keep the bundled Redis (`redis.enabled: true`, the default) or already supply `REDIS_URL` need no action.
 
@@ -619,6 +619,31 @@ kubectl --namespace sim logs deploy/sim-app -c migrations
   * `app.envDefaults.REDIS_URL` covers only the app pod and `realtime.envDefaults.REDIS_URL` only the realtime pod, so set both when both components are enabled.
 
   The app Secret (chart-managed or External Secrets) now also renders for a realtime-only release (`app.enabled: false`), since the realtime pod loads it. If you previously ran with Redis disabled, either re-enable the bundled Redis or point `REDIS_URL` at a managed instance before upgrading.
+
+## Upgrading to 1.14.0
+
+* **`REGISTRATION_MODE` replaces the registration toggles.** Set `app.env.REGISTRATION_MODE` to `open` (default), `no-email-signup`, `closed`, `no-email`, or `closed-no-email`; the `no-email` modes also disable email/password sign-in. `DISABLE_REGISTRATION`, `EMAIL_PASSWORD_SIGNUP_ENABLED`, and `NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED` are gone from `app.env`, but the application still honors them (and `DISABLE_EMAIL_SIGNUP`) as deprecated aliases, and the most restrictive setting wins. `NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: "false"` now also disables email/password sign-in on the server.
+
+* **Enterprise flags are server variables only.** The browser reads the server-resolved state, so these `NEXT_PUBLIC_*` keys were removed and the application no longer reads them:
+
+  * from `app.env`: `NEXT_PUBLIC_ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_ORGANIZATIONS_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED`, `NEXT_PUBLIC_INBOX_ENABLED`, `NEXT_PUBLIC_AUDIT_LOGS_ENABLED`, `NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED`, `NEXT_PUBLIC_DATA_DRAINS_ENABLED`
+  * from `app.envDefaults`: `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_ORGANIZATIONS_ENABLED`
+
+  Leaving them in a values file is harmless. Set the matching server key instead (`ENTERPRISE_ENABLED`, `ACCESS_CONTROL_ENABLED`, `SSO_ENABLED`, …). New per-feature server keys: `SCIM_ENABLED`, `SESSION_POLICIES_ENABLED`, `DATA_RETENTION_ENABLED`, `USAGE_MONITORING_ENABLED`, `FORKING_ENABLED`, `CREDENTIAL_GROUPS`, and `SANDBOXES_ENABLED` (which also needs a remote sandbox provider).
+
+## Upgrading to 1.13.0
+
+* **`monitoring.serviceMonitor` was removed.** The chart no longer renders a Prometheus Operator `ServiceMonitor`. The `monitoring` key is still accepted and ignored, so older values files validate; manage scraping outside the chart.
+
+* **`sharedStorage` was removed.** The chart created its PVCs but never mounted them. The key is still accepted, but `sharedStorage.enabled: true` with `volumes` now fails the render, because upgrading would delete those PVCs. If you mount them through `extraVolumes`, keep them first, then set `sharedStorage.enabled: false`:
+
+  ```bash
+  kubectl annotate pvc -n <namespace> -l app.kubernetes.io/instance=<release>,sim.ai/volume-type=shared-storage helm.sh/resource-policy=keep
+  ```
+
+## Upgrading to 1.12.0
+
+* **White-labeling was removed.** The `branding` key (and its ConfigMap) and the `NEXT_PUBLIC_BRAND_*`, `NEXT_PUBLIC_CUSTOM_CSS_URL`, `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_DOCUMENTATION_URL`, `NEXT_PUBLIC_TERMS_URL`, `NEXT_PUBLIC_PRIVACY_URL`, `WHITELABELING_ENABLED`, and `NEXT_PUBLIC_WHITELABELING_ENABLED` env keys no longer have any effect. `branding` is still accepted and ignored, so older values files validate.
 
 ## Upgrading to 1.6.4
 
@@ -634,7 +659,7 @@ Two changes alter behavior on an existing release. Neither requires action, but 
 
   **An existing `REDIS_URL` always wins, wherever it comes from — no action needed on upgrade.** The bundled URL ships as a ConfigMap listed *before* the app Secret in `envFrom`. Kubernetes resolves duplicate keys by letting the last source win, so a `REDIS_URL` in your chart-managed Secret, a pre-created `existingSecret`, or one synced by External Secrets overrides the bundled value — the chart never has to read it. The bundled Redis simply fills the gap when nothing else provides a URL.
 
-  Set `app.env.REDIS_URL` to skip the bundled Deployment entirely (no unused pod). (Since 1.13.0, `redis.enabled: false` also requires a `REDIS_URL` from one of those sources.)
+  Set `app.env.REDIS_URL` to skip the bundled Deployment entirely (no unused pod). (Since 1.15.0, `redis.enabled: false` also requires a `REDIS_URL` from one of those sources.)
 
 ## Upgrading to 1.2.0
 

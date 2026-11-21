@@ -3,7 +3,6 @@ import {
   AuthRoot,
   AuthShellView,
   AuthTextLink,
-  AuthWordmark,
   AuthButton as Chip,
   AuthStatusContent as StatusPageContent,
 } from '@sim/auth-ui'
@@ -71,7 +70,6 @@ function OfflinePage({ isSimCloud }: OfflinePageProps) {
     <AuthRoot>
       <AuthShellView
         homeHref='https://sim.ai'
-        logo={<AuthWordmark />}
         titlebar={<div data-auth-titlebar='' aria-hidden='true' />}
         footer={
           <AuthTextLink

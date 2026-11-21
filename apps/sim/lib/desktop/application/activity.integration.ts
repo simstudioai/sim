@@ -5,13 +5,9 @@
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  /** The real Redis module and the tool-permission switch read these at import. */
-  if (url) process.env.REDIS_URL = url
+vi.hoisted(() => {
+  /** The tool-permission switch reads this at import. */
   process.env.COPILOT_TOOL_PERMISSIONS_ENABLED = 'true'
-  return { redisUrl: url }
 })
 
 import type { SessionPrincipal } from '@sim/auth/principal'
@@ -37,7 +33,7 @@ afterAll(async () => {
   await closeRedisConnection()
 })
 
-describe.runIf(Boolean(redisUrl))('background desktop activity', () => {
+describe('background desktop activity', () => {
   const userIds: string[] = []
   const workspaceIds: string[] = []
   const deviceIds: string[] = []

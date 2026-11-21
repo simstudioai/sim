@@ -53,7 +53,6 @@ interface GenerateAudioResult {
   fileName?: string
   vfsPath?: string
   downloadUrl?: string
-  _serviceCost?: { service: string; cost: number }
 }
 
 function audioExtFromContentType(contentType: string): string {
@@ -195,7 +194,6 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
         fileName: written.name,
         vfsPath: written.vfsPath,
         downloadUrl: written.downloadUrl,
-        _serviceCost: { service: 'falai_audio', cost: result.cost.costDollars },
       }
     } catch (error) {
       const msg = getErrorMessage(error, 'Unknown error')

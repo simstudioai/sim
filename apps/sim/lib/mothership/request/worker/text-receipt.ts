@@ -1,5 +1,5 @@
-import { FatalSseEventError, StreamContinuityError } from '@/lib/mothership/request/go/parser'
 import type { StreamEvent } from '@/lib/mothership/request/types'
+import { FatalSseEventError, StreamContinuityError } from '@/lib/mothership/request/worker/parser'
 
 /** Reconcile before forwarding or persistence so replay cannot duplicate visible text. */
 export function reconcileTextEvent(event: StreamEvent, received: string): StreamEvent | null {

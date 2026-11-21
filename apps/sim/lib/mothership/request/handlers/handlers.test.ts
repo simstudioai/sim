@@ -12,8 +12,8 @@ import { sleep } from '@sim/utils/helpers'
 import { toRecord } from '@sim/utils/object'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
+import { ASYNC_TOOL_STATUS } from '@/lib/mothership/async-runs/lifecycle'
 import { restoreStreamingContext } from '@/lib/mothership/request/context/restore'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 
 const { isSimExecuted, executeTool, ensureHandlersRegistered, toolRequiresApproval } = vi.hoisted(
   () => ({
@@ -57,7 +57,6 @@ vi.mock('@/lib/mothership/request/tools/client-completion-seal.server', () => ({
 }))
 
 import {
-  MothershipStreamV1AsyncToolRecordStatus,
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
@@ -123,7 +122,6 @@ describe('sse-handlers tool lifecycle', () => {
       accumulatedContent: '',
       finalAssistantContent: '',
       sawMainToolCall: false,
-      trace: new TraceCollector(),
       contentBlocks: [],
       toolCalls: new Map(),
       pendingToolPromises: new Map(),
@@ -173,10 +171,12 @@ describe('sse-handlers tool lifecycle', () => {
     ).rejects.toBeInstanceOf(AsyncToolCallOwnershipError)
   })
 
-  it('replays completed child lanes once without reopening traces or losing errors', async () => {
-    const start = vi.spyOn(context.trace, 'startSpan')
-    const end = vi.spyOn(context.trace, 'endSpan')
-    const emit = (lane: string, event: 'start' | 'end', data?: Record<string, unknown>) => {
+  it('replays completed child lanes once without losing errors', async () => {
+    const emit = (
+      lane: string,
+      event: 'start' | 'end',
+      data?: { name?: string; error?: string }
+    ) => {
       const scope = {
         lane: 'subagent' as const,
         agentId: 'task',
@@ -200,11 +200,6 @@ describe('sse-handlers tool lifecycle', () => {
     for (let attempt = 0; attempt < 2; attempt++) {
       await emit('A', 'start', { name: 'Inspect workflow' })
       await emit('B', 'start', { name: 'Check constraints' })
-      await emit('B', 'end', { pending: true })
-      if (attempt === 0)
-        expect(
-          context.contentBlocks.find((block) => block.parentToolCallId === 'B')?.endedAt
-        ).toBeUndefined()
       await emit('B', 'end', { error: 'Check failed' })
       await emit('A', 'end')
     }
@@ -218,9 +213,6 @@ describe('sse-handlers tool lifecycle', () => {
       subagentName: 'Inspect workflow',
       endedAt: expect.any(Number),
     })
-    expect(start).toHaveBeenCalledTimes(2)
-    expect(end).toHaveBeenCalledTimes(2)
-    expect(context.subAgentTraceSpans?.size).toBe(0)
   })
 
   it('counts the preview content already in the replay toward the restored turn budget', async () => {
@@ -372,7 +364,7 @@ describe('sse-handlers tool lifecycle', () => {
             executableName: toolName,
             args,
             sealedContext: { __sealedClientToolContextV1: 'sealed-context' },
-            status: MothershipStreamV1AsyncToolRecordStatus.pending,
+            status: ASYNC_TOOL_STATUS.pending,
             permissionRequested: gated,
           })
           expect(sealClientToolContext).toHaveBeenCalledWith({
@@ -427,7 +419,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolName: 'deploy_as_api',
       executableName: 'deploy_as_api',
       args: { versionName: 'v2' },
-      status: MothershipStreamV1AsyncToolRecordStatus.pending,
+      status: ASYNC_TOOL_STATUS.pending,
       permissionRequested: true,
     })
     expect(event.payload.status).toBe('awaiting_approval')
@@ -510,8 +502,8 @@ describe('sse-handlers tool lifecycle', () => {
     })
   })
 
-  it('clears a Go-stamped approval frame when the gate is off', async () => {
-    // Go stamps integration calls regardless of Sim's feature flag. Forwarding
+  it('clears a worker-stamped approval frame when the gate is off', async () => {
+    // The worker stamps integration calls regardless of Sim's feature flag. Forwarding
     // that stamp with nothing gating behind it would draw a card whose buttons
     // answer into a disabled endpoint.
     toolRequiresApproval.mockReturnValue(false)
@@ -541,7 +533,7 @@ describe('sse-handlers tool lifecycle', () => {
     expect(upsertAsyncToolCall).not.toHaveBeenCalled()
   })
 
-  it('clears a Go-stamped approval frame on a partial call, which is never held', async () => {
+  it('clears a worker-stamped approval frame on a partial call, which is never held', async () => {
     toolRequiresApproval.mockReturnValue(true)
     context.runId = 'run-1'
     context.toolPermissions = {
@@ -614,7 +606,7 @@ describe('sse-handlers tool lifecycle', () => {
     }
   )
 
-  it('clears a Go-stamped approval frame on an internal tool', async () => {
+  it('clears a worker-stamped approval frame on an internal tool', async () => {
     toolRequiresApproval.mockReturnValue(true)
     context.runId = 'run-1'
     context.toolPermissions = {
@@ -696,7 +688,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolName: 'run_workflow',
       executableName: 'run_workflow',
       args: { workflowId: 'workflow-1' },
-      status: MothershipStreamV1AsyncToolRecordStatus.running,
+      status: ASYNC_TOOL_STATUS.running,
       permissionRequested: false,
     })
   })
@@ -1069,7 +1061,7 @@ describe('sse-handlers tool lifecycle', () => {
   )
 
   it('registers but never dispatches an inband-owned sim tool call', async () => {
-    // Go executes inband-owned calls itself via /api/copilot/tools/execute;
+    // The worker executes inband-owned calls itself via /api/copilot/tools/execute;
     // dispatching here too ran the tool twice, racing on mutations.
     await sseHandlers.tool(
       {
@@ -1121,7 +1113,7 @@ describe('sse-handlers tool lifecycle', () => {
     expect(completeAsyncToolCall).toHaveBeenCalledWith(
       expect.objectContaining({
         toolCallId: 'tool-primitive',
-        status: MothershipStreamV1AsyncToolRecordStatus.completed,
+        status: ASYNC_TOOL_STATUS.completed,
         result: 'done',
         error: null,
       })
@@ -2334,8 +2326,6 @@ describe('sse-handlers tool lifecycle', () => {
             toolCallId: 'gateway-gmail',
             toolName: 'call_integration_tool',
             argumentsDelta,
-            executor: MothershipStreamV1ToolExecutor.go,
-            mode: MothershipStreamV1ToolMode.sync,
             phase: MothershipStreamV1ToolPhase.args_delta,
           },
         } satisfies StreamEvent,
@@ -2584,31 +2574,6 @@ describe('sse-handlers tool lifecycle', () => {
       expect(context.toolCalls.get('gateway-work-item')?.activity).toEqual(grouping)
     }
   )
-
-  it('clears pending continuation state when a run resumes', async () => {
-    context.awaitingAsyncContinuation = {
-      checkpointId: 'cp-1',
-      executionId: 'exec-1',
-      runId: 'run-1',
-      pendingToolCallIds: ['tool-1'],
-    }
-    context.streamComplete = true
-
-    await sseHandlers.run(
-      {
-        type: MothershipStreamV1EventType.run,
-        payload: {
-          kind: MothershipStreamV1RunKind.resumed,
-        },
-      } satisfies StreamEvent,
-      context,
-      execContext,
-      { interactive: false, timeout: 1000 }
-    )
-
-    expect(context.awaitingAsyncContinuation).toBeUndefined()
-    expect(context.streamComplete).toBe(false)
-  })
 
   it('records the terminal completion status so a finished turn can outrank an in-band failure', async () => {
     context.errors.push('subagent build failed')

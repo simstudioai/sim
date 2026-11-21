@@ -4,9 +4,9 @@ import {
   mothershipAgentUrlMockFns,
 } from '@sim/testing/mocks/mothership-agent-url.mock'
 import {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from '@sim/testing/mocks/mothership-go-fetch.mock'
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -15,7 +15,7 @@ beforeAll(() => {
 
 afterAll(resetEnvMock)
 
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
@@ -23,7 +23,7 @@ import { BillingCallbackHeaders } from '@/lib/mothership/generated/billing'
 import { AbortRequest } from '@/lib/mothership/generated/protocol'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 
-const { mockFetchGo } = mothershipGoFetchMockFns
+const { mockFetchWorker } = mothershipWorkerFetchMockFns
 mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('https://copilot.test')
 mothershipAgentUrlMockFns.mockGetMothershipSourceEnvHeaders.mockReturnValue({
   'X-Sim-Source-Env': 'test',
@@ -32,7 +32,7 @@ mothershipAgentUrlMockFns.mockGetMothershipSourceEnvHeaders.mockReturnValue({
 describe('requestExplicitStreamAbort', () => {
   afterEach(() => vi.useRealTimers())
   beforeEach(() => {
-    mockFetchGo.mockImplementation(async (_url, request) => {
+    mockFetchWorker.mockImplementation(async (_url, request) => {
       AbortRequest.parse(JSON.parse(request.body))
       return new Response(null, { status: 200 })
     })
@@ -45,11 +45,11 @@ describe('requestExplicitStreamAbort', () => {
       chatId: 'chat-1',
     })
     expect(result).toEqual({ settled: false })
-    const headers = mockFetchGo.mock.calls[0][1].headers
+    const headers = mockFetchWorker.mock.calls[0][1].headers
     expect(BillingCallbackHeaders.safeParse(headers).success).toBe(true)
     expect(headers).not.toHaveProperty('x-sim-billing-protocol')
 
-    expect(mockFetchGo).toHaveBeenCalledWith(
+    expect(mockFetchWorker).toHaveBeenCalledWith(
       'https://copilot.test/api/streams/explicit-abort',
       expect.objectContaining({
         headers: expect.objectContaining({
@@ -65,7 +65,7 @@ describe('requestExplicitStreamAbort', () => {
       userId: 'actor',
       chatId: 'chat',
     })
-    const body = JSON.parse(mockFetchGo.mock.calls[0][1].body)
+    const body = JSON.parse(mockFetchWorker.mock.calls[0][1].body)
     expect(AbortRequest.parse(body)).toEqual({ messageId: '11111111-1111-4111-8111-111111111111' })
     expect(Object.keys(body)).toEqual(['messageId'])
   })
@@ -73,7 +73,7 @@ describe('requestExplicitStreamAbort', () => {
   it('waits for a worker that acknowledges Stop before it has finished settling', async () => {
     vi.useFakeTimers()
     let attempts = 0
-    mockFetchGo.mockImplementation(async () =>
+    mockFetchWorker.mockImplementation(async () =>
       Response.json({ stopped: true, settled: ++attempts >= 3 })
     )
     const stopping = requestExplicitStreamAbort({
@@ -83,13 +83,13 @@ describe('requestExplicitStreamAbort', () => {
     })
     await vi.runAllTimersAsync()
     await expect(stopping).resolves.toEqual({ settled: true })
-    expect(mockFetchGo).toHaveBeenCalledTimes(3)
-    expect(new Set(mockFetchGo.mock.calls.map(([, request]) => request.body)).size).toBe(1)
+    expect(mockFetchWorker).toHaveBeenCalledTimes(3)
+    expect(new Set(mockFetchWorker.mock.calls.map(([, request]) => request.body)).size).toBe(1)
   })
 
   it('returns unsettled at its deadline instead of allowing the next turn to overlap', async () => {
     vi.useFakeTimers()
-    mockFetchGo.mockImplementation(async () => Response.json({ stopped: true, settled: false }))
+    mockFetchWorker.mockImplementation(async () => Response.json({ stopped: true, settled: false }))
     const stopping = requestExplicitStreamAbort({
       streamId: '11111111-1111-4111-8111-111111111111',
       userId: 'user-1',
@@ -97,35 +97,35 @@ describe('requestExplicitStreamAbort', () => {
     })
     await vi.runAllTimersAsync()
     await expect(stopping).resolves.toEqual({ settled: false })
-    expect(mockFetchGo.mock.calls.length).toBeGreaterThan(1)
-    expect(mockFetchGo.mock.lastCall?.[1].signal.aborted).toBe(true)
+    expect(mockFetchWorker.mock.calls.length).toBeGreaterThan(1)
+    expect(mockFetchWorker.mock.lastCall?.[1].signal.aborted).toBe(true)
   })
 
   it('returns immediately once the worker reports settlement', async () => {
-    mockFetchGo.mockResolvedValue(Response.json({ stopped: true, settled: true }))
+    mockFetchWorker.mockResolvedValue(Response.json({ stopped: true, settled: true }))
     await expect(
       requestExplicitStreamAbort({
         streamId: '11111111-1111-4111-8111-111111111111',
         userId: 'user-1',
       })
     ).resolves.toEqual({ settled: true })
-    expect(mockFetchGo).toHaveBeenCalledTimes(1)
+    expect(mockFetchWorker).toHaveBeenCalledTimes(1)
   })
 
   it('keeps a real worker error visible instead of retrying it as a pending stop', async () => {
-    mockFetchGo.mockResolvedValue(new Response(null, { status: 503 }))
+    mockFetchWorker.mockResolvedValue(new Response(null, { status: 503 }))
     await expect(
       requestExplicitStreamAbort({
         streamId: '11111111-1111-4111-8111-111111111111',
         userId: 'user-1',
       })
     ).rejects.toThrow('Explicit abort marker request failed: 503')
-    expect(mockFetchGo).toHaveBeenCalledTimes(1)
+    expect(mockFetchWorker).toHaveBeenCalledTimes(1)
   })
 
   it('bounds a hanging settlement recheck with the same deadline', async () => {
     vi.useFakeTimers()
-    mockFetchGo
+    mockFetchWorker
       .mockImplementationOnce(async () => Response.json({ settled: false }))
       .mockImplementation(
         (_url, request) =>
@@ -142,20 +142,20 @@ describe('requestExplicitStreamAbort', () => {
     })
     await vi.runAllTimersAsync()
     await expect(stopping).resolves.toEqual({ settled: false })
-    expect(mockFetchGo).toHaveBeenCalledTimes(2)
+    expect(mockFetchWorker).toHaveBeenCalledTimes(2)
   })
 
   it.each([{ stopped: true }, { settled: 'true' }, null])(
     'does not invent settlement from %j',
     async (body) => {
-      mockFetchGo.mockResolvedValue(Response.json(body))
+      mockFetchWorker.mockResolvedValue(Response.json(body))
       await expect(
         requestExplicitStreamAbort({
           streamId: '11111111-1111-4111-8111-111111111111',
           userId: 'user-1',
         })
       ).resolves.toEqual({ settled: false })
-      expect(mockFetchGo).toHaveBeenCalledTimes(1)
+      expect(mockFetchWorker).toHaveBeenCalledTimes(1)
     }
   )
 })

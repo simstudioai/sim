@@ -62,13 +62,13 @@ import {
   completeOwnedSimToolCall,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
-import {
-  createProviderToolCallIdentity,
-  scopeProviderToolCallId,
-} from '@/lib/mothership/request/go/tool-call-identity'
 import { appendEvents, readEvents } from '@/lib/mothership/request/session/buffer'
 import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
 import { createEvent } from '@/lib/mothership/request/session/event'
+import {
+  createProviderToolCallIdentity,
+  scopeProviderToolCallId,
+} from '@/lib/mothership/request/worker/tool-call-identity'
 import { GET as streamGET } from '@/app/api/mothership/chat/stream/route'
 
 const userId = generateId()

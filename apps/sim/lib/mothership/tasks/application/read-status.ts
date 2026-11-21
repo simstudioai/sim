@@ -4,8 +4,8 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { InternalTaskStatus } from '@/lib/mothership/generated/tasks'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import {
   organizationTaskOperations,
@@ -22,7 +22,7 @@ export class TaskServiceUnavailableError extends Error {
 
 async function fetchTaskStatus(base: string, input: { taskId: string }) {
   try {
-    const response = await fetchGo(`${base}/api/tasks/status`, {
+    const response = await fetchWorker(`${base}/api/tasks/status`, {
       method: 'POST',
       headers: mothershipRequestHeaders(),
       body: JSON.stringify(input),

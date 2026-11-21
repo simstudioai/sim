@@ -15,7 +15,7 @@ import {
   type AsyncTerminalCompletionSnapshot,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
-import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotDegradedReason } from '@/lib/mothership/observability/trace-attribute-values'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { settleToolCallFailure } from '@/lib/mothership/request/tools/call-failure'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'

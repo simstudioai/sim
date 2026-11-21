@@ -73,7 +73,6 @@ import {
 import { abortRun } from '@/lib/mothership/request/application/controls'
 import { prePersistClientExecutableToolCall, sseHandlers } from '@/lib/mothership/request/handlers'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamEvent, StreamingContext } from '@/lib/mothership/request/types'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { POST as toolPermissionPOST } from '@/app/api/copilot/tool-permission/route'
@@ -248,7 +247,6 @@ describe("a turn bound to a desktop's background executor", () => {
       accumulatedContent: '',
       finalAssistantContent: '',
       sawMainToolCall: false,
-      trace: new TraceCollector(),
       contentBlocks: [],
       toolCalls: new Map(),
       pendingToolPromises: new Map(),

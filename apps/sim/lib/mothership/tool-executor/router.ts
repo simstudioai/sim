@@ -26,7 +26,7 @@ export function isKnownTool(toolId: string): boolean {
 /**
  * Whether a call must wait for the user's approval.
  *
- * Declared in the mothership tool catalog, which Go carries but never enforces,
+ * Declared in the mothership tool catalog, which the worker carries but never enforces,
  * except for browser tools: Sim owns their split between acting on a page and
  * only observing it. One that acts does so as the user, in a browser signed in
  * to their accounts, so it is gated like a terminal command. Reading the split

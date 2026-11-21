@@ -183,15 +183,7 @@ describe('modelToContentBlocks', () => {
     expect(mainText[0].content).toBe('Spawning research.')
 
     // The real subagent_start lands afterward and no-ops: still one research lane.
-    reduceEvent(
-      m,
-      env(
-        4,
-        'span',
-        { kind: 'subagent', event: 'start', agent: 'research', data: { tool_call_id: 'tc-r1' } },
-        sub
-      )
-    )
+    reduceEvent(m, env(4, 'span', { kind: 'subagent', event: 'start', agent: 'research' }, sub))
     const after = modelToContentBlocks(m)
     expect(after.filter((b) => b.type === 'subagent')).toHaveLength(1)
     expect(after.find((b) => b.type === 'subagent')?.content).toBe('research')
@@ -208,12 +200,7 @@ describe('modelToContentBlocks', () => {
       build([
         env(1, 'text', { channel: 'assistant', text: 'before' }),
         env(2, 'tool', { phase: 'call', toolCallId: 'tc-file', toolName: 'file' }),
-        env(
-          3,
-          'span',
-          { kind: 'subagent', event: 'start', agent: 'file', data: { tool_call_id: 'tc-file' } },
-          sub
-        ),
+        env(3, 'span', { kind: 'subagent', event: 'start', agent: 'file' }, sub),
         env(
           4,
           'tool',
@@ -247,12 +234,7 @@ describe('modelToContentBlocks', () => {
     }
     const m = build([
       env(1, 'tool', { phase: 'call', toolCallId: 'tc-file', toolName: 'file' }),
-      env(
-        2,
-        'span',
-        { kind: 'subagent', event: 'start', agent: 'file', data: { tool_call_id: 'tc-file' } },
-        sub
-      ),
+      env(2, 'span', { kind: 'subagent', event: 'start', agent: 'file' }, sub),
       env(
         3,
         'tool',

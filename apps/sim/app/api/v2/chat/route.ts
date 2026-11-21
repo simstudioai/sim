@@ -389,7 +389,7 @@ export const POST = withRouteHandler(
           workspaceId,
           chatId,
           simRequestId: requestId,
-          goRoute: '/api/mothership',
+          workerRoute: '/api/mothership',
           autoExecuteTools: true,
           interactive: false,
           abortSignal: lifecycleAbortController.signal,

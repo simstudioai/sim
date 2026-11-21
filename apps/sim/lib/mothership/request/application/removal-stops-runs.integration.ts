@@ -847,7 +847,7 @@ describe('removing a run’s chat, owner or access stops the run', () => {
               message: { id: streamId, content },
               recovery: {
                 kind: 'interactive_stream',
-                goRoute: '/api/mothership',
+                workerRoute: '/api/mothership',
                 clientToolPickupExpected: false,
                 request: {
                   userId: suspended.userId,
@@ -1233,7 +1233,7 @@ describe('removing a run’s chat, owner or access stops the run', () => {
             message: { id: sendStreamId, content: 'Start over' },
             recovery: {
               kind: 'interactive_stream',
-              goRoute: '/api/mothership',
+              workerRoute: '/api/mothership',
               clientToolPickupExpected: false,
               request: {
                 userId: ownerId,
@@ -1298,7 +1298,7 @@ describe('removing a run’s chat, owner or access stops the run', () => {
               message: { id: streamId, content },
               recovery: {
                 kind: 'interactive_stream',
-                goRoute: '/api/mothership',
+                workerRoute: '/api/mothership',
                 clientToolPickupExpected: false,
                 request: {
                   userId: ownerId,

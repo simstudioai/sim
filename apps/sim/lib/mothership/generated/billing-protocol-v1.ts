@@ -2,13 +2,22 @@
 // Regenerate with `bun run contracts:sync` in the worker.
 
 // The trusted Sim-to-worker billing protocol: header names, protocol modes, bounds, safe
-// API-key denials, and callback and analytics outcomes.
+// API-key denials, and callback and analytics outcomes. The names, modes, bounds and codes the
+// worker also uses come from ./billing; only Sim's extras are defined here.
+
+import {
+  BillingAccountDecisionHeaderMaxBytes,
+  BillingAttributionHeaderMaxBytes,
+  BillingDuplicateCode,
+  BillingProtocol,
+  BillingProtocolHeaders,
+} from "./billing";
 
 export const BILLING_PROTOCOL_HEADERS = {
-  accountDecision: "x-sim-billing-account-decision",
-  attribution: "x-sim-billing-attribution",
-  protocol: "x-sim-billing-protocol",
-  requestId: "x-sim-billing-request-id",
+  accountDecision: BillingProtocolHeaders.accountDecision,
+  attribution: BillingProtocolHeaders.attribution,
+  protocol: BillingProtocolHeaders.protocol,
+  requestId: BillingProtocolHeaders.requestId,
 } as const;
 
 export const BILLING_ACCOUNT_DECISION_HEADER = BILLING_PROTOCOL_HEADERS.accountDecision;
@@ -17,9 +26,9 @@ export const COPILOT_BILLING_PROTOCOL_HEADER = BILLING_PROTOCOL_HEADERS.protocol
 export const BILLING_REQUEST_ID_HEADER = BILLING_PROTOCOL_HEADERS.requestId;
 
 export const COPILOT_BILLING_PROTOCOL = {
-  attributed: "attribution-v1",
-  direct: "direct-v1",
-  legacy: "legacy-v0",
+  attributed: BillingProtocol.attributed,
+  direct: BillingProtocol.direct,
+  legacy: BillingProtocol.previous,
 } as const;
 
 export type CopilotBillingProtocol = (typeof COPILOT_BILLING_PROTOCOL)[keyof typeof COPILOT_BILLING_PROTOCOL];
@@ -40,8 +49,8 @@ export const COPILOT_VALIDATION_PURPOSE_VALUES = ["new-turn", "continuation", "c
 
 export type CopilotValidationPurpose = (typeof COPILOT_VALIDATION_PURPOSE_VALUES)[number];
 
-export const BILLING_ATTRIBUTION_HEADER_MAX_BYTES = 8192;
-export const BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES = 2048;
+export const BILLING_ATTRIBUTION_HEADER_MAX_BYTES = BillingAttributionHeaderMaxBytes;
+export const BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES = BillingAccountDecisionHeaderMaxBytes;
 
 export const BILLING_CALLBACK_OUTCOME = {
   billingContextMismatch: {
@@ -57,7 +66,7 @@ export const BILLING_CALLBACK_OUTCOME = {
     message: "Billing user no longer exists; reconciliation required",
   },
   duplicateBillingEvent: {
-    code: "DUPLICATE_BILLING_EVENT",
+    code: BillingDuplicateCode,
     message: "Duplicate request: cumulative cost already recorded",
   },
 } as const;

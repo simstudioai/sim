@@ -1,7 +1,7 @@
 import { Link, Section, Text } from '@react-email/components'
+import { SIM_SUPPORT_EMAIL } from '@sim/utils/site'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
-import { SUPPORT_EMAIL } from '@/lib/branding/contact'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 interface EnterpriseSubscriptionEmailProps {
@@ -38,8 +38,8 @@ export function EnterpriseSubscriptionEmail({
 
       <Text style={baseStyles.footnote}>
         Questions? Reply to this email or contact us at{' '}
-        <Link href={`mailto:${SUPPORT_EMAIL}`} style={baseStyles.link}>
-          {SUPPORT_EMAIL}
+        <Link href={`mailto:${SIM_SUPPORT_EMAIL}`} style={baseStyles.link}>
+          {SIM_SUPPORT_EMAIL}
         </Link>
       </Text>
     </EmailLayout>

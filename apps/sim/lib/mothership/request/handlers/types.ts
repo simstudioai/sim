@@ -16,7 +16,7 @@ import {
   MothershipStreamV1ToolPhase,
   type MothershipStreamV1ToolResultPayload,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotDegradedReason } from '@/lib/mothership/observability/trace-attribute-values'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
@@ -99,7 +99,7 @@ export function flushSubagentThinkingBlock(
  * scope. The legacy fallback to a single "current subagent" pointer was removed:
  * with concurrent subagents that pointer reflects whichever subagent started
  * most recently and would mis-attribute interleaved events. Every subagent-lane
- * event is guaranteed to carry parentToolCallId (Go stamps it), so a missing one
+ * event is guaranteed to carry parentToolCallId (the worker stamps it), so a missing one
  * is a real contract violation — callers warn and drop rather than guess.
  */
 export function getScopedParentToolCallId(event: StreamEvent): string | undefined {
@@ -145,8 +145,8 @@ export function registerPendingToolPromise(
 }
 
 /**
- * When the Sim->Go stream is aborted, avoid starting server-side tool work and
- * unblock the Go async waiter with a terminal 499 completion.
+ * When the Sim → worker stream is aborted, avoid starting server-side tool work and
+ * unblock the worker's async waiter with a terminal 499 completion.
  */
 export function abortPendingToolIfStreamDead(
   toolCall: ToolCallState,
@@ -170,8 +170,7 @@ export function abortPendingToolIfStreamDead(
     error: 'Tool was not dispatched because its stream had already been aborted',
   })
   markToolResultSeen(context, toolCallId)
-  // Sim's logs do not reach Loki and the trace span below is collected
-  // in-process but never exported, so the counter is the only signal that
+  // Sim's logs do not reach Loki, so the counter is the only signal that
   // survives to somewhere queryable.
   recordDegraded(CopilotDegradedReason.StreamDeadBeforeDispatch)
   logger.warn('Cancelled tool call before dispatch: stream already aborted', {
@@ -182,21 +181,12 @@ export function abortPendingToolIfStreamDead(
     ...(abortReason ? { abortReason } : {}),
     wasAborted: context.wasAborted ?? false,
   })
-  const toolSpan = context.trace.startSpan(toolCall.name || 'unknown_tool', 'tool.execute', {
-    toolCallId,
-    toolName: toolCall.name,
-    cancelReason: 'stream_dead_before_dispatch',
-    abortSignalAborted: options.abortSignal?.aborted ?? false,
-    abortReason,
-    wasAborted: context.wasAborted ?? false,
-  })
-  context.trace.endSpan(toolSpan, 'cancelled')
   return true
 }
 
 /**
- * Extract the behavioral `ui` flags from a typed tool_call payload. The Go
- * backend enriches tool_call events with `ui: { clientExecutable, internal,
+ * Extract the behavioral `ui` flags from a typed tool_call payload. The worker
+ * enriches tool_call events with `ui: { clientExecutable, internal,
  * hidden }`; presentation (title/icon) is derived client-side from the tool name.
  */
 export function getToolCallUI(data: MothershipStreamV1ToolCallDescriptor): {
@@ -258,7 +248,7 @@ export function handleClientCompletion(
 
 /**
  * Emit a synthetic tool_result SSE event to the client after a client-executable
- * tool completes. The Go backend's actual tool_result is skipped (markToolResultSeen),
+ * tool completes. The worker's actual tool_result is skipped (markToolResultSeen),
  * so the client would never learn the outcome without this.
  */
 export async function emitSyntheticToolResult(

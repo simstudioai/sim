@@ -26,7 +26,7 @@ import { GET } from '@/app/api/copilot/api-keys/route'
 
 const mockGetMothershipBaseURL = mothershipAgentUrlMockFns.mockGetMothershipBaseURL
 
-// `fetchGo` reads `response.status` and `response.headers.get('content-length')`
+// `fetchWorker` reads `response.status` and `response.headers.get('content-length')`
 // to stamp span attributes, so mock responses need both fields or the call
 // path throws before the route handler sees the body.
 function buildMockResponse(init: {

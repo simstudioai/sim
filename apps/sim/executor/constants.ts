@@ -184,13 +184,6 @@ export const SPECIAL_REFERENCE_PREFIXES = [
  */
 export const RESERVED_BLOCK_NAMES = RESERVED_WORKFLOW_BLOCK_NAMES
 
-export const LOOP_REFERENCE = {
-  ITERATION: 'iteration',
-  INDEX: 'index',
-  ITEM: 'item',
-  INDEX_PATH: 'loop.index',
-} as const
-
 export const DEFAULTS = {
   BLOCK_TYPE: 'unknown',
   BLOCK_TITLE: 'Untitled Block',
@@ -387,18 +380,6 @@ export function isAgentBlockType(blockType: string | undefined): boolean {
 
 export function isAnnotationOnlyBlock(blockType: string | undefined): boolean {
   return blockType === BlockType.NOTE
-}
-
-export function buildReference(path: string): string {
-  return `${REFERENCE.START}${path}${REFERENCE.END}`
-}
-
-export function buildLoopReference(property: string): string {
-  return buildReference(`${REFERENCE.PREFIX.LOOP}${REFERENCE.PATH_DELIMITER}${property}`)
-}
-
-export function buildLoopIndexCondition(maxIterations: number): string {
-  return `${buildLoopReference(LOOP_REFERENCE.INDEX)} < ${maxIterations}`
 }
 
 export function isReference(value: string): boolean {

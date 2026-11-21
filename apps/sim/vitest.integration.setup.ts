@@ -15,11 +15,6 @@ import { afterAll } from 'vitest'
  */
 const databaseUrl = readTestDatabaseUrl()
 const redisUrl = readTestRedisUrl()
-if (!redisUrl) {
-  throw new Error(
-    'Set TEST_REDIS_URL: Redis is required. `bun run test:integration` provisions a disposable one.'
-  )
-}
 const encryptionKey = process.env.TEST_ENCRYPTION_KEY ?? '0'.repeat(64)
 if (!/^[a-f0-9]{64}$/i.test(encryptionKey)) {
   throw new Error('TEST_ENCRYPTION_KEY must be a 64-character hexadecimal fixture key')

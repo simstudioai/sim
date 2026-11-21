@@ -3,21 +3,14 @@
  * visible to the instance dispatching that turn's workflow tools, and must stop counting the
  * moment it leaves, so a turn nobody reads no longer waits out the full pickup grace.
  */
-import { afterAll, describe, expect, it, vi } from 'vitest'
-
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  if (url) process.env.REDIS_URL = url
-  return { redisUrl: url }
-})
 
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { afterAll, describe, expect, it } from 'vitest'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { hasStreamViewer, holdStreamViewer } from '@/lib/mothership/request/session/viewer'
 
-describe.runIf(Boolean(redisUrl))('chat stream reader presence', () => {
+describe('chat stream reader presence', () => {
   afterAll(async () => {
     await closeRedisConnection()
   })

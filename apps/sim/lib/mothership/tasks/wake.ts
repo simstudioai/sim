@@ -78,7 +78,7 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
       userId,
       ...(organizationId ? { organizationId } : { workspaceId }),
       chatId,
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       autoExecuteTools: true,
       interactive: false,
       billingAttribution,

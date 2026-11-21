@@ -210,7 +210,7 @@ describe('WorkspaceLayout host context', () => {
       mockHasSignedInDesktopExecutor.mockResolvedValueOnce(registered)
 
       expect(await sidebarProps()).toMatchObject({
-        props: { desktopExecutor: { registered } },
+        props: { desktopExecutorRegistered: registered },
       })
     }
   )

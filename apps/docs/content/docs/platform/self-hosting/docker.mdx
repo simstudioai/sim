@@ -218,8 +218,8 @@ Recreate the app using the file that started your installation:
 
 ```bash
 COMPOSE_FILE=docker-compose.prod.yml
-# For a source-built stack, use docker-compose.local.yml. With bundled Ollama,
-# add the overlay: -f docker-compose.prod.yml -f docker-compose.ollama.yml
+# For a source-built stack, use docker-compose.local.yml. A stack running the
+# Ollama overlay is a docker-compose.prod.yml install.
 docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
 ```
 

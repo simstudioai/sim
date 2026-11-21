@@ -30,13 +30,6 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const redisUrl = readTestRedisUrl()
-  if (redisUrl) process.env.REDIS_URL = redisUrl
-  return { redisUrl }
-})
-
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
@@ -184,7 +177,7 @@ check(
   }
 )
 
-describe.skipIf(!redisUrl)('authenticated workbench copy callback', () => {
+describe('authenticated workbench copy callback', () => {
   check(
     'organization callback copies both owners with current access, provenance and durable effects',
     async () => {
@@ -279,7 +272,6 @@ describe.skipIf(!redisUrl)('authenticated workbench copy callback', () => {
         executionLeaseExpiresAt: new Date(Date.now() + 120_000),
       })
       const redis = getRedisClient()
-      if (!redis) throw new Error('Expected callback Redis')
       const prefix = `mothership:sandbox-resources:${token}`
       await redis.set(`${prefix}:context`, JSON.stringify(scope), 'EX', 120)
       const sourceOwner = { entityType: 'project' as const, entityId: f.projectId }

@@ -11,15 +11,6 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  const inheritedEnv = { REDIS_URL: process.env.REDIS_URL }
-  /** The real Redis module and the confirmation channel read this at import. */
-  if (url) process.env.REDIS_URL = url
-  return { redisUrl: url, inheritedEnv }
-})
-
 vi.mock('@/lib/auth', () => authMock)
 
 import { db } from '@sim/db'
@@ -31,7 +22,6 @@ import { NextRequest } from 'next/server'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import { prePersistClientExecutableToolCall, sseHandlers } from '@/lib/mothership/request/handlers'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamEvent, StreamingContext } from '@/lib/mothership/request/types'
 import { POST as confirmPOST } from '@/app/api/copilot/confirm/route'
 import { POST as authorizePOST } from '@/app/api/desktop/tool/authorize/route'
@@ -64,13 +54,9 @@ afterAll(async () => {
   channels._toolConfirmationChannel?.dispose()
   channels._toolConfirmationChannel = undefined
   await closeRedisConnection()
-  for (const [key, value] of Object.entries(inheritedEnv)) {
-    if (value === undefined) delete process.env[key]
-    else process.env[key] = value
-  }
 })
 
-describe.runIf(Boolean(redisUrl)).concurrent('a desktop tool call nobody picks up', () => {
+describe.concurrent('a desktop tool call nobody picks up', () => {
   const userId = generateId()
   const workspaceId = generateId()
   const chatId = generateId()
@@ -91,7 +77,6 @@ describe.runIf(Boolean(redisUrl)).concurrent('a desktop tool call nobody picks u
       accumulatedContent: '',
       finalAssistantContent: '',
       sawMainToolCall: false,
-      trace: new TraceCollector(),
       contentBlocks: [],
       toolCalls: new Map(),
       pendingToolPromises: new Map(),

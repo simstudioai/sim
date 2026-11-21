@@ -119,11 +119,10 @@ export const langchainProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Full white-labeling and org-level credential governance are not documented',
+      title: 'Org-level credential governance is not documented',
       description:
-        'No LangSmith or LangGraph Platform documentation describes rebranding the platform UI with customer branding, or restricting a specific role/permission group to a specific stored credential/connection distinct from workspace-level RBAC and API-key scoping.',
-      shortDescription:
-        'No documented white-labeling, and credential access is scoped by workspace RBAC, not per-credential.',
+        'No LangSmith or LangGraph Platform documentation describes restricting a specific role/permission group to a specific stored credential/connection distinct from workspace-level RBAC and API-key scoping.',
+      shortDescription: 'Credential access is scoped by workspace RBAC, not per-credential.',
       source: {
         url: 'https://docs.langchain.com/langsmith/user-management',
         label: 'User management - Docs by LangChain',

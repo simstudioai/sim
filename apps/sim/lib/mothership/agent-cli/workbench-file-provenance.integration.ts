@@ -20,7 +20,6 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 const redisUrl = readTestRedisUrl()
-if (!redisUrl) throw new Error('TEST_REDIS_URL is required for this integration suite')
 const redis = new Redis(redisUrl, {
   lazyConnect: true,
   retryStrategy: () => null,
@@ -96,7 +95,6 @@ async function settledWorkspaceAudits() {
 }
 
 beforeAll(async () => {
-  if (!redis) return
   await redis.connect()
   await db.insert(user).values({
     id: fixtureUserId,
@@ -130,13 +128,11 @@ beforeEach(() => {
   )
 })
 afterEach(async () => {
-  if (!redis) return
   await settledWorkspaceAudits()
   await db.delete(auditLog).where(eq(auditLog.workspaceId, fixtureWorkspaceId))
   submittedAudits = 0
 })
 afterAll(async () => {
-  if (!redis) return
   try {
     for (const prefix of receiptPrefixes) {
       let cursor = '0'

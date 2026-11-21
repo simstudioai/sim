@@ -284,25 +284,6 @@ function proposedCapabilitySetupValues(
   return proposed
 }
 
-/** Returns provider requirements discovered after earlier prompts have been answered. */
-export function getCapabilitySetupProviderMissingFields(
-  setup: CapabilitySetupDefinition,
-  optionId: string,
-  promptedValues: Readonly<Record<string, string>>,
-  currentValues: EnvCapabilityValues
-): readonly string[] {
-  const option = getCapabilitySetupOptions(setup).find((candidate) => candidate.id === optionId)
-  if (!option?.providerId) return []
-  const values = getCapabilitySetupDraftValues(setup, optionId, promptedValues)
-  const inspection = inspectCapability(
-    setup.definition,
-    proposedCapabilitySetupValues(setup, option, values, currentValues)
-  )
-  return (
-    inspection.providers.find((provider) => provider.id === option.providerId)?.missingFields ?? []
-  )
-}
-
 /** Builds and validates the complete environment transition for one setup option. */
 export function buildCapabilitySetupTransition(
   setup: CapabilitySetupDefinition,
@@ -373,14 +354,6 @@ function proposedPromptValues(state: PromptState): EnvCapabilityValues {
 
 function shouldRenderPrompt(prompt: SetupPrompt, state: PromptState): boolean {
   if (!prompt.when) return true
-  if (prompt.when.kind === 'provider-missing-field') {
-    return getCapabilitySetupProviderMissingFields(
-      state.setup,
-      state.optionId,
-      state.values,
-      state.currentValues
-    ).includes(prompt.when.key)
-  }
   return matchesSetupCondition(prompt.when, proposedPromptValues(state))
 }
 

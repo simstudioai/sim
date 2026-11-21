@@ -1,6 +1,6 @@
 import { Container, Img, Link, Section } from '@react-email/components'
+import { SIM_SUPPORT_EMAIL } from '@sim/utils/site'
 import { baseStyles, colors, spacing } from '@/components/emails/_styles'
-import { SUPPORT_EMAIL } from '@/lib/branding/contact'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
@@ -32,7 +32,6 @@ const SOCIAL_LINKS = [
 
 interface EmailFooterProps {
   baseUrl?: string
-  messageId?: string
   /**
    * Whether to show unsubscribe link. Defaults to true.
    * Set to false for transactional emails where unsubscribe doesn't apply.
@@ -48,11 +47,7 @@ interface EmailFooterProps {
  * {{UNSUBSCRIBE_TOKEN}} and {{UNSUBSCRIBE_EMAIL}} which are replaced
  * by the mailer when sending.
  */
-export function EmailFooter({
-  baseUrl = getBaseUrl(),
-  messageId,
-  showUnsubscribe = true,
-}: EmailFooterProps) {
+export function EmailFooter({ baseUrl = getBaseUrl(), showUnsubscribe = true }: EmailFooterProps) {
   return (
     <Section
       style={{
@@ -143,8 +138,8 @@ export function EmailFooter({
                   target="_blank", which on a mailto: opens a blank tab beside
                   the compose window in most webmail clients.
                 */}
-                <a href={`mailto:${SUPPORT_EMAIL}`} style={baseStyles.footerLink}>
-                  {SUPPORT_EMAIL}
+                <a href={`mailto:${SIM_SUPPORT_EMAIL}`} style={baseStyles.footerLink}>
+                  {SIM_SUPPORT_EMAIL}
                 </a>
               </td>
               <td style={baseStyles.gutter} width={spacing.gutter}>
@@ -157,27 +152,6 @@ export function EmailFooter({
                 &nbsp;
               </td>
             </tr>
-
-            {messageId && (
-              <>
-                <tr>
-                  <td style={baseStyles.gutter} width={spacing.gutter}>
-                    &nbsp;
-                  </td>
-                  <td style={baseStyles.footerText}>
-                    Need to refer to this message? Use this ID: {messageId}
-                  </td>
-                  <td style={baseStyles.gutter} width={spacing.gutter}>
-                    &nbsp;
-                  </td>
-                </tr>
-                <tr>
-                  <td style={baseStyles.spacer} height={8}>
-                    &nbsp;
-                  </td>
-                </tr>
-              </>
-            )}
 
             <tr>
               <td style={baseStyles.gutter} width={spacing.gutter}>

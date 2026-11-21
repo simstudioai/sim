@@ -4,10 +4,13 @@ import { parse as csvParse } from 'csv-parse/sync'
 import { executeCopilotReplaceProjectedWireRows } from '@/lib/mothership/application/table-commands'
 import { messageForCopilotTableError } from '@/lib/mothership/auth/table-delegation'
 import { Read as ReadTool, RunFunction } from '@/lib/mothership/generated/tool-catalog-v1'
-import { CopilotTableOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import {
+  CopilotTableOutcome,
+  CopilotTableSourceFormat,
+} from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceEvent } from '@/lib/mothership/observability/trace-events'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { getOutputFileReceipts, outputWriteFailure } from '@/lib/mothership/request/tools/files'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/mothership/request/tools/permissions'
@@ -245,7 +248,8 @@ export async function maybeWriteReadCsvToTable(
         const ext = filePath.split('.').pop()?.toLowerCase()
         span.setAttributes({
           [TraceAttr.CopilotTableSourcePath]: filePath,
-          [TraceAttr.CopilotTableSourceFormat]: ext === 'json' ? 'json' : 'csv',
+          [TraceAttr.CopilotTableSourceFormat]:
+            ext === 'json' ? CopilotTableSourceFormat.Json : CopilotTableSourceFormat.Csv,
           [TraceAttr.CopilotTableSourceContentBytes]: content.length,
         })
 

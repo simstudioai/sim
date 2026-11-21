@@ -1,16 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import {
+  classifyFailure,
+  inheritFailureMarks,
+  markFailureKind,
+  markFailureLogged,
+} from '@/lib/core/errors/failure-log'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
-import {
-  buildLoopIndexCondition,
-  CONTROL_BACK_EDGE_HANDLES,
-  DEFAULTS,
-  EDGE,
-  PARALLEL,
-} from '@/executor/constants'
+import { CONTROL_BACK_EDGE_HANDLES, DEFAULTS, EDGE, PARALLEL } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
@@ -51,6 +51,25 @@ async function replaceLoopConditionReferences(
     cursor = index + fullMatch.length
   }
   return result + condition.slice(cursor)
+}
+
+/**
+ * Projects a loop failure message through the run's resolved-secret registry. `persistedMessage`
+ * is safe for block logs and the thrown error: it falls back to `fallback` whenever projection
+ * cannot prove the message free of resolved secrets.
+ */
+function projectLoopErrorMessage(
+  message: string,
+  fallback: string,
+  registry: ExecutionContext['resolvedSecretTraceRegistry'],
+  loopId: string
+): { diagnostic: Record<string, unknown>; persistedMessage: string } {
+  const diagnostic = projectResolvedSecretDiagnosticError(new Error(message), registry, { loopId })
+  if (!registry) return { diagnostic, persistedMessage: message }
+  return {
+    diagnostic,
+    persistedMessage: typeof diagnostic.error === 'string' ? diagnostic.error : fallback,
+  }
 }
 
 /** While loops, and Do While loops given a condition, stop only when their condition does. */
@@ -98,7 +117,6 @@ export class LoopOrchestrator {
         loopType,
         currentIterationOutputs: new Map(),
         allIterationOutputs: [],
-        condition: 'false',
         validationError: errorMessage,
       }
       if (!ctx.loopExecutions) {
@@ -121,7 +139,6 @@ export class LoopOrchestrator {
         scope.loopType = 'for'
         const requestedIterations = loopConfig.iterations || DEFAULTS.DEFAULT_LOOP_ITERATIONS
         scope.maxIterations = requestedIterations
-        scope.condition = buildLoopIndexCondition(scope.maxIterations)
         break
       }
 
@@ -141,7 +158,6 @@ export class LoopOrchestrator {
           scope.items = []
           scope.maxIterations = 0
           scope.validationError = errorMessage
-          scope.condition = buildLoopIndexCondition(0)
           ctx.loopExecutions?.set(loopId, scope)
           throw new Error(errorMessage)
         }
@@ -159,17 +175,13 @@ export class LoopOrchestrator {
             buildLoopSentinelStartId(loopId)
           )
         } catch (error) {
-          const errorMessage = `ForEach loop resolution failed: ${toError(error).message}`
-          const errorDiagnostic = projectResolvedSecretDiagnosticError(
-            new Error(errorMessage),
-            resolutionCtx.resolvedSecretTraceRegistry,
-            { loopId }
-          )
-          const persistedErrorMessage = resolutionCtx.resolvedSecretTraceRegistry
-            ? typeof errorDiagnostic.error === 'string'
-              ? errorDiagnostic.error
-              : 'ForEach loop resolution failed'
-            : errorMessage
+          const { diagnostic: errorDiagnostic, persistedMessage: persistedErrorMessage } =
+            projectLoopErrorMessage(
+              `ForEach loop resolution failed: ${toError(error).message}`,
+              'ForEach loop resolution failed',
+              resolutionCtx.resolvedSecretTraceRegistry,
+              loopId
+            )
           logger.error('ForEach loop resolution failed', errorDiagnostic)
           await this.addLoopErrorLog(resolutionCtx, loopId, loopType, persistedErrorMessage, {
             inputType: Array.isArray(loopConfig.forEachItems)
@@ -181,7 +193,6 @@ export class LoopOrchestrator {
           scope.items = []
           scope.maxIterations = 0
           scope.validationError = persistedErrorMessage
-          scope.condition = buildLoopIndexCondition(0)
           ctx.loopExecutions?.set(loopId, scope)
           throw new Error(persistedErrorMessage)
         }
@@ -194,7 +205,6 @@ export class LoopOrchestrator {
         }
         scope.maxIterations = items.length
         scope.item = items[0]
-        scope.condition = buildLoopIndexCondition(scope.maxIterations)
         break
       }
 
@@ -210,7 +220,6 @@ export class LoopOrchestrator {
         } else {
           const requestedIterations = loopConfig.iterations || DEFAULTS.DEFAULT_LOOP_ITERATIONS
           scope.maxIterations = requestedIterations
-          scope.condition = buildLoopIndexCondition(scope.maxIterations)
         }
         break
       }
@@ -312,11 +321,7 @@ export class LoopOrchestrator {
 
     scope.currentIterationOutputs.clear()
 
-    if (this.hasReachedConfiguredIterationLimit(scope, scope.iteration + 1)) {
-      return await this.createExitResult(ctx, loopId, scope)
-    }
-
-    if (!(await this.evaluateCondition(ctx, scope, scope.iteration + 1))) {
+    if (!(await this.evaluateCondition(ctx, loopId, scope, scope.iteration + 1))) {
       return await this.createExitResult(ctx, loopId, scope)
     }
 
@@ -335,13 +340,6 @@ export class LoopOrchestrator {
       shouldExit: false,
       selectedRoute: EDGE.LOOP_CONTINUE,
     }
-  }
-
-  private hasReachedConfiguredIterationLimit(scope: LoopScope, nextIteration: number): boolean {
-    if (scope.loopType !== 'doWhile' || scope.maxIterations === undefined) {
-      return false
-    }
-    return nextIteration >= scope.maxIterations
   }
 
   /**
@@ -407,28 +405,32 @@ export class LoopOrchestrator {
     }
   }
 
+  /**
+   * Decides whether the loop runs `nextIteration`. For, ForEach, and count-driven Do While loops
+   * compare against their count; only a user-written While or Do While condition needs the sandbox.
+   */
   private async evaluateCondition(
     ctx: ExecutionContext,
+    loopId: string,
     scope: LoopScope,
-    iteration?: number
+    nextIteration: number
   ): Promise<boolean> {
+    if (!isConditionDriven(scope)) {
+      return nextIteration < (scope.maxIterations ?? 0)
+    }
+
     if (!scope.condition) {
-      logger.warn('No condition defined for loop')
+      logger.warn('No condition defined for loop', { loopId })
       return false
     }
 
     const currentIteration = scope.iteration
-    if (iteration !== undefined) {
-      scope.iteration = iteration
-    }
-
-    const result = await this.evaluateWhileCondition(ctx, scope.condition, scope)
-
-    if (iteration !== undefined) {
+    scope.iteration = nextIteration
+    try {
+      return await this.evaluateWhileCondition(ctx, loopId, scope.condition, scope)
+    } finally {
       scope.iteration = currentIteration
     }
-
-    return result
   }
 
   clearLoopExecutionState(loopId: string, ctx: ExecutionContext): void {
@@ -749,7 +751,7 @@ export class LoopOrchestrator {
         return false
       }
 
-      const result = await this.evaluateWhileCondition(ctx, scope.condition, scope)
+      const result = await this.evaluateWhileCondition(ctx, loopId, scope.condition, scope)
       logger.info('While loop initial condition evaluation', {
         loopId,
         conditionLength: scope.condition.length,
@@ -769,20 +771,18 @@ export class LoopOrchestrator {
 
   private async evaluateWhileCondition(
     ctx: ExecutionContext,
+    loopId: string,
     condition: string,
     scope: LoopScope
   ): Promise<boolean> {
-    if (!condition) {
-      return false
-    }
+    logger.info('Evaluating loop condition', {
+      conditionLength: condition.length,
+      iteration: scope.iteration,
+      workflowVariableCount: Object.keys(ctx.workflowVariables ?? {}).length,
+    })
 
+    let vmResult: Awaited<ReturnType<typeof executeInIsolatedVM>>
     try {
-      logger.info('Evaluating loop condition', {
-        conditionLength: condition.length,
-        iteration: scope.iteration,
-        workflowVariableCount: Object.keys(ctx.workflowVariables ?? {}).length,
-      })
-
       const evaluatedCondition = await replaceLoopConditionReferences(condition, async (match) => {
         const resolved = await this.resolver.resolveSingleReference(ctx, '', match, scope)
         logger.debug('Resolved variable reference in loop condition', {
@@ -805,44 +805,66 @@ export class LoopOrchestrator {
         return match
       })
 
-      const requestId = generateRequestId()
-      const code = `return Boolean(${evaluatedCondition})`
-
-      const vmResult = await executeInIsolatedVM({
-        code,
+      vmResult = await executeInIsolatedVM({
+        code: `return Boolean(${evaluatedCondition})`,
         params: {},
         envVars: {},
         contextVariables: {},
         timeoutMs: LOOP_CONDITION_TIMEOUT_MS,
-        requestId,
+        requestId: generateRequestId(),
         ownerKey: `user:${ctx.userId}`,
         ownerWeight: 1,
       })
-
-      if (vmResult.error) {
-        const isSystemError = vmResult.error.isSystemError === true
-        const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
-        logFn('Failed to evaluate loop condition', {
-          isSystemError,
-          ...projectResolvedSecretDiagnosticError(vmResult.error, ctx.resolvedSecretTraceRegistry),
-        })
-        return false
-      }
-
-      const result = Boolean(vmResult.result)
-
-      logger.info('Loop condition evaluation result', {
-        conditionLength: condition.length,
-        result,
-      })
-
-      return result
     } catch (error) {
-      logger.error('Failed to evaluate loop condition', {
-        conditionLength: condition.length,
-        ...projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry),
-      })
-      return false
+      return await this.failConditionEvaluation(ctx, loopId, scope, error)
     }
+
+    if (vmResult.error) {
+      const cause = new Error(vmResult.error.message)
+      cause.name = vmResult.error.name
+      if (vmResult.error.isSystemError !== true) markFailureKind(cause, 'user')
+      return await this.failConditionEvaluation(ctx, loopId, scope, cause)
+    }
+
+    const result = Boolean(vmResult.result)
+
+    logger.info('Loop condition evaluation result', {
+      conditionLength: condition.length,
+      result,
+    })
+
+    return result
+  }
+
+  /**
+   * Fails the run when a While or Do While condition cannot be evaluated: a syntax or runtime
+   * error in the condition, a reference that does not resolve, or a sandbox that could not run it.
+   * Reading the failure as `false` would end the loop as if its condition had, handing downstream
+   * blocks a truncated result on a run that reports success.
+   */
+  private async failConditionEvaluation(
+    ctx: ExecutionContext,
+    loopId: string,
+    scope: LoopScope,
+    cause: unknown
+  ): Promise<never> {
+    const loopType = scope.loopType === 'doWhile' ? 'doWhile' : 'while'
+    const label = loopType === 'doWhile' ? 'Do While' : 'While'
+    const { diagnostic: errorDiagnostic, persistedMessage: persistedErrorMessage } =
+      projectLoopErrorMessage(
+        `${label} loop condition could not be evaluated: ${toError(cause).message}`,
+        `${label} loop condition could not be evaluated`,
+        ctx.resolvedSecretTraceRegistry,
+        loopId
+      )
+    const isUserFailure = classifyFailure(cause) === 'user'
+    const logFn = isUserFailure ? logger.warn.bind(logger) : logger.error.bind(logger)
+    logFn('Failed to evaluate loop condition', { ...errorDiagnostic, isUserFailure })
+    await this.addLoopErrorLog(ctx, loopId, loopType, persistedErrorMessage, {})
+    scope.validationError = persistedErrorMessage
+    /** Logged above, so the engine does not log the same failure again as it propagates. */
+    const failure = inheritFailureMarks(new Error(persistedErrorMessage), cause)
+    markFailureLogged(failure)
+    throw failure
   }
 }

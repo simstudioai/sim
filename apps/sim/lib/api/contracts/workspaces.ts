@@ -228,8 +228,7 @@ export type WorkspaceOwnerBilling = z.output<typeof workspaceOwnerBillingSchema>
 /**
  * Enterprise features as this deployment's configuration resolves them (the registry in
  * `@sim/deployment-config/enterprise-features`, resolved in `@/lib/core/config/env-flags`).
- * The browser consults these only off-hosted, where no subscription plan exists to
- * decide entitlement.
+ * `sandboxes` is availability (entitlement and a ready provider), not the entitlement alone.
  */
 export const deploymentFeaturesSchema = z.object({
   accessControl: z.boolean(),

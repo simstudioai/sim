@@ -74,10 +74,6 @@ describe('atomic organization live Search MCP setup', () => {
   let ids: { organization: string; owner: string; member: string; outsider: string }
 
   beforeAll(() => {
-    if (!redisUrl)
-      throw new Error(
-        'Set TEST_REDIS_URL to a disposable local Redis or use bun run test:integration'
-      )
     vi.spyOn(dns, 'resolveHostAddresses').mockImplementation(async (hostname) => {
       if (
         !['api.fireflies.ai', 'mcp.granola.ai', 'mcp.notion.com', 'mcp.lucid.app'].includes(

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { StreamActivityReceipt } from '@/lib/mothership/generated/protocol'
 import { isSubagentSpanStreamEvent } from '@/lib/mothership/request/session/contract'
 import type {
   ExecutionContext,
@@ -59,13 +60,14 @@ export async function applyStreamEvent(
     return
   }
   await sseHandlers[event.type]?.(event, context, execContext, options)
-  if (
-    event.type === 'complete' ||
-    (event.type === 'run' && event.payload.kind === 'checkpoint_pause')
-  ) {
-    /** Only a handled leg boundary acknowledges its preceding activity. */
-    if (event.payload.activityReceipt) context.receivedActivity = event.payload.activityReceipt
+  /** Only a handled leg boundary acknowledges its preceding activity. */
+  let receipt: StreamActivityReceipt | undefined
+  if (event.type === 'complete') {
+    receipt = event.payload.activityReceipt
+  } else if (event.type === 'run' && event.payload.kind === 'checkpoint_pause') {
+    receipt = event.payload.activityReceipt
   }
+  if (receipt) context.receivedActivity = receipt
 }
 
 export function handleSubagentRouting(event: StreamEvent, _context: StreamingContext): boolean {
@@ -75,7 +77,7 @@ export function handleSubagentRouting(event: StreamEvent, _context: StreamingCon
   // With concurrent subagents there is no single "current" lane to fall back to —
   // routing by a global pointer would mis-attribute interleaved events to the
   // last-started subagent. A missing parentToolCallId is a contract violation
-  // (Go always stamps it), so warn and route to the main lane rather than guess.
+  // (the worker always stamps it), so warn and route to the main lane rather than guess.
   if (!event.scope?.parentToolCallId) {
     logger.warn('Subagent event missing parent tool call id; routing to main lane', {
       type: event.type,

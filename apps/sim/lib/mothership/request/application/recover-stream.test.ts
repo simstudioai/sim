@@ -194,7 +194,7 @@ describe('authorized chat stream recovery', () => {
     const params = mocks.start.mock.calls[0][0]
     expect(params.requestPayload).toMatchObject(run.requestContext.recovery.request)
     expect(params.orchestrateOptions).toMatchObject({
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       userPermission: 'read',
       interactive: true,
       clientToolPickupExpected: false,

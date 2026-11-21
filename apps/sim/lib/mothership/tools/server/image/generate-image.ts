@@ -57,7 +57,6 @@ interface GenerateImageResult {
   fileName?: string
   vfsPath?: string
   downloadUrl?: string
-  _serviceCost?: { service: string; cost: number }
 }
 
 /**
@@ -251,7 +250,6 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         fileName: written.name,
         vfsPath: written.vfsPath,
         downloadUrl: written.downloadUrl,
-        _serviceCost: { service: 'nano_banana_2', cost: NANO_BANANA_IMAGE_COST_USD },
       }
     } catch (error) {
       const msg = getErrorMessage(error, 'Unknown error')

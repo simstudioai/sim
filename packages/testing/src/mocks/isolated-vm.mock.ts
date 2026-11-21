@@ -1,39 +1,23 @@
 import { vi } from 'vitest'
 
-/** The continuation check the loop orchestrator compiles for count-driven loops. */
-const LOOP_INDEX_CHECK = /^return Boolean\((\d+) < (\d+)\)$/
-
-/**
- * Evaluates a loop's `return Boolean(<index> < <count>)` continuation check, or returns `null`
- * for any other code so a test can decide what that code resolves to.
- */
-export function evaluateLoopIndexCheck(code: string): boolean | null {
-  const match = LOOP_INDEX_CHECK.exec(code)
-  return match ? Number(match[1]) < Number(match[2]) : null
-}
-
-async function executeLoopIndexCheck({ code }: { code: string }) {
-  const result = evaluateLoopIndexCheck(code)
-  if (result === null) throw new Error(`Unexpected isolated-vm code in test: ${code}`)
-  return { result }
+async function rejectUnexpectedCode({ code }: { code: string }): Promise<never> {
+  throw new Error(`Unexpected isolated-vm code in test: ${code}`)
 }
 
 /**
  * Controllable mock functions for `@/lib/execution/isolated-vm`. Executor tests mock it because
  * the real sandbox acquires a Redis-backed lease, which the shared Redis mock answers as
- * over-limit. By default only loop continuation checks evaluate; any other code throws, so a
- * test that needs more must say what it resolves to.
+ * over-limit. Count-driven loops never reach the sandbox, so by default any call throws: a test
+ * whose code does reach it (a While condition, a Function block) must say what it resolves to.
  *
  * @example
  * ```ts
- * isolatedVmMockFns.mockExecuteInIsolatedVM.mockImplementation(async ({ code }) => ({
- *   result: evaluateLoopIndexCheck(code) ?? userConditionResult,
- * }))
+ * isolatedVmMockFns.mockExecuteInIsolatedVM.mockResolvedValue({ result: userConditionResult })
  * ```
  */
 export const isolatedVmMockFns = {
   /** Untyped like a bare `vi.fn()`, so each test resolves the fields its code path reads. */
-  mockExecuteInIsolatedVM: vi.fn().mockImplementation(executeLoopIndexCheck),
+  mockExecuteInIsolatedVM: vi.fn().mockImplementation(rejectUnexpectedCode),
 }
 
 /**
@@ -48,7 +32,7 @@ export const isolatedVmMock = {
   executeInIsolatedVM: isolatedVmMockFns.mockExecuteInIsolatedVM,
 }
 
-/** Restores the default loop-check-only implementation. */
+/** Restores the default implementation, which rejects every call. */
 export function resetIsolatedVmMock(): void {
-  isolatedVmMockFns.mockExecuteInIsolatedVM.mockReset().mockImplementation(executeLoopIndexCheck)
+  isolatedVmMockFns.mockExecuteInIsolatedVM.mockReset().mockImplementation(rejectUnexpectedCode)
 }
