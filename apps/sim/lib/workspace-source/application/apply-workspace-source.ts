@@ -401,7 +401,8 @@ async function consumeStagedBlobs(target: StagingScope, consumed: StagedBlob[]):
 /**
  * Writes the plan's changes in write order under `lease`, recording each into `base` and
  * `result`; the first failure stops it and is reported as `result.failed`. Each write reads its
- * binary files from `staged`; returns the staged blobs of the writes that succeeded.
+ * binary files from `staged`; returns the staged blobs the workspace now stores: those of the
+ * writes that succeeded, and those the failed write reported stored before it failed.
  */
 async function writeAll(
   changes: PlannedChange[],
@@ -419,14 +420,22 @@ async function writeAll(
   const consumed: StagedBlob[] = []
   for (const change of writeOrder(changes)) {
     const read: StagedBlob[] = []
+    const stored: StagedBlob[] = []
+    const stagedAt = (path: string) => {
+      const blob = staged.get(path)
+      if (!blob) throw new Error('A blob write ran without its staged bytes')
+      return blob
+    }
     const writeCtx: ApplyContext = {
       ...ctx,
       blobs: {
         read(path) {
-          const blob = staged.get(path)
-          if (!blob) throw new Error('A blob write ran without its staged bytes')
+          const blob = stagedAt(path)
           read.push(blob)
           return readStagedBlob(blob)
+        },
+        stored(path) {
+          stored.push(stagedAt(path))
         },
       },
     }
@@ -457,6 +466,7 @@ async function writeAll(
       if (written.base) base.resources[address] = written.base
       else delete base.resources[address]
     } catch (error) {
+      consumed.push(...stored)
       const failure = failureOf(error, change, result.applyId)
       result.failed = failure.failed
       result.diagnostics.push(...failure.diagnostics)

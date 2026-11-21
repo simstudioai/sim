@@ -22,6 +22,7 @@ import {
   permissionGroupWorkspace,
   user,
   userStats,
+  workspaceSourceStagedBlob,
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
@@ -1089,6 +1090,19 @@ describe('knowledge bases as workspace source', () => {
     expect(first.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_FAILED' })
     const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
     expect(await filenames(stored.id)).toEqual(['refunds.md'])
+    // The uploaded document is stored, so its staged bytes stop counting toward the quota.
+    const staging = await db
+      .select({
+        sha256: workspaceSourceStagedBlob.sha256,
+        consumedAt: workspaceSourceStagedBlob.consumedAt,
+      })
+      .from(workspaceSourceStagedBlob)
+      .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
+    const consumed = (path: string) =>
+      staging.find((row) => row.sha256 === sha256Hex(POLICIES.docs[path] ?? Buffer.alloc(0)))
+        ?.consumedAt ?? null
+    expect(consumed(REFUNDS)).toBeInstanceOf(Date)
+    expect(consumed('knowledge/policies/docs/shipping.txt')).toBeNull()
 
     const second = await apply(workspaceId, POLICIES, { base: first.base })
 
