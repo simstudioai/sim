@@ -55,10 +55,48 @@ vi.mock('@/lib/billing/storage/limits', async (importOriginal) => {
   }
 })
 
+/**
+ * While `stalePayer` is set, staging resolves its payer as that user, as a payer transfer that
+ * lands between the resolve and the staging transaction leaves it.
+ */
+const payers = vi.hoisted(() => ({ stalePayer: null as string | null }))
+vi.mock('@/lib/billing/storage/context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/billing/storage/context')>()
+  return {
+    ...actual,
+    resolveStorageBillingContext: async (
+      ...args: Parameters<typeof actual.resolveStorageBillingContext>
+    ) => {
+      const context = await actual.resolveStorageBillingContext(...args)
+      const stale = payers.stalePayer
+      return stale === null
+        ? context
+        : {
+            ...context,
+            billedAccountUserId: stale,
+            billingEntity: { type: 'user' as const, id: stale },
+          }
+    },
+  }
+})
+/** While `fail` is set, reading the bytes staged against a payer's quota errors. */
+const stagedReads = vi.hoisted(() => ({ fail: false }))
+vi.mock('@/lib/billing/core/payer-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/billing/core/payer-context')>()
+  return {
+    ...actual,
+    workspacesPaidBy: (...args: Parameters<typeof actual.workspacesPaidBy>) => {
+      if (stagedReads.fail) throw new Error('Connection terminated unexpectedly')
+      return actual.workspacesPaidBy(...args)
+    },
+  }
+})
+
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import {
   findMissingSourceBlobs,
   stageSourceBlobs,
+  stagingScopeOf,
 } from '@/lib/workspace-source/application/stage-blobs'
 import {
   blobManifest,
@@ -66,7 +104,10 @@ import {
   sourceRunner,
   sourceWorkspaces,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
-import { sweepExpiredStagedBlobs } from '@/lib/workspace-source/staging/store'
+import {
+  markStagedBlobsConsumed,
+  sweepExpiredStagedBlobs,
+} from '@/lib/workspace-source/staging/store'
 
 let storageRoot = ''
 const ownerId = generateId()
@@ -377,6 +418,73 @@ describe('workspace source staging', () => {
         quotaReads.fail = false
         vi.unstubAllEnvs()
       }
+    }
+  )
+
+  check(
+    'a payer that changed before the staging transaction refuses staging as unavailable, charging neither payer',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Staging payer moved', ownerId: payerId })
+      // The payer the workspace moved away from, with room to spare: only the move refuses.
+      await db.insert(userStats).values({ id: generateId(), userId: ownerId })
+      vi.stubEnv('FREE_STORAGE_LIMIT_GB', '1')
+      payers.stalePayer = ownerId
+      try {
+        const refused = await failure(stage(payer, workspaceId, [blob('payer moved')]))
+        expect(refused).toMatchObject({ code: 'unavailable' })
+        expect(await rows(workspaceId)).toEqual([])
+        expect(objectsUnder(workspaceId)).toEqual([])
+      } finally {
+        payers.stalePayer = null
+        vi.unstubAllEnvs()
+      }
+    }
+  )
+
+  check(
+    'staged bytes that cannot be read refuse staging as unavailable, never as a full staging area',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Staged read down', ownerId: payerId })
+      vi.stubEnv('FREE_STORAGE_LIMIT_GB', '1')
+      stagedReads.fail = true
+      try {
+        const refused = await failure(stage(payer, workspaceId, [blob('staged read down')]))
+        expect(refused).toMatchObject({ code: 'unavailable' })
+        expect(await rows(workspaceId)).toEqual([])
+      } finally {
+        stagedReads.fail = false
+        vi.unstubAllEnvs()
+      }
+    }
+  )
+
+  check(
+    'an apply marks consumed only the staged copy it read, not one staged again in its place after it expired',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const a = blob('replaced alpha')
+      await stage(owner, workspaceId, [a])
+      const [read] = await rows(workspaceId)
+      await db
+        .update(workspaceSourceStagedBlob)
+        .set({ expiresAt: new Date(Date.now() - 1000) })
+        .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
+      await stage(owner, workspaceId, [a])
+
+      await markStagedBlobsConsumed(stagingScopeOf(owner, workspaceId), [
+        { sha256: a.sha256, size: a.size, storageKey: read.storageKey },
+      ])
+
+      const held = await db
+        .select({
+          storageKey: workspaceSourceStagedBlob.storageKey,
+          consumedAt: workspaceSourceStagedBlob.consumedAt,
+        })
+        .from(workspaceSourceStagedBlob)
+        .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
+      expect(held).toHaveLength(1)
+      expect(held[0].storageKey).not.toBe(read.storageKey)
+      expect(held[0].consumedAt).toBeNull()
     }
   )
 

@@ -28,6 +28,7 @@ import {
   checkStorageQuotaForBillingContext,
   isStorageEnforcementEnabled,
 } from '@/lib/billing/storage/limits'
+import { isWorkspaceStoragePayerInTx } from '@/lib/billing/storage/tracking'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbTransaction } from '@/lib/db/types'
@@ -48,6 +49,8 @@ export const STAGED_BLOB_RESTAGE_MARGIN_MS = 60 * 60 * 1000
 const SWEEP_BATCH = 500
 
 const STORAGE_CONTEXT = 'workspace' as const
+
+const QUOTA_UNAVAILABLE = 'Could not check the storage quota for staging; retry shortly.'
 
 /** A staged blob as an apply reads it. */
 export interface StagedBlob {
@@ -146,32 +149,41 @@ async function payerStagedBytes(tx: DbTransaction, payer: BillingEntity): Promis
 
 /**
  * Refuses staging `bytes` more in `billing`'s workspace when the bytes its payer stores, plus those
- * staged in any of the payer's workspaces, plus these would pass the payer's storage quota. Holds the
- * payer's staging lock until `tx` ends (through the insert that follows), so concurrent staging in
- * another workspace of the same payer cannot pass the check together. A quota that could not be read is a `503`, never
- * {@link SourceStagingFullError}, which a client takes as permanent.
+ * staged in any of the payer's workspaces, plus these would pass the payer's storage quota. First
+ * confirms the workspace is still paid by `billing`'s payer (resolved before `tx` opened), locking
+ * its row so no payer transfer moves it before `tx` ends; then holds the payer's staging lock until
+ * `tx` ends (through the insert that follows), so concurrent staging in another workspace of the
+ * same payer cannot pass the check together. A payer that moved, or a quota or staged total that
+ * could not be read, is a `503`, never {@link SourceStagingFullError}, which a client takes as
+ * permanent.
  */
 async function assertStagingWithinQuota(
   tx: DbTransaction,
   billing: StorageBillingContext,
   bytes: number
 ): Promise<void> {
+  if (!(await isWorkspaceStoragePayerInTx(tx, billing))) {
+    throw new OrchestrationError(
+      'unavailable',
+      'The workspace changed payer while staging; retry shortly.'
+    )
+  }
   const { type, id } = billing.billingEntity
   await acquireAdvisoryXactLock(
     tx,
     'workspace_source_staging',
     `workspace-source-staging-payer:${type}:${id}`
   )
-  const quota = await checkStorageQuotaForBillingContext(
-    billing,
-    (await payerStagedBytes(tx, billing.billingEntity)) + bytes,
-    tx
-  )
+  let staged: number
+  try {
+    staged = await payerStagedBytes(tx, billing.billingEntity)
+  } catch (error) {
+    logger.error('Could not read the bytes staged against the storage quota', { error })
+    throw new OrchestrationError('unavailable', QUOTA_UNAVAILABLE)
+  }
+  const quota = await checkStorageQuotaForBillingContext(billing, staged + bytes, tx)
   if (quota.unavailable) {
-    throw new OrchestrationError(
-      'unavailable',
-      'Could not check the storage quota for staging; retry shortly.'
-    )
+    throw new OrchestrationError('unavailable', QUOTA_UNAVAILABLE)
   }
   if (!quota.allowed) {
     throw new SourceStagingFullError(
@@ -349,7 +361,9 @@ export async function stageBlobs(
 
 /**
  * Marks `blobs` consumed: an apply wrote their bytes into the workspace, which now charges for
- * them, so they no longer count toward the payer's quota. They stay staged until they expire.
+ * them, so they no longer count toward the payer's quota. They stay staged until they expire. Each
+ * is matched by its storage key too, so a row staged again in its place since the apply read it
+ * (once it expired) keeps counting.
  */
 export async function markStagedBlobsConsumed(
   target: StagingScope,
@@ -362,7 +376,10 @@ export async function markStagedBlobsConsumed(
     .where(
       and(
         inScope(target),
-        inArray(workspaceSourceStagedBlob.sha256, [...new Set(blobs.map((blob) => blob.sha256))])
+        inArray(workspaceSourceStagedBlob.sha256, [...new Set(blobs.map((blob) => blob.sha256))]),
+        inArray(workspaceSourceStagedBlob.storageKey, [
+          ...new Set(blobs.map((blob) => blob.storageKey)),
+        ])
       )
     )
 }
