@@ -95,6 +95,21 @@ export function isRefusal(error: unknown): error is OrchestrationError {
   )
 }
 
+/** What to do about a name or key another resource holds, by what holds it and where it is declared. */
+function nameTakenHint(error: unknown, kind: WorkspaceKind): string {
+  if (error instanceof ResourceKeyTakenError) {
+    return 'Rename the key, or delete the resource that holds it.'
+  }
+  if (error instanceof WorkspaceFileFolderConflictError) {
+    return 'Rename that folder in the file paths locally, or rename or delete the folder that holds the name in Sim.'
+  }
+  // A file has no declaration: its name is its path in the directory.
+  if (kind === 'file') {
+    return 'Rename it locally, or rename or delete the file that holds the name in Sim.'
+  }
+  return 'Rename it in its declaration, or rename or delete the resource that holds the name in Sim.'
+}
+
 /**
  * A child use case's refusal as a finding about one resource: a resource (or a table's rows)
  * changed since the plan read it is `E_APPLY_STALE`, forbidden is `E_APPLY_FORBIDDEN`,
@@ -131,14 +146,7 @@ export function refusalDiagnostic(
   }
   if (error instanceof ResourceKeyTakenError || isNameTaken(error)) {
     return finding('E_NAME_TAKEN', error.message, {
-      hint:
-        error instanceof ResourceKeyTakenError
-          ? 'Rename the key, or delete the resource that holds it.'
-          : error instanceof WorkspaceFileFolderConflictError
-            ? 'Rename that folder in the file paths locally, or rename or delete the folder that holds the name in Sim.'
-            : resource.kind === 'file'
-              ? 'Rename it locally, or rename or delete the file that holds the name in Sim.'
-              : 'Rename it in its declaration, or rename or delete the resource that holds the name in Sim.',
+      hint: nameTakenHint(error, resource.kind),
       ...resource,
     })
   }

@@ -20,7 +20,7 @@ import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { resolveCurrencyCode } from '@sim/table-cells/currency'
 import { omit } from '@sim/utils/object'
-import { and, asc, count, eq, gt, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, eq, gt, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
 import {
@@ -395,10 +395,7 @@ async function stripColumnData(
   columnIds: string[]
 ): Promise<void> {
   await updateTableRowsWithDerivedSecretProvenance(trx, {
-    rowWhere: and(
-      eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, workspaceId)
-    ) as SQL,
+    rowWhere: sql`${userTableRows.tableId} = ${tableId} and ${userTableRows.workspaceId} = ${workspaceId}`,
     transformation: { mode: 'remove-columns', columnIds },
   })
 }

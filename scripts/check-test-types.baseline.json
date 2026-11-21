@@ -2283,9 +2283,6 @@
   "apps/sim/lib/workflows/dynamic-handle-topology.test.ts": {
     "TS2352": 1
   },
-  "apps/sim/lib/workflows/editing/operations.test.ts": {
-    "TS2353": 1
-  },
   "apps/sim/lib/workflows/editing/validation.test.ts": {
     "TS2322": 1
   },

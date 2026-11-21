@@ -2,13 +2,15 @@ import { escapeRegExp } from '@sim/utils/string'
 
 /**
  * `value` with every `<oldName.` reference token rewritten to `<newName.` for each entry of
- * `nameMap` (normalized block names), recursing through arrays and objects. The editor's rename,
- * an operations-batch rename, and a workflow import all rewrite block references through this.
+ * `nameMap` (normalized block names), recursing through arrays and objects; the result has the
+ * shape `value` had. The editor's rename, an operations-batch rename, and a workflow import all
+ * rewrite block references through this.
  */
-export function rewriteBlockNameReferences(
-  value: unknown,
-  nameMap: ReadonlyMap<string, string>
-): unknown {
+export function rewriteBlockNameReferences<T>(value: T, nameMap: ReadonlyMap<string, string>): T {
+  return rewrite(value, nameMap) as T
+}
+
+function rewrite(value: unknown, nameMap: ReadonlyMap<string, string>): unknown {
   if (typeof value === 'string') {
     let updatedValue = value
     nameMap.forEach((newName, oldName) => {
@@ -34,12 +36,12 @@ export function rewriteBlockNameReferences(
     return updatedValue
   }
   if (Array.isArray(value)) {
-    return value.map((item) => rewriteBlockNameReferences(item, nameMap))
+    return value.map((item) => rewrite(item, nameMap))
   }
   if (value && typeof value === 'object') {
     const result: Record<string, unknown> = {}
     for (const [key, val] of Object.entries(value)) {
-      result[key] = rewriteBlockNameReferences(val, nameMap)
+      result[key] = rewrite(val, nameMap)
     }
     return result
   }
