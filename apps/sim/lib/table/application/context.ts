@@ -1,6 +1,6 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { TableAuthorizationContext } from '@/lib/table/application/authorization'
-import { getTableById } from '@/lib/table/service'
+import { findActiveTablesByExactName, getTableById } from '@/lib/table/service'
 import type { TableDefinition } from '@/lib/table/types'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
@@ -23,14 +23,21 @@ export async function resolveTableWorkspaceContext(
  * Loads a table and asserts it lives in `workspaceId` when the caller named one.
  *
  * Shared by both resolvers below so the not-found concealment — a table outside the asserted
- * workspace is reported as missing, never as forbidden — is written once.
+ * workspace is reported as missing, never as forbidden — is written once. Within an asserted
+ * workspace a table is also found by its name (`sim tables rows list leads`), which is unique
+ * among the workspace's active tables; an id always wins, and a name never reaches past the
+ * asserted workspace.
  */
 async function requireTable(tableId: string, workspaceId: string | undefined) {
-  const table = await getTableById(tableId)
+  let table = await getTableById(tableId)
+  if (!table && workspaceId !== undefined) {
+    const named = await findActiveTablesByExactName(workspaceId, tableId)
+    if (named.length === 1) table = named[0]
+  }
   if (!table || (workspaceId !== undefined && table.workspaceId !== workspaceId)) {
     throw new OrchestrationError(
       'not_found',
-      `Table "${tableId}" not found in this workspace — it may not exist or may belong to a different workspace. List the tables in this workspace to see the ids you can use here.`
+      `Table "${tableId}" not found in this workspace, by id or by name — it may not exist or may belong to a different workspace. List the tables in this workspace to see the ids and names you can use here.`
     )
   }
   return table

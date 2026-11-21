@@ -41,6 +41,7 @@ const input = {
 }
 beforeEach(() => {
   mocks.flag.mockResolvedValue(undefined)
+  tableServiceMockFns.mockFindActiveTablesByExactName.mockResolvedValue([])
   mocks.table.mockResolvedValue({
     id: 'tbl_test',
     workspaceId: 'workspace_test',

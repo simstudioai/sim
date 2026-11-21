@@ -14,6 +14,7 @@ import {
 } from '@/lib/table/application/context'
 
 const getTableById = tableServiceMockFns.mockGetTableById
+const findByName = tableServiceMockFns.mockFindActiveTablesByExactName
 const loadWorkspace = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
 
 const WORKSPACE_ONE = {
@@ -69,6 +70,36 @@ describe('table application context', () => {
     })
     expect(getTableById).toHaveBeenCalledWith('table-1')
     expect(loadWorkspace).toHaveBeenCalledWith('workspace-1')
+  })
+
+  it('finds a table by its name within the asserted workspace, an id always first', async () => {
+    getTableById.mockImplementation(async (id: string) =>
+      id === 'table-1' ? { id: 'table-1', workspaceId: 'workspace-1', name: 'leads' } : null
+    )
+    findByName.mockImplementation(async (workspaceId: string, name: string) =>
+      workspaceId === 'workspace-1' && name === 'leads'
+        ? [{ id: 'table-1', workspaceId: 'workspace-1', name: 'leads' }]
+        : []
+    )
+
+    await expect(
+      resolveActiveTableContext({ tableId: 'leads', assertedWorkspaceId: 'workspace-1' })
+    ).resolves.toMatchObject({ tableId: 'table-1', workspaceId: 'workspace-1' })
+    expect(findByName).toHaveBeenCalledWith('workspace-1', 'leads')
+
+    findByName.mockClear()
+    await resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-1' })
+    expect(findByName).not.toHaveBeenCalled()
+
+    // A name never reaches past the asserted workspace, and without one it is not looked up.
+    await expect(
+      resolveActiveTableContext({ tableId: 'leads', assertedWorkspaceId: 'workspace-2' })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    findByName.mockClear()
+    await expect(resolveActiveTableContext({ tableId: 'leads' })).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    expect(findByName).not.toHaveBeenCalled()
   })
 
   it('conceals an asserted cross-workspace table as not found', async () => {
