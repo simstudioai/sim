@@ -3,6 +3,7 @@ import {
   createSerializedBlock,
   createSerializedWorkflow,
 } from '@sim/testing/factories/serialized-block.factory'
+import { isolatedVmMock } from '@sim/testing/mocks/isolated-vm.mock'
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
@@ -11,6 +12,8 @@ import { ConditionBlockHandler } from '@/executor/handlers/condition/handler'
 import type { SerializedWorkflow } from '@/serializer/types'
 
 vi.mock('@/tools', () => toolsMock)
+
+vi.mock('@/lib/execution/isolated-vm', () => isolatedVmMock)
 
 /** Real condition handler; every other block answers with its own name. */
 vi.mock('@/executor/handlers/registry', () => ({

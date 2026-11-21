@@ -3,6 +3,11 @@ import {
   createSerializedBlock,
   createSerializedWorkflow,
 } from '@sim/testing/factories/serialized-block.factory'
+import {
+  evaluateLoopIndexCheck,
+  isolatedVmMock,
+  isolatedVmMockFns,
+} from '@sim/testing/mocks/isolated-vm.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType, DEFAULTS } from '@/executor/constants'
 import { DAGExecutor } from '@/executor/execution/executor'
@@ -17,14 +22,7 @@ const { bodyRuns, conditionResult, runaway } = vi.hoisted(() => ({
   runaway: { controller: new AbortController(), limit: 30_000 },
 }))
 
-/** Count conditions resolve to `return Boolean(<index> < <count>)`; user conditions stay opaque. */
-vi.mock('@/lib/execution/isolated-vm', () => ({
-  executeInIsolatedVM: vi.fn(async ({ code }: { code: string }) => {
-    const indexCheck = /^return Boolean\((\d+) < (\d+)\)$/.exec(code)
-    if (indexCheck) return { result: Number(indexCheck[1]) < Number(indexCheck[2]) }
-    return { result: bodyRuns.count < conditionResult.stopAfter }
-  }),
-}))
+vi.mock('@/lib/execution/isolated-vm', () => isolatedVmMock)
 
 vi.mock('@/executor/handlers/registry', () => ({
   createBlockHandlers: () => [
@@ -80,6 +78,10 @@ describe('condition-driven loop iteration ceiling', () => {
     bodyRuns.count = 0
     conditionResult.stopAfter = Number.POSITIVE_INFINITY
     runaway.controller = new AbortController()
+    /** Count conditions evaluate; user conditions stay opaque and hold until `stopAfter`. */
+    isolatedVmMockFns.mockExecuteInIsolatedVM.mockImplementation(async ({ code }) => ({
+      result: evaluateLoopIndexCheck(code) ?? bodyRuns.count < conditionResult.stopAfter,
+    }))
   })
 
   it.each([

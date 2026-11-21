@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isolatedVmMock, isolatedVmMockFns } from '@sim/testing/mocks/isolated-vm.mock'
 import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,17 +14,13 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 
 const mockUploadFile = storageServiceMockFns.mockUploadFile
 
-const { mockExecuteInIsolatedVM } = vi.hoisted(() => ({
-  mockExecuteInIsolatedVM: vi.fn(),
-}))
+const mockExecuteInIsolatedVM = isolatedVmMockFns.mockExecuteInIsolatedVM
 const mockLogger =
   vi.mocked(createLogger).mock.results[
     vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'LoopOrchestrator')
   ].value
 
-vi.mock('@/lib/execution/isolated-vm', () => ({
-  executeInIsolatedVM: mockExecuteInIsolatedVM,
-}))
+vi.mock('@/lib/execution/isolated-vm', () => isolatedVmMock)
 
 vi.mock('@/lib/uploads', () => uploadsMock)
 

@@ -330,6 +330,13 @@ export {
   featureFlagsMock,
   featureFlagsMockFns,
 } from './feature-flags.mock'
+// Isolated VM mocks (for @/lib/execution/isolated-vm)
+export {
+  evaluateLoopIndexCheck,
+  isolatedVmMock,
+  isolatedVmMockFns,
+  resetIsolatedVmMock,
+} from './isolated-vm.mock'
 // Executor mocks - use side-effect import: import '@sim/testing/mocks/executor'
 
 export {
