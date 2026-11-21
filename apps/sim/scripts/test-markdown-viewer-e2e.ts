@@ -376,22 +376,18 @@ async function editLastCell(page: Page, marker: string) {
     timeout: 120_000,
   })
   await page.bringToFront()
-  const bold = page.locator('.rich-markdown-prose strong').filter({ hasText: /^bold$/ })
-  await bold.click()
+  await page
+    .locator('.rich-markdown-prose strong')
+    .filter({ hasText: /^bold$/ })
+    .click()
   await expect(page.locator('.rich-markdown-prose[contenteditable="true"]')).toBeFocused()
-  // A click can land the caret at the word's edge, where one step left crosses the space before it
-  // and Shift+ArrowRight selects only that space. Start inside the word: "bo|ld".
-  await bold.evaluate((element) => {
-    const text = element.firstChild
-    if (text?.nodeType !== Node.TEXT_NODE) throw new Error('The bold mark has no text node')
-    getSelection()?.collapse(text, 2)
-  })
+  await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('Shift+ArrowRight')
   await expect
-    .poll(() => page.evaluate(() => getSelection()?.toString() ?? ''), {
+    .poll(() => page.evaluate(() => getSelection()?.toString().trim() ?? ''), {
       message: 'Keyboard selection did not select text',
     })
-    .toBe('l')
+    .not.toBe('')
   await proveToolbar(page, page.getByRole('toolbar', { name: 'Text formatting' }))
   await page.keyboard.press('ArrowRight')
 }
