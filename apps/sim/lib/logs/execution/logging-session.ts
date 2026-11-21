@@ -1532,6 +1532,7 @@ export class LoggingSession {
       })
       await this.completeWithCostOnlyLog({
         traceSpans: params.traceSpans,
+        workflowInput: params.workflowInput,
         endedAt: params.endedAt,
         totalDurationMs: params.totalDurationMs,
         errorMessage: `Failed to store trace spans: ${errorMsg}`,
@@ -1561,6 +1562,7 @@ export class LoggingSession {
       )
       await this.completeWithCostOnlyLog({
         traceSpans: params?.traceSpans,
+        workflowInput: params?.workflowInput,
         endedAt: params?.endedAt,
         totalDurationMs: params?.totalDurationMs,
         errorMessage:
@@ -1595,6 +1597,7 @@ export class LoggingSession {
       )
       await this.completeWithCostOnlyLog({
         traceSpans: params?.traceSpans,
+        workflowInput: params?.workflowInput,
         endedAt: params?.endedAt,
         totalDurationMs: params?.totalDurationMs,
         errorMessage: 'Run was cancelled',
@@ -1624,6 +1627,7 @@ export class LoggingSession {
       )
       await this.completeWithCostOnlyLog({
         traceSpans: params?.traceSpans,
+        workflowInput: params?.workflowInput,
         endedAt: params?.endedAt,
         totalDurationMs: params?.totalDurationMs,
         errorMessage: 'Run paused but failed to store full trace spans',
@@ -1731,6 +1735,7 @@ export class LoggingSession {
 
   private async completeWithCostOnlyLog(params: {
     traceSpans?: TraceSpan[]
+    workflowInput?: unknown
     endedAt?: string
     totalDurationMs?: number
     errorMessage: string
@@ -1766,6 +1771,7 @@ export class LoggingSession {
         costSummary,
         finalOutput,
         traceSpans: [],
+        workflowInput: params.workflowInput,
         executionState: params.executionState,
         finalizationPath: params.finalizationPath,
         completionFailure: params.errorMessage,
