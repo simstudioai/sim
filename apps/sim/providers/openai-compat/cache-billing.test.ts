@@ -14,8 +14,12 @@ vi.mock('groq-sdk', () => ({
 vi.mock('@/providers', () => providersMock)
 
 import { deepseekProvider } from '@/providers/deepseek/index'
+import { fireworksProvider } from '@/providers/fireworks/index'
 import { groqProvider } from '@/providers/groq/index'
 import { kimiProvider } from '@/providers/kimi/index'
+import { metaProvider } from '@/providers/meta/index'
+import { mistralProvider } from '@/providers/mistral/index'
+import { sakanaProvider } from '@/providers/sakana/index'
 import { zaiProvider } from '@/providers/zai/index'
 
 const mockCreate = openaiMockFns.mockChatCompletionsCreate
@@ -52,6 +56,34 @@ describe.each<[string, ProviderConfig, string, Record<string, unknown>, number]>
     'groq/openai/gpt-oss-120b',
     { prompt_tokens_details: { cached_tokens: 800_000 } },
     0.2 * 0.15 + 0.8 * 0.075,
+  ],
+  [
+    'Meta',
+    metaProvider,
+    'muse-spark-1.3',
+    { prompt_tokens_details: { cached_tokens: 800_000 } },
+    0.2 * 1.25 + 0.8 * 0.15,
+  ],
+  [
+    'Mistral',
+    mistralProvider,
+    'mistral-large-4',
+    { prompt_tokens_details: { cached_tokens: 800_000 } },
+    0.2 * 0.7 + 0.8 * 0.07,
+  ],
+  [
+    'Sakana',
+    sakanaProvider,
+    'fugu-max',
+    { prompt_tokens_details: { cached_tokens: 800_000 } },
+    0.2 * 2 + 0.8 * 0.25,
+  ],
+  [
+    'Fireworks (shared Chat Completions path)',
+    fireworksProvider,
+    'fireworks/glm-5.3',
+    { prompt_tokens_details: { cached_tokens: 800_000 } },
+    0.2 * 1.4 + 0.8 * 0.26,
   ],
 ])('%s cache-read billing', (_name, provider, model, cacheFields, expectedInputCost) => {
   beforeEach(() => {

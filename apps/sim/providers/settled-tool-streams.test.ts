@@ -236,14 +236,8 @@ const STRUCTURED_OUTPUT_PROVIDERS = [
   },
 ] as const
 
-/**
- * The mocked model cost of a three-call settled run: Z.ai meters each call (cache-aware), the other
- * providers here price the summed usage once. Tool cost is the mocked 4 either way.
- */
-function settledRunCost(provider: ProviderConfig) {
-  const pricedCalls = provider === zaiProvider ? 3 : 1
-  return { input: pricedCalls, output: 2 * pricedCalls, toolCost: 4, total: 3 * pricedCalls + 4 }
-}
+/** Mocked cost of a three-call settled run: each call is priced at the mocked 1/2, plus tool cost 4. */
+const SETTLED_RUN_COST = { input: 3, output: 6, toolCost: 4, total: 13 }
 
 function toolCall(id: string, argumentsJson = '{}'): ToolCall {
   return {
@@ -409,7 +403,7 @@ describe('settled provider tool streams', () => {
       expect(result.execution.output).toMatchObject({
         content: '{"value":"found"}',
         tokens: { input: 15, output: 9, total: 24 },
-        cost: settledRunCost(provider),
+        cost: SETTLED_RUN_COST,
         toolCalls: { count: 1 },
       })
       expectModelIterations(result, 3)
@@ -436,7 +430,7 @@ describe('settled provider tool streams', () => {
       expect(result.execution.output).toMatchObject({
         content: '{"value":"capped"}',
         tokens: { input: 15, output: 9, total: 24 },
-        cost: settledRunCost(provider),
+        cost: SETTLED_RUN_COST,
       })
       expectModelIterations(result, 3)
     }
