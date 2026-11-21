@@ -10,7 +10,7 @@ import { compileWorkflow } from './index'
 const fake = (...parts: string[]) => parts.join('')
 
 const IMPORTS =
-  "import { agent, api, childWorkflow, condition, customTool, credential, fn, human, js, mail, mcp, parallel, raw, slack, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, block, childWorkflow, condition, customTool, credential, fn, human, js, mail, mcp, parallel, raw, slack, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
 
 function source(body: string, header = '// @sim-sdk 1'): string {
   return `${header}\n${IMPORTS}\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`
@@ -76,6 +76,16 @@ describe('param aliases', () => {
     const unknown = result.diagnostics.find((d) => d.code === 'E_UNKNOWN_PARAM')
     expect(unknown?.hint).toMatch(
       /^retry is block meta, not a param: pass it in the builder's third argument/
+    )
+  })
+
+  it('points block meta written among the params of block() at its fourth argument', () => {
+    const result = run(
+      source("  block('mail', 'M', { to: 'a@b.c', retry: { enabled: true, maxTries: 3 } })")
+    )
+    const unknown = result.diagnostics.find((d) => d.code === 'E_UNKNOWN_PARAM')
+    expect(unknown?.hint).toBe(
+      "retry is block meta, not a param: pass it in block()'s fourth argument, block('type', 'Name', {…}, { retry: … })."
     )
   })
 })
