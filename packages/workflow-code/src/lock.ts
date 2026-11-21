@@ -22,6 +22,7 @@ import { isIdentifierName } from './code-files/ref-path'
 import type { LockDiagnosticCode } from './diagnostics/codes'
 import { diagnostic } from './diagnostics/factory'
 import type { Diagnostic } from './diagnostics/frame'
+import { SOURCE_LIMITS } from './limits'
 import type { BlockKey, BranchKey, Json, SubBlockId, VarKey } from './model'
 import { SDK_RESERVED_IDENTIFIERS } from './sdk'
 
@@ -474,6 +475,7 @@ class LockReader {
       }
     }
 
+    const cyclic = blocksOnParentCycles(blocks)
     for (const [key, block] of Object.entries(blocks)) {
       if (block.parent === null) continue
       if (!Object.hasOwn(blocks, block.parent)) {
@@ -482,19 +484,17 @@ class LockReader {
           ['blocks', key, 'parent'],
           `Parent "${block.parent}" is not a block in this lock.`
         )
-        continue
-      }
-      const visited = new Set<BlockKey>()
-      let current: BlockKey | null = block.parent
-      while (current !== null && Object.hasOwn(blocks, current) && !visited.has(current)) {
-        if (current === key) {
-          this.report('E_LOCK_PARENT', ['blocks', key, 'parent'], `"${key}" contains itself.`)
-          break
-        }
-        visited.add(current)
-        current = blocks[current].parent
+      } else if (cyclic.has(key)) {
+        this.report('E_LOCK_PARENT', ['blocks', key, 'parent'], `"${key}" contains itself.`)
       }
     }
+  }
+
+  /** Whether `raw` holds more than `max` entries, a workflow's cap; reported so it is never read. */
+  overCap(raw: unknown, max: number, at: readonly string[]): boolean {
+    if (!isRecordLike(raw) || Object.keys(raw).length <= max) return false
+    this.report('E_LOCK_SHAPE', at, `Expected at most ${max} entries.`)
+    return true
   }
 
   variables(raw: unknown): Record<VarKey, string> {
@@ -510,6 +510,33 @@ class LockReader {
     }
     return variables
   }
+}
+
+/**
+ * The blocks whose parent chain leads back to themselves. Each block is walked once: a walk stops
+ * at a block an earlier walk finished, and the blocks from where it meets its own path onward are
+ * the cycle.
+ */
+function blocksOnParentCycles(blocks: Record<BlockKey, WorkflowLockBlock>): Set<BlockKey> {
+  const cyclic = new Set<BlockKey>()
+  const finished = new Set<BlockKey>()
+  for (const start of Object.keys(blocks)) {
+    const path: BlockKey[] = []
+    const onPath = new Map<BlockKey, number>()
+    let current: BlockKey | null = start
+    while (current !== null && Object.hasOwn(blocks, current) && !finished.has(current)) {
+      const index = onPath.get(current)
+      if (index !== undefined) {
+        for (const key of path.slice(index)) cyclic.add(key)
+        break
+      }
+      onPath.set(current, path.length)
+      path.push(current)
+      current = blocks[current].parent
+    }
+    for (const key of path) finished.add(key)
+  }
+  return cyclic
 }
 
 /**
@@ -602,15 +629,20 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
     return { diagnostics: reader.diagnostics }
   }
 
+  // Both counts come before either record is read, so an oversized one never costs a walk of the other.
+  const blocksOverCap = reader.overCap(json.blocks, SOURCE_LIMITS.maxBlocks, ['blocks'])
+  const variablesOverCap = reader.overCap(json.variables, SOURCE_LIMITS.maxVariables, ['variables'])
+  if (blocksOverCap || variablesOverCap) return { diagnostics: reader.diagnostics }
+
   const extensions = reader.extensions(json, LOCK_FIELDS, [])
   const blockEntries: Array<[BlockKey, WorkflowLockBlock]> = []
-  if (isRecordLike(json.blocks)) {
+  if (!isRecordLike(json.blocks)) {
+    reader.report('E_LOCK_SHAPE', ['blocks'], '"blocks" must be an object.')
+  } else {
     for (const [key, raw] of Object.entries(json.blocks)) {
       const block = reader.block(key, raw)
       if (block) blockEntries.push([key, block])
     }
-  } else {
-    reader.report('E_LOCK_SHAPE', ['blocks'], '"blocks" must be an object.')
   }
   const blocks: Record<BlockKey, WorkflowLockBlock> = Object.fromEntries(blockEntries)
   reader.crossCheckBlocks(blocks)
@@ -634,8 +666,10 @@ export interface SourceHints {
 /**
  * Lock keys the source renamed, old → new: a source block under a key `isStored` rejects whose
  * ident is that of exactly one lock entry, a stored block's, whose key is gone from the source.
- * This is materialize's `lock-ident` identity rule, so a compile that pairs source blocks with
- * stored ones by key agrees with materialize on which stored block a renamed one continues.
+ * This is materialize's `lock-ident` identity rule for a dropped key, so a compile that pairs
+ * source blocks with stored ones by key agrees with materialize on which stored block a renamed
+ * one continues. A swap where both keys survive, which materialize also binds by ident (DESIGN.md
+ * rule 2), is left out: the compile reads it by key.
  */
 export function lockIdentRenames(
   hints: SourceHints,

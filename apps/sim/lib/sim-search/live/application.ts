@@ -3,6 +3,7 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { canonicalJson } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { z } from 'zod'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
@@ -16,7 +17,7 @@ import {
   nativeSearchQueriesSchema,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
-import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
+import { fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
 import { admitContent } from '@/lib/core/application'
 import { env } from '@/lib/core/config/env'
 import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'

@@ -15,8 +15,9 @@ import {
   isSimNode,
   type VarKey,
 } from '../model'
-import { deepEqual, getOwn } from '../records'
+import { deepEqual, getOwn, pushTo, strings } from '../records'
 import type { MaterializeHooks } from './context'
+import { settingsIndex } from './settings-index'
 
 /** How identity rule matched a compiled block to a stored one (rules 1–4). */
 type IdentityMatchRule = 'lock-key' | 'lock-ident' | 'db-name' | 'inferred'
@@ -156,11 +157,11 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     inputs.compiledIdents ? getOwn(inputs.compiledIdents, key) : undefined
 
   const resolved = new Map<BlockKey, ResolvedBlock>()
-  /** The ids `resolved` holds, so a lock id's reuse check is one lookup. */
-  const resolvedIds = new Set<string>()
+  /** The key `resolved` holds each id under, so finding an id's block is one lookup. */
+  const keyOfId = new Map<string, BlockKey>()
   const resolve = (key: BlockKey, block: ResolvedBlock) => {
     resolved.set(key, block)
-    resolvedIds.add(block.id)
+    keyOfId.set(block.id, key)
   }
   const claimed = new Set<string>()
   /** Keys that end as created blocks no later rule may match (retype, or a lock id to reuse). */
@@ -258,6 +259,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
       workflow,
       prev,
       resolved,
+      keyOfId,
       claimed,
       open,
       match,
@@ -278,7 +280,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
       lockId !== undefined &&
       !claimed.has(lockId) &&
       !Object.hasOwn(prevBlocks, lockId) &&
-      !resolvedIds.has(lockId)
+      !keyOfId.has(lockId)
     if (lockId !== undefined && !reusable) {
       diagnostics.push(
         diagnostic(
@@ -341,6 +343,7 @@ interface InferenceState {
   workflow: CanonicalWorkflow
   prev: PrevGraph
   resolved: Map<BlockKey, ResolvedBlock>
+  keyOfId: ReadonlyMap<string, BlockKey>
   claimed: Set<string>
   open: () => BlockKey[]
   match: (key: BlockKey, prevId: string, via: IdentityMatchRule) => boolean
@@ -354,14 +357,26 @@ interface InferenceState {
   catalog: BlockCatalog
 }
 
+type CanonicalEdges = CanonicalWorkflow['edges']
+
+/** Each block's edges, in or out, so a block's neighbourhood reads only its own edges. */
+function edgesByEndpoint(edges: CanonicalEdges): Map<BlockKey, CanonicalEdges> {
+  const byKey = new Map<BlockKey, CanonicalEdges>()
+  for (const edge of edges) {
+    pushTo(byKey, edge.from, edge)
+    if (edge.to !== edge.from) pushTo(byKey, edge.to, edge)
+  }
+  return byKey
+}
+
 /** `in:<id>` / `out:<id>` for every already-bound neighbour of a block. */
 function neighbourhood(
-  edges: CanonicalWorkflow['edges'],
+  edgesAt: ReadonlyMap<BlockKey, CanonicalEdges>,
   key: BlockKey,
   idOf: (key: BlockKey) => string | undefined
 ): Set<string> {
   const result = new Set<string>()
-  for (const edge of edges) {
+  for (const edge of edgesAt.get(key) ?? []) {
     if (edge.from === key) {
       const id = idOf(edge.to)
       if (id !== undefined) result.add(`out:${id}`)
@@ -378,17 +393,16 @@ function sameSet(left: Set<string>, right: Set<string>): boolean {
   return left.size === right.size && [...left].every((item) => right.has(item))
 }
 
-/** A block's params with every `<from.` / `<from>` reference token rewritten to `to`. */
-function withKeyRenamed(params: CanonicalBlock['params'], from: BlockKey, to: BlockKey) {
-  const rewrite = (value: unknown): unknown => {
-    if (typeof value === 'string') {
-      return value.split(`<${from}.`).join(`<${to}.`).split(`<${from}>`).join(`<${to}>`)
-    }
-    if (Array.isArray(value)) return value.map(rewrite)
-    if (value === null || typeof value !== 'object') return value
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, rewrite(item)]))
+/** `value` with every `<from.` / `<from>` reference token rewritten to `to`. */
+function withKeyRenamed(value: unknown, from: BlockKey, to: BlockKey): unknown {
+  if (typeof value === 'string') {
+    return value.split(`<${from}.`).join(`<${to}.`).split(`<${from}>`).join(`<${to}>`)
   }
-  return rewrite(params)
+  if (Array.isArray(value)) return value.map((item) => withKeyRenamed(item, from, to))
+  if (value === null || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, withKeyRenamed(item, from, to)])
+  )
 }
 
 /**
@@ -402,35 +416,49 @@ function settingsAgree(
   key: BlockKey,
   prevKey: BlockKey
 ): boolean {
-  const left = target.params
-  const right = withKeyRenamed(prev.params, prevKey, key) as CanonicalBlock['params']
-  const shared = Object.keys(left).filter((id) => Object.hasOwn(right, id))
-  return shared.length > 0 && shared.every((id) => deepEqual(left[id], right[id]))
-}
-
-/** Every string under `value`, depth first. */
-function* strings(value: unknown): Generator<string> {
-  if (typeof value === 'string') yield value
-  else if (Array.isArray(value)) for (const item of value) yield* strings(item)
-  else if (value !== null && typeof value === 'object') {
-    for (const item of Object.values(value)) yield* strings(item)
+  let shared = false
+  for (const [id, value] of Object.entries(target.params)) {
+    if (!Object.hasOwn(prev.params, id)) continue
+    if (!deepEqual(value, withKeyRenamed(prev.params[id], prevKey, key))) return false
+    shared = true
   }
+  return shared
 }
 
 /**
- * Whether a block holds a reference to `key` in any field a reference can sit in (its params, a
- * condition or router's branches, a loop or parallel's collection), its head read as the resolver
- * reads it: normalized, so `<Fetch.data>` references `fetch`.
+ * The keys a block references in any field a reference can sit in (its params, a condition or
+ * router's branches, a loop or parallel's collection), each head read as the resolver reads it:
+ * normalized, so `<Fetch.data>` references `fetch`.
  */
-function referencesKey(block: CanonicalBlock, key: BlockKey): boolean {
+function referencedKeys(block: CanonicalBlock): Set<BlockKey> {
+  const keys = new Set<BlockKey>()
   for (const text of strings([block.params, block.branches, block.subflow])) {
     for (const token of findWorkflowReferenceTokens(text)) {
       if (token.kind !== 'workflow') continue
       const head = parseStoredPath(token.value.slice(1, -1))?.[0]
-      if (head?.kind === 'name' && normalizeWorkflowBlockName(head.name) === key) return true
+      if (head?.kind === 'name') keys.add(normalizeWorkflowBlockName(head.name))
     }
   }
-  return false
+  return keys
+}
+
+/**
+ * The first half (rounded up) of a block's bound neighbours in `order`. Two blocks share a
+ * majority of their neighbours, the `connections` signal, only if these halves meet: the earliest
+ * shared neighbour sits in both, since more than half of each side's neighbours are shared and
+ * come at or after it.
+ */
+function neighbourPrefix(items: Set<string>, order: (left: string, right: string) => number) {
+  return [...items].sort(order).slice(0, Math.ceil(items.size / 2))
+}
+
+/** Each key's items, inverted: item → the keys that hold it. */
+function invert(entries: Iterable<[BlockKey, Iterable<string>]>): Map<string, BlockKey[]> {
+  const byItem = new Map<string, BlockKey[]>()
+  for (const [key, items] of entries) {
+    for (const item of items) pushTo(byItem, item, key)
+  }
+  return byItem
 }
 
 /**
@@ -553,10 +581,38 @@ function inferRenames(state: InferenceState): void {
     return true
   }
 
-  const neighbours = (key: BlockKey, prevKey: BlockKey) => ({
-    target: neighbourhood(workflow.edges, key, idOfTarget),
-    prev: neighbourhood(prevCanonical.edges, prevKey, idOfPrev),
-  })
+  const targetEdges = edgesByEndpoint(workflow.edges)
+  const prevEdges = edgesByEndpoint(prevCanonical.edges)
+  const targetSide = (key: BlockKey) => neighbourhood(targetEdges, key, idOfTarget)
+  const prevSide = (prevKey: BlockKey) => neighbourhood(prevEdges, prevKey, idOfPrev)
+
+  /** Each stored block's referrers: the other stored blocks that reference its key. */
+  const referrersOf = new Map<BlockKey, BlockKey[]>()
+  for (const [other, block] of Object.entries(prevCanonical.blocks)) {
+    for (const key of referencedKeys(block)) {
+      if (key !== other && Object.hasOwn(prevCanonical.blocks, key)) pushTo(referrersOf, key, other)
+    }
+  }
+  const targetReferences = new Map<BlockKey, Set<BlockKey>>()
+  const referencedByTarget = (key: BlockKey): Set<BlockKey> => {
+    let keys = targetReferences.get(key)
+    if (!keys) {
+      keys = referencedKeys(workflow.blocks[key])
+      targetReferences.set(key, keys)
+    }
+    return keys
+  }
+  /** The blocks that now stand where `prevKey`'s referrers stood, or none when one is unbound. */
+  const renamedReferrers = (prevKey: BlockKey): BlockKey[] => {
+    const now: BlockKey[] = []
+    for (const other of referrersOf.get(prevKey) ?? []) {
+      const id = idOfPrev(other)
+      const key = id === undefined ? undefined : state.keyOfId.get(id)
+      if (key === undefined) return []
+      now.push(key)
+    }
+    return now
+  }
 
   const byConnections = (): boolean => {
     let progressed = false
@@ -564,8 +620,7 @@ function inferRenames(state: InferenceState): void {
       if (targets.length !== 1 || prevKeys.length !== 1) continue
       const [key] = targets
       const [prevKey] = prevKeys
-      const sides = neighbours(key, prevKey)
-      if (!sameSet(sides.target, sides.prev)) continue
+      if (!sameSet(targetSide(key), prevSide(prevKey))) continue
       const triggerHeld =
         isTriggerLike(workflow.blocks[key], catalog) &&
         !settingsAgree(workflow.blocks[key], prevCanonical.blocks[prevKey], key, prevKey)
@@ -574,47 +629,127 @@ function inferRenames(state: InferenceState): void {
     return progressed
   }
 
+  /** Bound neighbourhoods of one group's blocks, read once per group. */
+  interface GroupSides {
+    targets: Map<BlockKey, Set<string>>
+    vacated: Map<BlockKey, Set<string>>
+  }
+
   /** The strong signal tying new block `key` to vacated stored block `prevKey`, if any. */
-  const signal = (key: BlockKey, prevKey: BlockKey): InferenceBasis | null => {
+  const signal = (key: BlockKey, prevKey: BlockKey, sides: GroupSides): InferenceBasis | null => {
     const target = workflow.blocks[key]
     if (settingsAgree(target, prevCanonical.blocks[prevKey], key, prevKey)) return 'settings'
     if (isTriggerLike(target, catalog)) return null
-    const sides = neighbours(key, prevKey)
-    const shared = [...sides.target].filter((item) => sides.prev.has(item)).length
-    const union = new Set([...sides.target, ...sides.prev]).size
+    const targetItems = sides.targets.get(key) ?? new Set<string>()
+    const prevItems = sides.vacated.get(prevKey) ?? new Set<string>()
+    const shared = [...targetItems].filter((item) => prevItems.has(item)).length
+    const union = targetItems.size + prevItems.size - shared
     if (shared > 0 && shared * 2 > union) return 'connections'
-    const referrers = Object.keys(prevCanonical.blocks).filter(
-      (other) => other !== prevKey && referencesKey(prevCanonical.blocks[other], prevKey)
-    )
+    const referrers = renamedReferrers(prevKey)
     const renamedAtEverySite =
-      referrers.length > 0 &&
-      referrers.every((other) => {
-        const id = idOfPrev(other)
-        const now = id === undefined ? undefined : [...resolved].find(([, b]) => b.id === id)?.[0]
-        return now !== undefined && referencesKey(workflow.blocks[now], key)
-      })
+      referrers.length > 0 && referrers.every((now) => referencedByTarget(now).has(key))
     return renamedAtEverySite ? 'references' : null
   }
 
+  /**
+   * The pairs of one group that may show a signal, found from either side without judging every
+   * pair: equal settings ({@link settingsIndex}), shared neighbours ({@link neighbourPrefix}), or
+   * every referrer now referencing the new block. A superset, so {@link signal} need judge only
+   * these.
+   */
+  const groupSearch = (sides: GroupSides) => {
+    const blocksOf = (keys: Iterable<BlockKey>, from: CanonicalWorkflow) =>
+      [...keys].map((key): [BlockKey, CanonicalBlock] => [key, from.blocks[key]])
+    const vacatedBySettings = settingsIndex(blocksOf(sides.vacated.keys(), prevCanonical))
+    const targetsBySettings = settingsIndex(blocksOf(sides.targets.keys(), workflow))
+
+    const frequency = new Map<string, number>()
+    for (const items of [...sides.targets.values(), ...sides.vacated.values()]) {
+      for (const item of items) frequency.set(item, (frequency.get(item) ?? 0) + 1)
+    }
+    const order = (left: string, right: string) =>
+      (frequency.get(left) ?? 0) - (frequency.get(right) ?? 0) || (left < right ? -1 : 1)
+    const prefixes = (side: Map<BlockKey, Set<string>>) =>
+      new Map([...side].map(([key, items]) => [key, neighbourPrefix(items, order)]))
+    const targetPrefixes = prefixes(sides.targets)
+    const vacatedPrefixes = prefixes(sides.vacated)
+    const vacatedByNeighbour = invert(vacatedPrefixes)
+    const targetsByNeighbour = invert(targetPrefixes)
+
+    const referenced = new Map<BlockKey, BlockKey[]>()
+    for (const prevKey of sides.vacated.keys()) {
+      const [first, ...rest] = renamedReferrers(prevKey).map(referencedByTarget)
+      referenced.set(
+        prevKey,
+        [...(first ?? [])].filter(
+          (key) => sides.targets.has(key) && rest.every((keys) => keys.has(key))
+        )
+      )
+    }
+    const referencing = invert(referenced)
+
+    function* unique(lists: Iterable<Iterable<BlockKey>>): Generator<BlockKey> {
+      const seen = new Set<BlockKey>()
+      for (const list of lists) {
+        for (const key of list) {
+          if (seen.has(key)) continue
+          seen.add(key)
+          yield key
+        }
+      }
+    }
+    return {
+      vacatedFor: (key: BlockKey) =>
+        unique([
+          vacatedBySettings(workflow.blocks[key]),
+          ...(targetPrefixes.get(key) ?? []).map((item) => vacatedByNeighbour.get(item) ?? []),
+          referencing.get(key) ?? [],
+        ]),
+      targetsFor: (prevKey: BlockKey) =>
+        unique([
+          targetsBySettings(prevCanonical.blocks[prevKey]),
+          ...(vacatedPrefixes.get(prevKey) ?? []).map((item) => targetsByNeighbour.get(item) ?? []),
+          referenced.get(prevKey) ?? [],
+        ]),
+    }
+  }
+
+  /**
+   * Pairs each new block that shows a signal for exactly one vacated block, which no other new
+   * block shows one for. A new block stops at its second signal, since it can no longer pair; a
+   * vacated block's rivals are then sought only for the new blocks that would pair with it.
+   */
   const byVacatedLock = (): boolean => {
     let progressed = false
     for (const { targets, prevKeys } of groups()) {
       const vacated = prevKeys.filter((prevKey) => lockedIds.has(prevIdentity[prevKey].id))
       if (vacated.length === 0) continue
-      const signals = new Map<BlockKey, Map<BlockKey, InferenceBasis>>()
-      for (const key of targets) {
-        const found = new Map<BlockKey, InferenceBasis>()
-        for (const prevKey of vacated) {
-          const basis = signal(key, prevKey)
-          if (basis) found.set(prevKey, basis)
-        }
-        signals.set(key, found)
+      const sides: GroupSides = {
+        targets: new Map(targets.map((key) => [key, targetSide(key)])),
+        vacated: new Map(vacated.map((prevKey) => [prevKey, prevSide(prevKey)])),
       }
-      for (const [key, found] of signals) {
-        if (found.size !== 1) continue
-        const [[prevKey, basis]] = [...found]
-        const rivals = [...signals.values()].filter((other) => other.has(prevKey)).length
-        if (rivals === 1 && pair(key, prevKey, basis)) progressed = true
+      const search = groupSearch(sides)
+      const chosen: Array<[BlockKey, BlockKey, InferenceBasis]> = []
+      for (const key of targets) {
+        const found: Array<[BlockKey, InferenceBasis]> = []
+        for (const prevKey of search.vacatedFor(key)) {
+          const basis = signal(key, prevKey, sides)
+          if (basis) found.push([prevKey, basis])
+          if (found.length > 1) break
+        }
+        if (found.length !== 1) continue
+        const [[prevKey, basis]] = found
+        let rivalled = false
+        for (const other of search.targetsFor(prevKey)) {
+          if (other !== key && signal(other, prevKey, sides) !== null) {
+            rivalled = true
+            break
+          }
+        }
+        if (!rivalled) chosen.push([key, prevKey, basis])
+      }
+      for (const [key, prevKey, basis] of chosen) {
+        if (pair(key, prevKey, basis)) progressed = true
       }
     }
     return progressed

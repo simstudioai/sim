@@ -42,6 +42,7 @@ import {
   checkCodeFileRefs,
   checkDynamicOutputRefs,
   checkErrorOutputRefs,
+  checkUnresolvedTags,
   compileJsonLiteral,
   objectEntries,
 } from './values'
@@ -204,6 +205,16 @@ function compileVariables(ctx: CompileContext, node: Node): void {
       node,
       'variables is an object literal.',
       "Write variables: { name: { type: 'string', value: '' } }."
+    )
+    return
+  }
+  const overLimit = node.properties[ctx.limits.maxVariables]
+  if (overLimit) {
+    ctx.reporter.report(
+      'E_LIMIT_EXCEEDED',
+      `The workflow declares ${node.properties.length} variables; the limit is ${ctx.limits.maxVariables}.`,
+      rangeOf(ctx, overLimit),
+      { hint: 'Keep related values together in one object or array variable.' }
     )
     return
   }
@@ -549,6 +560,7 @@ function compileEntry(
   if (!ast) return emptyResult(reporter, parsed.sdkMajor)
   checkStorableLiterals(file, text, ast, reporter)
 
+  const storedUnread = input.stored === undefined ? input.storedUnread : undefined
   const ctx: CompileContext = {
     file,
     reporter,
@@ -568,12 +580,17 @@ function compileEntry(
     metaSpans: {},
     knownKeys: input.knownKeys ?? new Set(),
     stored: input.stored,
-    storedUnread: input.stored === undefined ? input.storedUnread : undefined,
+    storedUnread,
+    storedTypes: new Set(Object.values(input.stored?.blocks ?? {}).map((block) => block.type)),
+    storedUnreadIdents: new Set(
+      Object.values(storedUnread?.blocks ?? {}).map((entry) => entry.ident)
+    ),
     envNames: input.envNames,
     envDeclaredIn: input.envDeclaredIn,
     envReferences: new Set(),
     jsonFields: [],
     dynamicOutputRefs: [],
+    unresolvedTags: [],
     errorOutputRefs: [],
     refusedBranches: new Map(),
     valueConsts: new Set(),
@@ -692,6 +709,7 @@ function compileEntry(
     : new Map<BlockKey, BlockKey>()
   const renamed = new Map([...unreadRenames, ...(input.renamedKeys ?? [])])
   checkCodeFileRefs(ctx, renamed)
+  checkUnresolvedTags(ctx, renamed)
   const stored = storedView(input.stored, renamed)
 
   const refTypes: RefTypeScope = {

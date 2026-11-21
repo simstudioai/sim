@@ -1,4 +1,6 @@
+import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
 import { describe, expect, it } from 'vitest'
+import { SOURCE_LIMITS } from './limits'
 import { parseSourceBase, parseWorkflowLock } from './lock'
 
 function validLock(): Record<string, unknown> {
@@ -173,6 +175,51 @@ describe('parseWorkflowLock', () => {
       'E_LOCK_PARENT /blocks/each/parent',
       'E_LOCK_PARENT /blocks/route/parent',
     ])
+  })
+
+  it('reports only the blocks on a cycle, not the blocks that lead into one', () => {
+    const lock = validLock()
+    lock.blocks = {
+      a: { id: 'a', parent: 'b', ident: 'a', order: 0 },
+      b: { id: 'b', parent: 'a', ident: 'b', order: 1 },
+      c: { id: 'c', parent: 'a', ident: 'c', order: 2 },
+      d: { id: 'd', parent: 'c', ident: 'd', order: 3 },
+    }
+    expect(codesFor(lock)).toEqual([
+      'E_LOCK_PARENT /blocks/a/parent',
+      'E_LOCK_PARENT /blocks/b/parent',
+    ])
+  })
+
+  it('checks a long parent chain in linear time', () => {
+    // 64 to 512 blocks, not the cap: a chain at the cap outgrows the CPU cache, which narrows the
+    // gap between linear and quadratic growth.
+    expectLinearGrowth((n) => {
+      const blocks: Record<string, unknown> = {}
+      for (let i = 0; i < n; i += 1) {
+        blocks[`b${i}`] = {
+          id: `id${i}`,
+          parent: i === 0 ? null : `b${i - 1}`,
+          ident: `b${i}`,
+          order: i,
+        }
+      }
+      const lock = { version: 1, blocks, variables: {} }
+      return () => parseWorkflowLock(lock)
+    }, 64)
+  })
+
+  it('refuses more blocks or variables than a workflow may hold, before reading them', () => {
+    const blocks: Record<string, unknown> = {}
+    const variables: Record<string, string> = {}
+    // Each entry is malformed, so a reader that walked them would report far more than the cap.
+    for (let i = 0; i <= SOURCE_LIMITS.maxBlocks; i += 1) blocks[`b${i}`] = { id: i }
+    for (let i = 0; i <= SOURCE_LIMITS.maxVariables; i += 1) variables[`v${i}`] = ''
+    expect(codesFor({ version: 1, blocks, variables: {} })).toEqual(['E_LOCK_SHAPE /blocks'])
+    expect(codesFor({ version: 1, blocks: {}, variables })).toEqual(['E_LOCK_SHAPE /variables'])
+    // An oversized variables record is refused without walking the malformed blocks beside it.
+    const atCap = Object.fromEntries(Object.entries(blocks).slice(0, SOURCE_LIMITS.maxBlocks))
+    expect(codesFor({ version: 1, blocks: atCap, variables })).toEqual(['E_LOCK_SHAPE /variables'])
   })
 
   it('rejects branch keys that are not identifiers', () => {

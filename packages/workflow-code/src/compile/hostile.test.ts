@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { codeFileReferences } from '../code-files/references'
 import { FINDING_LIMITS } from '../diagnostics/bound'
 import { MAX_ERRORS } from '../diagnostics/codes'
+import { SOURCE_LIMITS, sourceLimitExcesses } from '../limits'
+import { parseWorkflowLock } from '../lock'
 import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
@@ -496,6 +498,24 @@ describe('one set of limits for get and compile', () => {
     const { 'workflows/hostile.ts': entry, ...codeFiles } = files as Record<string, string>
     expect(errorCodes(run(entry, undefined, codeFiles))).toContain('E_LIMIT_EXCEEDED')
     expect(sourceDepthOverflow(files, Number.POSITIVE_INFINITY)).not.toBeNull()
+  })
+
+  it('refuses more variables than a get prints or a lock holds', () => {
+    const declare = (count: number) => {
+      const entries = Array.from(
+        { length: count },
+        (_, i) => `v${i}: { type: 'string', value: '' }`
+      )
+      return wrap("  const a = api('A', { url: 'x' })", `{ variables: { ${entries.join(', ')} } }`)
+    }
+    const max = SOURCE_LIMITS.maxVariables
+    expect(errorCodes(run(declare(max)))).toEqual([])
+    expect(errorCodes(run(declare(max + 1)))).toEqual(['E_LIMIT_EXCEEDED'])
+    expect(sourceLimitExcesses({}, { blocks: 1, edges: 0, variables: max + 1 })).toEqual([
+      { limit: 'maxVariables', actual: max + 1, max },
+    ])
+    const variables = Object.fromEntries(Array.from({ length: max }, (_, i) => [`v${i}`, `id${i}`]))
+    expect(parseWorkflowLock({ version: 1, blocks: {}, variables }).diagnostics).toBeUndefined()
   })
 
   it('skips regex literal bodies, so many regexes with brackets and quotes pass', () => {

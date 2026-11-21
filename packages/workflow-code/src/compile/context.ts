@@ -163,6 +163,10 @@ export interface CompileContext {
    * check continues without reading it.
    */
   storedUnread: WorkflowLockV1 | undefined
+  /** The block types `stored` holds, read once so a per-block check stays constant time. */
+  storedTypes: ReadonlySet<string>
+  /** The idents `storedUnread` binds, read once so a per-block check stays constant time. */
+  storedUnreadIdents: ReadonlySet<string>
   /** `CompileInput.envNames`: the env names a run resolves, when known. */
   envNames: ReadonlySet<string> | undefined
   /** `CompileInput.envDeclaredIn`: the file the env names are declared in, when there is one. */
@@ -180,6 +184,8 @@ export interface CompileContext {
    * written last (`checkDynamicOutputRefs`).
    */
   dynamicOutputRefs: DynamicOutputRef[]
+  /** Literal tags whose head names no block, checked once renames are known (`checkUnresolvedTags`). */
+  unresolvedTags: LiteralTag[]
   /** `x.error` references, checked once the edges are known (`checkErrorOutputRefs`). */
   errorOutputRefs: Array<Omit<DynamicOutputRef, 'segments'>>
   /**
@@ -192,6 +198,15 @@ export interface CompileContext {
    * write the value there instead of offering a did-you-mean.
    */
   valueConsts: Set<string>
+}
+
+/** A `<Name.path>` in literal text whose head is no declared block's key. */
+export interface LiteralTag {
+  token: string
+  segments: RefSegment[]
+  normalized: BlockKey
+  at: Range
+  blockKey: BlockKey
 }
 
 /** A reference path into a block whose outputs its `responseFormat` declares. */

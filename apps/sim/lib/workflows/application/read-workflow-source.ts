@@ -117,6 +117,8 @@ function describeExcess(excess: SourceLimitExcess): string {
       return `it has ${excess.actual} blocks, over the ${excess.max}-block limit`
     case 'maxEdges':
       return `it has ${excess.actual} connections, over the ${excess.max}-connection limit`
+    case 'maxVariables':
+      return `it has ${excess.actual} variables, over the ${excess.max}-variable limit`
     case 'maxFiles':
       return `it prints ${excess.actual} files, over the ${excess.max}-file limit`
     case 'maxTotalBytes':
@@ -131,7 +133,7 @@ function describeExcess(excess: SourceLimitExcess): string {
  */
 function assertFitsSourceLimits(
   source: Pick<PrintedSource, 'files' | 'entryDepth'>,
-  counts: { blocks: number; edges: number }
+  counts: { blocks: number; edges: number; variables: number }
 ): void {
   const excesses = sourceLimitExcesses(source.files, counts)
   if (excesses.length > 0) {
@@ -240,7 +242,11 @@ async function printLoadedSource(
 ): Promise<ReadWorkflowSourceResult> {
   const { scope, gate, sourceMeta, prefetched } = loaded
   const { state, meta } = loaded.stored
-  const counts = { blocks: Object.keys(state.blocks).length, edges: state.edges.length }
+  const counts = {
+    blocks: Object.keys(state.blocks).length,
+    edges: state.edges.length,
+    variables: Object.keys(state.variables ?? {}).length,
+  }
   assertFitsSourceLimits({ files: {}, entryDepth: 0 }, counts)
   return withStoredCanonical(
     { organizationId: scope.workspaceOrganizationId, gate, prefetched, stored: loaded.stored },

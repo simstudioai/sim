@@ -40,7 +40,7 @@ import { rewriteRenamedReferences, rewriteStoredBlockReferences } from './values
  * Variables keep their ids by key: the lock's id, then prev's, else a new one. When exactly one
  * variable's key is new and exactly one prev variable's key is gone, with the same type, the
  * variable is a rename and keeps that id. A variable canonical-equal to the prev variable with
- * that id is prev's stored object unchanged.
+ * that id is prev's stored object unchanged, and continuing variables keep their stored order.
  */
 function writeVariables(
   workflow: CanonicalWorkflow,
@@ -103,7 +103,27 @@ function writeVariables(
         : { ...stored, id, name: variable.name, type: variable.type, value: variable.value }
     )
   }
-  return { variables, idByKey }
+  return { variables: inStoredOrder(variables, prevVariables), idByKey }
+}
+
+/**
+ * `variables` with the ones `stored` holds first, in its order, then the new ones in source order.
+ * The panel lists variables in record order and the printer sorts them by key, so writing them in
+ * source order would reorder the panel on every apply that touches a variable.
+ */
+function inStoredOrder(
+  variables: Record<string, Variable>,
+  stored: Readonly<Record<string, Variable>>
+): Record<string, Variable> {
+  const ordered: Record<string, Variable> = {}
+  for (const id of Object.keys(stored)) {
+    const variable = getOwn(variables, id)
+    if (variable) setOwn(ordered, id, variable)
+  }
+  for (const [id, variable] of Object.entries(variables)) {
+    if (!Object.hasOwn(ordered, id)) setOwn(ordered, id, variable)
+  }
+  return ordered
 }
 
 /** The one variable a lone key rename left without a known id, with its id (see {@link soleRename}). */

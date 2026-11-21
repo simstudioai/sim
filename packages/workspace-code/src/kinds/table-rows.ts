@@ -22,6 +22,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import type { Json } from '@sim/workflow-code'
+import { utf8Bytes } from '@sim/workflow-code/limits'
 import type { ResourceFingerprint } from '../base'
 import {
   diagnostic,
@@ -71,6 +72,11 @@ export function rowKeyText(value: unknown): string | undefined {
 /** Whether a managed row holds a value in its key column, so a rows file can name it. */
 export function hasRowKey(row: TableRowCells, rowKey: string): boolean {
   return rowKeyText(row[rowKey]) !== undefined
+}
+
+/** The UTF-8 bytes `row` takes as one line of a rows file, its newline included. */
+export function printedRowBytes(row: TableRowCells): number {
+  return utf8Bytes(JSON.stringify(filledCells(row))) + 1
 }
 
 /** A row without its empty cells (null, `''` and `[]`, which a table stores as no value). */

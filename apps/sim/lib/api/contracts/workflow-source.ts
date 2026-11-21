@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   DefinedField,
   SourceBase,
@@ -5,6 +6,7 @@ import type {
   WorkflowLockV1,
 } from '@sim/workflow-code'
 import { DIAGNOSTIC_CODES } from '@sim/workflow-code/diagnostics/codes'
+import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
@@ -77,6 +79,23 @@ const lockLayoutSchema = withExtensions({
   'Stored canvas geometry; applied only to new blocks.'
 )
 
+/**
+ * A string-keyed record of at most `max` entries, a workflow's cap (`parseWorkflowLock` agrees).
+ * The entries are counted before any value is validated, so an oversized lock costs one key count
+ * rather than a walk of every entry.
+ */
+function cappedRecord<Value extends z.ZodType>(values: Value, max: number, field: string) {
+  return z.preprocess(
+    (input, ctx) => {
+      if (isRecordLike(input) && Object.keys(input).length > max) {
+        ctx.addIssue({ code: 'custom', message: `${field} cannot hold more than ${max} entries` })
+      }
+      return input
+    },
+    z.record(z.string(), values)
+  )
+}
+
 const lockBlockSchema = withExtensions({
   id: z.string().describe('Block id.'),
   parent: z.string().nullable().describe('Key of the enclosing loop or parallel, or null.'),
@@ -107,8 +126,12 @@ const lockBlockSchema = withExtensions({
 
 export const workflowLockSchema = withExtensions({
   version: z.literal(1).describe('Lock format version.'),
-  blocks: z.record(z.string(), lockBlockSchema).describe('Block key → identity.'),
-  variables: z.record(z.string(), z.string()).describe('Variable key → variable id.'),
+  blocks: cappedRecord(lockBlockSchema, SOURCE_LIMITS.maxBlocks, 'lock.blocks').describe(
+    'Block key → identity.'
+  ),
+  variables: cappedRecord(z.string(), SOURCE_LIMITS.maxVariables, 'lock.variables').describe(
+    'Variable key → variable id.'
+  ),
 } satisfies ShapeOf<WorkflowLockV1>).describe(
   'Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.'
 )
