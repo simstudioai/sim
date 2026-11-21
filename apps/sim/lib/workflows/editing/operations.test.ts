@@ -606,6 +606,112 @@ describe('handleEditOperation container inputs', () => {
   })
 })
 
+describe('a falsy loop or parallel count', () => {
+  it.each([0, false, null, ''])('refuses iterations %j on an added loop', (iterations) => {
+    const { state, validationErrors } = applyOperationsToWorkflowState(makeLoopWorkflow(), [
+      {
+        operation_type: 'add',
+        block_id: 'loop-2',
+        params: { type: 'loop', name: 'Loop 2', inputs: { loopType: 'for', iterations } },
+      },
+    ])
+
+    expect(validationErrors).toEqual([
+      expect.objectContaining({ blockType: 'loop', field: 'iterations', value: iterations }),
+    ])
+    expect(Object.values(state.blocks)).toContainEqual(
+      expect.objectContaining({
+        name: 'Loop 2',
+        data: expect.not.objectContaining({ count: expect.anything() }),
+      })
+    )
+  })
+
+  it('refuses count 0 on an added parallel', () => {
+    const { validationErrors } = applyOperationsToWorkflowState(makeLoopWorkflow(), [
+      {
+        operation_type: 'add',
+        block_id: 'parallel-2',
+        params: {
+          type: 'parallel',
+          name: 'Parallel 2',
+          inputs: { parallelType: 'count', count: 0 },
+        },
+      },
+    ])
+
+    expect(validationErrors).toEqual([
+      expect.objectContaining({ blockType: 'parallel', field: 'count', value: 0 }),
+    ])
+  })
+
+  it('refuses iterations 0 on a loop merged in as an existing nested child, keeping its count', () => {
+    const workflow = makeParallelWorkflow()
+    const blocks: Record<string, unknown> = workflow.blocks
+    blocks['inner-loop'] = {
+      id: 'inner-loop',
+      type: 'loop',
+      name: 'Inner',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      subBlocks: {},
+      outputs: {},
+      data: { parentId: 'loop-1', extent: 'parent', loopType: 'for', count: 4 },
+    }
+
+    const { state, validationErrors } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'loop-1',
+        params: {
+          nestedNodes: {
+            inner: { type: 'loop', name: 'Inner', inputs: { loopType: 'for', iterations: 0 } },
+          },
+        },
+      },
+    ])
+
+    expect(validationErrors).toContainEqual(
+      expect.objectContaining({ blockId: 'inner-loop', field: 'iterations', value: 0 })
+    )
+    expect(state.blocks['inner-loop'].data.count).toBe(4)
+  })
+})
+
+describe('a block rename', () => {
+  it('writes a new name holding `$` replacement patterns into references literally', () => {
+    const workflow = makeLoopWorkflow()
+    workflow.blocks['agent-1'].subBlocks.systemPrompt.value = 'Use <condition1.result>'
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'condition-1', params: { name: "Cond$&$'" } },
+    ])
+
+    expect(state.blocks['agent-1'].subBlocks.systemPrompt.value).toBe("Use <cond$&$'.result>")
+  })
+
+  it('rewrites references a loop holds in its collection and conditions, and in the loop record', () => {
+    const workflow = makeLoopWorkflow()
+    Object.assign(workflow.blocks['loop-1'].data, {
+      loopType: 'forEach',
+      collection: '<agent1.items>',
+      whileCondition: '<agent1.more> === true',
+      doWhileCondition: '<agent1.more>',
+    })
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'agent-1', params: { name: 'Fetcher' } },
+    ])
+
+    expect(state.blocks['loop-1'].data).toMatchObject({
+      collection: '<fetcher.items>',
+      whileCondition: '<fetcher.more> === true',
+      doWhileCondition: '<fetcher.more>',
+    })
+    expect(state.loops['loop-1']).toMatchObject({ forEachItems: '<fetcher.items>' })
+  })
+})
+
 describe('handleEditOperation nestedNodes merge', () => {
   it('preserves existing child block IDs when editing a loop with nestedNodes', () => {
     const workflow = makeLoopWorkflow()

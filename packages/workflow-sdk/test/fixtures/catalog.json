@@ -1096,7 +1096,8 @@
               "id": "bedrock/cohere.command-r-v1:0",
               "label": "bedrock/cohere.command-r-v1:0"
             }
-          ]
+          ],
+          "optionsVary": true
         },
         {
           "id": "vertexCredential",
@@ -6890,7 +6891,8 @@
               "id": "python",
               "label": "Python"
             }
-          ]
+          ],
+          "optionsVary": true
         },
         {
           "id": "code",
@@ -12142,7 +12144,8 @@
               "id": "bedrock/cohere.command-r-v1:0",
               "label": "bedrock/cohere.command-r-v1:0"
             }
-          ]
+          ],
+          "optionsVary": true
         },
         {
           "id": "vertexCredential",

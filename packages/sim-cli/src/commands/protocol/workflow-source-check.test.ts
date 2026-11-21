@@ -284,6 +284,22 @@ describe('sim workflows source check', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('refuses a codeFile() path holding a NUL byte by its code, reading no such file', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace('import { response,', 'import { codeFile, fn, response,').replace(
+        '  start.to(done)',
+        "  const step = fn('Step', { code: codeFile('./functions/\\u0000x.js') })\n  start.to(done)"
+      )
+    )
+
+    await check()
+
+    expect(findingLines()).toMatch(/error E_CODE_FILE_PATH/)
+    expect(process.exitCode).toBe(1)
+  })
+
   it('puts each finding in the JSON on stdout', async () => {
     cacheCatalog()
     writeFileSync(
@@ -453,6 +469,30 @@ describe('sim workflows source check', () => {
     expect(codes.filter((code) => code === 'I_FINDINGS_TRUNCATED')).toHaveLength(1)
   })
 
+  it('counts every literal secret it fails on, past the 20 of one code it lists', async () => {
+    cacheCatalog()
+    const bearer = `Bearer ${'sk-proj-'}${'Abc123Def456Ghi789Jkl012'}`
+    const calls = Array.from(
+      { length: 25 },
+      (_, index) =>
+        `  const call${index} = api('Call ${index}', { url: 'https://api.example.com/v1', method: 'GET', headers: [{ cells: { Key: 'Authorization', Value: '${bearer}' } }] })\n  start.to(call${index})`
+    ).join('\n')
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace('import { response,', 'import { api, response,').replace(
+        '  start.to(done)',
+        `${calls}\n  start.to(done)`
+      )
+    )
+
+    await check()
+
+    const answer = result()
+    expect(answer).toMatchObject({ errors: 25 })
+    const codes = (answer.diagnostics as Array<{ code: string }>).map((finding) => finding.code)
+    expect(codes.filter((code) => code === 'W_LITERAL_SECRET')).toHaveLength(20)
+  })
+
   it('fails a row write naming a column or select option the table does not declare', async () => {
     cacheCatalog()
     writeWorkspace()
@@ -481,7 +521,10 @@ describe('sim workflows source check', () => {
     writeFileSync(join(dir, 'workflow.ts'), UNKNOWN_METHOD)
 
     await check()
-    expect(findingLines()).toMatch(/error W_UNKNOWN_OPTION/)
+    expect(findingLines()).toMatch(
+      /error E_APPLY_INVALID_SUBBLOCK_FIELD: method has no option FETCH\./
+    )
+    expect(findingLines()).not.toContain('kept as written')
     expect(process.exitCode).toBe(1)
 
     process.exitCode = undefined
@@ -873,6 +916,34 @@ export default workflow('W', {}, () => {
     )
   })
 
+  it('counts every refused reference in an edited code file as an error, past the 20 of one code it lists', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const report = fn('Report', { code: codeFile('./functions/report.js') })
+  start.to(report)
+})
+`
+    )
+    writeLock(['start', 'report'])
+    writeWritten({ 'functions/report.js': 'return 1\n' })
+    const missing = Array.from({ length: 25 }, (_, i) => `$ref.nosuchblock.v${i}`)
+    writeFileSync(join(dir, 'functions/report.js'), `return [${missing.join(', ')}]\n`)
+
+    await check()
+
+    const answer = result()
+    expect(answer).toMatchObject({ errors: 25, warnings: 0 })
+    const codes = (answer.diagnostics as Array<{ code: string }>).map((finding) => finding.code)
+    expect(codes.filter((code) => code === 'E_APPLY_UNRESOLVED_REF')).toHaveLength(20)
+  })
+
   describe('a reference to an output the block lacks', () => {
     /** Start → Call (an HTTP request) → Done, whose JSON body reads `call.<output>`. */
     const reads = (output: string) =>
@@ -974,9 +1045,40 @@ export default workflow('W', {}, () => {
     expect(process.exitCode).toBe(1)
 
     process.exitCode = undefined
-    writeLock([])
     await checkIn(dir, '--no-strict')
     expect(result()).toMatchObject({ errors: 0, warnings: 1 })
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('fails with --no-strict on a dropdown value a new block sets, as the server refuses it', async () => {
+    cacheCatalog()
+    writeFileSync(join(dir, 'workflow.ts'), UNKNOWN_METHOD)
+    writeLock([])
+
+    await checkIn(dir, '--no-strict')
+
+    expect(result()).toMatchObject({ errors: 1, warnings: 0 })
+    expect(findingLines()).toMatch(
+      /error E_APPLY_INVALID_SUBBLOCK_FIELD: method has no option FETCH\./
+    )
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('keeps a value outside options that vary by deployment a warning on a new block under the default strict mode, as the cached catalog may predate the settings the server checks with', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace(
+        '  start.to(done)',
+        "  const run = fn('Run', { language: 'shell', code: 'echo hi' })\n  start.to(done)\n  done.to(run)"
+      ).replace('import { response,', 'import { fn, response,')
+    )
+    writeLock([])
+
+    await checkIn(dir)
+
+    expect(findingLines()).toMatch(/warning W_UNKNOWN_OPTION: language has no option shell/)
+    expect(result()).toMatchObject({ errors: 0 })
     expect(process.exitCode).toBeUndefined()
   })
 

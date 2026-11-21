@@ -33,7 +33,7 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
 import { gitProvenance } from './git-provenance'
-import { SourceDirError } from './local-errors'
+import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import {
   absoluteDirOption,
@@ -92,6 +92,7 @@ interface ApplyOptions {
   dryRun?: boolean
   yes?: boolean
   allowDelete?: boolean
+  deleteTargetOnly?: boolean
   only?: string
   to?: string
 }
@@ -178,6 +179,16 @@ function printPlan(
   )
   const driftOf = (change: Change) =>
     change.action === 'noop' ? drifted.get(`${change.kind}:${change.key}`) : undefined
+  const addressesOf = (code: string) =>
+    new Set(
+      diagnostics
+        .filter((finding) => finding.code === code)
+        .map((finding) => `${finding.kind}:${finding.key}`)
+    )
+  const stale = addressesOf('E_APPLY_STALE')
+  const deleteRefused = addressesOf('E_APPLY_DELETE_NOT_ALLOWED')
+  const refusedDelete = (change: Change) =>
+    change.action === 'noop' && deleteRefused.has(`${change.kind}:${change.key}`)
   for (const kind of APPLY_ORDER) {
     const changes = plan.filter((change) => change.kind === kind)
     if (changes.length === 0) continue
@@ -186,9 +197,11 @@ function printPlan(
       const drift = driftOf(change)
       const label = drift
         ? `${drift} on the server`
-        : change.action === 'noop'
-          ? 'unchanged'
-          : change.action
+        : refusedDelete(change)
+          ? 'delete refused'
+          : change.action === 'noop'
+            ? 'unchanged'
+            : change.action
       counts.set(label, (counts.get(label) ?? 0) + 1)
     }
     printError(
@@ -197,7 +210,14 @@ function printPlan(
     for (const change of changes) {
       const drift = driftOf(change)
       if (drift) {
-        printError(`  ! ${change.key} (${drift} on the server; kept as the server has it)`)
+        const fate = stale.has(`${change.kind}:${change.key}`)
+          ? 'your edit is refused as stale'
+          : 'kept as the server has it'
+        printError(`  ! ${change.key} (${drift} on the server; ${fate})`)
+        continue
+      }
+      if (refusedDelete(change)) {
+        printError(`  - ${change.key} — refused, needs --allow-delete`)
         continue
       }
       if (change.action === 'noop') continue
@@ -251,7 +271,11 @@ const WORKFLOW_LOCK_PATH = new RegExp(
  * a folder whose new lock does not read as one: without it nothing tells a dropped file from a
  * kept one.
  */
-async function orphanedWorkflowFiles(dir: string, files: Record<string, string>) {
+async function orphanedWorkflowFiles(
+  dir: string,
+  files: Record<string, string>,
+  recorded: Written['digests']
+) {
   const filesByFolder = new Map<string, string[]>()
   for (const path of Object.keys(files)) {
     if (!path.startsWith(`${KIND_DIRS.workflow}/`)) continue
@@ -273,7 +297,14 @@ async function orphanedWorkflowFiles(dir: string, files: Record<string, string>)
     } catch {}
     if (!isRecordLike(next) || !isRecordLike(next.blocks)) continue
     const previous = await readSourceJson(dir, path)
-    orphaned.push(...orphanedCodeFiles(previous, next, written).map((file) => `${folder}/${file}`))
+    const inFolder = Object.fromEntries(
+      Object.entries(recorded).flatMap(([recordedPath, sha]) =>
+        recordedPath.startsWith(`${folder}/`) ? [[recordedPath.slice(folder.length + 1), sha]] : []
+      )
+    )
+    orphaned.push(
+      ...orphanedCodeFiles(previous, next, written, inFolder).map((file) => `${folder}/${file}`)
+    )
   }
   return orphaned
 }
@@ -366,7 +397,7 @@ async function saveApplied(
 ): Promise<void> {
   assertWorkspacePaths(Object.keys(data.files))
   const orphaned = [
-    ...(await orphanedWorkflowFiles(dir, data.files)),
+    ...(await orphanedWorkflowFiles(dir, data.files, written.digests)),
     ...droppedResourceFiles(submission.files, data.files),
   ]
   const kept = { ...written.digests, ...appliedBlobDigests(submission, data.base) }
@@ -409,6 +440,8 @@ interface Promotion {
   target: string
   /** What the target deleted since the last promotion that the directory declares (addresses). */
   deletedInTarget: string[]
+  /** What only the target holds: undeclared, and no promotion from the directory left it there. */
+  targetOnly: string[]
 }
 
 /**
@@ -423,7 +456,7 @@ async function promoted(
   dir: string,
   submission: WorkspaceSubmission,
   target: string,
-  allowDelete: boolean
+  deleteTargetOnly: boolean
 ): Promise<Promotion> {
   if (baseWorkspaceOf(submission.base) === target) {
     throw new SourceDirError(`${dir} was read from workspace ${target}; apply it without --to.`, {
@@ -448,7 +481,7 @@ async function promoted(
     kinds: submission.kinds,
     target: { files: data.files, base: targetBase },
     record,
-    allowDelete,
+    deleteTargetOnly,
   })
   return {
     submission: { ...submission, files: composed.files, base: composed.base },
@@ -456,6 +489,7 @@ async function promoted(
     record,
     target,
     deletedInTarget: composed.deletedInTarget,
+    targetOnly: composed.targetOnly,
   }
 }
 
@@ -480,6 +514,7 @@ async function savePromotion(
     submission: {
       files: promotion.submission.files,
       base: parseWorkspaceBase(promotion.submission.base).base ?? base,
+      targetOnly: promotion.targetOnly,
     },
     applied: { base, files: data.files, plan: data.plan },
   })
@@ -497,10 +532,19 @@ function resourceWhere(kind: WorkspaceKind, key: string): string {
  * The hint a promotion to `target` gives a refusal the server words for an apply to the
  * directory's own workspace ("get it into a fresh directory"), which a promotion cannot follow.
  */
-function promotionHint(code: string, target: string): string | undefined {
+function promotionHint(code: string, target: string, targetOnly: boolean): string | undefined {
   const record = promotionRecordPath(target) ?? '.sim/targets/<workspaceId>.json'
   if (code === 'E_APPLY_STALE') {
-    return `Workspace ${target} changed this resource since the last promotion from this directory. Carry that change into the directory, or undo it in ${target}, then promote again; to take ${target} as it stands now, delete ${record} first.`
+    return `Workspace ${target} changed this resource since the last promotion from this directory. Carry that change into the directory (\`sim workspaces source get --workspace ${target} --dir <fresh dir>\` prints it), or undo it in ${target}, then promote again. Don't delete ${record} to get past this: the next promotion would then overwrite every change made in ${target} since, rows its workflows wrote included.`
+  }
+  if (code === 'W_SERVER_CHANGED') {
+    return `Workspace ${target} changed this resource since the last promotion from this directory, and this promotion keeps that change. To carry it into the directory, \`sim workspaces source get --workspace ${target} --dir <fresh dir>\` prints it.`
+  }
+  if (code === 'E_APPLY_DELETE_NOT_ALLOWED') {
+    return `This directory no longer declares it. Pass --allow-delete to delete it in ${target} too: that deletes only what this directory dropped, and resources only ${target} holds are kept. Or restore it to keep it.`
+  }
+  if (code === 'W_UNDECLARED' && targetOnly) {
+    return `Only workspace ${target} holds it: this directory does not declare it and no promotion from it left it there, so the promotion keeps it, with or without --allow-delete. To delete it there, add --delete-target-only beside --allow-delete; to manage it from this directory, declare it here.`
   }
   if (code === 'E_APPLY_NO_BASE') {
     return `Workspace ${target} holds this resource, but no promotion from this directory recorded it. Rename the declaration, or rename or delete the resource in ${target}, then promote again.`
@@ -508,13 +552,14 @@ function promotionHint(code: string, target: string): string | undefined {
   return undefined
 }
 
-/** `finding` with the hint a promotion to `target` gives its code, when it gives one. */
-function withPromotionHint<F extends { hint?: string }>(
+/** `finding` with the hint `promotion` gives its code, when it gives one. */
+function withPromotionHint<F extends { hint?: string; kind?: unknown; key?: unknown }>(
   finding: F,
   code: string,
-  target: string
+  promotion: Promotion
 ): F {
-  const hint = promotionHint(code, target)
+  const targetOnly = promotion.targetOnly.includes(`${finding.kind}:${finding.key}`)
+  const hint = promotionHint(code, promotion.target, targetOnly)
   return hint === undefined ? finding : { ...finding, hint }
 }
 
@@ -528,14 +573,15 @@ function promotionDiagnostics(diagnostics: readonly Finding[], promotion: Promot
   return diagnostics.flatMap((finding) =>
     finding.code === 'W_SERVER_DELETED' && warned.has(`${finding.kind}:${finding.key}`)
       ? []
-      : [withPromotionHint(finding, finding.code, promotion.target)]
+      : [withPromotionHint(finding, finding.code, promotion)]
   )
 }
 
 /**
  * The warnings only a promotion knows to give: each declared resource the target deleted since the
- * last promotion (kept deleted), and each resource only the target holds that `--allow-delete`
- * deletes there (of an apply that stopped part-way, each it deleted).
+ * last promotion (kept deleted), and each resource only the target holds that
+ * `--delete-target-only` deletes there (of an apply that stopped part-way, each it deleted). One
+ * it keeps is the server's `W_UNDECLARED`, with the promotion's hint.
  */
 function promotionWarnings(
   promotion: Promotion,
@@ -556,16 +602,20 @@ function promotionWarnings(
       },
     ]
   })
+  const onlyInTarget = new Set(promotion.targetOnly)
   const targetOnly = outcome.plan
     .filter(
-      (change) => change.action === 'delete' && (!outcome.failed || wasWritten(change, outcome))
+      (change) =>
+        change.action === 'delete' &&
+        onlyInTarget.has(`${change.kind}:${change.key}`) &&
+        (!outcome.failed || wasWritten(change, outcome))
     )
     .map(
       (change): Finding => ({
         code: 'W_PROMOTE_DELETES_TARGET_ONLY',
         severity: 'warning',
-        message: `${resourceWhere(change.kind, change.key)} is only in workspace ${target}, not in this directory, so --allow-delete deletes it there.`,
-        hint: 'Promote without --allow-delete to keep it, or declare it in this directory.',
+        message: `${resourceWhere(change.kind, change.key)} is only in workspace ${target}, not in this directory, so --delete-target-only deletes it there.`,
+        hint: 'Promote without --delete-target-only to keep it, or declare it in this directory.',
         kind: change.kind,
         key: change.key,
       })
@@ -585,7 +635,7 @@ function rehinted(refusal: unknown, promotion: Promotion): unknown {
     ...refusal.details,
     diagnostics: diagnostics.map((finding) =>
       isRecordLike(finding) && typeof finding.code === 'string'
-        ? withPromotionHint(finding, finding.code, promotion.target)
+        ? withPromotionHint(finding, finding.code, promotion)
         : finding
     ),
   }
@@ -627,7 +677,14 @@ export function attachWorkspaceSourceApply(source: Command): void {
     .option('--dir <dir>', 'Workspace source directory written by `workspaces source get`', '.')
     .option('--dry-run', 'Plan and check without writing anything')
     .option('-y, --yes', 'Apply without asking for confirmation')
-    .option('--allow-delete', 'Delete resources, columns and data the directory no longer declares')
+    .option(
+      '--allow-delete',
+      "Delete resources, columns and data the directory no longer declares (with --to, only what it deleted since the last promotion: the target's own resources are kept)"
+    )
+    .option(
+      '--delete-target-only',
+      "With --to and --allow-delete, also delete the target's resources this directory never declared and no promotion from it left there (prod-only tables and their rows, skills made in prod). Without it a promotion keeps them, naming each with a warning"
+    )
     .option('--only <kinds>', `Apply only these kinds (${ONLY_KINDS_HELP})`)
     .option(
       '--to <workspaceId>',
@@ -640,6 +697,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
       `${sourceExitCodesHelp('workspaces source apply')}${SOURCE_WRITE_EXIT_CODES_HELP}`
     )
     .action(async (options: ApplyOptions) => {
+      assertTargetOnlyDeletable(options)
       const mode = writeMode(options)
       const only = parseKinds(options.only)
       const { client, profile } = connect()
@@ -730,7 +788,13 @@ export function attachWorkspaceSourceApply(source: Command): void {
           }
           assertBlobsFetched(options.dir, read, written.digests)
           promotion = options.to
-            ? await promoted(client, options.dir, read, options.to, options.allowDelete === true)
+            ? await promoted(
+                client,
+                options.dir,
+                read,
+                options.to,
+                options.deleteTargetOnly === true
+              )
             : null
           const submission = promotion?.submission ?? read
           /** `data` as this apply reports it: a promotion's own wording and warnings added. */
@@ -829,7 +893,27 @@ function applyCommand(options: ApplyOptions): string {
     ...(options.only ? [`--only ${shellWord(options.only)}`] : []),
     ...(options.to ? [`--to ${shellWord(options.to)}`] : []),
     ...(options.allowDelete ? ['--allow-delete'] : []),
+    ...(options.deleteTargetOnly ? ['--delete-target-only'] : []),
   ].join(' ')
+}
+
+/**
+ * Refuses `--delete-target-only` without `--to` (only a promotion has a target of its own) or
+ * without `--allow-delete` (the server deletes nothing without it): the flag never stands in for
+ * consent to the directory's own deletes.
+ */
+function assertTargetOnlyDeletable(options: ApplyOptions): void {
+  if (!options.deleteTargetOnly) return
+  if (!options.to) {
+    throw new CliUsageError(
+      "--delete-target-only deletes a promotion target's own resources: it needs --to <workspaceId>."
+    )
+  }
+  if (!options.allowDelete) {
+    throw new CliUsageError(
+      '--delete-target-only needs --allow-delete beside it: add it, and the promotion also deletes what this directory deleted since the last promotion.'
+    )
+  }
 }
 
 /**

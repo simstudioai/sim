@@ -20,7 +20,7 @@ import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { resolveCurrencyCode } from '@sim/table-cells/currency'
 import { omit } from '@sim/utils/object'
-import { and, asc, count, eq, gt, sql } from 'drizzle-orm'
+import { and, asc, count, eq, gt, type SQL, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
 import {
@@ -387,6 +387,43 @@ function stripColumnIdsFromMetadata(
   return next
 }
 
+/** Removes `columnIds`' cells from every row of the table, in `trx`. */
+async function stripColumnData(
+  trx: DbTransaction,
+  tableId: string,
+  workspaceId: string,
+  columnIds: string[]
+): Promise<void> {
+  await updateTableRowsWithDerivedSecretProvenance(trx, {
+    rowWhere: and(
+      eq(userTableRows.tableId, tableId),
+      eq(userTableRows.workspaceId, workspaceId)
+    ) as SQL,
+    transformation: { mode: 'remove-columns', columnIds },
+  })
+}
+
+/** The statement timeout a strip of `columnCount` columns from `rowCount` rows gets. */
+function stripTimeoutMs(rowCount: number, columnCount: number): number {
+  return scaledStatementTimeoutMs(rowCount, { baseMs: 60_000, perRowMs: 2 * columnCount })
+}
+
+/**
+ * Removes the cells of `columnIds`, columns {@link deleteColumn} dropped in `tx` with
+ * `callerStripsRows`, from every row of `table`, in one pass under a row-count-scaled timeout, so
+ * the row version the commit leaves already holds that write.
+ */
+export async function stripDroppedColumnData(
+  tx: TableWriteTx,
+  table: Pick<TableDefinition, 'id' | 'workspaceId' | 'rowCount'>,
+  columnIds: string[]
+): Promise<void> {
+  if (columnIds.length === 0) return
+  const timeoutMs = stripTimeoutMs(table.rowCount ?? 0, columnIds.length)
+  await setTableTxTimeouts(tx.trx, { statementMs: timeoutMs, idleMs: timeoutMs })
+  await stripColumnData(tx.trx, table.id, table.workspaceId, columnIds)
+}
+
 /**
  * Fire-and-forget reclamation of a deleted column's row storage. The column is
  * already gone from the schema, so reads never surface the orphaned id —
@@ -404,18 +441,8 @@ function stripColumnDataInBackground(
   void (async () => {
     try {
       await db.transaction(async (trx) => {
-        const statementMs = scaledStatementTimeoutMs(rowCount, {
-          baseMs: 60_000,
-          perRowMs: 2 * columnIds.length,
-        })
-        await setTableTxTimeouts(trx, { statementMs })
-        await updateTableRowsWithDerivedSecretProvenance(trx, {
-          rowWhere: and(
-            eq(userTableRows.tableId, tableId),
-            eq(userTableRows.workspaceId, workspaceId)
-          )!,
-          transformation: { mode: 'remove-columns', columnIds },
-        })
+        await setTableTxTimeouts(trx, { statementMs: stripTimeoutMs(rowCount, columnIds.length) })
+        await stripColumnData(trx, tableId, workspaceId, columnIds)
       })
       logger.info(
         `Background-stripped deleted column data [${columnIds.join(', ')}] from table ${tableId}`,
@@ -432,9 +459,10 @@ function stripColumnDataInBackground(
 }
 
 /**
- * Deletes a column from a table's schema. When id-keyed, returns once the schema
- * is updated and reclaims the column's row-data storage in the background
- * (fire-and-forget); the legacy path strips the row key synchronously.
+ * Deletes a column from a table's schema. Returns once the schema is updated and
+ * reclaims the column's row-data storage in the background (fire-and-forget),
+ * unless `callerStripsRows` leaves that to the caller's transaction
+ * ({@link stripDroppedColumnData}).
  *
  * @param data - Delete column data
  * @param requestId - Request ID for logging
@@ -444,7 +472,14 @@ function stripColumnDataInBackground(
 export async function deleteColumn(
   data: DeleteColumnData,
   requestId: string,
-  options?: ColumnMutationOptions
+  options?: ColumnMutationOptions & {
+    /**
+     * Leave the column's cells for the caller to strip in its `tx` with
+     * {@link stripDroppedColumnData}, once for every column it drops, so the row version the
+     * commit leaves already holds that write (workspace source records it for managed rows).
+     */
+    callerStripsRows?: boolean
+  }
 ): Promise<TableDefinition> {
   const { def, stripKey } = await withLockedTable(
     data.tableId,
@@ -534,9 +569,9 @@ export async function deleteColumn(
       def.rowCount ?? 0,
       requestId
     )
+  if (!options?.tx) strip()
   // Inside a caller's transaction the drop may still roll back, so the cells stay until it commits.
-  if (options?.tx) options.tx.afterCommit(strip)
-  else strip()
+  else if (!options.callerStripsRows) options.tx.afterCommit(strip)
   return def
 }
 

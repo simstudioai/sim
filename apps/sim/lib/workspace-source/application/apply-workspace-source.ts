@@ -19,7 +19,7 @@ import {
   refusalDiagnostic,
   WorkspaceSourceRejectedError,
 } from '@/lib/workspace-source/application/errors'
-import { finding, GET_HINT } from '@/lib/workspace-source/application/findings'
+import { finding, findingIdentity, GET_HINT } from '@/lib/workspace-source/application/findings'
 import { claimKey } from '@/lib/workspace-source/application/keys'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
@@ -396,12 +396,25 @@ async function writeAll(
   base: WorkspaceBaseV1,
   result: ApplyWorkspaceSourceResult
 ): Promise<void> {
+  // A write re-reports what its plan already found: each finding is listed once, with the ids
+  // the write gave it.
+  const reported = new Map(
+    result.diagnostics.map((diagnostic, at) => [findingIdentity(diagnostic), at])
+  )
   for (const change of writeOrder(changes)) {
     try {
       await lease.confirm()
       const written = await write(change, writeCtx)
       Object.assign(result.files, written.text)
-      result.diagnostics.push(...(written.diagnostics ?? []))
+      for (const diagnostic of written.diagnostics ?? []) {
+        const at = reported.get(findingIdentity(diagnostic))
+        if (at !== undefined) {
+          result.diagnostics[at] = diagnostic
+          continue
+        }
+        reported.set(findingIdentity(diagnostic), result.diagnostics.length)
+        result.diagnostics.push(diagnostic)
+      }
       result.applied.push(summarize(change, written.id))
       if (written.keyTaken) {
         // Written but not bound to its key, so the base keeps what it held, and a later write

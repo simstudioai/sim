@@ -780,6 +780,28 @@ describe('sim workflows source apply', () => {
       ])
     })
 
+    it('without --verbose, says the truncation marker leaves out the infos it hides too', async () => {
+      setTerminal(false)
+      const truncated = {
+        code: 'I_FINDINGS_TRUNCATED',
+        severity: 'info',
+        message: 'There are 140 findings; 40 more are left out.',
+      }
+      request.mockResolvedValue(
+        outcome({ dryRun: true, diagnostics: [layout, { ...layout, line: 4 }, truncated] })
+      )
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+      expect(stdoutJson().diagnostics).toEqual([
+        {
+          ...truncated,
+          message:
+            'There are 140 findings; 40 more are left out. 2 info findings listed are hidden too; pass --verbose to see them.',
+        },
+      ])
+    })
+
     it('in a display format, prints the first warning of a code whole and the rest on one line', async () => {
       setTerminal(false)
       contextMockState.output = 'text'
@@ -922,6 +944,49 @@ describe('sim workflows source apply', () => {
       })
     })
 
+    it('deploys no new version when a no-op apply leaves the live version matching the draft', async () => {
+      setTerminal(false)
+      const STATUS_PATH = `/api/v2/workflows/${WORKFLOW_ID}/deployment`
+      const noop = outcome()
+      noop.data.applied = false
+      noop.data.diff.noop = true
+      noop.data.needsRedeployment = false
+      const status = (isDeployed: boolean) => ({
+        data: {
+          ...deployed.data,
+          isDeployed,
+          needsRedeployment: false,
+          isPublicApi: false,
+          webhooks: [],
+          activeDeployment: isDeployed
+            ? { deploymentVersionId: 'dv-7', version: 7, deployedAt: '2026-11-20T00:00:00Z' }
+            : null,
+        },
+      })
+      let live = true
+      request.mockImplementation(async (path: string) =>
+        path === STATUS_PATH ? status(live) : path === DEPLOY_PATH ? deployed : noop
+      )
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+
+      expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH, STATUS_PATH])
+      expect(stdoutJson()).toMatchObject({
+        deployed: { version: 7, isDeployed: true },
+        needsRedeployment: false,
+      })
+
+      // A workflow never deployed is deployed, no-op or not.
+      live = false
+      request.mockClear()
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+      expect(request.mock.calls.map((call) => call[0])).toEqual([
+        APPLY_PATH,
+        STATUS_PATH,
+        DEPLOY_PATH,
+      ])
+    })
+
     it('without --deploy, names the deploy command when the deployed workflow now differs', async () => {
       setTerminal(false)
       request.mockResolvedValue(outcome())
@@ -931,7 +996,9 @@ describe('sim workflows source apply', () => {
       expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
       expect(stdoutJson()).toMatchObject({
         needsRedeployment: true,
-        next: { command: `sim workflows deploy ${WORKFLOW_ID}` },
+        next: {
+          command: `sim workflows deploy ${WORKFLOW_ID} --expected-draft-fingerprint sf1:b`,
+        },
       })
     })
 
@@ -962,7 +1029,9 @@ describe('sim workflows source apply', () => {
 
       expect(error).toMatchObject({ status: 403, code: 'FORBIDDEN' })
       expect((error as Error).message).toContain(`The apply was saved into ${dir}`)
-      expect((error as Error).message).toContain(`sim workflows deploy ${WORKFLOW_ID}`)
+      expect((error as Error).message).toContain(
+        `sim workflows deploy ${WORKFLOW_ID} --expected-draft-fingerprint sf1:b`
+      )
       expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
       // The saved write's result still prints, before the deploy's failure.
       expect(stdoutJson()).toMatchObject({ workflowId: WORKFLOW_ID, applied: true })

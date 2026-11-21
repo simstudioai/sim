@@ -102,7 +102,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
               workflowInputs: await workspaceWorkflowInputs(workspace.root, catalog),
             }
           : undefined
-        const { findings, entry } = await checkWorkflowDir(options.dir, catalog, {
+        const { findings, entry, unlisted } = await checkWorkflowDir(options.dir, catalog, {
           strict: strictMode(options),
           ...(declarations ? { declarations } : {}),
         })
@@ -127,6 +127,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
           { catalogHash: catalog.hash },
           {
             verbose: options.verbose === true,
+            unlisted,
           }
         )
       }

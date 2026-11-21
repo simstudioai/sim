@@ -27,6 +27,7 @@ import {
   digest,
   listSourceFiles,
   readFolderWritten,
+  readPreviousLock,
   readSourceText,
   type Written,
 } from './source-dir'
@@ -51,7 +52,7 @@ import {
 } from './source-status'
 import { refreshWorkflowWorkspaceTypes, withSourceExitCode } from './source-tree'
 import type { Diagnostic } from './source-ui'
-import { readBase, readLock, readSourceFiles } from './workflow-dir'
+import { codeFilePaths, readBase, readLock, readSourceFiles } from './workflow-dir'
 
 type PlanData = PlanWorkflowSourceResponse['data']
 
@@ -62,35 +63,40 @@ interface LocalWorkflow {
   base: Awaited<ReturnType<typeof readBase>>
   workflowId: string
   written: Written
-  /** `workflow.ts` and every file under `functions/`, by path. */
+  /** `workflow.ts` and every file under `functions/` an apply sends, by path. */
   texts: Record<string, string>
   changed: ChangedFile[]
+  /** Files under `functions/` that neither `workflow.ts` nor the lock names: an apply never sends them. */
+  unnamed: string[]
 }
 
 async function readLocalWorkflow(dir: string): Promise<LocalWorkflow> {
   const base = await readBase(dir, undefined)
   const { workflowId } = base
   const written = await readFolderWritten(dir)
-  const paths = [
-    SOURCE_ENTRY_FILE,
-    ...(await listSourceFiles(dir, SOURCE_CODE_DIR)).filter(
-      (path) => !path.split('/').some((segment) => segment.startsWith('.'))
-    ),
-  ]
-  const texts: Record<string, string> = {}
-  for (const path of paths) {
+  const entry = await readSourceText(dir, SOURCE_ENTRY_FILE)
+  const sent = new Set(codeFilePaths(entry, await readPreviousLock(dir)))
+  const listed = (await listSourceFiles(dir, SOURCE_CODE_DIR)).filter(
+    (path) => !path.split('/').some((segment) => segment.startsWith('.'))
+  )
+  const texts: Record<string, string> = entry === null ? {} : { [SOURCE_ENTRY_FILE]: entry }
+  for (const path of listed.filter((each) => sent.has(each))) {
     const text = await readSourceText(dir, path)
     if (text !== null) texts[path] = text
   }
   const current = Object.fromEntries(
     Object.entries(texts).map(([path, text]) => [path, digest(text)])
   )
+  const unnamed = listed.filter((path) => !sent.has(path))
+  // A recorded file still on disk that nothing names is left out on both sides, not deleted.
+  const ignored = new Set(unnamed)
   return {
     base,
     workflowId,
     written,
     texts,
-    changed: changedFiles(current, written.digests, () => true),
+    changed: changedFiles(current, written.digests, (path) => !ignored.has(path)),
+    unnamed,
   }
 }
 
@@ -216,13 +222,15 @@ export function attachWorkflowSourceStatus(source: Command): void {
         }
       }
       const status = sourceStatus(locals, serverChanges)
-      const plan = data ? planSummary(data) : null
+      // A plan against a base the server moved past says nothing: applying it is refused as stale.
+      const plan = data && serverChanges.length === 0 ? planSummary(data) : null
       const report: StatusReport<WorkflowPlanSummary> & { workflowId: string } = {
         workflowId,
         dir: options.dir,
         server,
         ...(note ? { note } : {}),
         ...status,
+        ...(local.unnamed.length > 0 ? { unnamed: local.unnamed } : {}),
         plan,
         next: nextStep(status, {
           prefix: PREFIX,

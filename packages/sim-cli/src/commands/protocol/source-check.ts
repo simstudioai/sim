@@ -9,6 +9,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   type BlockCatalog,
   type CanonicalWorkflow,
+  catalogBlock,
   codeFrame,
   codePointLabel,
   compileWorkflow,
@@ -20,6 +21,7 @@ import {
   parseWorkflowLock,
   raisedMessage,
   refuseEditedFindings,
+  refusesEdited,
   scriptName,
   startInputs,
   type Value,
@@ -389,7 +391,7 @@ async function compileWorkflowDir(
     ...(storedEdges ? { storedUnreadEdges: storedEdges } : {}),
     ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
   })
-  return { lock, files, compiled, storedBlocks, printedWith }
+  return { lock, files, compiled, storedBlocks, printedWith, catalog }
 }
 
 /**
@@ -435,12 +437,9 @@ export async function checkWorkflowDir(
   dir: string,
   catalog: BlockCatalog,
   options: { declarations?: WorkspaceDeclarations; strict: StrictMode; prefix?: string }
-): Promise<{ findings: CheckFinding[]; entry: string }> {
-  const { lock, files, compiled, storedBlocks, printedWith } = await compileWorkflowDir(
-    dir,
-    catalog,
-    options.declarations
-  )
+): Promise<{ findings: CheckFinding[]; entry: string; unlisted: UnlistedCounts }> {
+  const compiledDir = await compileWorkflowDir(dir, catalog, options.declarations)
+  const { lock, files, compiled, storedBlocks, printedWith } = compiledDir
   const entryText = files[SOURCE_ENTRY_FILE]
   const locate = (block: string, param: string, names: string | undefined) => {
     const prefix = encodeAnchor({ kind: 'param', block, param: '' })
@@ -551,7 +550,27 @@ export async function checkWorkflowDir(
     const head = /^(?:\$ref\.|<)([A-Za-z0-9_]+)/.exec(text)?.[1]
     return head !== undefined && removedKeys.has(head)
   }
-  const refusable = (finding: (typeof compiled.diagnostics)[number]) => !mayBeRenamed(finding)
+  /**
+   * A dropdown value outside options that vary with deployment settings (`optionsVary`): the
+   * cached catalog may have been built under other settings than the server's gate runs with, so
+   * the check keeps the warning and leaves the verdict to the server.
+   */
+  const variesByDeployment = (finding: { code: string; blockKey?: string; param?: string }) => {
+    const { blockKey, param } = finding
+    if (finding.code !== 'W_UNKNOWN_OPTION' || blockKey === undefined || param === undefined) {
+      return false
+    }
+    return optionsVaryOn(blockKey, (id) => id === param)
+  }
+  /** Whether a field of block `blockKey` that `matches` takes options varying by deployment. */
+  const optionsVaryOn = (blockKey: string, matches: (subBlockId: string) => boolean) => {
+    const type = compiled.workflow ? getOwn(compiled.workflow.blocks, blockKey)?.type : undefined
+    const block = type === undefined ? undefined : catalogBlock(compiledDir.catalog, type)
+    return block?.subBlocks.some((sub) => matches(sub.id) && sub.optionsVary === true) === true
+  }
+  const exempt = (finding: (typeof compiled.diagnostics)[number]) =>
+    mayBeRenamed(finding) || variesByDeployment(finding)
+  const refusable = (finding: (typeof compiled.diagnostics)[number]) => !exempt(finding)
   const refused = [
     ...refuseEditedFindings(
       {
@@ -560,13 +579,14 @@ export async function checkWorkflowDir(
       },
       { changed, codeEdited }
     ),
-    ...compiled.diagnostics.filter(mayBeRenamed),
+    ...compiled.diagnostics.filter(exempt),
   ]
   const findings = [
     ...refused.filter((diagnostic) => reported(diagnostic.code, diagnostic.blockKey)),
     ...declared,
-  ].map(({ code, severity, message, hint, frame, span, blockKey }): CheckFinding => {
-    const raised = severity === 'warning' && fails(code, blockKey)
+  ].map((finding): CheckFinding => {
+    const { code, severity, message, hint, frame, span, blockKey } = finding
+    const raised = severity === 'warning' && !variesByDeployment(finding) && fails(code, blockKey)
     return {
       code,
       severity: raised ? 'error' : severity,
@@ -576,7 +596,50 @@ export async function checkWorkflowDir(
       ...(span ? { file: `${prefix}${span.file}`, line: span.line, column: span.column } : {}),
     }
   })
-  return { findings, entry: entryText }
+  // The warnings the compile's caps left out are counted as the listed ones would be: a withheld
+  // one a refusal raised is listed already; an omitted refusable one (it keeps its file and
+  // field) is an error wherever the apply would refuse it.
+  const unlisted: UnlistedCounts = { errors: 0, warnings: 0 }
+  const edit = { changed, codeEdited }
+  for (const { code, blockKey, count, varies, refused: isRefused } of [
+    ...compiled.omitted.map((omitted) => {
+      const finding = {
+        code: omitted.code,
+        severity: 'warning',
+        ...(omitted.blockKey !== undefined ? { blockKey: omitted.blockKey } : {}),
+        ...(omitted.param !== undefined ? { param: omitted.param } : {}),
+      }
+      const varies = variesByDeployment(finding)
+      return {
+        ...omitted,
+        varies,
+        refused:
+          !varies &&
+          omitted.file !== undefined &&
+          refusesEdited({ ...finding, span: { file: omitted.file } }, edit),
+      }
+    }),
+    ...compiled.withheld
+      .filter((finding) => !refusable(finding) || !refusesEdited(finding, edit))
+      .map((finding) => ({
+        code: finding.code,
+        blockKey: finding.blockKey,
+        count: 1,
+        varies: variesByDeployment(finding),
+        refused: false,
+      })),
+  ]) {
+    if (!reported(code, blockKey)) continue
+    if (isRefused || (!varies && fails(code, blockKey))) unlisted.errors += count
+    else unlisted.warnings += count
+  }
+  return { findings, entry: entryText, unlisted }
+}
+
+/** Findings a check counts but does not list: those the compile's caps left out. */
+interface UnlistedCounts {
+  errors: number
+  warnings: number
 }
 
 /**
@@ -588,17 +651,19 @@ export function reportCheck(
   output: Parameters<typeof printProtocolResult>[0],
   findings: CheckFinding[],
   result: Record<string, unknown>,
-  options: { verbose?: boolean; bound?: AnswerBound } = {}
+  options: { verbose?: boolean; bound?: AnswerBound; unlisted?: UnlistedCounts } = {}
 ): void {
   const shown = findingsOutput(output, options.verbose)
   const listed = boundAnswerFindings(findings, options.bound)
   shown.print(listed)
-  const errors = findings.filter((finding) => finding.severity === 'error').length
+  const unlisted = options.unlisted ?? { errors: 0, warnings: 0 }
+  const errors = findings.filter((finding) => finding.severity === 'error').length + unlisted.errors
   if (errors > 0) setSoftExitCode(1)
   printProtocolResult(output, {
     checked: 'compile',
     errors,
-    warnings: findings.filter((finding) => finding.severity === 'warning').length,
+    warnings:
+      findings.filter((finding) => finding.severity === 'warning').length + unlisted.warnings,
     ...result,
     ...shown.result(listed),
   })

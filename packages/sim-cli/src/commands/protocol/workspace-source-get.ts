@@ -374,6 +374,11 @@ export function attachWorkspaceSourceGet(source: Command): void {
         const result = await writeWorkspaceSource(client, options.dir, data, options.force === true)
         const findings = findingsOutput(profile.output)
         findings.print(data.diagnostics)
+        for (const { kind, key, reason } of data.skipped) {
+          printError(
+            `Skipped ${kind} ${key}: ${reason} It is not written here, and an apply keeps it as the server has it (${WORKSPACE_SKIPPED_FILE} lists it).`
+          )
+        }
         printTreeResult(profile.output, {
           workspaceId: data.workspaceId,
           dir: options.dir,

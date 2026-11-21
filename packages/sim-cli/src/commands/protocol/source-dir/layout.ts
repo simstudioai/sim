@@ -91,11 +91,13 @@ export function assertSendableCodeFiles(files: Record<string, string>): void {
 
 /**
  * A path inside the source directory, normalized (`./functions/x.js` → `functions/x.js`), or
- * `null` for an absolute path, a drive letter or a `..` escape.
+ * `null` for an absolute path, a drive letter, a `..` escape or a NUL byte (which no file name
+ * holds, so the compile refuses the path as `E_CODE_FILE_PATH`).
  */
 export function sourceRelativePath(path: string): string | null {
   const normalized = posix.normalize(path.replace(/\\/g, '/'))
   if (
+    normalized.includes('\0') ||
     normalized.startsWith('/') ||
     /^[A-Za-z]:/.test(normalized) ||
     normalized === '.' ||
@@ -122,20 +124,26 @@ export function lockCodeFiles(lock: unknown): Set<string> {
 }
 
 /**
- * The function files a write leaves behind: named by the lock the directory held (so the CLI
- * wrote them), no longer named by the new lock, and not being written now. A file the person
- * added and no lock ever named is never pruned, nor is an entry that is no code file (such as
- * `functions/`), whose removal would take the whole folder.
+ * The function files a write leaves behind: named by the lock the directory held, recorded as
+ * written by the CLI (`recorded`, the written record's paths relative to the same directory), no
+ * longer named by the new lock, and not being written now. A file the CLI never wrote is never
+ * pruned, even when a hand-edited lock names it (say as a trigger's `codeFile`), nor is an entry
+ * that is no code file (such as `functions/`), whose removal would take the whole folder.
  */
 export function orphanedCodeFiles(
   previousLock: unknown,
   nextLock: unknown,
-  written: Iterable<string>
+  written: Iterable<string>,
+  recorded: Readonly<Record<string, string>>
 ): string[] {
   const kept = lockCodeFiles(nextLock)
   for (const path of written) kept.add(path)
   return [...lockCodeFiles(previousLock)].filter(
-    (path) => path.startsWith(`${SOURCE_FUNCTIONS_DIR}/`) && isCodeFilePath(path) && !kept.has(path)
+    (path) =>
+      path.startsWith(`${SOURCE_FUNCTIONS_DIR}/`) &&
+      isCodeFilePath(path) &&
+      Object.hasOwn(recorded, path) &&
+      !kept.has(path)
   )
 }
 

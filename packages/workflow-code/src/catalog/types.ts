@@ -143,6 +143,12 @@ export interface CatalogSubBlock {
    * function the projection could not evaluate.
    */
   options?: CatalogOption[] | { dynamic: true } | OpaqueMarker
+  /**
+   * The static `options` are a registry function of deployment settings (a feature or a flag),
+   * evaluated where this catalog was built: the server's field gate evaluates it again at write
+   * time, so a catalog built elsewhere, or before the settings changed, may list other options.
+   */
+  optionsVary?: true
   hidden?: boolean
   readOnly?: boolean
   password?: boolean

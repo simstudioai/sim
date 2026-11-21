@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -143,6 +143,7 @@ describe('Ctrl-C while a workflow apply is committing', () => {
     expect(run.stderr).toContain('the apply was already sent')
     expect(savedFingerprint()).toBe('sf1:b')
     expect(readFileSync(join(dir, 'src/workflow.ts'), 'utf8')).toContain('// stored')
+    expect(existsSync(join(dir, 'src/.sim/command.lock'))).toBe(false)
   }, 30_000)
 
   it('stops at a second Ctrl-C and says the apply may have been saved and how to recover', async () => {
@@ -154,5 +155,6 @@ describe('Ctrl-C while a workflow apply is committing', () => {
     expect(run.stderr).toContain('Stopped before the apply answered. It may have been saved.')
     expect(run.stderr).toContain(`sim workflows source get ${WORKFLOW_ID}`)
     expect(savedFingerprint()).toBe('sf1:a')
+    expect(existsSync(join(dir, 'src/.sim/command.lock'))).toBe(false)
   }, 30_000)
 })

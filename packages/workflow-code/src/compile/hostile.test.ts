@@ -307,6 +307,20 @@ describe('hostile sources produce diagnostics only', () => {
     expect(computed).toBe(FINDING_LIMITS.warningsPerCode + 1)
   })
 
+  it('keeps one omitted entry per code and block, counting every warning past the caps', () => {
+    const reporter = new Reporter()
+    reporter.addFile('w.ts', 'x')
+    const at = { file: 'w.ts', start: 0, end: 1 }
+    const total = FINDING_LIMITS.perSeverity + 5_000
+    for (let i = 0; i < total; i++) {
+      reporter.report('W_LITERAL_SECRET', `x${i}`, at, { blockKey: i % 2 === 0 ? 'a' : 'b' })
+    }
+
+    expect(reporter.omitted).toHaveLength(2)
+    const listed = reporter.diagnostics.filter((d) => d.code === 'W_LITERAL_SECRET').length
+    expect(reporter.omitted.reduce((sum, entry) => sum + entry.count, 0)).toBe(total - listed)
+  })
+
   it('keeps infos from crowding out a warning', () => {
     const reporter = new Reporter()
     reporter.addFile('w.ts', 'x')
@@ -379,7 +393,7 @@ describe('hostile sources produce diagnostics only', () => {
       expect(errorCodes(result)).toEqual(['E_INVALID_CHARACTER'])
     })
 
-    it('caps the total bytes of distinct code files', () => {
+    it('caps the total bytes of distinct code files with one diagnostic, on the file that crosses it', () => {
       const files = Object.fromEntries(
         Array.from({ length: 4 }, (_, i) => [
           `workflows/functions/f${i}.js`,
@@ -391,7 +405,8 @@ describe('hostile sources produce diagnostics only', () => {
         { maxTotalBytes: 2_000 },
         files
       )
-      expect(codes(result)).toContain('E_LIMIT_EXCEEDED')
+      const limits = result.diagnostics.filter((d) => d.code === 'E_LIMIT_EXCEEDED')
+      expect(limits.map((d) => d.blockKey)).toEqual(['f2'])
       expect(result.workflow).toBeNull()
     })
 

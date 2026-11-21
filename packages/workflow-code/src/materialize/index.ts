@@ -25,7 +25,12 @@ import { deepEqual, getOwn, invertRecord, setOwn } from '../records'
 import { type BuiltBlock, buildBlock } from './block'
 import type { MaterializeContext, MaterializeHooks } from './context'
 import { type BranchHandles, writeEdges } from './edges'
-import { type IdentityEntry, type LockFreshness, resolveIdentity } from './identity'
+import {
+  type IdentityEntry,
+  type LockFreshness,
+  referencesVariable,
+  resolveIdentity,
+} from './identity'
 import { restorePreserved } from './preserve'
 import { sharesEvidence, soleRename } from './rename'
 import { loopEntry, parallelEntry } from './subflows'
@@ -42,7 +47,8 @@ function writeVariables(
   lock: WorkflowLockV1 | null,
   prev: WorkflowState | undefined,
   prevCanonical: CanonicalizeResult | null,
-  hooks: MaterializeHooks
+  hooks: MaterializeHooks,
+  keyByPrevKey: ReadonlyMap<BlockKey, BlockKey>
 ): { variables: Record<string, Variable>; idByKey: Map<VarKey, string> } {
   const prevVariables = prev?.variables ?? {}
   const prevKeyById = invertRecord(prevCanonical?.identity.variables ?? {})
@@ -68,7 +74,7 @@ function writeVariables(
     used.add(known)
     knownIds.set(key, known)
   }
-  const renamed = renamedVariable(workflow, knownIds, prevCanonical, used)
+  const renamed = renamedVariable(workflow, knownIds, prevCanonical, used, keyByPrevKey)
   if (renamed) knownIds.set(renamed.key, renamed.id)
 
   const variables: Record<string, Variable> = {}
@@ -105,7 +111,8 @@ function renamedVariable(
   workflow: CanonicalWorkflow,
   knownIds: ReadonlyMap<VarKey, string>,
   prevCanonical: CanonicalizeResult | null,
-  used: ReadonlySet<string>
+  used: ReadonlySet<string>,
+  keyByPrevKey: ReadonlyMap<BlockKey, BlockKey>
 ): { key: VarKey; id: string } | null {
   if (!prevCanonical) return null
   const renamed = soleRename(
@@ -120,11 +127,37 @@ function renamedVariable(
         former !== undefined &&
         variable !== undefined &&
         former.type === variable.type &&
-        sharesEvidence(former, variable, ['value'])
+        (sharesEvidence(former, variable, ['value']) ||
+          (deepEqual(former.value, variable.value) &&
+            referencesFollow(prevCanonical.workflow, workflow, formerKey, key, keyByPrevKey)))
       )
     }
   )
   return renamed && { key: renamed.item, id: renamed.id }
+}
+
+/**
+ * Whether every block that read variable `formerKey` now reads `key` instead: the evidence a
+ * rename carries when the value itself says nothing (`0`, `false`, `''`), as it does for counters
+ * and flags. Each reader is found by the block it resolved to (`keyByPrevKey`), so a reader
+ * renamed in the same edit still counts.
+ */
+function referencesFollow(
+  prev: CanonicalWorkflow,
+  workflow: CanonicalWorkflow,
+  formerKey: VarKey,
+  key: VarKey,
+  keyByPrevKey: ReadonlyMap<BlockKey, BlockKey>
+): boolean {
+  const readers = Object.values(prev.blocks).filter((block) => referencesVariable(block, formerKey))
+  return (
+    readers.length > 0 &&
+    readers.every((block) => {
+      const current = keyByPrevKey.get(block.key)
+      const now = current === undefined ? undefined : getOwn(workflow.blocks, current)
+      return now !== undefined && referencesVariable(now, key)
+    })
+  )
 }
 
 /**
@@ -250,12 +283,17 @@ export function materialize(
   )
   const idByKey = new Map([...resolution.blocks].map(([key, block]) => [key, block.id]))
 
+  const keyByPrevKey = new Map<BlockKey, BlockKey>()
+  for (const [key, block] of resolution.blocks) {
+    if (block.prevKey !== null) keyByPrevKey.set(block.prevKey, key)
+  }
   const { variables, idByKey: variableIdByKey } = writeVariables(
     workflow,
     lock,
     prev,
     prevCanonical,
-    hooks
+    hooks,
+    keyByPrevKey
   )
   const context: MaterializeContext = {
     catalog,
@@ -312,7 +350,7 @@ export function materialize(
       context.diagnostics.push(
         diagnostic(
           'I_MAT_NEEDS_LAYOUT',
-          `Block "${key}" has no stored or lock position; it is placed by autolayout`,
+          `Block "${key}" has no position in its container yet; it is placed by autolayout`,
           {
             blockKey: key,
           }

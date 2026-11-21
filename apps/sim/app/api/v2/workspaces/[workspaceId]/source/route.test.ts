@@ -41,17 +41,17 @@ const auth = {
   keyType: 'workspace' as const,
 }
 
-function apply(query = '') {
+function apply(
+  query = '',
+  files: Record<string, string> = {
+    'workflows/a/workflow.ts': "// @sim-sdk 1\nexport default workflow('A', () => {})\n",
+  }
+) {
   return POST(
     new NextRequest(`http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/source${query}`, {
       method: 'POST',
       headers: { 'x-api-key': 'key', 'content-type': 'application/json' },
-      body: JSON.stringify({
-        files: {
-          'workflows/a/workflow.ts': "// @sim-sdk 1\nexport default workflow('A', () => {})\n",
-        },
-        kinds: ['workflow'],
-      }),
+      body: JSON.stringify({ files, kinds: ['workflow'] }),
     }),
     { params: Promise.resolve({ workspaceId: WORKSPACE_ID }) }
   )
@@ -74,6 +74,36 @@ describe('POST /api/v2/workspaces/{workspaceId}/source', () => {
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+  })
+
+  it('charges a dry run, which writes nothing, to the plan bucket per folder sent, and a real apply to the write bucket', async () => {
+    mocks.apply.mockResolvedValue({
+      workspaceId: WORKSPACE_ID,
+      dryRun: true,
+      plan: [],
+      applied: [],
+      needBlobs: [],
+      files: {},
+      base: { version: 1, workspaceId: WORKSPACE_ID, resources: {} },
+      diagnostics: [],
+    })
+    const folders = Object.fromEntries(
+      Array.from({ length: 61 }, (_, index) => [
+        `workflows/w${index}/workflow.ts`,
+        "// @sim-sdk 1\nexport default workflow('W', () => {})\n",
+      ])
+    )
+    const charges = () =>
+      v2RouteMocks.operationRate.mock.calls
+        .filter(([key]) => String(key).endsWith(':api-key:key-1'))
+        .map(([key, , cost]) => `${String(key).split(':')[1]} ${cost}`)
+
+    expect((await apply('?dryRun=true', folders)).status).toBe(200)
+    expect(charges()).toEqual(['source.plan 1', 'source.plan 39'])
+
+    v2RouteMocks.operationRate.mockClear()
+    expect((await apply('', folders)).status).toBe(200)
+    expect(charges()).toEqual(['workflows.source.write 1', 'workflows.source.write 39'])
   })
 
   it('answers a plan refused before any write with at most 1000 findings, and one that counts the rest', async () => {

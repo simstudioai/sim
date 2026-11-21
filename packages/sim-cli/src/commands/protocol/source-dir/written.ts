@@ -214,10 +214,11 @@ export async function locallyEditedFiles(
   previousLock: unknown
 ): Promise<string[]> {
   const touched = new Map<string, string | null>(Object.entries(answer.files))
-  for (const path of orphanedCodeFiles(previousLock, answer.lock, touched.keys())) {
+  const { digests } = await readFolderWritten(dir)
+  for (const path of orphanedCodeFiles(previousLock, answer.lock, touched.keys(), digests)) {
     touched.set(path, null)
   }
-  return editedFiles(dir, touched, (await readFolderWritten(dir)).digests)
+  return editedFiles(dir, touched, digests)
 }
 
 /** `path` of the workflow folder `key`, relative to its workspace directory. */

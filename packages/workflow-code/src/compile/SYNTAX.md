@@ -495,8 +495,8 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_MAT_DELETED_SINCE_PULL` | A lock entry whose block was deleted since the read; re-created. |
 | `W_MAT_INFERRED_RENAME` | A rename inferred from type, parent and edges (the key and the ident both changed). |
 | `W_MAT_RETYPE_RECREATED` | A key kept with a new type: delete plus create, so webhook URLs and schedules change. |
-| `W_MAT_LOCK_ID_CLAIMED` | A lock id another workflow holds; a new id was minted. |
-| `I_MAT_NEEDS_LAYOUT` | A new block with no position; placed by autolayout. |
+| `W_MAT_LOCK_ID_CLAIMED` | A lock id another workflow holds, ignored: the block binds to the stored block it matches, or gets a new id. |
+| `I_MAT_NEEDS_LAYOUT` | A new block with no position, or one moved into or out of a loop or parallel; placed by autolayout. |
 
 **Apply**
 

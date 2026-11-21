@@ -33,7 +33,7 @@ import {
   rowDataNameToId,
 } from '@/lib/table/column-keys'
 import { columnTypeById } from '@/lib/table/column-types'
-import { addTableColumn, deleteColumn } from '@/lib/table/columns/service'
+import { addTableColumn, deleteColumn, stripDroppedColumnData } from '@/lib/table/columns/service'
 import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
 import { performUpdateTableColumn } from '@/lib/table/orchestration'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
@@ -357,9 +357,24 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
         const progress: TableFieldsProgress = { current: locked, applied: [], changed: [] }
         if (input.table) await writeTableFields(progress, input.table, resolution?.folderId, tx)
         let table = progress.current
+        // Managed rows' version is the base source compares with, so the drop's cell strip
+        // commits with it rather than moving the version after the apply recorded it.
+        const managed =
+          input.sourceRows === undefined
+            ? locked.metadata?.sourceRows?.mode === 'managed'
+            : input.sourceRows?.mode === 'managed'
+        const droppedIds: string[] = []
         for (const columnName of input.drop ?? []) {
-          table = await deleteColumn({ tableId: table.id, columnName }, requestId, options)
+          const dropped = table.schema.columns.find((column) =>
+            columnMatchesRef(column, columnName)
+          )
+          table = await deleteColumn({ tableId: table.id, columnName }, requestId, {
+            ...options,
+            callerStripsRows: managed,
+          })
+          if (managed && dropped) droppedIds.push(getColumnId(dropped))
         }
+        await stripDroppedColumnData(tx, table, droppedIds)
         // With rows to write, a column made required is made so after them (an add, below, too).
         const deferredUpdates: string[] = []
         const updates = (input.update ?? []).flatMap((entry) => {

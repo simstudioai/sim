@@ -20,5 +20,6 @@ export {
   raisedMessage,
   refusalClassifier,
   refuseEditedFindings,
+  refusesEdited,
 } from './refusals'
 export type { DiagnosticSeverity, SeverityOf } from './severity'

@@ -108,6 +108,15 @@ export class Reporter {
    * `refuseEditedFindings`) while the listing stays capped.
    */
   readonly withheld: LocatedDiagnostic<CompileDiagnosticCode>[] = []
+  /**
+   * Every other warning a cap left out, counted by code and block, and a refusable one also by
+   * file and field (no text, span or frame is built for one), so a caller can still count and
+   * judge every finding while what is kept stays bounded by the blocks, files and fields read.
+   */
+  get omitted(): OmittedFinding[] {
+    return [...this.omittedCounts.values()]
+  }
+  private readonly omittedCounts = new Map<string, OmittedFinding>()
   /** The code, block and file of each refusable warning listed or withheld. */
   private readonly refusableHeld = new Set<string>()
   private readonly indexes = new Map<string, LineIndex>()
@@ -170,7 +179,7 @@ export class Reporter {
     } else if (severity === 'info') {
       if (this.infoCount >= MAX_LISTED) return
     } else if (this.warningCount >= MAX_LISTED) {
-      this.withhold(code, message, at, extras)
+      this.omit(code, message, at, extras)
       if (this.warningCount === MAX_LISTED) {
         this.truncated(
           `Listed ${MAX_LISTED} warnings; the rest are omitted. The next: ${message}`,
@@ -183,7 +192,7 @@ export class Reporter {
       const ofCode = this.warningsByCode.get(code) ?? 0
       this.warningsByCode.set(code, ofCode + 1)
       if (ofCode >= MAX_WARNINGS_PER_CODE) {
-        this.withhold(code, message, at, extras)
+        this.omit(code, message, at, extras)
         if (ofCode === MAX_WARNINGS_PER_CODE) {
           this.truncated(
             `Listed ${MAX_WARNINGS_PER_CODE} ${code} warnings; the rest of them are omitted. The next: ${message}`,
@@ -200,17 +209,35 @@ export class Reporter {
   }
 
   /**
-   * Keeps a refusable warning a cap left out in {@link withheld}, unless one of its code, block
-   * and file is already listed or withheld.
+   * Keeps a warning a cap left out: in {@link withheld} when it is refusable and none of its code,
+   * block and file is listed or withheld yet, else in {@link omitted}.
    */
-  private withhold(
+  private omit(
     code: CompileDiagnosticCode,
     message: string,
     at: Range,
     extras: ReportExtras
   ): void {
     const held = refusableKey(code, at, extras)
-    if (held === undefined || this.refusableHeld.has(held)) return
+    if (held === undefined || this.refusableHeld.has(held)) {
+      // A refusable warning keeps its file and field, which decide whether an apply refuses it.
+      const refusable = held === undefined ? undefined : { file: at.file, param: extras.param }
+      const key = [code, extras.blockKey ?? '', refusable?.file ?? '', refusable?.param ?? ''].join(
+        '\u0000'
+      )
+      const counted = this.omittedCounts.get(key)
+      if (counted) counted.count++
+      else {
+        this.omittedCounts.set(key, {
+          code,
+          ...(extras.blockKey !== undefined ? { blockKey: extras.blockKey } : {}),
+          ...(refusable ? { file: refusable.file } : {}),
+          ...(refusable?.param !== undefined ? { param: refusable.param } : {}),
+          count: 1,
+        })
+      }
+      return
+    }
     this.refusableHeld.add(held)
     const { hint, ...listed } = extras
     const diagnostic = this.build(code, message, at, listed, framesSource(code))
@@ -284,6 +311,22 @@ export class Reporter {
       }),
     } as LocatedDiagnostic<CompileDiagnosticCode>
   }
+}
+
+/**
+ * The warnings of one code and block a compile's caps left out of every list
+ * ({@link Reporter.omitted}). A {@link REFUSABLE_WARNING_CODES} warning is counted per file and
+ * field too, which decide whether an apply refuses it.
+ */
+export interface OmittedFinding {
+  code: CompileDiagnosticCode
+  blockKey?: BlockKey
+  /** The file a refusable warning is in. */
+  file?: string
+  /** The field a refusable warning names. */
+  param?: SubBlockId
+  /** How many warnings of this code, block (and, when refusable, file and field) were left out. */
+  count: number
 }
 
 /** The code, block and file a refusable warning is withheld by; none for any other finding. */

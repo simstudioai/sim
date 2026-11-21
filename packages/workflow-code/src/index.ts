@@ -57,6 +57,7 @@ export {
   type LocatedDiagnostic,
   raisedMessage,
   refuseEditedFindings,
+  refusesEdited,
   type SourceSpan,
   splitLines,
 } from './diagnostics'

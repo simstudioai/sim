@@ -93,24 +93,39 @@ const DEV: Record<string, string> = {
 /** The text files a get wrote (no blobs here), as a directory holds them. */
 type Read = Awaited<ReturnType<typeof runner.get>>
 
+/** `apply --to`'s `--allow-delete` and `--delete-target-only`. */
+interface PromoteOptions {
+  allowDelete?: boolean
+  deleteTargetOnly?: boolean
+}
+
 /** What `apply --to` sends for `dev` (a get of the dev workspace) to `target`. */
-async function promote(dev: Read, target: string, options: { allowDelete?: boolean } = {}) {
+async function promote(dev: Read, target: string, options: PromoteOptions = {}) {
   const prod = await runner.get(target)
   const composed = promotionSubmission({
     files: dev.files,
     blobPaths: [],
     kinds: dev.kinds,
     target: prod,
+    deleteTargetOnly: options.deleteTargetOnly === true,
+  })
+  return runner.apply(target, {
+    files: composed.files,
+    base: composed.base,
     allowDelete: options.allowDelete === true,
   })
-  return runner.apply(target, { files: composed.files, base: composed.base, ...options })
 }
 
 /**
  * Promotes `dev` to `target` as `apply --to` does with the target's promotion record, returning
  * the apply's result and the record it leaves.
  */
-async function promoteRecorded(dev: Read, target: string, record: PromotionRecord | undefined) {
+async function promoteRecorded(
+  dev: Read,
+  target: string,
+  record: PromotionRecord | undefined,
+  options: PromoteOptions = {}
+) {
   const prod = await runner.get(target)
   const composed = promotionSubmission({
     files: dev.files,
@@ -118,11 +133,16 @@ async function promoteRecorded(dev: Read, target: string, record: PromotionRecor
     kinds: dev.kinds,
     target: prod,
     record,
-    allowDelete: false,
+    deleteTargetOnly: options.deleteTargetOnly === true,
   })
-  const result = await runner.apply(target, { files: composed.files, base: composed.base })
+  const result = await runner.apply(target, {
+    files: composed.files,
+    base: composed.base,
+    allowDelete: options.allowDelete === true,
+  })
   return {
     result,
+    composed,
     record: promotionRecord({
       workspaceId: target,
       previous: record,
@@ -384,7 +404,7 @@ export default defineTable({
   })
 
   check(
-    "the target's own resources are kept, with a warning, unless the promotion allows deletes",
+    "the target's own resources are kept, with a warning, even with --allow-delete, and deleted only with --delete-target-only",
     async () => {
       const dev = await workspaces.create({ name: 'Dev', ownerId })
       const prod = await workspaces.create({ name: 'Prod', ownerId })
@@ -412,10 +432,67 @@ export default defineTable({
         )
       expect(prodTables.map((table) => table.name).sort()).toEqual(['audit', 'leads'])
 
-      const deleted = await promote(await runner.get(dev), prod, { allowDelete: true })
+      const allowed = await promote(await runner.get(dev), prod, { allowDelete: true })
+      expect(allowed.applied).toEqual([])
+      expect(
+        allowed.diagnostics
+          .filter((finding) => finding.code === 'W_UNDECLARED')
+          .map((finding) => finding.key)
+      ).toEqual(['audit'])
+
+      const deleted = await promote(await runner.get(dev), prod, {
+        allowDelete: true,
+        deleteTargetOnly: true,
+      })
       expect(
         deleted.applied.map((change) => `${change.action} ${change.kind}:${change.key}`)
       ).toEqual(['delete table:audit'])
+    }
+  )
+
+  check(
+    'a resource deleted in the directory since the last promotion is a delete: refused without --allow-delete, and --allow-delete deletes it alone, keeping what only the target holds',
+    async () => {
+      const dev = await workspaces.create({ name: 'Dev', ownerId })
+      const prod = await workspaces.create({ name: 'Prod', ownerId })
+      await runner.apply(dev, { files: DEV })
+      const first = await promoteRecorded(await runner.get(dev), prod, undefined)
+      expect(first.result.failed).toBeUndefined()
+      const prodRead = await runner.get(prod)
+      await runner.apply(prod, {
+        files: {
+          'tables/leads.ts': prodRead.files['tables/leads.ts'],
+          'tables/audit.ts': LEADS.replace("name: 'leads'", "name: 'audit'"),
+        },
+        base: prodRead.base,
+        kinds: ['table'],
+      })
+      const devRead = await runner.get(dev)
+      await runner.apply(dev, {
+        files: Object.fromEntries(
+          Object.entries(devRead.files).filter(([path]) => path !== 'skills/tone.md')
+        ),
+        base: devRead.base,
+        allowDelete: true,
+      })
+      const deletedInDev = await runner.get(dev)
+
+      const refused = await refusal(promoteRecorded(deletedInDev, prod, first.record))
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_DELETE_NOT_ALLOWED'])
+      expect((await runner.get(prod)).files['skills/tone.md']).toContain('Be brief.')
+
+      const allowed = await promoteRecorded(deletedInDev, prod, first.record, { allowDelete: true })
+      expect(
+        allowed.result.applied.map((change) => `${change.action} ${change.kind}:${change.key}`)
+      ).toEqual(['delete skill:tone'])
+      expect(allowed.composed.targetOnly).toEqual(['table:audit'])
+      expect(
+        allowed.result.diagnostics
+          .filter((finding) => finding.code === 'W_UNDECLARED')
+          .map((finding) => finding.key)
+      ).toEqual(['audit'])
+      expect(allowed.record.resources['table:audit']).toBeUndefined()
+      expect((await runner.get(prod)).files['tables/audit.ts']).toBeDefined()
     }
   )
 })

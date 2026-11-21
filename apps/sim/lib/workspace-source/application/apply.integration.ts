@@ -253,6 +253,54 @@ describe('workspace source apply', () => {
   }
 
   check(
+    'a real apply reports each finding of a written workflow once, as its dry run does',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        ...STARTER,
+        'workflows/ingest/workflow.ts': INGEST.replace(
+          'data: { email: start.email },',
+          'data: { email: start.email, note: env.QA_NOT_SET },'
+        ).replace('import { table,', 'import { env, table,'),
+      }
+      const once = (diagnostics: ReadonlyArray<{ code: string; severity: string }>) =>
+        codes(diagnostics, 'warning').filter((code) => code === 'W_ENV_UNKNOWN')
+
+      const planned = await apply(workspaceId, files, { dryRun: true })
+      expect(once(planned.diagnostics)).toEqual(['W_ENV_UNKNOWN'])
+      const written = await apply(workspaceId, files)
+      expect(written.failed).toBeUndefined()
+      expect(once(written.diagnostics)).toEqual(['W_ENV_UNKNOWN'])
+    }
+  )
+
+  check(
+    'a workflow edited on both sides is refused as stale with the hint every other kind gives',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await apply(workspaceId, STARTER)
+      const read = await get(workspaceId)
+      const entry = 'workflows/ingest/workflow.ts'
+      const renamedTo = (name: string) => ({
+        ...read.files,
+        [entry]: read.files[entry].replace("'Save Lead'", `'${name}'`),
+      })
+      await apply(workspaceId, renamedTo('Store Lead'), { base: read.base })
+
+      const stale = await refusal(apply(workspaceId, renamedTo('Keep Lead'), { base: read.base }))
+
+      expect(stale.diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'E_APPLY_STALE',
+          kind: 'workflow',
+          key: 'ingest',
+          hint: expect.stringContaining('sim workspaces source get'),
+        }),
+      ])
+    }
+  )
+
+  check(
     'every audit entry an apply writes carries its apply id, and the next apply has another',
     async () => {
       const workspaceId = await newWorkspace()
@@ -2255,6 +2303,15 @@ export default workflow('Probe', {}, () => {
         key: 'ingest',
         file: entry,
       })
+      const created = 'workflows/copy/workflow.ts'
+      const createTaken = await apply(
+        workspaceId,
+        { ...read.files, [created]: INGEST.replace("workflow('Ingest'", "workflow('Intake'") },
+        { base: read.base, dryRun: true }
+      )
+      expect(
+        createTaken.diagnostics.find((finding) => finding.code === 'E_NAME_TAKEN')
+      ).toMatchObject({ kind: 'workflow', key: 'copy', file: created, hint: expect.any(String) })
 
       const result = await apply(workspaceId, renamedTo('Ingest v2'), { base: read.base })
       expect(result.failed).toBeUndefined()

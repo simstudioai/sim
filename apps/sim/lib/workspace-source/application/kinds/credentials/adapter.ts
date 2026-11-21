@@ -106,7 +106,7 @@ function unavailable(
   hiddenBinding: boolean
 ): CredentialChange {
   const { key } = change
-  const wanted = `a ${entry.provider} credential${entry.name !== undefined ? ` named "${entry.name}"` : ''}`
+  const wanted = `${entry.provider} credential${entry.name !== undefined ? ` named "${entry.name}"` : ''}`
   const ambiguous = candidates.length > 1
   const holders = heldOutside
     .slice(0, NAMED_CREDENTIALS)

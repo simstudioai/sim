@@ -154,13 +154,21 @@ function resultDiagnostics(
   verbose = false
 ): { diagnostics?: ResultDiagnostic[] } {
   if (!isMachine(format)) return {}
+  const hidden = (finding: Diagnostic) =>
+    !verbose && finding.severity === 'info' && finding.code !== 'I_FINDINGS_TRUNCATED'
+  const hiddenCount = diagnostics.filter(hidden).length
+  // The marker counts what the answer left out; the infos hidden here are left out on top of it.
+  const marked = (finding: Diagnostic): Diagnostic =>
+    finding.code === 'I_FINDINGS_TRUNCATED' && hiddenCount > 0
+      ? {
+          ...finding,
+          message: `${finding.message} ${hiddenCount} info finding${hiddenCount === 1 ? '' : 's'} listed ${hiddenCount === 1 ? 'is' : 'are'} hidden too; pass --verbose to see ${hiddenCount === 1 ? 'it' : 'them'}.`,
+        }
+      : finding
   return {
     diagnostics: diagnostics
-      .filter(
-        (finding) =>
-          verbose || finding.severity !== 'info' || finding.code === 'I_FINDINGS_TRUNCATED'
-      )
-      .map(({ frame: _frame, ...finding }) => finding),
+      .filter((finding) => !hidden(finding))
+      .map(({ frame: _frame, ...finding }) => marked(finding)),
   }
 }
 

@@ -1115,4 +1115,100 @@ export default defineTable({
     const settled = await apply(workspaceId, result.files, { base: result.base })
     expect(settled.applied).toEqual([])
   })
+
+  check(
+    "columns one apply drops from managed rows are stripped in one pass, under a timeout scaled past the table write's 10 s default",
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await managedPlans(workspaceId)
+      const table = await storedTable(workspaceId)
+      // A probe on this table's row updates records each one that rewrites cells, and the timeout it
+      // ran under.
+      const probe = `strip_probe_${table.id.replace(/[^a-z0-9]/gi, '').toLowerCase()}`
+      await db.execute(
+        sql.raw(`create table ${probe} (row_id text not null, timeout_ms numeric not null)`)
+      )
+      await db.execute(
+        sql.raw(
+          `create function ${probe}_fn() returns trigger language plpgsql as $$ begin insert into ${probe} values (new.id, extract(epoch from current_setting('statement_timeout')::interval) * 1000); return new; end $$`
+        )
+      )
+      await db.execute(
+        sql.raw(
+          `create trigger ${probe}_trg before update on user_table_rows for each row when (new.table_id = '${table.id}' and old.data is distinct from new.data) execute function ${probe}_fn()`
+        )
+      )
+      try {
+        const dropped = await apply(
+          workspaceId,
+          {
+            'tables/plans.ts': read.files['tables/plans.ts']
+              .replace('    seats: column.number(),\n', '')
+              .replace("    tier: column.select({ options: ['basic', 'pro'] }),\n", ''),
+            'tables/plans.rows.jsonl': '{"code":"solo"}\n{"code":"team"}\n',
+          },
+          { base: read.base, allowDelete: true }
+        )
+        expect(dropped.failed).toBeUndefined()
+        const updates = [
+          ...(await db.execute<{ passes: number; timeout_ms: number }>(
+            sql.raw(
+              `select count(*)::int as passes, min(timeout_ms)::int as timeout_ms from ${probe} group by row_id`
+            )
+          )),
+        ]
+        expect(updates).toHaveLength(2)
+        for (const update of updates) {
+          expect(update.passes).toBe(1)
+          expect(update.timeout_ms).toBeGreaterThanOrEqual(60_000)
+        }
+        expect(Object.keys((await storedRows(workspaceId))[0])).toEqual(['code'])
+      } finally {
+        await db.execute(sql.raw(`drop trigger if exists ${probe}_trg on user_table_rows`))
+        await db.execute(sql.raw(`drop function if exists ${probe}_fn()`))
+        await db.execute(sql.raw(`drop table if exists ${probe}`))
+      }
+    }
+  )
+
+  check(
+    'a column the apply drops leaves no row drift: the next plan sees no server change, and a delete of the table is not stale',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await managedPlans(workspaceId)
+      const tierId = (await storedTable(workspaceId)).schema.columns.find(
+        (column) => column.name === 'tier'
+      )?.id
+      if (tierId === undefined) throw new Error('The seeded table has no tier column')
+      const dropped = await apply(
+        workspaceId,
+        {
+          'tables/plans.ts': read.files['tables/plans.ts'].replace(
+            "    tier: column.select({ options: ['basic', 'pro'] }),\n",
+            ''
+          ),
+          'tables/plans.rows.jsonl': '{"code":"solo","seats":1}\n{"code":"team","seats":10}\n',
+        },
+        { base: read.base, allowDelete: true }
+      )
+      expect(dropped.failed).toBeUndefined()
+      // The apply strips the dropped column's cells in its own transaction, so none are left.
+      const table = await storedTable(workspaceId)
+      const [{ holding }] = await db
+        .select({ holding: sql<number>`count(*)::int` })
+        .from(userTableRows)
+        .where(and(eq(userTableRows.tableId, table.id), sql`${userTableRows.data} ? ${tierId}`))
+      expect(holding).toBe(0)
+
+      const planned = await apply(workspaceId, dropped.files, {
+        base: dropped.base,
+        dryRun: true,
+      })
+      expect(codes(planned.diagnostics, 'warning')).not.toContain('W_SERVER_CHANGED')
+      const deleted = await apply(workspaceId, {}, { base: dropped.base, allowDelete: true })
+      expect(deleted.applied.map((change) => `${change.action} ${change.key}`)).toEqual([
+        'delete plans',
+      ])
+    }
+  )
 })

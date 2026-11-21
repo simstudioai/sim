@@ -332,8 +332,16 @@ to another (prod) without rebinding the directory. The CLI reads the target as a
 (`GET /source` for the managed kinds, no blob downloads) and composes the submission with
 `promotionSubmission` (`src/promote.ts`): the directory's text with every workflow folder whole,
 each folder's `.sim/lock.json` and `.sim/base.json` replaced by the target's folder of the same key
-(or dropped, so the key is created), and the target's root base, narrowed to the keys the
-directory declares unless `--allow-delete`. The server sees an ordinary apply against its own base,
+(or dropped, so the key is created), and the target's root base. A base entry the directory does
+not declare stays in it when the promotion record holds it for the same id (the directory deleted
+it since, so the apply refuses it without `--allow-delete` as it would at home); one only the target
+ever held (`targetOnly`) leaves it, so the apply keeps it (`W_UNDECLARED`) whether or not it allows
+deletes. Deleting those takes `--delete-target-only` beside `--allow-delete` (the CLI refuses it
+alone): `--allow-delete` is consent to the directory's own deletes, and must not also reach the
+target's prod-only tables, their rows, or skills made there. The CLI names each such delete
+`W_PROMOTE_DELETES_TARGET_ONLY`, and `promotionRecord` never records a target-only entry (a held
+delete keeps its submitted base entry, which would otherwise read as the directory's delete on
+the next promotion). The server sees an ordinary apply against its own base,
 so every rule holds unchanged: a resource bound under the key is updated in place (a workflow keeps
 its id and block ids through the target's lock), an unbound one of the same name is adopted, a
 missing one created, and secrets and credentials bind by name and key to the target's own. The
@@ -346,8 +354,9 @@ with what the last promotion left (a target edit since is kept when the director
 alone, `E_APPLY_STALE` when it changed it too); a workflow folder whose digest is unchanged is sent
 as its base alone (a no-op), and an edited one whole with the recorded fingerprint, so a target edit
 since is the folder's 409. Without a record entry (the first promotion, or a resource created in
-the target since) the live entry is the base and the target is updated to match the directory;
-deleting the record re-takes the target as it stands. Read alone, the target's live base could
+the target since) the live entry is the base and the target is updated to match the directory, so
+deleting the record makes the next promotion overwrite every change made in the target since,
+rows its runs wrote included: the stale hint never suggests it. Read alone, the target's live base could
 never look changed. Without `--to`, the CLI refuses a
 directory read from another workspace (`SOURCE_OTHER_WORKSPACE`); `--workspace <target>` instead
 applies it as a copy whose base the server ignores (`W_BASE_OTHER_WORKSPACE`), which only a first

@@ -6,7 +6,9 @@
  */
 import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { compareStrings } from '@sim/utils/string'
 import type { WorkflowInput } from '@sim/workflow-code'
+import { SOURCE_CODE_DIR, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import {
   SOURCE_COMPILER_OPTIONS,
   typecheckCommand,
@@ -77,6 +79,7 @@ import {
   TSCONFIG_FULL_FILE,
   TSCONFIG_MARKER,
 } from './source-tree'
+import { codeFilePaths } from './workflow-dir'
 import { statDigest } from './workspace-source-blobs'
 
 /** Where the workspace declaration SDK is written: `@sim/workflow-sdk/workspace` resolves here. */
@@ -186,7 +189,7 @@ const ADVANCED_GUIDE = `# Sim workspace source: advanced
 
 ## Promote to another workspace
 
-\`sim workspaces source apply --dir . --to <workspaceId> --dry-run\`, then \`--yes\`: applies this directory to another workspace (dev to prod). Each resource binds by key to the target's own: one the target holds under the same key is updated in place (a workflow keeps its id and block ids, so its webhook URLs), a key it lacks is created (or adopts a resource of the same name). Each promote records what it left in the target in \`.sim/targets/<workspaceId>.json\` (commit it), and the next promote compares with that: a resource changed in the target since is kept when this directory left it alone, and refused as stale (exit ${SOURCE_STALE_EXIT_CODE}) when this directory changed it too. A resource with no record (the first promote, or one created in the target since) is updated to match this directory; delete the record to take the target as it stands again. Secrets and credentials bind by name and key to the target's own; no value is copied. The target's resources this directory does not declare are kept with a warning, or deleted with \`--allow-delete\`. Before the first promote, set the target's secrets (\`sim secrets set NAME --scope workspace -w <workspaceId>\`) and connect its credentials, or the workflows using them are held back. This directory stays bound to the workspace it was read from. Without \`--to\`, \`check\`, \`status\`, \`diff\` and \`apply\` act on the workspace this directory was read from, whatever the profile's default; a \`--workspace\` naming another is refused (\`SOURCE_OTHER_WORKSPACE\`).
+\`sim workspaces source apply --dir . --to <workspaceId> --dry-run\`, then \`--yes\`: applies this directory to another workspace (dev to prod). Each resource binds by key to the target's own: one the target holds under the same key is updated in place (a workflow keeps its id and block ids, so its webhook URLs), a key it lacks is created (or adopts a resource of the same name). Each promote records what it left in the target in \`.sim/targets/<workspaceId>.json\` (commit it), and the next promote compares with that: a resource changed in the target since is kept when this directory left it alone, and refused as stale (exit ${SOURCE_STALE_EXIT_CODE}) when this directory changed it too. A resource with no record (the first promote, or one created in the target since) is updated to match this directory; delete the record to take the target as it stands again. Secrets and credentials bind by name and key to the target's own; no value is copied. The target's resources this directory never declared (and no promote left there) are kept with a warning, even with \`--allow-delete\`; deleting them too takes \`--delete-target-only\` beside \`--allow-delete\`. A resource this directory deleted since the last promote is deleted in the target only with \`--allow-delete\`. Before the first promote, set the target's secrets (\`sim secrets set NAME --scope workspace -w <workspaceId>\`) and connect its credentials, or the workflows using them are held back. This directory stays bound to the workspace it was read from. Without \`--to\`, \`check\`, \`status\`, \`diff\` and \`apply\` act on the workspace this directory was read from, whatever the profile's default; a \`--workspace\` naming another is refused (\`SOURCE_OTHER_WORKSPACE\`).
 `
 
 /** The workspace directory's tree beside the printed source. */
@@ -552,8 +555,44 @@ export interface WorkspaceSubmission {
   base?: ApplyWorkspaceSourceBody['base']
   /** Files under a kind folder that are not sent: hidden names and unsupported characters. */
   ignored: string[]
+  /**
+   * Files under a workflow folder's `functions/` that neither its `workflow.ts` nor its lock names:
+   * never sent, as a workflow directory's apply never sends them.
+   */
+  unnamed: string[]
   /** The blobs this read hashed or reused a recorded digest for, with their stats. */
   hashed: ReadonlyMap<string, StatDigest>
+}
+
+/**
+ * Drops from `files` each file under a workflow folder's `functions/` that neither the folder's
+ * `workflow.ts` nor its lock names ({@link codeFilePaths}, the rule a workflow directory's apply
+ * and status read), returning their paths: an apply never sends one, so a status never counts it
+ * as a change and the folder is not sent as edited for it.
+ */
+function dropUnnamedCodeFiles(files: Record<string, string>): string[] {
+  const named = new Map<string, Set<string>>()
+  const unnamed: string[] = []
+  for (const path of Object.keys(files)) {
+    if (kindOfPath(path) !== 'workflow') continue
+    const segments = path.split('/')
+    if (segments[2] !== SOURCE_CODE_DIR) continue
+    const folder = segments.slice(0, 2).join('/')
+    let sent = named.get(folder)
+    if (!sent) {
+      let lock: unknown = null
+      try {
+        lock = JSON.parse(files[`${folder}/${SOURCE_LOCK_FILE}`] ?? 'null')
+      } catch {}
+      sent = new Set(codeFilePaths(files[`${folder}/${SOURCE_ENTRY_FILE}`] ?? null, lock))
+      named.set(folder, sent)
+    }
+    if (!sent.has(segments.slice(2).join('/'))) {
+      unnamed.push(path)
+      delete files[path]
+    }
+  }
+  return unnamed.sort(compareStrings)
 }
 
 /**
@@ -647,6 +686,7 @@ export async function readWorkspaceDir(
     const text = texts[index]
     if (text !== null) files[path] = text
   })
+  const unnamed = dropUnnamedCodeFiles(files)
   if (!options.whole) pruneUnchangedWorkflows(files, written, workspaceId)
   const root = await realpath(dir)
   const verified = new Set<string>()
@@ -681,7 +721,7 @@ export async function readWorkspaceDir(
       )
     }
   }
-  return { kinds, files, blobs, ignored, hashed, ...(base ? { base } : {}) }
+  return { kinds, files, blobs, ignored, unnamed, hashed, ...(base ? { base } : {}) }
 }
 
 /** `.sim/skipped.json`, or `null` when nothing was skipped. */

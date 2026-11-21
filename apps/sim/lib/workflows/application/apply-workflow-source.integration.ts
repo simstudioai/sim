@@ -1542,11 +1542,59 @@ describe('source apply edge cases', () => {
       'E_APPLY_INVALID_SUBBLOCK_FIELD'
     )
 
-    expect(
-      error.diagnostics.find((d) => d.code === 'E_APPLY_INVALID_SUBBLOCK_FIELD')
-    ).toMatchObject({ blockId: score.id, param: 'language' })
+    const refusals = error.diagnostics.filter((d) => d.code === 'E_APPLY_INVALID_SUBBLOCK_FIELD')
+    expect(refusals).toHaveLength(1)
+    expect(refusals[0]).toMatchObject({ blockId: score.id, param: 'language' })
+    expect(error.diagnostics.map((d) => d.code)).not.toContain('W_UNKNOWN_OPTION')
     expect(await snapshot(workflowId)).toEqual(before)
   })
+
+  check(
+    'an edited block keeps a value outside its options the stored block already holds',
+    async () => {
+      const start = seedBlock('start_trigger', 'Start')
+      const score = seedBlock('function', 'Score', {
+        code: ['code', 'return 1'],
+        language: ['dropdown', 'cobol'],
+      })
+      const workflowId = await seedGraph([start, score])
+      const source = await getInlineSource(workflowId)
+
+      const result = await apply(source, edit(source.files, 'return 1', 'return 2'))
+
+      expect(result.applied).toBe(true)
+      const stored = (await snapshot(workflowId)).state?.blocks[score.id]
+      expect(stored?.subBlocks.code?.value).toBe('return 2')
+      expect(stored?.subBlocks.language?.value).toBe('cobol')
+    }
+  )
+
+  check(
+    "an edited block's stored out-of-options value written bare again is not refused: the edit does not set that field",
+    async () => {
+      const start = seedBlock('start_trigger', 'Start')
+      const score = seedBlock('function', 'Score', {
+        code: ['code', 'return 1'],
+        language: ['dropdown', 'cobol'],
+      })
+      const workflowId = await seedGraph([start, score])
+      const source = await getInlineSource(workflowId)
+
+      const result = await apply(
+        source,
+        edit(
+          edit(source.files, "language: raw('cobol')", "language: 'cobol'"),
+          'return 1',
+          'return 2'
+        )
+      )
+
+      expect(result.applied).toBe(true)
+      expect(result.diagnostics.map((d) => d.code)).not.toContain('E_APPLY_INVALID_SUBBLOCK_FIELD')
+      const after = await snapshot(workflowId)
+      expect(after.state?.blocks[score.id]?.subBlocks.language?.value).toBe('cobol')
+    }
+  )
 
   check(
     'a value the field normalizes is stored normalized, and untouched blocks keep their bytes',
@@ -2035,6 +2083,33 @@ export default workflow('Fresh', {}, () => {
     }
   )
 
+  check(
+    'a lock copied from another workflow is ignored where it claims ids, keeping the stored ones',
+    async () => {
+      const target = await seedWorkflow()
+      const other = await seedWorkflow()
+      const source = await getSource(target.workflowId)
+      const foreign = await getSource(other.workflowId)
+
+      // Block ids only: the foreign lock's variable ids are another matter.
+      const result = await apply(source, edit(source.files, '41 + 1', '41 + 2'), {
+        lock: { ...foreign.lock, variables: source.lock.variables },
+      })
+
+      expect(result.applied).toBe(true)
+      const claims = result.diagnostics.filter((d) => d.code === 'W_MAT_LOCK_ID_CLAIMED')
+      expect(claims.length).toBeGreaterThan(0)
+      for (const claim of claims) {
+        expect(claim.message).toContain('the block keeps the id of the stored block it matches')
+      }
+      expect(result.mintedIds).toEqual({})
+      const after = await snapshot(target.workflowId)
+      expect(Object.keys(after.state?.blocks ?? {}).sort()).toEqual(
+        [target.startId, target.scoreId].sort()
+      )
+    }
+  )
+
   check('a lock id another workflow already stores is dropped and a new id is minted', async () => {
     const target = await seedWorkflow()
     const other = await seedWorkflow()
@@ -2045,7 +2120,11 @@ export default workflow('Fresh', {}, () => {
 
     expect(result.applied).toBe(true)
     expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ code: 'W_MAT_LOCK_ID_CLAIMED', blockKey: 'extra' })
+      expect.objectContaining({
+        code: 'W_MAT_LOCK_ID_CLAIMED',
+        blockKey: 'extra',
+        message: expect.stringContaining('a new id was minted'),
+      })
     )
     const minted = result.mintedIds.extra
     expect(minted).toBeDefined()

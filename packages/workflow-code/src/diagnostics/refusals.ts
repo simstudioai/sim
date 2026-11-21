@@ -65,6 +65,7 @@ export type EditRefusalCode =
   | 'E_APPLY_UNRESOLVED_REF'
   | 'E_APPLY_REF_OUT_OF_SCOPE'
   | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+  | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
 
 /** What an edit changed, as the caller can tell it. */
 export interface EditedBlocks {
@@ -76,6 +77,12 @@ export interface EditedBlocks {
    * code before and after may compare that alone.
    */
   codeEdited(blockKey: string, file: string): boolean
+  /**
+   * Whether the edit sets field `param` of the changed block `blockKey`: the server's field gate
+   * judges only those. A caller that cannot tell (an offline check holds no stored values) leaves
+   * it out, and every field of a changed block counts as set.
+   */
+  paramChanged?(blockKey: string, param: string): boolean
 }
 
 /**
@@ -84,6 +91,18 @@ export interface EditedBlocks {
  */
 const CHANGED_BLOCK_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_REF_OUT_OF_SCOPE', 'E_APPLY_REF_OUT_OF_SCOPE'],
+])
+
+/**
+ * In `workflow.ts` on a field the edit set ({@link EditedBlocks.paramChanged}) of a block it
+ * changed: a dropdown value none of its options names, which the server's field gate refuses. A
+ * value the stored block already holds outside its options prints as `raw()`, which the compile
+ * does not check, and one written bare again is not a field the edit set, so only a value the
+ * author changed is refused. `operation` is left out: an unknown one is already an error, and its warning means the
+ * stored block holds a retired operation, which the gate keeps.
+ */
+const PARAM_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
+  ['W_UNKNOWN_OPTION', 'E_APPLY_INVALID_SUBBLOCK_FIELD'],
 ])
 
 /** In `workflow.ts` on a block the edit changed: a path no output of the block has. */
@@ -108,6 +127,7 @@ const CODE_FILE_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
  * refusal.
  */
 export const REFUSABLE_WARNING_CODES: ReadonlySet<CompileDiagnosticCode> = new Set([
+  'W_UNKNOWN_OPTION',
   'W_REF_OUT_OF_SCOPE',
   'W_UNKNOWN_OUTPUT_PATH',
   'W_UNRESOLVED_REF',
@@ -124,6 +144,11 @@ export const EDIT_REFUSALS: ReadonlyArray<{
     warning,
     refusal,
     where: 'changed block' as const,
+  })),
+  ...[...PARAM_REFUSALS].map(([warning, refusal]) => ({
+    warning,
+    refusal,
+    where: 'workflow.ts' as const,
   })),
   ...[...ENTRY_REFUSALS].map(([warning, refusal]) => ({
     warning,
@@ -148,8 +173,20 @@ export function raisedMessage(message: string): string {
   return message.replace(KEPT_AS_WRITTEN, '.')
 }
 
+/**
+ * What deciding a refusal reads of a finding: a listed or withheld diagnostic, or a counted
+ * omitted one (which keeps its file and field).
+ */
+interface RefusalSubject {
+  code: string
+  severity: string
+  blockKey?: string
+  param?: string
+  span: { file: string }
+}
+
 /** The code the apply refuses `finding` under, given what the edit changed; none when it stays. */
-function refusalOf(finding: LocatedDiagnostic, edit: EditedBlocks): EditRefusalCode | undefined {
+function refusalOf(finding: RefusalSubject, edit: EditedBlocks): EditRefusalCode | undefined {
   if (finding.severity !== 'warning' || finding.blockKey === undefined) return undefined
   const { blockKey, span } = finding
   const inEntryFile = span.file === SOURCE_ENTRY_FILE
@@ -158,12 +195,24 @@ function refusalOf(finding: LocatedDiagnostic, edit: EditedBlocks): EditRefusalC
     const edited = edit.changed(blockKey) || (!inEntryFile && edit.codeEdited(blockKey, span.file))
     return edited ? onChanged : undefined
   }
+  const onParam = PARAM_REFUSALS.get(finding.code)
+  if (onParam) {
+    const { param } = finding
+    if (!inEntryFile || param === undefined || param === 'operation') return undefined
+    if (!edit.changed(blockKey)) return undefined
+    return (edit.paramChanged?.(blockKey, param) ?? true) ? onParam : undefined
+  }
   if (inEntryFile) {
     const inEntry = ENTRY_REFUSALS.get(finding.code)
     return inEntry && edit.changed(blockKey) ? inEntry : undefined
   }
   const inCode = CODE_FILE_REFUSALS.get(finding.code)
   return inCode && edit.codeEdited(blockKey, span.file) ? inCode : undefined
+}
+
+/** Whether the apply refuses `finding` (a compile warning), given what the edit changed. */
+export function refusesEdited(finding: RefusalSubject, edit: EditedBlocks): boolean {
+  return refusalOf(finding, edit) !== undefined
 }
 
 /**

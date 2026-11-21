@@ -415,8 +415,11 @@ function parseCodeFile(
   decl: BlockDecl
 ): string | null {
   const { limits } = ctx
+  const before = ctx.codeFiles.bytes
   ctx.codeFiles.bytes += utf8Bytes(text, limits.maxTotalBytes)
   if (ctx.codeFiles.bytes > limits.maxTotalBytes) {
+    // Reported once, on the file that crosses the cap; each file after it is skipped silently.
+    if (before > limits.maxTotalBytes) return null
     ctx.reporter.report(
       'E_LIMIT_EXCEEDED',
       `The workflow and its code files total more than ${limits.maxTotalBytes} bytes.`,

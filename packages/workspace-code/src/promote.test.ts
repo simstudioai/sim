@@ -34,7 +34,7 @@ function firstRecord(plan: Array<{ kind: string; key: string; action: string; he
     blobPaths: [],
     kinds: ['workflow'],
     target: TARGET,
-    allowDelete: false,
+    deleteTargetOnly: false,
   })
   return promotionRecord({
     workspaceId: 'ws_prod',
@@ -57,7 +57,7 @@ describe('promotion records', () => {
       kinds: ['workflow'],
       target: TARGET,
       record,
-      allowDelete: false,
+      deleteTargetOnly: false,
     })
     expect(next.files['workflows/ingest/workflow.ts']).toBe(DIR['workflows/ingest/workflow.ts'])
   })
@@ -77,7 +77,7 @@ describe('promotion records', () => {
           },
         },
         record,
-        allowDelete: false,
+        deleteTargetOnly: false,
       })
 
     expect(Object.keys(promote(DIR).files)).toEqual(['workflows/ingest/.sim/base.json'])
@@ -85,6 +85,47 @@ describe('promotion records', () => {
     expect(JSON.parse(edited.files['workflows/ingest/.sim/base.json']).fingerprint).toBe(
       'sf1:hotfix'
     )
+  })
+
+  it('keeps what only the target holds out of the base, even with deletes allowed, unless its deletion is asked for, and never records it', () => {
+    const target = {
+      files: TARGET.files,
+      base: {
+        ...TARGET.base,
+        resources: { ...TARGET.base.resources, 'skill:audit': { id: 'sk_audit' } },
+      },
+    }
+    const promote = (deleteTargetOnly: boolean, record?: PromotionRecord) =>
+      promotionSubmission({
+        files: DIR,
+        blobPaths: [],
+        kinds: ['workflow', 'skill'],
+        target,
+        record,
+        deleteTargetOnly,
+      })
+
+    expect(promote(false).targetOnly).toEqual(['skill:audit'])
+    expect(promote(false).base.resources['skill:audit']).toBeUndefined()
+    const deleting = promote(true)
+    expect(deleting.base.resources['skill:audit']).toEqual({ id: 'sk_audit' })
+
+    // The delete was held back (a target workflow uses it): the answer's base keeps the entry.
+    const record = promotionRecord({
+      workspaceId: 'ws_prod',
+      previous: undefined,
+      kinds: ['workflow', 'skill'],
+      files: DIR,
+      submission: deleting,
+      applied: {
+        base: deleting.base,
+        files: {},
+        plan: [{ kind: 'skill', key: 'audit', action: 'delete', held: true }],
+      },
+    })
+    expect(record.resources['skill:audit']).toBeUndefined()
+    expect(promote(false, record).targetOnly).toEqual(['skill:audit'])
+    expect(promote(false, record).base.resources['skill:audit']).toBeUndefined()
   })
 
   it('ignores a record for another target, or one this build cannot read', () => {

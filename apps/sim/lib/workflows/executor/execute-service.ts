@@ -1042,12 +1042,13 @@ function findChildSpanOutput(
   selector: ChildOutputSelector,
   inSelectedWorkflow: boolean
 ): Record<string, unknown> | undefined {
+  const selectedName = normalizeName(selector.blockId)
   let found: Record<string, unknown> | undefined
   for (const span of spans) {
     if (
       inSelectedWorkflow &&
       span.output !== undefined &&
-      (span.blockId === selector.blockId || normalizeName(span.name) === selector.blockId)
+      (span.blockId === selector.blockId || normalizeName(span.name) === selectedName)
     ) {
       found = span.output
     }

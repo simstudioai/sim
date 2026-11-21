@@ -168,6 +168,12 @@ const catalogSubBlockSchema = z
       ])
       .optional()
       .describe('Selectable options.'),
+    optionsVary: z
+      .literal(true)
+      .optional()
+      .describe(
+        'The options depend on deployment settings and were evaluated where this catalog was built; the write-time check evaluates them again.'
+      ),
     hidden: z.boolean().optional().describe('Hidden from the editor.'),
     readOnly: z.boolean().optional().describe('Display-only.'),
     password: z.boolean().optional().describe('Holds a secret.'),

@@ -8,6 +8,7 @@ import type {
   ApplyWorkflowSourceResponse,
   CreateWorkflowFromSourceBody,
   DeployWorkflowResponse,
+  GetWorkflowDeploymentResponse,
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
@@ -122,7 +123,7 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
   mode: WriteMode
   creating: boolean
   question: string
-  client: OperationClient<Operation | 'deployWorkflow'>
+  client: OperationClient<Operation | 'deployWorkflow' | 'getWorkflowDeployment'>
   operation: Operation
   params: Record<string, string>
   body: ApplyWorkflowSourceBody | CreateWorkflowFromSourceBody
@@ -234,11 +235,12 @@ interface DeployOutcome {
  * deploy says the write itself was saved.
  */
 async function deployStep(
-  client: OperationClient<'deployWorkflow'>,
+  client: OperationClient<'deployWorkflow' | 'getWorkflowDeployment'>,
   data: SourceApplyData,
   options: { deploy?: boolean; dir: string; verb: string; machine: boolean }
 ): Promise<DeployOutcome> {
-  const deployCommand = `sim workflows deploy ${data.workflowId}`
+  // Pinned to the draft this write stored, as `--deploy` is: an edit made since is never deployed.
+  const deployCommand = `sim workflows deploy ${data.workflowId} --expected-draft-fingerprint ${data.base.fingerprint}`
   if (!options.deploy) {
     if (!data.needsRedeployment) return {}
     return {
@@ -246,6 +248,31 @@ async function deployStep(
         command: deployCommand,
         reason: `The workflow is deployed and its draft now differs from the live version: deploy to make the change live (or ${options.verb} with --deploy).`,
       },
+    }
+  }
+  if (!data.applied && !data.needsRedeployment) {
+    // A no-op write changed no draft: when the live version already matches it, a deploy would
+    // only publish the same version again.
+    const status = await client
+      .request<GetWorkflowDeploymentResponse>('getWorkflowDeployment', {
+        params: { workflowId: data.workflowId },
+      })
+      .then(
+        (response) => response.data,
+        (error: unknown) => {
+          throw deployFailure(error, options, deployCommand)
+        }
+      )
+    if (status.isDeployed && !status.needsRedeployment) {
+      if (!options.machine)
+        printError('The live version already matches the draft; nothing was deployed.')
+      return {
+        deployed: {
+          ...(status.activeDeployment ? { version: status.activeDeployment.version } : {}),
+          isDeployed: true,
+        },
+        needsRedeployment: false,
+      }
     }
   }
   const deployed = await client
@@ -316,6 +343,7 @@ export function attachWorkflowSourceApply(source: Command): void {
   const [command, connectApply] = apiCommand(source, 'apply', [
     'applyWorkflowSource',
     'deployWorkflow',
+    'getWorkflowDeployment',
     'getSourceResources',
   ])
   absoluteDirOption(command)
@@ -401,6 +429,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
     'getSourceCatalog',
     'getSourceResources',
     'deployWorkflow',
+    'getWorkflowDeployment',
   ])
   absoluteDirOption(command)
   verboseFlag(command)

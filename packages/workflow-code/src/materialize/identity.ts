@@ -8,7 +8,13 @@ import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import { diagnostic } from '../diagnostics/factory'
 import type { Diagnostic } from '../diagnostics/frame'
 import { pointer, type WorkflowLockBlock, type WorkflowLockV1 } from '../lock'
-import type { BlockKey, CanonicalBlock, CanonicalWorkflow } from '../model'
+import {
+  type BlockKey,
+  type CanonicalBlock,
+  type CanonicalWorkflow,
+  isSimNode,
+  type VarKey,
+} from '../model'
 import { deepEqual, getOwn } from '../records'
 import type { MaterializeHooks } from './context'
 
@@ -425,6 +431,32 @@ function referencesKey(block: CanonicalBlock, key: BlockKey): boolean {
     }
   }
   return false
+}
+
+/**
+ * Whether a block reads variable `key`: a `<variable.key>` reference in any field a reference can
+ * sit in, or a variable node (a Variables block's assignment target).
+ */
+export function referencesVariable(block: CanonicalBlock, key: VarKey): boolean {
+  const reads = (value: unknown): boolean => {
+    if (typeof value === 'string') {
+      return findWorkflowReferenceTokens(value).some((token) => {
+        if (token.kind !== 'workflow') return false
+        const [head, name] = parseStoredPath(token.value.slice(1, -1)) ?? []
+        return (
+          head?.kind === 'name' &&
+          head.name === 'variable' &&
+          name?.kind === 'name' &&
+          normalizeWorkflowBlockName(name.name) === key
+        )
+      })
+    }
+    if (Array.isArray(value)) return value.some(reads)
+    if (value === null || typeof value !== 'object') return false
+    if (isSimNode(value)) return value.$sim === 'var' && value.key === key
+    return Object.values(value).some(reads)
+  }
+  return reads([block.params, block.branches, block.subflow])
 }
 
 /**

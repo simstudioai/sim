@@ -27,6 +27,7 @@ import {
   digest,
   inWorkspace,
   type PrintedSourceAnswer,
+  readFolderWritten,
   readWritten,
   writtenFiles,
   writtenRecord,
@@ -94,7 +95,12 @@ export async function writeBack(
     [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`],
   ]
   const write = [...printed, ...(folder ? [] : writtenFiles(writtenRecord(files))), ...extra.write]
-  const orphaned = orphanedCodeFiles(previousLock, answer.lock, Object.keys(answer.files))
+  const orphaned = orphanedCodeFiles(
+    previousLock,
+    answer.lock,
+    Object.keys(answer.files),
+    (await readFolderWritten(dir)).digests
+  )
   const unnamed = await unnamedCodeFiles(dir, previousLock, answer, orphaned)
   await updateSourceDir(dir, {
     write,

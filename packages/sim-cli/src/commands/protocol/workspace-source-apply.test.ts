@@ -430,6 +430,33 @@ describe('workspaces source apply', () => {
     expect(stderr).toContain('2 change(s) delete data that applying an older directory')
   })
 
+  it('prints a delete refused for want of --allow-delete as refused, not unchanged', async () => {
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        plan: [
+          { kind: 'skill', key: 'tone', action: 'noop' },
+          { kind: 'skill', key: 'brief', action: 'noop' },
+        ],
+        diagnostics: [
+          {
+            code: 'E_APPLY_DELETE_NOT_ALLOWED',
+            severity: 'error',
+            message: 'skills/tone is no longer declared; deleting "tone" needs --allow-delete.',
+            kind: 'skill',
+            key: 'tone',
+          },
+        ],
+      })
+    )
+
+    await apply('--dry-run')
+
+    const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
+    expect(stderr).toContain('skills: 1 delete refused, 1 unchanged')
+    expect(stderr).toContain('  - tone — refused, needs --allow-delete')
+  })
+
   it('prints a --to dry run with its findings in the JSON result', async () => {
     request.mockImplementation(async (path: string, options: { body?: unknown }) => {
       if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
@@ -474,6 +501,7 @@ describe('workspaces source apply', () => {
 
   it('a --to dry run warns of what the target deleted since the last promotion, gives stale findings a promotion hint, and names each target-only delete', async () => {
     const leads = { id: 'tbl_prod', fingerprint: `rf1:${'a'.repeat(64)}` }
+    const dropped = { id: 'tbl_dropped', fingerprint: `rf1:${'d'.repeat(64)}` }
     write(
       '.sim/targets/ws_prod.json',
       JSON.stringify({
@@ -482,6 +510,7 @@ describe('workspaces source apply', () => {
         resources: {
           'table:leads': leads,
           'table:gone': { id: 'tbl_gone', fingerprint: `rf1:${'c'.repeat(64)}` },
+          'table:dropped': dropped,
         },
         workflows: {},
       })
@@ -493,12 +522,20 @@ describe('workspaces source apply', () => {
           data: {
             workspaceId: 'ws_prod',
             kinds: ['table'],
-            files: { 'tables/leads.ts': LEADS, 'tables/prod-only.ts': LEADS },
+            files: {
+              'tables/leads.ts': LEADS,
+              'tables/prod-only.ts': LEADS,
+              'tables/dropped.ts': LEADS,
+            },
             blobs: [],
             base: {
               version: 1,
               workspaceId: 'ws_prod',
-              resources: { 'table:leads': leads, 'table:prod-only': { id: 'tbl_only' } },
+              resources: {
+                'table:leads': leads,
+                'table:prod-only': { id: 'tbl_only' },
+                'table:dropped': dropped,
+              },
             },
             skipped: [],
             diagnostics: [],
@@ -512,8 +549,18 @@ describe('workspaces source apply', () => {
           { kind: 'table', key: 'gone', action: 'noop' },
           { kind: 'table', key: 'leads', action: 'noop' },
           { kind: 'table', key: 'prod-only', action: 'delete' },
+          { kind: 'table', key: 'dropped', action: 'delete' },
+          { kind: 'table', key: 'hotfixed', action: 'noop' },
         ],
         diagnostics: [
+          {
+            code: 'W_SERVER_CHANGED',
+            severity: 'warning',
+            message: 'tables/hotfixed changed on the server since this directory was read.',
+            hint: 'Run `sim workspaces source get` into a fresh directory to see what changed.',
+            kind: 'table',
+            key: 'hotfixed',
+          },
           {
             code: 'W_SERVER_DELETED',
             severity: 'warning',
@@ -533,7 +580,15 @@ describe('workspaces source apply', () => {
       })
     })
 
-    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--dry-run')
+    await apply(
+      '--to',
+      'ws_prod',
+      '--only',
+      'tables',
+      '--allow-delete',
+      '--delete-target-only',
+      '--dry-run'
+    )
 
     const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     const byCode = (code: string) =>
@@ -548,9 +603,101 @@ describe('workspaces source apply', () => {
     const [stale] = byCode('E_APPLY_STALE')
     expect(stale.hint).toContain('.sim/targets/ws_prod.json')
     expect(stale.hint).not.toContain('fresh directory')
+    expect(stale.hint).toContain('sim workspaces source get --workspace ws_prod')
+    expect(stale.hint).not.toContain('.sim/targets/ws_prod.json first')
+    const [drifted] = byCode('W_SERVER_CHANGED')
+    expect(drifted.hint).toContain('sim workspaces source get --workspace ws_prod')
     const stderr = vi.mocked(console.error).mock.calls.flat().join('\n')
     expect(stderr).toContain('  ! gone (deleted on the server; kept as the server has it)')
+    expect(stderr).toContain('  ! leads (changed on the server; your edit is refused as stale)')
     expect(stderr).not.toContain('resource(s) that only workspace ws_prod holds')
+  })
+
+  it('a --to with --allow-delete keeps what only the target holds, naming it, and points at --delete-target-only', async () => {
+    const leads = { id: 'tbl_prod', fingerprint: `rf1:${'a'.repeat(64)}` }
+    write(
+      '.sim/targets/ws_prod.json',
+      JSON.stringify({
+        version: 1,
+        workspaceId: 'ws_prod',
+        resources: { 'table:leads': leads, 'table:dropped': { id: 'tbl_dropped' } },
+        workflows: {},
+      })
+    )
+    const sent: unknown[] = []
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table'],
+            files: {
+              'tables/leads.ts': LEADS,
+              'tables/dropped.ts': LEADS,
+              'tables/audit.ts': LEADS,
+            },
+            blobs: [],
+            base: {
+              version: 1,
+              workspaceId: 'ws_prod',
+              resources: {
+                'table:leads': leads,
+                'table:dropped': { id: 'tbl_dropped' },
+                'table:audit': { id: 'tbl_audit' },
+              },
+            },
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      sent.push(options.body)
+      return answer({
+        workspaceId: 'ws_prod',
+        dryRun: true,
+        plan: [
+          { kind: 'table', key: 'leads', action: 'noop' },
+          { kind: 'table', key: 'dropped', action: 'delete' },
+          { kind: 'table', key: 'audit', action: 'noop' },
+        ],
+        diagnostics: [
+          {
+            code: 'W_UNDECLARED',
+            severity: 'warning',
+            message:
+              '"audit" (table audit) is on the server but not in this directory; it is kept.',
+            kind: 'table',
+            key: 'audit',
+          },
+        ],
+      })
+    })
+
+    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--dry-run')
+
+    const [body] = sent as Array<{ base: { resources: Record<string, unknown> } }>
+    expect(Object.keys(body.base.resources).sort()).toEqual(['table:dropped', 'table:leads'])
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    const [kept] = summary.diagnostics.filter(
+      (finding: { code: string }) => finding.code === 'W_UNDECLARED'
+    )
+    expect(kept).toMatchObject({ key: 'audit' })
+    expect(kept.hint).toContain('--delete-target-only')
+    expect(
+      summary.diagnostics.filter(
+        (finding: { code: string }) => finding.code === 'W_PROMOTE_DELETES_TARGET_ONLY'
+      )
+    ).toEqual([])
+  })
+
+  it('refuses --delete-target-only without --to or without --allow-delete', async () => {
+    await expect(apply('--to', 'ws_prod', '--delete-target-only', '--yes')).rejects.toThrow(
+      /needs --allow-delete/
+    )
+    await expect(apply('--allow-delete', '--delete-target-only', '--yes')).rejects.toThrow(
+      /needs --to/
+    )
+    expect(request).not.toHaveBeenCalled()
   })
 
   it('names only the target-only deletes a promotion that stopped part-way wrote', async () => {
@@ -585,7 +732,15 @@ describe('workspaces source apply', () => {
       })
     })
 
-    await apply('--to', 'ws_prod', '--only', 'tables', '--allow-delete', '--yes')
+    await apply(
+      '--to',
+      'ws_prod',
+      '--only',
+      'tables',
+      '--allow-delete',
+      '--delete-target-only',
+      '--yes'
+    )
 
     const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
     expect(
@@ -686,13 +841,26 @@ describe('workspaces source apply', () => {
     expect(Object.keys(bodies()[1].files)).not.toContain('tools/lookup.js')
   })
 
-  it('removes the function files an applied workflow no longer uses, keeping files no lock named', async () => {
+  it('removes the function files an applied workflow no longer uses, keeping files the CLI never wrote', async () => {
     const lock = (codeFiles: string[]) =>
       `${JSON.stringify({ version: 1, blocks: Object.fromEntries(codeFiles.map((file, index) => [`b${index}`, { id: `blk_${index}`, codeFile: file }])), variables: {} })}\n`
-    write('workflows/ingest/.sim/lock.json', lock(['functions/score.js', 'functions/old.js']))
+    // A hand-edited lock names mine.js too; the CLI never wrote it, so it is never pruned.
+    write(
+      'workflows/ingest/.sim/lock.json',
+      lock(['functions/score.js', 'functions/old.js', 'functions/mine.js'])
+    )
     write('workflows/ingest/functions/score.js', 'return 1\n')
     write('workflows/ingest/functions/old.js', 'return 2\n')
     write('workflows/ingest/functions/mine.js', 'return 3\n')
+    write(
+      '.sim/written.json',
+      JSON.stringify({
+        files: {
+          'workflows/ingest/functions/score.js': digest('return 1\n'),
+          'workflows/ingest/functions/old.js': digest('return 2\n'),
+        },
+      })
+    )
     request.mockResolvedValue(
       answer({
         applied: [{ kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' }],

@@ -2,6 +2,7 @@
  * The findings every kind reports the same way, so the plan reads alike across kinds.
  */
 
+import { stableStringify } from '@sim/workflow-code'
 import { diagnostic } from '@sim/workflow-code/diagnostics'
 import {
   type BaseResource,
@@ -23,6 +24,22 @@ import type {
   UnavailableReference,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
+
+/**
+ * What makes two findings the same one, for a write that re-reports what its plan found (a
+ * workflow's commit runs its pipeline again) with the block ids the write gave it (a workflow
+ * folder's findings carry the pipeline's `blockKey` and `blockId` beside the flat fields): a finding
+ * naming its block by key matches on the key, whatever id it carries, and one naming its block
+ * only by id keeps the id, so two such findings on different blocks never merge.
+ */
+export function findingIdentity(
+  diagnostic: WorkspaceSourceDiagnostic & { blockKey?: string; blockId?: string }
+): string {
+  return stableStringify({
+    ...diagnostic,
+    blockId: diagnostic.blockKey === undefined ? diagnostic.blockId : undefined,
+  })
+}
 
 /**
  * One workspace source finding, its severity fixed by the code's prefix. Every finding the app
@@ -145,7 +162,7 @@ export function missingFolderFinding(
     kind === 'table' ? 'E_TABLE_FOLDER' : 'E_KB_FOLDER',
     `The folder ${folder} does not exist in this workspace.`,
     {
-      hint: `Create the folder first, or drop \`folder\` to keep the ${WORKSPACE_KIND_SPECS[kind].noun} at the root.`,
+      hint: `Create it first (\`sim ${kind === 'table' ? 'tables' : 'knowledge'} folders create "${folder.replace(/^\//, '')}"\`), or drop \`folder\` to keep the ${WORKSPACE_KIND_SPECS[kind].noun} at the root.`,
     }
   )
 }

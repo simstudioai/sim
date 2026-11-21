@@ -94,7 +94,7 @@ function variableDeleteRefusal(
   const [next] = added
   const rename =
     removed.length === 1 && added.length === 1 && former.type === next.type
-      ? `If ${next.name} renames ${former.name}, apply the new key with the value ${former.name} holds first and change the value in a second apply, so the variable keeps its id; or pass --allow-delete (allowDelete=true) to replace it.`
+      ? `If ${next.name} renames ${former.name}, keep the value ${former.name} holds and move every vars reference to the new key in this apply, then change the value in a second apply, so the variable keeps its id; a variable no block reads that holds 0, false or an empty value cannot be tied, so pass --allow-delete (allowDelete=true) to replace it.`
       : undefined
   return diagnostic(
     'E_APPLY_VARIABLE_DELETE',
@@ -359,14 +359,18 @@ export async function sourceRefusals(
 
 /**
  * The compile's findings, each on a block this write changes (or whose code it edits) refused as
- * the shared edited-block rule says, so a warning the author introduced cannot be written.
+ * the shared edited-block rule says, so a warning the author introduced cannot be written. A
+ * field finding is refused only on a field the write sets (`changedFields`, by block key), the
+ * fields the value gate judges.
  */
 export function editedCompileFindings(
   refusals: Pick<SourceRefusals, 'compileFindings' | 'codeEdited'>,
-  changedKeys: ReadonlySet<string>
+  changedKeys: ReadonlySet<string>,
+  changedFields: ReadonlyMap<string, ReadonlySet<string>>
 ): LocatedDiagnostic[] {
   return refuseEditedFindings(refusals.compileFindings, {
     changed: (key) => changedKeys.has(key),
     codeEdited: refusals.codeEdited,
+    paramChanged: (key, param) => changedFields.get(key)?.has(param) === true,
   })
 }

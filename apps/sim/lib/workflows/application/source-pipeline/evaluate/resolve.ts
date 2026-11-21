@@ -276,20 +276,25 @@ export async function resolveSubmission(
   const claimed = new Set(claimedIds)
   if (claimed.size > 0) {
     const blocks: Record<string, WorkflowLockBlock> = {}
+    const claimedKeys: string[] = []
     for (const [key, entry] of Object.entries(lock.blocks)) {
-      if (claimed.has(entry.id)) {
-        claimedDiagnostics.push(
-          diagnostic(
-            'W_MAT_LOCK_ID_CLAIMED',
-            `The lock id for block "${key}" belongs to another workflow; a new id was minted`,
-            { blockKey: key }
-          )
-        )
-      } else {
-        blocks[key] = entry
-      }
+      if (claimed.has(entry.id)) claimedKeys.push(key)
+      else blocks[key] = entry
     }
     materialized = materializeWith({ ...lock, blocks })
+    // Without its lock id the block binds as a lockless one would: to the stored block of its
+    // name, or to a new id.
+    const outcomes = new Map(materialized.entries.map((entry) => [entry.key, entry]))
+    for (const key of claimedKeys) {
+      const kept = outcomes.get(key)?.status === 'matched'
+      claimedDiagnostics.push(
+        diagnostic(
+          'W_MAT_LOCK_ID_CLAIMED',
+          `The lock id for block "${key}" belongs to another workflow, so it was ignored; ${kept ? 'the block keeps the id of the stored block it matches' : 'a new id was minted'}`,
+          { blockKey: key }
+        )
+      )
+    }
   }
 
   const idByKey = new Map(

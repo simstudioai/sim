@@ -220,6 +220,9 @@ describe('workspaces source get', () => {
       },
     }))
     await get()
+    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain(
+      'Skipped file big.bin: over the size limit'
+    )
 
     serve({ 'tables/leads.ts': LEADS })
     await get('--only', 'table')

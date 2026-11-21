@@ -10,7 +10,7 @@ import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import {
   createWorkspaceCustomToolUseCase,
@@ -820,13 +820,17 @@ describe('workspace source: custom tools and skills', () => {
     const created = await apply(workspaceId, TOOLS, { kinds: ['custom-tool'] })
     const toolId = created.base.resources['custom-tool:lookup']?.id ?? ''
     const authorize = deleteWorkspaceCustomToolUseCase.authorize
+    // Only this test's delete races: a call for another workspace (a test still running after its
+    // timeout) passes through untouched.
     const racing = vi
       .spyOn(deleteWorkspaceCustomToolUseCase, 'authorize')
       .mockImplementation(async (args) => {
-        await db
-          .update(customTools)
-          .set({ code: 'return "edited in the UI"' })
-          .where(eq(customTools.id, toolId))
+        if (args.input.workspaceId === workspaceId && args.input.toolId === toolId) {
+          await db
+            .update(customTools)
+            .set({ code: 'return "edited in the UI"' })
+            .where(and(eq(customTools.id, toolId), eq(customTools.workspaceId, workspaceId)))
+        }
         return authorize.call(deleteWorkspaceCustomToolUseCase, args)
       })
 

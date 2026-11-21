@@ -132,6 +132,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
           }
           const keys = await workspaceWorkflowKeys(options.dir)
           const findings: CheckFinding[] = []
+          const unlisted = { errors: 0, warnings: 0 }
           for (const key of keys) {
             const checked = await checkWorkflowDir(
               join(options.dir, KIND_DIRS.workflow, key),
@@ -143,6 +144,8 @@ export function attachWorkspaceSourceCheck(source: Command): void {
               }
             )
             findings.push(...checked.findings)
+            unlisted.errors += checked.unlisted.errors
+            unlisted.warnings += checked.unlisted.warnings
           }
           for (const {
             code,
@@ -172,7 +175,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
             profile.output,
             findings,
             { workflows: keys.length, catalogHash: catalog.hash },
-            { verbose: options.verbose === true, bound: WORKSPACE_ANSWER_BOUND }
+            { verbose: options.verbose === true, bound: WORKSPACE_ANSWER_BOUND, unlisted }
           )
         })
       }

@@ -32568,6 +32568,11 @@
                                   }
                                 ]
                               },
+                              "optionsVary": {
+                                "description": "The options depend on deployment settings and were evaluated where this catalog was built; the write-time check evaluates them again.",
+                                "type": "boolean",
+                                "const": true
+                              },
                               "hidden": {
                                 "description": "Hidden from the editor.",
                                 "type": "boolean"
@@ -33643,6 +33648,11 @@
                                   }
                                 ]
                               },
+                              "optionsVary": {
+                                "description": "The options depend on deployment settings and were evaluated where this catalog was built; the write-time check evaluates them again.",
+                                "type": "boolean",
+                                "const": true
+                              },
                               "hidden": {
                                 "description": "Hidden from the editor.",
                                 "type": "boolean"
@@ -34490,6 +34500,11 @@
                           "description": "A function the catalog could not evaluate to data."
                         }
                       ]
+                    },
+                    "optionsVary": {
+                      "description": "The options depend on deployment settings and were evaluated where this catalog was built; the write-time check evaluates them again.",
+                      "type": "boolean",
+                      "const": true
                     },
                     "hidden": {
                       "description": "Hidden from the editor.",
