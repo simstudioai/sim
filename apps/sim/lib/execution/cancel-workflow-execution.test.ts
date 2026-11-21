@@ -1537,7 +1537,6 @@ describe('cancelWorkflowExecution', () => {
           code: 'conflict',
           executionId: 'ex-1',
           executionStatus,
-          redisAvailable: true,
           locallyAborted: false,
         })
       )
@@ -1583,7 +1582,6 @@ describe('cancelWorkflowExecution', () => {
         code: 'conflict',
         executionId: 'ex-1',
         executionStatus: 'completed',
-        redisAvailable: true,
         locallyAborted: false,
       })
     )

@@ -19,11 +19,6 @@ import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mother
 const logger = createLogger('CopilotOrchestratorPersistence')
 const TOOL_CONFIRMATION_TTL_SECONDS = 60 * 10
 const DURABLE_CONFIRMATION_POLL_MS = 5_000
-/**
- * How long the first durable check waits for the subscription to land. Past it the wait falls
- * back to polling, as it must while Redis cannot subscribe.
- */
-const SUBSCRIPTION_READY_WAIT_MS = DURABLE_CONFIRMATION_POLL_MS
 const toolConfirmationKey = (toolCallId: string) => `copilot:tool-confirmation:${toolCallId}`
 
 type ToolConfirmGlobal = typeof globalThis & {
@@ -132,14 +127,14 @@ export async function waitForToolConfirmation(
     let settled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     let pollId: ReturnType<typeof setTimeout> | null = null
-    let readyWaitId: ReturnType<typeof setTimeout> | null = null
     let unsubscribe: (() => void) | null = null
+    let releaseReadyWait: (() => void) | null = null
 
     const cleanup = () => {
       if (timeoutId) clearTimeout(timeoutId)
       if (pollId) clearTimeout(pollId)
-      if (readyWaitId) clearTimeout(readyWaitId)
       if (unsubscribe) unsubscribe()
+      if (releaseReadyWait) releaseReadyWait()
       abortSignal?.removeEventListener('abort', onAbort)
     }
 
@@ -215,21 +210,16 @@ export async function waitForToolConfirmation(
     }
     abortSignal?.addEventListener('abort', onAbort, { once: true })
 
-    // The first durable check runs once the subscription is live. A publisher commits the row
-    // before it publishes, so a signal sent before then is in the row this check reads, and
-    // every later one reaches the handler above.
-    const subscriptionReady = Promise.race([
-      toolConfirmationChannel.ready(),
-      new Promise<void>((resolveWait) => {
-        readyWaitId = setTimeout(resolveWait, SUBSCRIPTION_READY_WAIT_MS)
-      }),
-    ])
-    void subscriptionReady.then(async () => {
-      if (readyWaitId) clearTimeout(readyWaitId)
-      readyWaitId = null
-      if (settled) return
-      await checkDurableConfirmation('subscribe')
-      scheduleDurablePoll()
-    })
+    // A publisher commits the row before it publishes. When this process is not subscribed yet, a
+    // signal sent before the subscription lands reaches no handler, so the row is read once more
+    // when it does.
+    const subscribedBeforeFirstRead = toolConfirmationChannel.isReady()
+    void checkDurableConfirmation('subscribe').then(scheduleDurablePoll)
+    if (!subscribedBeforeFirstRead && !settled) {
+      releaseReadyWait = toolConfirmationChannel.onReady(() => {
+        releaseReadyWait = null
+        if (!settled) void checkDurableConfirmation('subscribe')
+      })
+    }
   })
 }

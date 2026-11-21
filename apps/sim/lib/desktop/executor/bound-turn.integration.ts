@@ -9,8 +9,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const { createServer } = await import('node:http')
   /** Stands in for the agent worker, which Stop also tells to end the stream. */
   const server = createServer(async (request, response) => {
@@ -21,17 +20,14 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const url = readTestRedisUrl()
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     COPILOT_TOOL_PERMISSIONS_ENABLED: process.env.COPILOT_TOOL_PERMISSIONS_ENABLED,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
   }
-  /** The real Redis module, the confirmation channel, the permission flag and worker URL read these at import. */
-  if (url) process.env.REDIS_URL = url
+  /** The permission flag and worker URL read these at import. */
   process.env.COPILOT_TOOL_PERMISSIONS_ENABLED = 'true'
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
-  return { redisUrl: url, inheritedEnv, worker: { server } }
+  return { inheritedEnv, worker: { server } }
 })
 
 vi.mock('@/lib/auth', () => authMock)
@@ -145,7 +141,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background executor", () => {
+describe("a turn bound to a desktop's background executor", () => {
   const userId = generateId()
   const workspaceId = generateId()
   const chatIds: string[] = []

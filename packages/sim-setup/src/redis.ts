@@ -21,6 +21,15 @@ function managedRedisUrl(): string | null {
   return port ? `redis://${LOOPBACK_HOST}:${port}` : null
 }
 
+/**
+ * The URL to keep once the managed container answers at `managedUrl`: a configured REDIS_URL that
+ * answers too (it did not before the restart) wins, so its DB index or credentials survive.
+ */
+async function keepConfiguredUrl(managedUrl: string, existing?: string): Promise<string> {
+  if (existing && existing !== managedUrl && (await redisPing(existing)).ok) return existing
+  return managedUrl
+}
+
 async function pingWithSpinner(url: string, label: string): Promise<boolean> {
   const spin = p.spinner()
   spin.start(label)
@@ -33,9 +42,11 @@ async function startManagedRedis(detection: Detection): Promise<string> {
   const hostPort = detection.redisPortOpen ? 6380 : 6379
   const url = `redis://${LOOPBACK_HOST}:${hostPort}`
   // A prior sim-redis (unhealthy, or bound to a stale port) would collide on the
-  // name. It has no data volume and holds no durable data, so it is replaced
-  // without a prompt; only short-lived state (live OTPs, OAuth state, rate-limit
-  // buckets) is dropped. `rm -f` is a no-op when none exists.
+  // name. It has no data volume, so replacing it drops what it held: live OTPs,
+  // OAuth state, rate-limit buckets, and idempotency records (kept up to 7 days,
+  // so a webhook redelivered afterwards can run again). That is acceptable for a
+  // local dev Redis that is not answering anyway, so it is replaced without a
+  // prompt. `rm -f` is a no-op when none exists.
   spawnSync('docker', ['rm', '-f', REDIS_CONTAINER], { stdio: 'ignore' })
   docker([
     'run',
@@ -96,7 +107,7 @@ export async function ensureRedis(detection: Detection, existing?: string): Prom
     const managedUrl = managedRedisUrl()
     if (managedUrl && (await waitFor(async () => (await redisPing(managedUrl)).ok, 15_000, 500))) {
       p.log.step(`Reusing ${REDIS_CONTAINER}`)
-      return managedUrl
+      return keepConfiguredUrl(managedUrl, existing)
     }
   }
   if (!(await ensureDocker(false))) {
@@ -115,6 +126,8 @@ export async function ensureRedis(detection: Detection, existing?: string): Prom
 export async function resolveRedis(detection: Detection, existing?: string): Promise<string> {
   // A configured REDIS_URL wins over the port scan: it may point at a non-default
   // port, or at a host that isn't this machine at all.
+  // A URL the user declined to keep is never restored below.
+  let configured = existing
   if (
     existing &&
     existing !== LOCAL_URL &&
@@ -122,6 +135,7 @@ export async function resolveRedis(detection: Detection, existing?: string): Pro
   ) {
     const keep = await p.confirm({ message: `Keep using ${existing}?`, initialValue: true })
     if (keep) return existing
+    configured = undefined
   }
 
   if (
@@ -143,10 +157,10 @@ export async function resolveRedis(detection: Detection, existing?: string): Pro
       managedUrl &&
       (await pingWithSpinner(managedUrl, `Starting existing ${REDIS_CONTAINER} container…`))
     ) {
-      return managedUrl
+      return keepConfiguredUrl(managedUrl, configured)
     }
     p.log.warn(
-      `${REDIS_CONTAINER} exists but is not answering — starting a fresh one will replace it. It holds no durable data, but live OTPs, OAuth state, and rate-limit buckets are dropped.`
+      `${REDIS_CONTAINER} exists but is not answering — starting a fresh one will replace it and drop what it held: live OTPs, OAuth state, rate-limit buckets, and idempotency records (so a webhook redelivered afterwards can run again).`
     )
   }
 

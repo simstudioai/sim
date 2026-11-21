@@ -17,8 +17,7 @@ const logger = createLogger('Redis')
  *
  * For DNS hosts: no override needed, default verification works.
  */
-function resolveRedisTlsOptions(url: string | undefined): { servername: string } | undefined {
-  if (!url) return undefined
+function resolveRedisTlsOptions(url: string): { servername: string } | undefined {
   let parsed: URL
   try {
     parsed = new URL(url)
@@ -55,7 +54,7 @@ export const CONNECT_TIMEOUT_MS = 10_000
 /** ioredis's own default, stated so readiness budgets can be derived from it. */
 export const DISCONNECT_TIMEOUT_MS = 2_000
 
-export function getRedisConnectionDefaults(url: string | undefined): RedisConnectionDefaults {
+export function getRedisConnectionDefaults(url: string): RedisConnectionDefaults {
   const tls = resolveRedisTlsOptions(url)
   return {
     keepAlive: 1000,
@@ -250,15 +249,11 @@ const REDIS_WARMUP_TIMEOUT_MS = coldConnectionBudgetMs({
  * Redis channels at module scope without any runtime environment.
  */
 export function getConfiguredRedisUrl(): string {
-  const redisUrl = env.REDIS_URL
-  if (!redisUrl) {
-    throw new Error('REDIS_URL is required')
-  }
   const configurationError = getRedisConfigurationError(env)
   if (configurationError) {
     throw new Error(configurationError)
   }
-  return redisUrl
+  return env.REDIS_URL
 }
 
 /**

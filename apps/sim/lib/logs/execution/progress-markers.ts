@@ -97,7 +97,7 @@ async function setMarker(
 
 /**
  * Persist the last-started-block marker. Returns `false` (caller should fall
- * back to the durable SQL path) when Redis is unavailable or the write fails.
+ * back to the durable SQL path) when the write fails.
  */
 export async function setLastStartedBlock(
   executionId: string,
@@ -109,7 +109,7 @@ export async function setLastStartedBlock(
 
 /**
  * Persist the last-completed-block marker. Returns `false` (caller should fall
- * back to the durable SQL path) when Redis is unavailable or the write fails.
+ * back to the durable SQL path) when the write fails.
  */
 export async function setLastCompletedBlock(
   executionId: string,

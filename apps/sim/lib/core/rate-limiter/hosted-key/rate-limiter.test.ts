@@ -35,7 +35,7 @@ interface MockQueue {
  *  queue is empty. Tests override per-call to simulate ordering. */
 const createMockQueue = (): MockQueue => {
   const queue: MockQueue = {
-    enqueue: vi.fn().mockResolvedValue({ position: 0, enabled: true }),
+    enqueue: vi.fn().mockResolvedValue({ position: 0, enqueued: true }),
     checkHead: vi.fn().mockResolvedValue('head'),
     refreshHeartbeat: vi.fn().mockResolvedValue(undefined),
     dequeue: vi.fn().mockResolvedValue(undefined),

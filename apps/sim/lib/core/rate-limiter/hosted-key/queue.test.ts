@@ -57,12 +57,12 @@ describe('HostedKeyQueue', () => {
   })
 
   describe('enqueue', () => {
-    it('falls back to enabled=false on Redis error', async () => {
+    it('falls back to enqueued=false on Redis error', async () => {
       mockRedis.pipeline.exec.mockRejectedValueOnce(new Error('connection lost'))
 
       const result = await queue.enqueue(provider, workspaceId, ticketId)
 
-      expect(result.enabled).toBe(false)
+      expect(result.enqueued).toBe(false)
     })
   })
 

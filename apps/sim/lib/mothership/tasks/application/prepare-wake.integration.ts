@@ -8,15 +8,6 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedRedisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  const inheritedRedisUrl = process.env.REDIS_URL
-  /** The real Redis module reads this at import. */
-  if (url) process.env.REDIS_URL = url
-  return { redisUrl: url, inheritedRedisUrl }
-})
-
 vi.mock('next/server', async (original) => ({
   ...(await original<typeof import('next/server')>()),
   after: () => {},
@@ -49,11 +40,9 @@ import { POST as wakeRoute } from '@/app/api/mothership/wake/route'
 afterAll(async () => {
   chatPubSub.dispose()
   await closeRedisConnection()
-  if (inheritedRedisUrl === undefined) Reflect.deleteProperty(process.env, 'REDIS_URL')
-  else process.env.REDIS_URL = inheritedRedisUrl
 })
 
-describe.runIf(Boolean(redisUrl))('task wake retries', () => {
+describe('task wake retries', () => {
   const userId = generateId()
   const workspaceId = generateId()
   const chatIds: string[] = []

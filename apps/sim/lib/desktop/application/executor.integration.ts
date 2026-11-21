@@ -4,16 +4,6 @@
  * completion. Calls are persisted the way the run loop persists a bound run's desktop calls, and
  * Stop runs through the real `requestRunStop`.
  */
-import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
-import { afterAll, describe, expect, it, vi } from 'vitest'
-
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  /** The real Redis module reads this at import. */
-  if (url) process.env.REDIS_URL = url
-  return { redisUrl: url }
-})
 
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -27,11 +17,13 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { eq, inArray, sql } from 'drizzle-orm'
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import type { DbTransaction } from '@/lib/db/types'
 import {
@@ -60,7 +52,7 @@ afterAll(async () => {
   await closeRedisConnection()
 })
 
-describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => {
+describe('desktop background executor protocol', () => {
   const userIds: string[] = []
   const workspaceIds = new Map<string, string>()
   const chatIds: string[] = []
@@ -666,7 +658,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       expect(woken?.status).toBe('success')
       /** The wake-up itself: the confirmation every waiter's pub/sub wakes on, published durably. */
       await expect
-        .poll(() => getRedisClient()?.get(`copilot:tool-confirmation:${toolCallId}`))
+        .poll(() => getRedisClient().get(`copilot:tool-confirmation:${toolCallId}`))
         .toContain('"status":"success"')
       await expect(
         unsealClientToolCompletion(woken?.data, {

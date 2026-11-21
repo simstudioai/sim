@@ -709,8 +709,8 @@ async function runServerSeed(
   const store = getFileDocStore()
   const deadline = Date.now() + FILE_DOC_TIMEOUTS.seedRequestMs
   while (fileDocRooms.get(name) === room && !isDocSeeded(room.doc)) {
-    // Exactly one task across the cluster builds the seed; the others receive it via the stream (the
-    // fix for split-brain seeding).
+    // Exactly one task across the cluster builds the seed (no split-brain); the others receive it
+    // via the stream.
     const token = await store.shouldSeed(name)
     if (token) {
       await seedUnderLock(name, room, token, actor)

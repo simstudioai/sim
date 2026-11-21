@@ -32,12 +32,6 @@ import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const redisUrl = readTestRedisUrl()
-  if (redisUrl) process.env.REDIS_URL = redisUrl
-  return { redisUrl }
-})
 vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -563,7 +557,7 @@ describe('private native Project writes against PostgreSQL and local storage', (
   })
 })
 
-describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
+describe('Project workbench callback across requests', () => {
   check(
     'enforces live callback leases, binds uploads across requests and persists machine source history',
     async () => {

@@ -5,13 +5,9 @@
  */
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  process.env.REDIS_URL = url
+vi.hoisted(() => {
   /** Shorter than the lock heartbeat that refreshes a live buffer. */
   process.env.COPILOT_STREAM_TTL_SECONDS = '5'
-  return { redisUrl: url }
 })
 
 import { sleep } from '@sim/utils/helpers'
@@ -50,7 +46,7 @@ async function appendText(streamId: string, text: string): Promise<number> {
   return seq
 }
 
-describe.runIf(Boolean(redisUrl))('replay buffer lifetime', () => {
+describe('replay buffer lifetime', () => {
   afterAll(async () => {
     await closeRedisConnection()
   })

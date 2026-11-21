@@ -280,6 +280,51 @@ tests:
       - failedTemplate:
           errorPattern: "Required key 'REDIS_URL' is missing for the realtime pod"
 
+  # External Secrets syncs only remoteRefs.app, and a disabled app's env is checked and synced nowhere.
+  - it: does not count an unmapped app.env.REDIS_URL for a realtime-only External Secrets release
+    template: deployment-realtime.yaml
+    set:
+      redis.enabled: false
+      app.enabled: false
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: my-store
+      externalSecrets.remoteRefs.app.BETTER_AUTH_SECRET: sim/app/better-auth-secret
+      externalSecrets.remoteRefs.app.ENCRYPTION_KEY: sim/app/encryption-key
+      externalSecrets.remoteRefs.app.INTERNAL_API_SECRET: sim/app/internal-api-secret
+      externalSecrets.remoteRefs.app.CRON_SECRET: sim/app/cron-secret
+      externalSecrets.remoteRefs.postgresql.password: sim/postgresql/password
+      app.env.BETTER_AUTH_SECRET: ""
+      app.env.ENCRYPTION_KEY: ""
+      app.env.INTERNAL_API_SECRET: ""
+      app.env.CRON_SECRET: ""
+      app.env.REDIS_URL: "redis://redis.example.com:6379"
+    asserts:
+      - failedTemplate:
+          errorPattern: "Required key 'REDIS_URL' is missing for the realtime pod"
+
+  # The realtime deployment skips inlining a default that app.env sets, so app.env masks it.
+  - it: does not count a realtime.envDefaults REDIS_URL that an unsynced app.env.REDIS_URL masks
+    template: deployment-realtime.yaml
+    set:
+      redis.enabled: false
+      app.enabled: false
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: my-store
+      externalSecrets.remoteRefs.app.BETTER_AUTH_SECRET: sim/app/better-auth-secret
+      externalSecrets.remoteRefs.app.ENCRYPTION_KEY: sim/app/encryption-key
+      externalSecrets.remoteRefs.app.INTERNAL_API_SECRET: sim/app/internal-api-secret
+      externalSecrets.remoteRefs.app.CRON_SECRET: sim/app/cron-secret
+      externalSecrets.remoteRefs.postgresql.password: sim/postgresql/password
+      app.env.BETTER_AUTH_SECRET: ""
+      app.env.ENCRYPTION_KEY: ""
+      app.env.INTERNAL_API_SECRET: ""
+      app.env.CRON_SECRET: ""
+      app.env.REDIS_URL: "redis://redis.example.com:6379"
+      realtime.envDefaults.REDIS_URL: "redis://redis.example.com:6379"
+    asserts:
+      - failedTemplate:
+          errorPattern: "Required key 'REDIS_URL' is missing for the realtime pod"
+
   - it: syncs the mapped REDIS_URL for a realtime-only External Secrets release
     template: external-secret-app.yaml
     set:

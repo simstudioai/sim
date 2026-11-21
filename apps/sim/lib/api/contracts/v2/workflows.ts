@@ -2539,7 +2539,12 @@ export const v2CancelWorkflowRunDataSchema = z
         'Whether this request cancelled anything. `false` with an `already_*` reason means the run had already reached that terminal state, so there was nothing to cancel — still `200`, because a no-op is not an error. `false` with any other reason identifies a degraded or incomplete cancellation step.'
       ),
     runId: v2WorkflowRunIdSchema,
-    /** Kept for wire compatibility; always true since Redis is required, except on a paused-run cancellation whose event failed to publish. */
+    /**
+     * Kept for wire compatibility; it no longer reports Redis availability. False only when a
+     * cancellation that must publish its cancellation event (a paused run's, or a reconciled
+     * workflow-group run's) did not: the stop was not confirmed, the pause could not be reconciled,
+     * or the publish failed. True otherwise.
+     */
     redisAvailable: z
       .boolean()
       .describe('Whether the distributed cancellation channel was available.'),

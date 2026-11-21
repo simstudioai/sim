@@ -1,4 +1,3 @@
-import { createMockRedis, redisConfigMockFns } from '@sim/testing'
 import { flushMicrotasks } from '@sim/testing/helpers/async'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -36,19 +35,6 @@ import type {
   ExecutionContext,
   StreamEvent,
 } from '@/lib/mothership/request/types'
-
-beforeEach(() => {
-  // Preview sessions persist through a pipeline; a rejected write would retry on `sleep`, which
-  // the byte-rate cases' fake timers never advance.
-  redisConfigMockFns.mockGetRedisClient.mockReturnValue({
-    ...createMockRedis(),
-    pipeline: vi.fn(() => ({
-      hset: vi.fn(),
-      expire: vi.fn(),
-      exec: vi.fn().mockResolvedValue([]),
-    })),
-  })
-})
 
 const STREAM_ID = 'stream-1'
 const EDIT_TOOL_CALL_ID = 'edit-content-1'

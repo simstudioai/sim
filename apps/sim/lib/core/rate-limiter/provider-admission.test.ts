@@ -259,8 +259,8 @@ describe('provider admission', () => {
     })
     expect(consumeTokens).not.toHaveBeenCalled()
   })
-  it('does not interpret a failed rate_limit_bucket query as a reason to retry provider work', async () => {
-    consumeTokens.mockRejectedValue(new Error('rate_limit_bucket database unavailable'))
+  it('does not interpret a failed rate-limit storage call as a reason to retry provider work', async () => {
+    consumeTokens.mockRejectedValue(new Error('rate-limit storage unavailable'))
     const operation = vi.fn(() => waitForProviderAdmission(INPUT))
     await expect(retryWithExponentialBackoff(operation, { maxRetries: 3 })).rejects.toMatchObject({
       retryable: false,

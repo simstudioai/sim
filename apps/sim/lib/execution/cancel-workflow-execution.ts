@@ -51,8 +51,10 @@ export interface CancelWorkflowExecutionResult {
   success: boolean
   executionId: string
   /**
-   * Kept on the wire for compatibility. Redis is required, so this is true except on a paused-run
-   * cancellation whose cancellation event failed to publish.
+   * Kept on the wire for compatibility; it no longer reports Redis availability. False only when a
+   * cancellation that must publish its cancellation event (a paused run's, or a reconciled
+   * workflow-group run's) did not: the stop was not confirmed, the pause could not be reconciled,
+   * or the publish failed. True otherwise.
    */
   redisAvailable: boolean
   durablyRecorded: boolean
@@ -829,7 +831,6 @@ export async function cancelWorkflowExecution({
         throw new WorkflowRunAlreadyTerminalError({
           executionId,
           executionStatus: execution.status,
-          redisAvailable: true,
           locallyAborted: false,
         })
       }
@@ -1038,7 +1039,6 @@ export async function cancelWorkflowExecution({
         throw new WorkflowRunAlreadyTerminalError({
           executionId,
           executionStatus: competingTerminalStatus,
-          redisAvailable: true,
           locallyAborted: stopSummary.locallyAborted,
         })
       }

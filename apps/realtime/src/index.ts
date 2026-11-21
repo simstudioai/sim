@@ -44,13 +44,10 @@ async function main() {
   let httpHandler: ReturnType<typeof createHttpHandler> | undefined
   httpServer.on('request', (req, res) => httpHandler?.(req, res))
 
-  // Create Socket.IO server with the Redis adapter for cross-pod broadcasting
   const io = await createSocketIOServer(httpServer)
 
-  // Initialize the Redis-backed room manager
   const roomManager = await createRoomManager(io)
 
-  // Initialize the shared Yjs backend for collaborative file docs (Redis Streams).
   await initFileDocStore(env.REDIS_URL)
   registerFileDocPresenceRelay(io)
 

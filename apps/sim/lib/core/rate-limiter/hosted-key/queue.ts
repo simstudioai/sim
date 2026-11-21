@@ -63,7 +63,7 @@ export interface EnqueueResult {
   /** Position at the moment of enqueue (0 = head, you go next). */
   position: number
   /** Whether the ticket was enqueued — false means the enqueue failed and the queue is skipped. */
-  enabled: boolean
+  enqueued: boolean
 }
 
 /**
@@ -99,10 +99,10 @@ export class HostedKeyQueue {
       // results[0] is the rpush response: [err, length]
       const length = results?.[0] && typeof results[0][1] === 'number' ? results[0][1] : 1
       // Position is length - 1 (just-pushed at the tail).
-      return { position: length - 1, enabled: true }
+      return { position: length - 1, enqueued: true }
     } catch (error) {
       logger.warn(`Queue enqueue failed for ${listKey}`, { error: toError(error).message })
-      return { position: 0, enabled: false }
+      return { position: 0, enqueued: false }
     }
   }
 
@@ -115,7 +115,7 @@ export class HostedKeyQueue {
    *  - "head": you're at the head, proceed to consume from the bucket
    *  - "waiting": someone else is the head and they're alive
    *  - "missing": your ticket isn't in the queue at all (e.g. queue list TTL
-   *    expired); caller should re-enqueue or treat as enabled=false
+   *    expired); caller should re-enqueue or treat as enqueued=false
    */
   async checkHead(
     provider: string,

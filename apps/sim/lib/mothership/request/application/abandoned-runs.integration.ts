@@ -11,8 +11,7 @@ import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const { createServer } = await import('node:http')
   const worker = {
     requests: [] as Array<{ path: string; body: Record<string, unknown> }>,
@@ -44,14 +43,11 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const url = readTestRedisUrl()
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
   }
-  if (url) process.env.REDIS_URL = url
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
-  return { redisUrl: url, inheritedEnv, worker: Object.assign(worker, { server }) }
+  return { inheritedEnv, worker: Object.assign(worker, { server }) }
 })
 
 vi.mock('@/lib/auth', () => authMock)
@@ -140,11 +136,6 @@ const organizationId = generateId()
 const chatIds: string[] = []
 const TOOL_NAME = 'get_credentials'
 const TOOL_ARGS = {}
-
-function redis() {
-  const client = getRedisClient()
-  return client
-}
 
 function frameFor(streamId: string, chatId: string) {
   return (seq: number, type: string, payload: unknown) => ({
@@ -334,7 +325,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () => {
+describe('taking over a run whose controller died', () => {
   beforeAll(async () => {
     const now = new Date()
     for (const id of [ownerId, userId]) {
@@ -371,7 +362,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
     featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
     workspacePermission.rechecks = 0
     workspacePermission.beforeRecheck = undefined
-    await redis().del(ABANDONED_RUN_CURSOR_KEY)
+    await getRedisClient().del(ABANDONED_RUN_CURSOR_KEY)
     await db
       .insert(permissions)
       .values({
@@ -417,7 +408,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
     const { chatId, streamId, runId, toolCallId } = await runAbandonedMidTool()
     const before = await storedRun(runId)
     const lock = String(toRecord(before.requestContext).controllerToken)
-    await redis().set(chatStreamLockKey(chatId), lock, 'EX', 60)
+    await getRedisClient().set(chatStreamLockKey(chatId), lock, 'EX', 60)
     try {
       await takeOverAbandonedRuns()
       await sleep(500)
@@ -426,7 +417,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
       expect(await storedRun(runId)).toEqual(before)
       expect((await storedTool(toolCallId)).attempts).toBe(1)
     } finally {
-      await redis().del(chatStreamLockKey(chatId))
+      await getRedisClient().del(chatStreamLockKey(chatId))
       await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
     }
   })
@@ -600,7 +591,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
     ]
     const abandoned = await runAbandonedMidTool({ runId: ids[2] })
     for (const run of live) {
-      await redis().set(chatStreamLockKey(run.chatId), `${run.streamId}\nlive`, 'EX', 60)
+      await getRedisClient().set(chatStreamLockKey(run.chatId), `${run.streamId}\nlive`, 'EX', 60)
     }
     try {
       const bound = { pageSize: 2, maxExamined: 2 }
@@ -610,7 +601,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
       ])
     } finally {
       for (const run of [...live, abandoned]) {
-        await redis().del(chatStreamLockKey(run.chatId))
+        await getRedisClient().del(chatStreamLockKey(run.chatId))
         await db
           .update(copilotRuns)
           .set({ status: 'cancelled' })
@@ -670,7 +661,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
       expect(await storedRun(runId)).toEqual(before)
       expect(requestsFor(streamId, '/api/mothership')).toHaveLength(0)
       expect((await storedTool(toolCallId)).attempts).toBe(1)
-      expect(await redis().get(chatStreamLockKey(chatId))).toBeNull()
+      expect(await getRedisClient().get(chatStreamLockKey(chatId))).toBeNull()
     } finally {
       await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
     }

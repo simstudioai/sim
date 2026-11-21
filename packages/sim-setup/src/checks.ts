@@ -682,6 +682,10 @@ async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
 }
 
 async function checkRedis(sim: EnvFile): Promise<Finding[]> {
+  // With no env file yet the files check already reports it; a Redis failure would only repeat it.
+  if (!sim.exists) {
+    return [{ group: 'live', status: 'skip', message: 'redis: no env file yet' }]
+  }
   const redisUrl = sim.vars.get('REDIS_URL')
   // A Compose install's REDIS_URL comes from the service definition, not the root .env.
   if (!redisUrl && sim.target === 'root') {

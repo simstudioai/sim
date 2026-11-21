@@ -1,3 +1,4 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateShortId } from '@sim/utils/id'
@@ -56,19 +57,9 @@ describe('readThroughSegments', () => {
     const stored = new Map<string, string>()
     const redis = Object.assign(createMockRedis(), {
       mget: async (...keys: string[]) => keys.map((key) => stored.get(key) ?? null),
-      pipeline: () => {
-        const writes: [string, string][] = []
-        const pipeline = {
-          set: (key: string, value: string) => {
-            writes.push([key, value])
-            return pipeline
-          },
-          exec: async () => {
-            for (const [key, value] of writes) stored.set(key, value)
-            return []
-          },
-        }
-        return pipeline
+      set: async (key: string, value: string) => {
+        stored.set(key, value)
+        return 'OK'
       },
     })
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
@@ -76,10 +67,11 @@ describe('readThroughSegments', () => {
   })
 
   it('reads the ledger when a stored entry does not parse, rather than failing', async () => {
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue({
-      mget: async (...keys: string[]) => keys.map(() => '{not json'),
-      pipeline: () => ({ set: () => undefined, exec: async () => [] }),
-    })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(
+      Object.assign(createMockRedis(), {
+        mget: async (...keys: string[]) => keys.map(() => '{not json'),
+      })
+    )
     const entries = await read([day('2026-01-05')])
     expect(fetchRange).toHaveBeenCalledTimes(1)
     expect(totalByDay(entries)).toEqual({ '2026-01-05': 24 })
@@ -96,6 +88,7 @@ describe('readThroughSegments', () => {
   it('serves settled segments from the cache and re-reads only the open hours', async () => {
     const segments = [day('2026-01-01'), ...hours('2026-01-02', 10)]
     await read(segments)
+    await flushMacrotask()
     fetchRange.mockClear()
 
     const entries = await read(segments)
@@ -106,6 +99,7 @@ describe('readThroughSegments', () => {
 
   it('assembles a newly settled day from its cached hours without a ledger read', async () => {
     await read(hours('2026-01-02', 23))
+    await flushMacrotask()
     fetchRange.mockClear()
 
     expect(totalByDay(await read([day('2026-01-02')]))).toEqual({ '2026-01-02': 24 })

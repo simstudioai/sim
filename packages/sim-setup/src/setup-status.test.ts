@@ -66,11 +66,6 @@ describe('setup status', () => {
       { REDIS_URL: 'http://localhost:6379' },
       { detail: expect.stringContaining('must be a valid redis://') },
     ],
-    [
-      'a rediss:// IP without a TLS server name',
-      { REDIS_URL: 'rediss://10.0.0.5:6379' },
-      { detail: expect.stringContaining('REDIS_TLS_SERVERNAME is required') },
-    ],
   ])('fails when Redis is %s', (_, overrides, issue) => {
     const report = buildSetupStatusReport(source({ ...CORE_VALUES, ...overrides }))
 

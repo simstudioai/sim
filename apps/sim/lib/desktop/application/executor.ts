@@ -83,8 +83,7 @@ async function requireBoundDevice(principal: SessionPrincipal, deviceId: string)
 
 /**
  * The device a new turn binds to: the composer's own, but only while the device is registered to
- * this very session as an executor. Anything else leaves the turn to the chat view, as before the
- * executor existed.
+ * this very session as an executor. Anything else leaves the turn to the chat view.
  */
 export async function resolveTurnDesktopDevice(
   principal: SessionPrincipal,

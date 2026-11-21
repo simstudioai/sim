@@ -47,7 +47,7 @@ function v2CancelRunErrorResponse(error: unknown) {
       v2CancelWorkflowRunDataSchema.parse({
         success: false,
         runId: error.executionId,
-        redisAvailable: error.redisAvailable,
+        redisAvailable: true,
         durablyRecorded: false,
         locallyAborted: error.locallyAborted,
         pausedCancelled: false,

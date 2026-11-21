@@ -8,7 +8,7 @@ vi.mock('redis', async () => {
 })
 
 import { FileDocStore, REDIS_AGENT_ORIGIN, REDIS_ORIGIN } from '@/handlers/file-doc-store'
-import { createBacking, fakeRedis } from '@/handlers/fixtures/redis.fixture'
+import { type Backing, createBacking, fakeRedis } from '@/handlers/fixtures/redis.fixture'
 
 const REDIS_URL = 'redis://fake'
 const NAME = 'workspace-file-doc:file-1'
@@ -69,9 +69,15 @@ function seedFor(text: string): Uint8Array {
 
 let stores: FileDocStore[] = []
 
+/** The in-memory Redis behind every fake client; each test starts a fresh one. */
+function currentBacking(): Backing {
+  if (!fakeRedis.backing) throw new Error('backing not initialized')
+  return fakeRedis.backing
+}
+
 /** An existing stream from a relay predating generation markers; modern seeds use seedIfEmpty. */
 function seedLegacyStream(update = updateFor('')): void {
-  const backing = fakeRedis.backing!
+  const backing = currentBacking()
   backing.streams.set(`filedoc:stream:${NAME}`, [
     { id: `${++backing.seq}-0`, message: { u: Buffer.from(update).toString('base64') } },
   ])
@@ -160,19 +166,19 @@ describe('FileDocStore', () => {
       const store = await newStore()
       const doc = new Y.Doc()
       await store.attachRoom(NAME, doc)
-      fakeRedis.backing!.readerClosed = true
+      currentBacking().readerClosed = true
 
-      fakeRedis.backing!.connects = 0 // ignore the two `init` connects; count only recovery attempts
-      const before = fakeRedis.backing!.reads
+      currentBacking().connects = 0 // ignore the two `init` connects; count only recovery attempts
+      const before = currentBacking().reads
       await vi.advanceTimersByTimeAsync(3000)
-      const attempts = fakeRedis.backing!.reads - before
+      const attempts = currentBacking().reads - before
 
       // A fixed 500ms retry manages 6 attempts in this window; backing off (500 → 1s → 2s → …)
       // manages about 3. The ±20% jitter moves the exact count, so assert that it slowed down.
       expect(attempts).toBeGreaterThan(0)
       expect(attempts).toBeLessThanOrEqual(4)
       // …and it tried to bring the connection back rather than leaving the tailer dead forever.
-      expect(fakeRedis.backing!.connects).toBeGreaterThan(0)
+      expect(currentBacking().connects).toBeGreaterThan(0)
       doc.destroy()
     } finally {
       vi.useRealTimers()
@@ -183,7 +189,7 @@ describe('FileDocStore', () => {
     const store = new FileDocStore(REDIS_URL)
     stores.push(store)
     await Promise.all([store.init(), store.init(), store.init()])
-    expect(fakeRedis.backing!.connects).toBe(2)
+    expect(currentBacking().connects).toBe(2)
   })
 
   /**
@@ -199,8 +205,8 @@ describe('FileDocStore', () => {
       await store.init()
       await store.attachRoom(NAME, doc)
       await vi.advanceTimersByTimeAsync(1000)
-      expect(fakeRedis.backing!.idleReads).toBeGreaterThan(0)
-      expect(fakeRedis.backing!.maxInFlightReads).toBe(1)
+      expect(currentBacking().idleReads).toBeGreaterThan(0)
+      expect(currentBacking().maxInFlightReads).toBe(1)
     } finally {
       doc.destroy()
       vi.useRealTimers()
@@ -263,7 +269,7 @@ describe('FileDocStore', () => {
       userId: 'editor',
       connectionId: 'socket-editor',
     })
-    fakeRedis.backing!.streams.delete(`filedoc:stream:${NAME}`)
+    currentBacking().streams.delete(`filedoc:stream:${NAME}`)
 
     await expect(store.publishAndWait(NAME, delta, generation)).rejects.toThrow('replaced')
     await expect(
@@ -278,14 +284,14 @@ describe('FileDocStore', () => {
         connectionId: 'socket-editor',
       })
     ).rejects.toThrow('replaced')
-    expect(fakeRedis.backing!.streams.has(`filedoc:stream:${NAME}`)).toBe(false)
+    expect(currentBacking().streams.has(`filedoc:stream:${NAME}`)).toBe(false)
   })
 
   it('rejects a shared replay if the document generation changes between pages', async () => {
     const store = await newStore()
     await store.seedIfEmpty(NAME, seedFor('old generation'), 10)
-    fakeRedis.backing!.onRange = () => {
-      fakeRedis.backing!.kv.set(`filedoc:generation:${NAME}`, 'new generation')
+    currentBacking().onRange = () => {
+      currentBacking().kv.set(`filedoc:generation:${NAME}`, 'new generation')
     }
     await expect(store.getStreamState(NAME)).rejects.toThrow('replaced')
   })
@@ -293,14 +299,14 @@ describe('FileDocStore', () => {
   it('fails safely when an uncompacted stream exceeds the replay entry budget', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(updateFor('')).toString('base64')
-    fakeRedis.backing!.streams.set(
+    currentBacking().streams.set(
       streamKey,
       Array.from({ length: 2_001 }, (_, index) => ({
         id: `${index + 1}-0`,
         message: { u: noop },
       }))
     )
-    fakeRedis.backing!.seq = 2_001
+    currentBacking().seq = 2_001
     const store = await newStore()
 
     await expect(store.getStreamState(NAME)).rejects.toThrow('replay exceeded its safety limit')
@@ -309,14 +315,14 @@ describe('FileDocStore', () => {
   it('never exposes a partially replayed document when room attachment exceeds its budget', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(updateFor('')).toString('base64')
-    fakeRedis.backing!.streams.set(
+    currentBacking().streams.set(
       streamKey,
       Array.from({ length: 2_001 }, (_, index) => ({
         id: `${index + 1}-0`,
         message: { u: noop },
       }))
     )
-    fakeRedis.backing!.seq = 2_001
+    currentBacking().seq = 2_001
     const store = await newStore()
     const doc = new Y.Doc()
 
@@ -330,24 +336,24 @@ describe('FileDocStore', () => {
   it('recovers from compaction that trims unread pages during replay', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(updateFor('')).toString('base64')
-    fakeRedis.backing!.streams.set(
+    currentBacking().streams.set(
       streamKey,
       Array.from({ length: 8 }, (_, index) => ({
         id: `${index + 1}-0`,
         message: { u: noop },
       }))
     )
-    fakeRedis.backing!.seq = 8
-    fakeRedis.backing!.onRange = (call, key) => {
+    currentBacking().seq = 8
+    currentBacking().onRange = (call, key) => {
       if (call !== 2 || key !== streamKey) return
-      fakeRedis.backing!.streams.set(streamKey, [
+      currentBacking().streams.set(streamKey, [
         {
           id: '9-0',
           message: { u: Buffer.from(updateFor('compacted')).toString('base64'), s: '1' },
         },
       ])
-      fakeRedis.backing!.seq = 9
-      fakeRedis.backing!.onRange = undefined
+      currentBacking().seq = 9
+      currentBacking().onRange = undefined
     }
     const store = await newStore()
 
@@ -370,16 +376,16 @@ describe('FileDocStore', () => {
     for (let i = 1; i <= 8; i++)
       source.getText('body').insert(source.getText('body').length, String(i))
     const snapshot = Y.encodeStateAsUpdate(source)
-    fakeRedis.backing!.streams.set(streamKey, entries.slice())
+    currentBacking().streams.set(streamKey, entries.slice())
     for (let i = 9; i <= 11; i++)
       source.getText('body').insert(source.getText('body').length, String(i))
-    fakeRedis.backing!.onRange = (_call, key, start) => {
+    currentBacking().onRange = (_call, key, start) => {
       if (key !== streamKey || start !== '(4-0') return
-      fakeRedis.backing!.streams.set(streamKey, [
+      currentBacking().streams.set(streamKey, [
         ...entries.slice(7),
         { id: '12-0', message: { u: Buffer.from(snapshot).toString('base64'), s: '1' } },
       ])
-      fakeRedis.backing!.onRange = undefined
+      currentBacking().onRange = undefined
     }
     const store = await newStore()
     const recovered = new Y.Doc()
@@ -411,8 +417,8 @@ describe('FileDocStore', () => {
     }))
     entries.push({ id: '401-0', message: { u: Buffer.from(peerUpdates[0]).toString('base64') } })
     entries.push({ id: '402-0', message: { u: Buffer.from(peerUpdates[1]).toString('base64') } })
-    fakeRedis.backing!.streams.set(streamKey, entries)
-    fakeRedis.backing!.seq = 402
+    currentBacking().streams.set(streamKey, entries)
+    currentBacking().seq = 402
 
     const a = await newStore()
     // This task has integrated only up to entry 400 (all no-ops) — its local doc is empty and lags the
@@ -438,7 +444,7 @@ describe('FileDocStore', () => {
 
     // The appended snapshot entry must carry the snapshot marker, so a fresh catch-up task treats it as
     // edited content (not a bare seed) and persists on last-disconnect.
-    const stream = fakeRedis.backing!.streams.get(streamKey)!
+    const stream = currentBacking().streams.get(streamKey)!
     expect(stream[stream.length - 1].message.s).toBe('1')
   })
 
@@ -461,7 +467,7 @@ describe('FileDocStore', () => {
     // the peer tailer applies it as REDIS_AGENT_ORIGIN — excluded from the relay's edited/persist gate.
     a.publish(NAME, updateFor('agent frame'), true)
     await vi.waitFor(() => expect(origins).toContain(REDIS_AGENT_ORIGIN), { timeout: 2000 })
-    const stream = fakeRedis.backing!.streams.get(streamKey)!
+    const stream = currentBacking().streams.get(streamKey)!
     expect(stream.some((e) => e.message.a === '1')).toBe(true)
     // The normal edit's entry carries no agent marker.
     expect(stream.filter((e) => e.message.a === '1')).toHaveLength(1)
@@ -499,7 +505,7 @@ describe('FileDocStore', () => {
     }
 
     await vi.waitFor(() => {
-      const stream = fakeRedis.backing!.streams.get(`filedoc:stream:${NAME}`)!
+      const stream = currentBacking().streams.get(`filedoc:stream:${NAME}`)!
       expect(stream.length).toBeLessThan(400)
       expect(stream.some((entry) => entry.message.c === '1')).toBe(true)
     })
@@ -515,7 +521,7 @@ describe('FileDocStore', () => {
   it('retries a transient append failure so the edit is not lost from the shared log', async () => {
     seedLegacyStream()
     const a = await newStore()
-    fakeRedis.backing!.failXAdd = 2 // first two xAdd attempts throw; the third must succeed
+    currentBacking().failXAdd = 2 // first two xAdd attempts throw; the third must succeed
     a.publish(NAME, updateFor('resilient'))
     await vi.waitFor(
       async () => {
@@ -542,7 +548,7 @@ describe('FileDocStore', () => {
       connectionId: 'socket-editor',
     })
 
-    expect(fakeRedis.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(2)
+    expect(currentBacking().streams.get(`filedoc:stream:${NAME}`)).toHaveLength(2)
   })
 
   it('does not drop different payloads that reuse an acknowledged update id', async () => {
@@ -558,7 +564,7 @@ describe('FileDocStore', () => {
       connectionId: 'socket-editor',
     })
 
-    expect(fakeRedis.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(3)
+    expect(currentBacking().streams.get(`filedoc:stream:${NAME}`)).toHaveLength(3)
   })
 
   it('preserves the inclusive barrier and delta bytes observed during compaction', async () => {
@@ -570,7 +576,7 @@ describe('FileDocStore', () => {
     room.uncompactedDeltaBytes = 12 * 1024 * 1024
     const retainedBarrierBytes = room.lastDeltaBytes
     const lateUpdate = updateFor('concurrent edit')
-    fakeRedis.backing!.onSnapshot = async () => {
+    currentBacking().onSnapshot = async () => {
       await store.publishAndWait(NAME, lateUpdate)
       await store.catchUp(NAME)
     }
@@ -588,7 +594,7 @@ describe('FileDocStore', () => {
     const replacer = await newStore()
     const oldDoc = docWithText('old')
     oldDoc.getMap('config').set('docId', 'old-generation')
-    fakeRedis.backing!.nextIds = ['1000-0', '1000-1', '1000-2']
+    currentBacking().nextIds = ['1000-0', '1000-1', '1000-2']
     await store.seedIfEmpty(NAME, Y.encodeStateAsUpdate(oldDoc), 10)
     await store.publishAndWait(NAME, updateFor('first edit'), 'old-generation')
     await store.publishAndWait(NAME, updateFor('second edit'), 'old-generation')
@@ -602,31 +608,33 @@ describe('FileDocStore', () => {
     freshDoc.getText('body').insert(5, ' accepted edit')
     const freshEdit = Y.encodeStateAsUpdate(freshDoc, beforeEdit)
     const streamKey = `filedoc:stream:${NAME}`
-    fakeRedis.backing!.nextIds = ['1000-3', '1000-0', '1000-1']
-    fakeRedis.backing!.onSnapshot = async () => {
+    currentBacking().nextIds = ['1000-3', '1000-0', '1000-1']
+    currentBacking().onSnapshot = async () => {
       await replacer.invalidateDocument(NAME, 20)
       await replacer.seedIfEmpty(NAME, freshSeed, 20)
       await replacer.publishClientUpdateAndWait(NAME, 'fresh-edit', freshEdit, 'new-generation', {
         userId: 'editor',
         connectionId: 'socket-editor',
       })
-      expect(fakeRedis.backing!.streams.get(streamKey)?.map((entry) => entry.id)).toEqual([
-        '1000-0',
-        '1000-1',
-      ])
+      expect(
+        currentBacking()
+          .streams.get(streamKey)
+          ?.map((entry) => entry.id)
+      ).toEqual(['1000-0', '1000-1'])
     }
 
     await storeInternals(store).maybeCompact(NAME)
 
-    expect(fakeRedis.backing!.streams.get(streamKey)?.map((entry) => entry.id)).toEqual([
-      '1000-0',
-      '1000-1',
-    ])
+    expect(
+      currentBacking()
+        .streams.get(streamKey)
+        ?.map((entry) => entry.id)
+    ).toEqual(['1000-0', '1000-1'])
     await replacer.publishClientUpdateAndWait(NAME, 'fresh-edit', freshEdit, 'new-generation', {
       userId: 'editor',
       connectionId: 'socket-editor',
     })
-    expect(fakeRedis.backing!.streams.get(streamKey)).toHaveLength(2)
+    expect(currentBacking().streams.get(streamKey)).toHaveLength(2)
     const persisted = await replacer.getStreamState(NAME)
     expect(persisted).not.toBeNull()
     const replayed = new Y.Doc()
@@ -682,7 +690,7 @@ describe('FileDocStore', () => {
     const tokenA = await a.shouldSeed(NAME)
     expect(tokenA).toBeTruthy()
     // Simulate A's lock expiring mid-seed so B also wins the freed lock over a still-empty stream.
-    fakeRedis.backing!.kv.delete(`filedoc:seedlock:${NAME}`)
+    currentBacking().kv.delete(`filedoc:seedlock:${NAME}`)
     const tokenB = await b.shouldSeed(NAME)
     expect(tokenB).toBeTruthy()
     // Both tasks now race to seed with distinct client ids.
@@ -742,8 +750,8 @@ describe('FileDocStore', () => {
     }))
     entries.push({ id: '401-0', message: { u: Buffer.from(peerUpdates[0]).toString('base64') } })
     entries.push({ id: '402-0', message: { u: Buffer.from(peerUpdates[1]).toString('base64') } })
-    fakeRedis.backing!.streams.set(streamKey, entries)
-    fakeRedis.backing!.seq = 402
+    currentBacking().streams.set(streamKey, entries)
+    currentBacking().seq = 402
 
     // Two tasks whose local docs lag at DIFFERENT points (400 and 401): both cross the threshold and
     // compact concurrently. Each must only trim what its own snapshot subsumes, so the union of both

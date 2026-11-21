@@ -125,4 +125,25 @@ describe('createPubSubChannel over Redis', () => {
     subscriber().subscribed[1](null)
     expect(await settled(channel.ready())).toBe(true)
   })
+
+  it('calls a ready listener once the subscription lands, and never one it has released', () => {
+    const channel = openChannel()
+    const kept = vi.fn()
+    const released = vi.fn()
+    channel.onReady(kept)
+    const release = channel.onReady(released)
+    release()
+    expect(channel.isReady()).toBe(false)
+
+    subscriber().emit('ready')
+    subscriber().subscribed[0](null)
+
+    expect(channel.isReady()).toBe(true)
+    expect(kept).toHaveBeenCalledOnce()
+    expect(released).not.toHaveBeenCalled()
+
+    const late = vi.fn()
+    channel.onReady(late)
+    expect(late).toHaveBeenCalledOnce()
+  })
 })

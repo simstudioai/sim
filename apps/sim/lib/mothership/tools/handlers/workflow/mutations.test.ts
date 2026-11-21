@@ -267,7 +267,6 @@ describe('workflow mutation Copilot adapters', () => {
       new WorkflowRunAlreadyTerminalError({
         executionId: 'execution-1',
         executionStatus: 'completed',
-        redisAvailable: true,
         locallyAborted: false,
       })
     )

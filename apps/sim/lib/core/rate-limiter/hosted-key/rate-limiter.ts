@@ -280,7 +280,7 @@ export class HostedKeyRateLimiter {
     const enqueueResult = await this.queue.enqueue(provider, billingActorId, ticketId)
 
     try {
-      // Wait for our turn at the head of the queue (no-op when Redis unavailable).
+      // Wait for our turn at the head of the queue (returns at once when the queue fails open).
       const headStatus = await this.waitForQueueHead(
         provider,
         billingActorId,
@@ -348,7 +348,7 @@ export class HostedKeyRateLimiter {
       }
 
       const totalWaitedMs = Date.now() - startedAt
-      if (enqueueResult.enabled && (enqueueResult.position > 0 || totalWaitedMs > 100)) {
+      if (enqueueResult.enqueued && (enqueueResult.position > 0 || totalWaitedMs > 100)) {
         // Attribute the wait to its dominant cause: queue depth takes precedence (it's
         // reported alongside queuePosition), otherwise the bucket phase that actually slept.
         const reason: 'queue_position' | 'actor_requests' | 'dimension' =
@@ -457,7 +457,7 @@ export class HostedKeyRateLimiter {
    * regular cadence so we don't get reaped as dead. Returns `timedOut: true` once the wait
    * budget is exhausted before reaching the head (see {@link remainingWaitBudgetMs}).
    *
-   * Fails open when a queue Redis call fails (queue.enqueue returns enabled=false and checkHead
+   * Fails open when a queue Redis call fails (queue.enqueue returns enqueued=false and checkHead
    * returns 'head').
    */
   private async waitForQueueHead(
