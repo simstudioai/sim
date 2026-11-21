@@ -939,6 +939,9 @@ function cell(text: string): string {
  */
 function planMarkdown(data: ApplyData, workspaceId: string): string {
   const summary = summarize(data)
+  const [created, updated, deleted] = data.dryRun
+    ? ['to create', 'to update', 'to delete']
+    : ['created', 'updated', 'deleted']
   const changes = data.plan.filter((change) => change.action !== 'noop')
   const rows = changes.slice(0, SUMMARY_ROWS).map((change) => {
     const fields = change.fields?.length ? ` (${cell(change.fields.join(', '))})` : ''
@@ -949,9 +952,7 @@ function planMarkdown(data: ApplyData, workspaceId: string): string {
   const lines = [
     `### Sim workspace ${data.dryRun ? 'plan' : 'apply'}: ${cell(workspaceId)}`,
     '',
-    data.dryRun
-      ? `${summary.created.length} to create, ${summary.updated} to update, ${summary.deleted} to delete, ${summary.unchanged} unchanged; ${summary.errors} error(s), ${summary.warnings} warning(s).`
-      : `${summary.created.length} created, ${summary.updated} updated, ${summary.deleted} deleted, ${summary.unchanged} unchanged; ${summary.errors} error(s), ${summary.warnings} warning(s).`,
+    `${summary.created.length} ${created}, ${summary.updated} ${updated}, ${summary.deleted} ${deleted}, ${summary.unchanged} unchanged; ${summary.errors} error(s), ${summary.warnings} warning(s).`,
     ...(rows.length > 0
       ? [
           '',

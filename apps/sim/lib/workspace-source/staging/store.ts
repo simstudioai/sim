@@ -146,8 +146,8 @@ async function payerStagedBytes(tx: DbTransaction, payer: BillingEntity): Promis
 /**
  * Refuses staging `bytes` more in `billing`'s workspace when the bytes its payer stores, plus those
  * staged in any of the payer's workspaces, plus these would pass the payer's storage quota. Holds the
- * payer's staging lock until `tx` ends, so concurrent staging in another workspace of the same
- * payer cannot pass the check together. A quota that could not be read is a `503`, never
+ * payer's staging lock until `tx` ends (through the insert that follows), so concurrent staging in
+ * another workspace of the same payer cannot pass the check together. A quota that could not be read is a `503`, never
  * {@link SourceStagingFullError}, which a client takes as permanent.
  */
 async function assertStagingWithinQuota(
@@ -225,25 +225,26 @@ export async function stageBlobs(
   const keys = new Map<string, string>()
   const replaced: string[] = []
   let recorded = new Map<string, StagedBlob>()
-  // The payer resolves before the transaction, so its locks are held only for the quota sums.
-  const billing =
+  // The payer resolves before the transaction, so the transaction reads no billing rows. Renewing
+  // adds no bytes, so it needs no quota check and commits on its own: a batch whose new blobs are
+  // refused still keeps the ones it re-sent.
+  const [billing] = await Promise.all([
     fresh.length > 0 && isStorageEnforcementEnabled()
-      ? await resolveStorageBillingContext(target.workspaceId)
-      : null
-  // Renewing adds no bytes, so it needs no quota check and commits on its own: a batch whose new
-  // blobs are refused still keeps the ones it re-sent.
-  if (known.size > 0) {
-    await db
-      .update(workspaceSourceStagedBlob)
-      .set({ expiresAt: expiry(), consumedAt: null })
-      .where(
-        and(
-          inScope(target),
-          inArray(workspaceSourceStagedBlob.sha256, [...known.keys()]),
-          gt(workspaceSourceStagedBlob.expiresAt, new Date())
-        )
-      )
-  }
+      ? resolveStorageBillingContext(target.workspaceId)
+      : null,
+    known.size > 0
+      ? db
+          .update(workspaceSourceStagedBlob)
+          .set({ expiresAt: expiry(), consumedAt: null })
+          .where(
+            and(
+              inScope(target),
+              inArray(workspaceSourceStagedBlob.sha256, [...known.keys()]),
+              gt(workspaceSourceStagedBlob.expiresAt, new Date())
+            )
+          )
+      : null,
+  ])
   try {
     for (const blob of fresh) {
       const key = newStorageKey(target, blob.sha256)
@@ -338,7 +339,7 @@ export async function markStagedBlobsConsumed(
     .where(
       and(
         inScope(target),
-        inArray(workspaceSourceStagedBlob.storageKey, [...new Set(blobs.map((b) => b.storageKey))])
+        inArray(workspaceSourceStagedBlob.sha256, [...new Set(blobs.map((blob) => blob.sha256))])
       )
     )
 }

@@ -8,12 +8,7 @@ import { boundFindingText, type RefusalClass } from '@sim/workflow-code/diagnost
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { type FlatDiagnostic, refusalClass } from '@sim/workspace-code'
 import type { Command } from 'commander'
-import {
-  annotationLine,
-  annotationPath,
-  inGithubActions,
-  printAnnotations,
-} from '#sim-cli/output/github-actions'
+import { annotationLine, annotationPath, printAnnotations } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
 import { askLine } from '#sim-cli/terminal/line-input'
 import type { OutputFormat } from '../../config/index'
@@ -214,13 +209,15 @@ export interface FindingsOutput {
  */
 function findingAnnotation(diagnostic: Diagnostic, dir: string | undefined): string[] {
   if (diagnostic.severity === 'info') return []
-  const file =
-    diagnostic.file === undefined || diagnostic.path !== undefined
-      ? undefined
-      : dir === undefined
-        ? diagnostic.file
-        : annotationPath(dir, diagnostic.file)
-  const site = file === undefined ? {} : { file, line: diagnostic.line, column: diagnostic.column }
+  // A finding in a non-source file (`path`, a JSON path into it) has no line to point at.
+  const located = diagnostic.file !== undefined && diagnostic.path === undefined
+  const site = located
+    ? {
+        file: dir === undefined ? diagnostic.file : annotationPath(dir, diagnostic.file),
+        line: diagnostic.line,
+        column: diagnostic.column,
+      }
+    : {}
   const message = diagnostic.hint
     ? `${diagnostic.message} Hint: ${diagnostic.hint}`
     : diagnostic.message
@@ -258,9 +255,7 @@ export function findingsOutput(
         )
         .map((diagnostic) => boundFindingText(diagnostic))
       if (!machine) printDiagnostics(unseen)
-      if (inGithubActions()) {
-        printAnnotations(unseen.flatMap((diagnostic) => findingAnnotation(diagnostic, dir)))
-      }
+      printAnnotations(unseen.flatMap((diagnostic) => findingAnnotation(diagnostic, dir)))
     },
     result: (diagnostics) =>
       resultDiagnostics(

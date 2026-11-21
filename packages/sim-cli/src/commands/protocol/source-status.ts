@@ -152,7 +152,7 @@ export function printStatusReport<Plan>(
   findings: readonly Diagnostic[]
 ): void {
   const shown = findingsOutput(format, false, report.dir)
-  if (format === 'json' || format === 'yaml') {
+  if (shown.machine) {
     printDocument(format, findings.length > 0 ? { ...report, ...shown.result(findings) } : report)
     return
   }

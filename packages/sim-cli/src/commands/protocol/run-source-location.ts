@@ -10,6 +10,7 @@ import { parseWorkflowLock } from '@sim/workflow-code'
 import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { annotationLine, annotationPath, printAnnotations } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
+import { safeOneLine } from '#sim-cli/output/render'
 import { blockLabel } from './deployed-urls'
 import { readPreviousLock, readSourceJson, readSourceText } from './source-dir'
 
@@ -101,7 +102,7 @@ export async function printRunFailureSite(
   }
   const where = `${site.file}${site.line === null ? '' : `:${site.line}`}`
   const declared = site.declaredAt ? `, declared at ${site.declaredAt}` : ''
-  const text = typeof message === 'string' ? message : 'The block failed.'
+  const text = typeof message === 'string' ? safeOneLine(message) : 'The block failed.'
   printError(`${where}: ${text} (block ${site.block}${declared})`)
   printAnnotations([
     annotationLine('error', text, {

@@ -11,16 +11,14 @@ import { v2Error } from '@/app/api/v2/lib/response'
  * plan inside one slot may run a few workflow reads at once (`kinds/table`), so the bound is per
  * request, not per workflow load.
  */
-const MAX_CONCURRENT_SOURCE_REQUESTS = { read: 4, editor: 4, plan: 4, apply: 4 } as const
+const SOURCE_LANES = {
+  read: { max: 4, noun: 'gets' },
+  editor: { max: 4, noun: 'Code tab reads' },
+  plan: { max: 4, noun: 'plans' },
+  apply: { max: 4, noun: 'applies' },
+} as const
 
-type SourceLane = keyof typeof MAX_CONCURRENT_SOURCE_REQUESTS
-
-const LANE_NOUNS: Record<SourceLane, string> = {
-  read: 'gets',
-  editor: 'Code tab reads',
-  plan: 'plans',
-  apply: 'applies',
-}
+type SourceLane = keyof typeof SOURCE_LANES
 
 const runningSourceRequests: Record<SourceLane, number> = { read: 0, editor: 0, plan: 0, apply: 0 }
 
@@ -31,7 +29,7 @@ const SOURCE_BUSY_HEADERS = { 'Retry-After': '5' }
 class SourceSlotBusyError extends Error {
   constructor(readonly lane: SourceLane) {
     super(
-      `This server is already running ${MAX_CONCURRENT_SOURCE_REQUESTS[lane]} source ${LANE_NOUNS[lane]}; retry shortly.`
+      `This server is already running ${SOURCE_LANES[lane].max} source ${SOURCE_LANES[lane].noun}; retry shortly.`
     )
     this.name = 'SourceSlotBusyError'
   }
@@ -41,7 +39,7 @@ class SourceSlotBusyError extends Error {
  * `useCase`, run in one of its lane's slots (`laneOf`, or the lane it picks for the input): a get,
  * plan or apply (each holds a workflow's or a directory's worth of text, stored state and
  * canonical forms in memory) waits for nothing, and is refused with a `429` (see
- * {@link renderSourceSlotBusy}) when the process already runs {@link MAX_CONCURRENT_SOURCE_REQUESTS}
+ * {@link renderSourceSlotBusy}) when the process already runs {@link SOURCE_LANES}
  * of them, so a burst cannot run the process out of memory.
  */
 export function withSourceSlot<O extends ApplicationOperation, I, R>(
@@ -52,7 +50,7 @@ export function withSourceSlot<O extends ApplicationOperation, I, R>(
     ...useCase,
     async execute(args) {
       const lane = typeof laneOf === 'function' ? laneOf(args.input) : laneOf
-      if (runningSourceRequests[lane] >= MAX_CONCURRENT_SOURCE_REQUESTS[lane]) {
+      if (runningSourceRequests[lane] >= SOURCE_LANES[lane].max) {
         throw new SourceSlotBusyError(lane)
       }
       runningSourceRequests[lane] += 1

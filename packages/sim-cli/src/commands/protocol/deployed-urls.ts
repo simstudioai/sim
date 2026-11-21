@@ -5,6 +5,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { parseWorkflowLock } from '@sim/workflow-code'
 import { printError } from '#sim-cli/output/io'
+import { sanitize } from '#sim-cli/output/render'
 import type { GetWorkflowDeploymentResponse } from '../../generated/v2-api'
 import type { OperationClient } from '../../runtime/called-operations'
 
@@ -69,5 +70,5 @@ export async function deployedUrls(
 
 /** The URLs as one display line: `leadin (hook) https://…, …`. */
 export function deployedUrlsText(urls: readonly DeployedUrl[]): string {
-  return urls.map(({ block, url }) => `${block} ${url}`).join(', ')
+  return urls.map(({ block, url }) => `${sanitize(block)} ${sanitize(url)}`).join(', ')
 }
