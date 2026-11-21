@@ -52,17 +52,17 @@ vi.mock('@/lib/mothership/request/session', () => ({
   },
 }))
 
-import { GET as routeGET } from './route'
+import { GET as routeGET } from '@/app/api/mothership/chat/stream/route'
 
 const GET = (request: NextRequest) => routeGET(request, { params: Promise.resolve({}) })
 
 async function readAllChunks(response: Response): Promise<string[]> {
   const reader = response.body?.getReader()
-  expect(reader).toBeTruthy()
+  if (!reader) throw new Error('Expected a streaming response body')
 
   const chunks: string[] = []
   while (true) {
-    const { done, value } = await reader!.read()
+    const { done, value } = await reader.read()
     if (done) {
       break
     }
@@ -91,7 +91,9 @@ describe('copilot chat stream replay route', () => {
       new OrchestrationError('not_found', 'Chat not found')
     )
     const response = await GET(
-      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&batch=true')
+      new NextRequest(
+        'http://localhost:3000/api/mothership/chat/stream?streamId=stream-1&batch=true'
+      )
     )
     expect(response.status).toBe(404)
     expect(readEvents).not.toHaveBeenCalled()
@@ -120,7 +122,7 @@ describe('copilot chat stream replay route', () => {
 
     const response = await GET(
       new NextRequest(
-        'http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0&batch=true'
+        'http://localhost:3000/api/mothership/chat/stream?streamId=stream-1&after=0&batch=true'
       )
     )
 
@@ -160,14 +162,18 @@ describe('copilot chat stream replay route', () => {
         })
 
       const response = await GET(
-        new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+        new NextRequest(
+          'http://localhost:3000/api/mothership/chat/stream?streamId=stream-1&after=0'
+        )
       )
 
       const chunks = await readAllChunks(response)
       if (elapsedMs >= 3_600_000) {
         expect(chunks.join('')).not.toContain('"type":"complete"')
         const reattached = await GET(
-          new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+          new NextRequest(
+            'http://localhost:3000/api/mothership/chat/stream?streamId=stream-1&after=0'
+          )
         )
         chunks.push(...(await readAllChunks(reattached)))
       }
@@ -193,7 +199,7 @@ describe('copilot chat stream replay route', () => {
       .mockResolvedValueOnce(null)
 
     const response = await GET(
-      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+      new NextRequest('http://localhost:3000/api/mothership/chat/stream?streamId=stream-1&after=0')
     )
 
     const chunks = await readAllChunks(response)
@@ -216,7 +222,7 @@ describe('copilot chat stream replay route', () => {
     })
 
     const response = await GET(
-      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=7')
+      new NextRequest('http://localhost:3000/api/mothership/chat/stream?streamId=stream-1&after=7')
     )
     const body = readAllChunks(response)
     await vi.advanceTimersByTimeAsync(61 * 60 * 1000)
@@ -251,7 +257,7 @@ describe('copilot chat stream replay route', () => {
     ])
 
     const response = await GET(
-      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+      new NextRequest('http://localhost:3000/api/mothership/chat/stream?streamId=stream-1&after=0')
     )
     const text = (await readAllChunks(response)).join('')
 
@@ -277,7 +283,7 @@ describe('copilot chat stream replay route', () => {
 
     const response = await GET(
       new NextRequest(
-        'http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0&batch=true'
+        'http://localhost:3000/api/mothership/chat/stream?streamId=stream-1&after=0&batch=true'
       )
     )
 
@@ -302,7 +308,7 @@ describe('copilot chat stream replay route', () => {
       .mockResolvedValue([event(5, 'past a trimmed gap')])
 
     const response = await GET(
-      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+      new NextRequest('http://localhost:3000/api/mothership/chat/stream?streamId=stream-1&after=0')
     )
     const text = (await readAllChunks(response)).join('')
 

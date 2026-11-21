@@ -197,14 +197,6 @@ describe('loopback is vouched by name, never by resolved address', () => {
   })
 })
 
-describe('allowPrivate — the deprecated blanket flag', () => {
-  const legacy = createEgressPolicy({ insecureHttp: 'whenVouched', allowPrivate: true })
-
-  it('still cannot reach cloud metadata', () => {
-    expect(reason(legacy, 'https://metadata/', '169.254.169.254')).toBe('address-metadata')
-  })
-})
-
 describe('denied ports', () => {
   it.each([
     ['22', 'SSH'],
@@ -333,7 +325,7 @@ describe('createEgressPolicy validates wildcard entries too', () => {
 
 describe('a scope id does not change what an address is', () => {
   it('still reads a zoned metadata address as metadata', () => {
-    const policy = createEgressPolicy({ allowPrivate: true })
+    const policy = createEgressPolicy({ allowedRanges: 'fd00::/8' })
     expect(reason(policy, 'https://pg.corp/', 'fd00:ec2::254%eth0')).toBe('address-metadata')
   })
 })

@@ -138,8 +138,8 @@ kubectl logs -n simstudio deploy/sim-app -c migrations --tail=100
 
 ```bash
 bunx sim-setup update
-# The file that started your install. The Ollama stack is not managed by
-# the CLI at all — see below.
+# The file that started your install. A stack running the Ollama overlay is a
+# docker-compose.prod.yml install — see below.
 COMPOSE_FILE=docker-compose.prod.yml
 # COMPOSE_FILE=docker-compose.local.yml
 docker compose -f "$COMPOSE_FILE" logs migrations
@@ -160,17 +160,14 @@ Inspect the result with `bunx sim-setup logs`, which targets whichever Compose f
 
 Before updating a pinned production install, replace `SIM_VERSION` in `.env` with the chosen release tag. The update command pulls that configured tag; it does not automatically advance a pin.
 
-The CLI detects only those two files. An install started from `docker-compose.ollama.yml` is invisible to it: `update`, `logs`, and `status` report no install, or — in a source checkout that also carries per-application env files — report that checkout's dev install instead. Upgrade that stack directly:
+The CLI detects only those two files. A stack started with the `docker-compose.ollama.yml` overlay is detected as a `docker-compose.prod.yml` install, and `update` upgrades its Sim services through that file alone, keeping `OLLAMA_URL` from `.env`. It does not touch the Ollama container. To refresh the Ollama image as well, run the update with both files:
 
 ```bash
-# That file builds the app, realtime server, and migrator from source, so the
-# upgrade is a checkout plus a rebuild — pulling only refreshes Ollama and
-# Postgres. The Ollama service is profile-scoped, so pass the profile you
-# installed with or Compose silently skips it.
+# The Ollama service is profile-scoped, so pass the profile you installed
+# with or Compose silently skips it.
 PROFILE=gpu  # or cpu
-git pull
-docker compose -f docker-compose.ollama.yml --profile "$PROFILE" build --pull
-docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile "$PROFILE" pull
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile "$PROFILE" up -d
 ```
 
 <Callout type="warn">
@@ -214,17 +211,18 @@ helm rollback sim -n simstudio
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-The local and Ollama stacks build the app from source and ignore `SIM_VERSION`, so roll those back by checking out the previous tag and rebuilding with the file — and, for the Ollama stack, the profile — that started the install:
+A stack running the Ollama overlay rolls back the same way: it reads `SIM_VERSION` from `.env` like any production install. Pass both files and your profile so Compose manages the Ollama service in the same run:
+
+```bash
+PROFILE=gpu  # or cpu
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile "$PROFILE" up -d
+```
+
+The local stack builds the app from source and ignores `SIM_VERSION`, so roll it back by checking out the previous tag and rebuilding:
 
 ```bash
 git checkout "<previous-release-tag>"
-
-# Local stack
 docker compose -f docker-compose.local.yml up -d --build
-
-# Ollama stack — the profile you installed with
-PROFILE=gpu  # or cpu
-docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d --build
 ```
 
 Never roll back below v0.9.33 once account tokens are sealed: those releases cannot read them, and every connected account would have to be reconnected. See [Account token sealing](/platform/self-hosting/security#account-token-sealing).

@@ -3,7 +3,7 @@
  *
  * @example
  * ```tsx
- * import { TagInput, type TagItem } from '../../index'
+ * import { TagInput, type TagItem } from './tag-input'
  *
  * const [items, setItems] = useState<TagItem[]>([])
  *

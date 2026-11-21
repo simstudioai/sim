@@ -2,7 +2,6 @@
   "relative-import": {
     "apps/sim/app/(landing)/knowledge/components/knowledge-product-previews/index.ts": 1,
     "apps/sim/app/api/chat/[identifier]/otp/route.test.ts": 1,
-    "apps/sim/app/api/copilot/chat/stream/route.test.ts": 1,
     "apps/sim/app/api/copilot/confirm/route.test.ts": 1,
     "apps/sim/app/api/copilot/tool-permission/route.test.ts": 1,
     "apps/sim/app/api/cron/renew-subscriptions/route.test.ts": 1,
@@ -660,8 +659,7 @@
     "apps/sim/app/api/workspaces/route.ts": 2
   },
   "bare-route-handler": {
-    "apps/sim/app/api/health/route.ts": 1,
-    "apps/sim/app/api/mothership/chat/stream/route.ts": 1
+    "apps/sim/app/api/health/route.ts": 1
   },
   "log-message-tag": {}
 }

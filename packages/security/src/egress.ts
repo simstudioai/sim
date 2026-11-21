@@ -126,12 +126,6 @@ export interface EgressPolicy {
    * case, not a privilege.
    */
   readonly allowLoopback: boolean
-  /**
-   * Vouches for every private address without naming one. Exists only to
-   * reproduce the deprecated `ALLOW_PRIVATE_DATABASE_HOSTS`, which bypassed the
-   * address check outright; a named allowlist is the supported form.
-   */
-  readonly allowPrivate: boolean
   readonly allowedHosts: readonly HostPattern[]
   readonly allowedRanges: readonly CidrRange[]
 }
@@ -149,8 +143,6 @@ export interface EgressPolicySpec {
   readonly insecureHttp?: InsecureHttpPolicy
   /** Whether loopback destinations are vouched for without being allowlisted. */
   readonly allowLoopback?: boolean
-  /** Whether every private address is vouched for. See {@link EgressPolicy.allowPrivate}. */
-  readonly allowPrivate?: boolean
   /**
    * Names of the settings these lists came from, used verbatim in the error a
    * malformed entry throws so the operator knows which value to fix.
@@ -248,7 +240,6 @@ export function createEgressPolicy(spec: EgressPolicySpec = {}): EgressPolicy {
   return {
     insecureHttp: spec.insecureHttp ?? 'never',
     allowLoopback: spec.allowLoopback ?? false,
-    allowPrivate: spec.allowPrivate ?? false,
     allowedHosts: splitEntries(spec.allowedHosts).map((entry) =>
       parseHostPattern(entry, sourceNames.hosts)
     ),
@@ -464,9 +455,9 @@ type Vouch = 'allowlist' | 'loopback' | null
 /**
  * How the policy vouches for this destination. A hostname match alone is enough
  * — the operator named that host, so wherever it points is their call.
- * Otherwise the loopback carve-out, the legacy blanket private grant, or a
- * resolved address inside an allowlisted range vouches for it, which is why the
- * last two cannot be decided before DNS for a hostname destination.
+ * Otherwise the loopback carve-out or a resolved address inside an allowlisted
+ * range vouches for it, which is why the latter cannot be decided before DNS for
+ * a hostname destination.
  */
 function isVouched(url: URL, address: string | undefined, policy: EgressPolicy): Vouch {
   if (matchesHostAllowlist(url.hostname, policy)) return 'allowlist'
@@ -474,10 +465,7 @@ function isVouched(url: URL, address: string | undefined, policy: EgressPolicy):
   // The operator's explicit grants are checked first, so a deployment that named
   // a loopback range gets more than one that named nothing — the carve-out below
   // is the weaker of the two.
-  if (address !== undefined) {
-    if (policy.allowPrivate && isPrivateIp(unwrapIpv6Brackets(address))) return 'allowlist'
-    if (matchesRangeAllowlist(address, policy)) return 'allowlist'
-  }
+  if (address !== undefined && matchesRangeAllowlist(address, policy)) return 'allowlist'
 
   if (policy.allowLoopback && isLoopbackDestination(url.hostname)) {
     // Before DNS there is no address to judge; evaluateAddress rules later.
@@ -569,8 +557,7 @@ export function evaluateUrl(url: URL, policy: EgressPolicy): EgressDecision {
 
 /**
  * Whether a refusal from {@link evaluateUrl} on a hostname could still be
- * reversed by learning the resolved address — an IP-range entry, or the legacy
- * blanket private grant.
+ * reversed by learning the resolved address, which only an IP-range entry can do.
  *
  * A DNS-resolving caller uses this to decide whether that refusal is final. It
  * is deliberately narrow: a hostname allowlist entry and the loopback carve-out
@@ -579,7 +566,7 @@ export function evaluateUrl(url: URL, policy: EgressPolicy): EgressDecision {
  * hand a lookup to a destination the policy has already turned down.
  */
 export function policyDefersToAddress(policy: EgressPolicy): boolean {
-  return policy.allowedRanges.length > 0 || policy.allowPrivate
+  return policy.allowedRanges.length > 0
 }
 
 /**

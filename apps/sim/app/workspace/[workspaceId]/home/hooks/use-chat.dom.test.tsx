@@ -73,7 +73,7 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => {
   return {
     ...actual,
     requestJson<C extends AnyApiRouteContract>(contract: C, input: ApiClientRequest<C>) {
-      return contract.path === '/api/copilot/chat/abort'
+      return contract.path === '/api/mothership/chat/abort'
         ? actual.requestJson(contract, input)
         : mockRequestJson(contract, input)
     },
@@ -83,7 +83,10 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => {
 import { ToastProvider } from '@sim/emcn'
 import type { ApiClientRequest } from '@/lib/api/client/request'
 import type { AnyApiRouteContract } from '@/lib/api/contracts'
-import type { CopilotChatAbortBody, CopilotChatStopBody } from '@/lib/api/contracts/copilot'
+import type {
+  MothershipChatAbortBody,
+  MothershipChatStopBody,
+} from '@/lib/api/contracts/mothership-chats'
 import {
   resetDeploymentShape,
   resolveDeploymentShape,
@@ -165,8 +168,8 @@ interface NetworkState {
   postBodies: Array<{ message: string; userMessageId?: string; chatId?: string; effort?: string }>
   pendingAdmissions: Map<string, () => void>
   abortSettlements: boolean[]
-  abortBodies: CopilotChatAbortBody[]
-  stopBodies: CopilotChatStopBody[]
+  abortBodies: MothershipChatAbortBody[]
+  stopBodies: MothershipChatStopBody[]
   toolInputPadding?: string
   abortTraceparents: Array<string | null>
 }
@@ -194,8 +197,8 @@ function emptySseResponse(): Response {
 async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = String(input instanceof Request ? input.url : input)
 
-  if (url.includes('/api/copilot/chat/abort')) {
-    const body: CopilotChatAbortBody = JSON.parse(String(init?.body))
+  if (url.includes('/api/mothership/chat/abort')) {
+    const body: MothershipChatAbortBody = JSON.parse(String(init?.body))
     state.abortBodies.push(body)
     if (body.streamId) state.pendingAdmissions.get(body.streamId)?.()
     state.abortTraceparents.push(new Headers(init?.headers).get('traceparent'))
@@ -1280,7 +1283,7 @@ describe('useChat remount send recovery', () => {
     })
     let stopRequested = false
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('/api/copilot/chat/abort')) {
+      if (String(input).includes('/api/mothership/chat/abort')) {
         stopRequested = true
         await stopGate
       }
@@ -1325,7 +1328,7 @@ describe('useChat remount send recovery', () => {
     })
     let stopRequested = false
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('/api/copilot/chat/abort')) {
+      if (String(input).includes('/api/mothership/chat/abort')) {
         stopRequested = true
         await stopGate
       }
@@ -2003,7 +2006,7 @@ describe('useChat remount send recovery', () => {
       let abortAttempts = 0
       vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input instanceof Request ? input.url : input)
-        if (url.includes('/api/copilot/chat/abort')) {
+        if (url.includes('/api/mothership/chat/abort')) {
           abortAttempts += 1
           if (abortAttempts === 1 || retryFails) {
             return Response.json({ error: 'Stop service unavailable' }, { status: 503 })
@@ -2253,7 +2256,7 @@ describe('useChat remount send recovery', () => {
     })
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input instanceof Request ? input.url : input)
-      if (url.includes('/api/copilot/chat/abort')) {
+      if (url.includes('/api/mothership/chat/abort')) {
         state.abortBodies.push(JSON.parse(String(init?.body)))
         return Response.json({ aborted: true, settled: true })
       }
@@ -2381,7 +2384,7 @@ describe('useChat remount send recovery', () => {
       let settleResponse = settled
       vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input instanceof Request ? input.url : input)
-        if (url.includes('/api/copilot/chat/abort')) {
+        if (url.includes('/api/mothership/chat/abort')) {
           state.abortBodies.push(JSON.parse(String(init?.body)))
           return Response.json({ aborted: true, settled: settleResponse })
         }
@@ -2603,7 +2606,7 @@ describe('useChat remount send recovery', () => {
           }
         )
       }
-      if (url.includes('/api/copilot/chat/abort')) {
+      if (url.includes('/api/mothership/chat/abort')) {
         state.abortBodies.push(JSON.parse(String(init?.body)))
         return Response.json({ error: 'Internal error' }, { status: 500 })
       }
@@ -2949,7 +2952,8 @@ describe('useChat remount send recovery', () => {
     await waitFor(() => state.postBodies.length === 1 && first.getResult().isSending)
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       /** The Stop never settles before the reload. */
-      if (String(input).includes('/api/copilot/chat/abort')) return new Promise<Response>(() => {})
+      if (String(input).includes('/api/mothership/chat/abort'))
+        return new Promise<Response>(() => {})
       return fetchStub(input, init)
     })
     useMothershipQueueStore.getState().enqueue('chat-a', {
@@ -3148,7 +3152,7 @@ describe('useChat remount send recovery', () => {
     mockRequestJson.mockImplementation(() => Promise.resolve({ chat: history }))
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (url.includes('/api/copilot/chat/abort')) {
+      if (url.includes('/api/mothership/chat/abort')) {
         state.abortBodies.push(JSON.parse(String(init?.body)))
         return Response.json({ aborted: true, settled: true })
       }

@@ -174,7 +174,7 @@ import { appendEvents } from '@/lib/mothership/request/session/buffer'
 import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
 import { createEvent } from '@/lib/mothership/request/session/event'
 import { StreamRecoveryExhaustedError } from '@/lib/mothership/request/session/turn-failure'
-import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
+import { GET as streamGET } from '@/app/api/mothership/chat/stream/route'
 
 const userId = generateId()
 const workspaceId = generateId()
@@ -315,7 +315,7 @@ async function reconnect(
   const drains = controllers.map(async (controller) => {
     const response = await streamGET(
       new NextRequest(
-        `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=2`,
+        `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&after=2`,
         { signal: controller.signal }
       ),
       { params: Promise.resolve({}) }

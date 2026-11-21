@@ -150,7 +150,7 @@ ingress:
     enabled: true
     secretName: simstudio-tls-secret
 
-# Production-ready features (autoscaling, monitoring, etc.)
+# Production-ready features (autoscaling, disruption budgets, network policy)
 autoscaling:
   enabled: true
   # Realtime scales with the app because Redis is available by default. Set this
@@ -168,13 +168,6 @@ podDisruptionBudget:
   minAvailable: null
   maxUnavailable: 1  
   unhealthyPodEvictionPolicy: AlwaysAllow 
-monitoring:
-  serviceMonitor:
-    enabled: true
-    labels:
-      monitoring: "prometheus"
-    interval: 15s
-
 networkPolicy:
   enabled: true
   # `networkPolicy.egress` is a LIST of NetworkPolicy egress rules. With the

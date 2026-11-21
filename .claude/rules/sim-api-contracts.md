@@ -35,7 +35,7 @@ Placement: the annotation must immediately precede the call or cast; up to three
 
 ```ts
 // boundary-raw-fetch: streaming SSE chunks must be processed as they arrive
-const response = await fetch(`/api/copilot/chat/stream?chatId=${chatId}`, { signal })
+const response = await fetch(`/api/mothership/chat/stream?streamId=${streamId}`, { signal })
 ```
 
 ```ts

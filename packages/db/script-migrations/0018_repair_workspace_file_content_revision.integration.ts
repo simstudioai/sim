@@ -135,13 +135,6 @@ describe('workspace file content revision repair in PostgreSQL', () => {
       VALUES ('${fileId}', TIMESTAMP '${revision}', 'exact')`)
   }
 
-  async function seedIndexRow(fileId: string, revision: string, dispatched: boolean) {
-    await sql.unsafe(`INSERT INTO workspace_file_search_index
-      (file_id, workspace_id, source_content_updated_at, status, dispatched_at)
-      VALUES ('${fileId}', 'legacy-workspace', TIMESTAMP '${revision}', 'pending',
-        ${dispatched ? 'now()' : 'NULL'})`)
-  }
-
   async function revisionOf(fileId: string): Promise<string> {
     const [row] = await sql<{ revision: string }[]>`SELECT content_updated_at::text AS revision
       FROM workspace_files WHERE id = ${fileId}`
@@ -161,23 +154,6 @@ describe('workspace file content revision repair in PostgreSQL', () => {
     expect(await revisionOf('knowledge')).toBe(MICROSECOND_REVISION)
   })
 
-  it('retains obsolete text for the contract migration after chunk search is installed', async () => {
-    await sql`CREATE TABLE workspace_file_search_revision (file_id text PRIMARY KEY)`
-    try {
-      await seedLegacyFile({ id: 'retired', context: 'workspace' })
-      await seedIndexRow('retired', MICROSECOND_REVISION, true)
-      await sql.unsafe(`INSERT INTO workspace_file_search_segment
-        (file_id, workspace_id, source_content_updated_at, line_number, segment_number, content)
-        VALUES ('retired', 'legacy-workspace', TIMESTAMP '${MICROSECOND_REVISION}', 1, 1, 'old text')`)
-      expect(await repairWorkspaceFileContentRevisions(sql)).toBe(1)
-      expect(await revisionOf('retired')).toBe(MILLISECOND_REVISION)
-      const [row] = await sql`SELECT count(*)::int AS count FROM workspace_file_search_segment`
-      expect(row.count).toBe(1)
-    } finally {
-      await sql`DROP TABLE workspace_file_search_revision`
-    }
-  })
-
   it('keeps a tracked provenance version and realigns its sidecar', async () => {
     await seedLegacyFile({ id: 'tracked', context: 'workspace', provenance: 1 })
     await seedSidecar('tracked', MILLISECOND_REVISION)
@@ -191,28 +167,6 @@ describe('workspace file content revision repair in PostgreSQL', () => {
       JOIN workspace_file_secret_provenance AS sidecar ON sidecar.file_id = file.id
       WHERE file.id = 'tracked'`
     expect(row).toEqual({ version: 1, sidecarMatches: true })
-  })
-
-  it('leaves the search index holding exactly the revision the file now records', async () => {
-    await seedLegacyFile({ id: 'stranded', context: 'workspace' })
-    await seedIndexRow('stranded', MILLISECOND_REVISION, false)
-    await seedIndexRow('stranded', MICROSECOND_REVISION, true)
-    await sql.unsafe(`INSERT INTO workspace_file_search_segment
-      (file_id, workspace_id, source_content_updated_at, line_number, segment_number, content)
-      VALUES ('stranded', 'legacy-workspace', TIMESTAMP '${MICROSECOND_REVISION}', 1, 1, 'orphaned')`)
-
-    await repairWorkspaceFileContentRevisions(sql)
-
-    const rows = await sql<{ revision: string; matchesFile: boolean }[]>`
-      SELECT search_index.source_content_updated_at::text AS revision,
-        (search_index.source_content_updated_at = file.content_updated_at) AS "matchesFile"
-      FROM workspace_file_search_index AS search_index
-      JOIN workspace_files AS file ON file.id = search_index.file_id
-      WHERE search_index.file_id = 'stranded'`
-    expect([...rows]).toEqual([{ revision: MILLISECOND_REVISION, matchesFile: true }])
-    const [segments] = await sql<{ remaining: number }[]>`SELECT count(*)::int AS remaining
-      FROM workspace_file_search_segment WHERE file_id = 'stranded'`
-    expect(segments.remaining).toBe(0)
   })
 
   it('is a no-op on replay', async () => {

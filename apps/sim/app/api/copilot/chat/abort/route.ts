@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server'
-import { copilotChatAbortContract } from '@/lib/api/contracts/copilot'
+import { legacyCopilotChatAbortContract } from '@/lib/api/contracts/mothership-chats'
 import {
   defineInternalJsonRoute,
   internalOrchestrationErrorPolicy,
@@ -10,8 +10,13 @@ import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { abortRun, runControlOperations } from '@/lib/mothership/request/application/controls'
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 
+/**
+ * Serves Stop from browser tabs loaded before the abort route moved to
+ * `/api/mothership/chat/abort`, with the same policy and use case as that route.
+ * Delete this route after the next release.
+ */
 const handler = defineInternalJsonRoute({
-  contract: copilotChatAbortContract,
+  contract: legacyCopilotChatAbortContract,
   auth: internalSessionAuth,
   operation: runControlOperations.abort,
   rateLimit: internalRateLimits.none({

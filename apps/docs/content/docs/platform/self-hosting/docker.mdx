@@ -145,28 +145,40 @@ docker compose -f docker-compose.prod.yml up -d
   Container `localhost` is the container itself. The default `http://localhost:11434` does not reach an Ollama server on the host.
 </Callout>
 
-### Development Ollama stack
+### Bundled Ollama
 
-`docker-compose.ollama.yml` builds the app, realtime, and migrations from source. It does not bundle Redis or cron. Without Redis, pub/sub is process-local and CLI pairing approval has no fallback; idempotency and execution-progress storage can fall back to PostgreSQL. Without a scheduler, background jobs do not run.
+`docker-compose.ollama.yml` is an overlay on `docker-compose.prod.yml`: it adds an Ollama server to the production stack and points the app at it, so the stack keeps the published images, the required secrets, Redis, and cron. Ollama is reachable only inside the Compose network, as `ollama:11434`.
 
-Use a server profile together with `setup`; `setup` alone starts no Ollama server and the model setup waits:
+Add the address to `.env` first. The overlay refuses to start without it, and keeping it in `.env` means a later run of `docker-compose.prod.yml` alone still reaches Ollama:
 
 ```bash
-# NVIDIA GPU
-docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
-
-# CPU only
-docker compose -f docker-compose.ollama.yml --profile cpu --profile setup up -d
+OLLAMA_URL=http://ollama:11434
 ```
 
-Setup pulls `gemma3:4b`. To pull another model:
+Start the stack with exactly one server profile:
+
+```bash
+# NVIDIA GPU (requires the NVIDIA Container Toolkit)
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile gpu up -d
+
+# CPU only
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile cpu up -d
+```
+
+Pull the starter model, `gemma3:4b`, once the server is running:
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile setup run --rm model-setup
+```
+
+To pull another model, exec into the server for your profile:
 
 ```bash
 # GPU profile
-docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile gpu exec ollama ollama pull llama3.2
 
 # CPU profile
-docker compose -f docker-compose.ollama.yml exec ollama-cpu ollama pull llama3.2
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile cpu exec ollama-cpu ollama pull llama3.2
 ```
 
 ## LM Studio
@@ -184,13 +196,14 @@ Recreate the app using the file that started your installation:
 
 ```bash
 COMPOSE_FILE=docker-compose.prod.yml
-# For a source-built stack, use docker-compose.local.yml or docker-compose.ollama.yml.
+# For a source-built stack, use docker-compose.local.yml. With bundled Ollama,
+# add the overlay: -f docker-compose.prod.yml -f docker-compose.ollama.yml
 docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
 ```
 
 ## The `sim-setup` CLI
 
-Invoke commands as `bunx sim-setup <command>` unless the package is installed globally. Run `doctor`, `config`, and the wizard from the configuration directory. Lifecycle commands discover running production/local Compose stacks, source checkouts, and Helm releases; Ollama-stack installs are not managed.
+Invoke commands as `bunx sim-setup <command>` unless the package is installed globally. Run `doctor`, `config`, and the wizard from the configuration directory. Lifecycle commands discover running production/local Compose stacks, source checkouts, and Helm releases. A stack started with the Ollama overlay is managed as a production install, through `docker-compose.prod.yml` alone: the CLI acts on the Sim services and leaves the Ollama container untouched.
 
 | Command | Behavior |
 | --- | --- |
