@@ -56,9 +56,9 @@ describe('resolveEnterpriseFeatures', () => {
   it('keeps inbox and session policies on, and everything else off, with nothing configured', () => {
     const state = resolve()
 
-    expect(ENTERPRISE_FEATURE_KEYS.filter((key) => state[key])).toEqual([
-      'sessionPolicies',
+    expect(ENTERPRISE_FEATURE_KEYS.filter((key) => state[key]).sort()).toEqual([
       'inbox',
+      'sessionPolicies',
     ])
   })
 

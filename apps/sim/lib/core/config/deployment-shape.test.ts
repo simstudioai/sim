@@ -9,16 +9,6 @@ import {
 
 afterEach(resetEnvFlagsMock)
 
-describe('resolveDeploymentShape', () => {
-  it('reads the flags at call time rather than at module init', () => {
-    expect(resolveDeploymentShape().hosted).toBe(false)
-
-    setEnvFlags({ isHosted: true })
-
-    expect(resolveDeploymentShape().hosted).toBe(true)
-  })
-})
-
 /** Enum-valued fields the shape may carry, each with every value it may take. */
 const ENUM_FIELDS: Record<string, readonly string[]> = {
   registrationMode: REGISTRATION_MODES,

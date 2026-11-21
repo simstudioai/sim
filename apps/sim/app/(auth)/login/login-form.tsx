@@ -348,18 +348,17 @@ export default function LoginPage({
   }
 
   const ssoEnabled = isSsoEnabled
-  const emailEnabled = emailPasswordEnabled
   const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
-  const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
+  const hasOnlySSO = ssoEnabled && !emailPasswordEnabled && !hasSocial
   const showTopSSO = hasOnlySSO
   const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
-  const showDivider = (emailEnabled || showTopSSO) && showBottomSection
+  const showDivider = (emailPasswordEnabled || showTopSSO) && showBottomSection
 
   const emailFieldErrors = showEmailValidationError && emailErrors.length > 0 ? emailErrors : []
   const passwordFieldErrors = showValidationError && passwordErrors.length > 0 ? passwordErrors : []
   const canSubmit = email.trim().length > 0 && password.length > 0
 
-  if (!emailEnabled && !ssoEnabled && !hasSocial)
+  if (!emailPasswordEnabled && !ssoEnabled && !hasSocial)
     return (
       <AuthHeader
         title='Sign-in is unavailable'
@@ -427,7 +426,7 @@ export default function LoginPage({
           <SSOLoginButton callbackURL={callbackUrl} variant='primary' disabled={isLoading} />
         )}
 
-        {emailEnabled && (
+        {emailPasswordEnabled && (
           <form onSubmit={onSubmit} className='au:space-y-[var(--auth-group-gap)]'>
             <div className='au:space-y-5'>
               <AuthField htmlFor='email' label='Email' errors={emailFieldErrors}>

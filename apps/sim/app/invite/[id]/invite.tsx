@@ -59,9 +59,8 @@ interface SignedOutPromptParams {
  * What a signed-out visitor is offered, as one branch so the copy and the
  * buttons under it can never disagree about what they may do.
  *
- * When `REGISTRATION_MODE` closes self-serve registration only signing in is
- * possible — `/signup` rejects
- * the visitor server-side, so offering it would be a dead end.
+ * When `REGISTRATION_MODE` closes self-serve registration only signing in is possible —
+ * `/signup` rejects the visitor server-side, so offering it would be a dead end.
  */
 function signedOutPrompt({
   registrationDisabled,

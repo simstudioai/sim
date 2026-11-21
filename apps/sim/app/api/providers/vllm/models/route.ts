@@ -35,10 +35,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
       init: { next: { revalidate: 60 } },
     })
 
-    if (!allModels) {
-      logger.warn('vLLM service is not available')
-      return NextResponse.json({ models: [] })
-    }
+    if (!allModels) return NextResponse.json({ models: [] })
 
     const models = filterBlacklistedModels(allModels)
 

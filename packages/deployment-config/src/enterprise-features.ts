@@ -58,10 +58,12 @@ export interface EnterpriseFeatureDefinition<K extends string = string> {
 /**
  * Builds the registry while typing every `implies` entry against the registry's
  * own keys, so a misspelt dependency is a type error rather than a silent no-op.
+ * Keys stay literal; each entry is typed as the full definition, so readers can
+ * reach optional fields without widening.
  */
 function defineEnterpriseFeatures<
   const T extends Record<string, EnterpriseFeatureDefinition<Extract<keyof T, string>>>,
->(features: T): T {
+>(features: T): { readonly [P in keyof T]: EnterpriseFeatureDefinition<Extract<keyof T, string>> } {
   return features
 }
 
@@ -226,7 +228,7 @@ export function resolveEnterpriseFeatures({
 }: ResolveEnterpriseFeaturesInput): EnterpriseFeatureState {
   const state = {} as Record<EnterpriseFeature, boolean>
   for (const key of ENTERPRISE_FEATURE_KEYS) {
-    const feature: EnterpriseFeatureDefinition<EnterpriseFeature> = ENTERPRISE_FEATURES[key]
+    const feature = ENTERPRISE_FEATURES[key]
     const explicit = readFlag(feature.envVar)
     let enabled: boolean
     if (hosted && feature.hostedDefault !== undefined) {
@@ -244,8 +246,7 @@ export function resolveEnterpriseFeatures({
     changed = false
     for (const key of ENTERPRISE_FEATURE_KEYS) {
       if (!state[key]) continue
-      const feature: EnterpriseFeatureDefinition<EnterpriseFeature> = ENTERPRISE_FEATURES[key]
-      for (const implied of feature.implies ?? []) {
+      for (const implied of ENTERPRISE_FEATURES[key].implies ?? []) {
         if (state[implied]) continue
         state[implied] = true
         changed = true

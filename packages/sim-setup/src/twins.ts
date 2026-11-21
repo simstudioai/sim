@@ -2,7 +2,7 @@ import {
   ENTERPRISE_FEATURE_KEYS,
   ENTERPRISE_FEATURES,
   ENTERPRISE_MASTER_ENV_VAR,
-  type EnterpriseFeatureDefinition,
+  type EnterpriseFeature,
 } from '@sim/deployment-config/enterprise-features'
 import { EMAIL_CAPABILITY, inspectCapability } from '@sim/deployment-config/env-capabilities'
 
@@ -13,7 +13,7 @@ import { EMAIL_CAPABILITY, inspectCapability } from '@sim/deployment-config/env-
  *
  * Enterprise features and `REGISTRATION_MODE` have no twins: the browser
  * receives the server-resolved state through the deployment-shape projection.
- * See {@link INERT_ENTERPRISE_BROWSER_FLAGS}.
+ * See {@link INERT_BROWSER_FLAGS}.
  */
 export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
   { server: 'BILLING_ENABLED', client: 'NEXT_PUBLIC_BILLING_ENABLED' },
@@ -24,16 +24,39 @@ export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
 ]
 
 /**
- * The `NEXT_PUBLIC_*` twins enterprise features used to need, which the app no
- * longer reads. `doctor` flags any still set so an operator does not expect one
- * to do anything.
+ * The features that had a `NEXT_PUBLIC_*` twin before the browser read the
+ * projected deployment shape. Frozen history: a feature added since never had one.
  */
-export const INERT_ENTERPRISE_BROWSER_FLAGS: ReadonlyArray<{ client: string; server: string }> = [
-  ENTERPRISE_MASTER_ENV_VAR,
-  ...ENTERPRISE_FEATURE_KEYS.filter((key) => key !== 'sandboxes').map(
-    (key) => ENTERPRISE_FEATURES[key].envVar
-  ),
-].map((server) => ({ server, client: `NEXT_PUBLIC_${server}` }))
+const FORMERLY_TWINNED_FEATURES: readonly EnterpriseFeature[] = [
+  'sso',
+  'scim',
+  'accessControl',
+  'auditLogs',
+  'customBlocks',
+  'usageMonitoring',
+  'dataRetention',
+  'dataDrains',
+  'sessionPolicies',
+  'forking',
+  'organizations',
+  'inbox',
+]
+
+/**
+ * `NEXT_PUBLIC_*` variables the app no longer reads. `doctor` flags any still set
+ * so an operator does not expect one to do anything; `server`, where present,
+ * names the variable that now carries the setting.
+ *
+ * `NEXT_PUBLIC_SANDBOXES_ENABLED` was a setup-written readiness marker, not a
+ * twin: the server verifies the sandbox provider itself, so it has no successor.
+ */
+export const INERT_BROWSER_FLAGS: ReadonlyArray<{ client: string; server?: string }> = [
+  ...[
+    ENTERPRISE_MASTER_ENV_VAR,
+    ...FORMERLY_TWINNED_FEATURES.map((key) => ENTERPRISE_FEATURES[key].envVar),
+  ].map((server) => ({ server, client: `NEXT_PUBLIC_${server}` })),
+  { client: 'NEXT_PUBLIC_SANDBOXES_ENABLED' },
+]
 
 /** Self-host feature unlocks offered by the wizard's Custom flow. */
 export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; hint: string }> = [
@@ -43,7 +66,7 @@ export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; h
     hint: 'enables everything below',
   },
   ...ENTERPRISE_FEATURE_KEYS.filter((key) => ENTERPRISE_FEATURES[key].setupUnlock).map((key) => {
-    const feature: EnterpriseFeatureDefinition = ENTERPRISE_FEATURES[key]
+    const feature = ENTERPRISE_FEATURES[key]
     return { server: feature.envVar, label: feature.label, hint: feature.hint ?? '' }
   }),
 ]

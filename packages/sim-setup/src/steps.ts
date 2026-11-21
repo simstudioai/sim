@@ -1,8 +1,7 @@
 import {
   ENTERPRISE_FEATURE_KEYS,
   ENTERPRISE_FEATURES,
-  type EnterpriseFeature,
-  type EnterpriseFeatureDefinition,
+  ENTERPRISE_MASTER_ENV_VAR,
 } from '@sim/deployment-config/enterprise-features'
 import { createEgressPolicy } from '@sim/security/egress'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -319,7 +318,7 @@ export async function promptUnlocks(vars: Map<string, string>): Promise<Record<s
   })
   if (selected.length === 0) return {}
   const flags = new Set(selected)
-  if (flags.has('ENTERPRISE_ENABLED')) {
+  if (flags.has(ENTERPRISE_MASTER_ENV_VAR)) {
     p.log.info(
       theme.muted(
         'The enterprise switch covers every feature below — pick individual ones only to override it.'
@@ -327,7 +326,7 @@ export async function promptUnlocks(vars: Map<string, string>): Promise<Record<s
     )
   }
   for (const key of ENTERPRISE_FEATURE_KEYS) {
-    const feature: EnterpriseFeatureDefinition<EnterpriseFeature> = ENTERPRISE_FEATURES[key]
+    const feature = ENTERPRISE_FEATURES[key]
     if (!flags.has(feature.envVar)) continue
     for (const implied of feature.implies ?? []) {
       const required = ENTERPRISE_FEATURES[implied]

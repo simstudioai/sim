@@ -2,10 +2,10 @@
  * @vitest-environment jsdom
  * @vitest-environment-options {"url":"https://www.sim.ai"}
  *
- * A document that never ran the root layout: no `window.__ENV`, no
- * `data-public-env` or `data-deployment-shape` attribute, so every `NEXT_PUBLIC_*`
- * read is unset and the env fallback resolves to self-hosted. That is the state a tab keeps after recovering
- * in place from Next's bare 404 shell or `global-error`.
+ * A document that never ran the root layout: no `window.__ENV`, no `data-public-env` or
+ * `data-deployment-shape` attribute, so every `NEXT_PUBLIC_*` read is unset and the env fallback
+ * resolves to self-hosted. That is the state a tab keeps after recovering in place from Next's
+ * bare 404 shell or `global-error`.
  */
 
 import { act, type ReactNode } from 'react'

@@ -34,7 +34,6 @@ describe('env capability status', () => {
       SANDBOX_PROVIDER: 'daytona',
       DAYTONA_API_KEY: 'daytona-secret',
       DAYTONA_FUNCTION_SNAPSHOT_ID: 'mothership-shell:latest',
-      NEXT_PUBLIC_SANDBOXES_ENABLED: 'true',
     })
 
     expect(status.features.sandbox).toMatchObject({

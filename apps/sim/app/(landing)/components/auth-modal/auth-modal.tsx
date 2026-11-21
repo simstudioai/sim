@@ -21,7 +21,6 @@ import { requestJson } from '@/lib/api/client/request'
 import { type AuthProviderStatusResponse, getAuthProvidersContract } from '@/lib/api/contracts/auth'
 import { type SocialSignInProvider, startSocialSignIn } from '@/lib/auth/social-sign-in'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
@@ -84,12 +83,13 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     fetchProviderStatus().then(setProviderStatus)
   }, [])
 
-  const ssoEnabled = isSsoEnabled
+  const shape = useDeploymentShape()
+  const ssoEnabled = shape.features.sso
   const {
     selfServeRegistrationClosed: registrationDisabled,
     emailSignupAllowed,
     emailPasswordAuthEnabled,
-  } = getRegistrationPolicy(useDeploymentShape().registrationMode ?? 'open')
+  } = getRegistrationPolicy(shape.registrationMode ?? 'open')
 
   /**
    * Signup is unavailable when registration is disabled, so the shown view is

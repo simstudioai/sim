@@ -80,14 +80,14 @@ const useDeploymentShapeStore = create<DeploymentShapeState>()(
  * nothing semantically, and it gives {@link useDeploymentShape} a stable reference that
  * memo dependencies can key on.
  */
-let browserEnvFallback: DeploymentShape | null = null
+let browserUnseededShape: DeploymentShape | null = null
 
 function browserFallbackShape(): DeploymentShape {
-  if (!browserEnvFallback) {
+  if (!browserUnseededShape) {
     const projected = deploymentShapeSchema.safeParse(readDeploymentProjection())
-    browserEnvFallback = projected.success ? projected.data : resolveDeploymentShape()
+    browserUnseededShape = projected.success ? projected.data : resolveDeploymentShape()
   }
-  return browserEnvFallback
+  return browserUnseededShape
 }
 
 /**
@@ -155,9 +155,12 @@ export function seedDeploymentShape(shape: DeploymentShape | undefined): void {
   seed(shape)
 }
 
-/** Drops the seeded shape and the cached fallback. For tests; the app never unseeds on purpose. */
+/**
+ * Drops the seeded shape and the cached unseeded shape. For tests; the app never unseeds on
+ * purpose.
+ */
 export function resetDeploymentShape(): void {
-  browserEnvFallback = null
+  browserUnseededShape = null
   useDeploymentShapeStore.getState().reset()
 }
 

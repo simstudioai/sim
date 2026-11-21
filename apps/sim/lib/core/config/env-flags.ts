@@ -15,9 +15,7 @@ import {
   SANDBOX_CAPABILITY,
 } from '@sim/deployment-config/env-capabilities'
 import {
-  DEPRECATED_REGISTRATION_ENV_VARS,
   getRegistrationPolicy,
-  REGISTRATION_MODE_ENV_VAR,
   type RegistrationMode,
   resolveRegistrationMode,
 } from '@sim/deployment-config/registration'
@@ -233,20 +231,7 @@ export const registrationMode: RegistrationMode =
     : (readProjectedRegistrationMode() ?? 'open')
 
 function resolveServerRegistrationMode(): RegistrationMode {
-  const { mode, warnings } = resolveRegistrationMode({
-    mode: getEnv(REGISTRATION_MODE_ENV_VAR),
-    legacy: {
-      disableRegistration: getEnv(DEPRECATED_REGISTRATION_ENV_VARS.disableRegistration),
-      disableEmailSignup: getEnv(DEPRECATED_REGISTRATION_ENV_VARS.disableEmailSignup),
-      emailPasswordSignupEnabled: getEnv(
-        DEPRECATED_REGISTRATION_ENV_VARS.emailPasswordSignupEnabled
-      ),
-      /** No longer a browser variable, but a server can still read it from its environment. */
-      publicEmailPasswordSignupEnabled: getEnv(
-        DEPRECATED_REGISTRATION_ENV_VARS.publicEmailPasswordSignupEnabled
-      ),
-    },
-  })
+  const { mode, warnings } = resolveRegistrationMode(getEnv)
   if (warnings.length > 0) {
     import('@sim/logger')
       .then(({ createLogger }) => {

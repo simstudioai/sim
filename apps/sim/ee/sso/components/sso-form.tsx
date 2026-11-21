@@ -107,8 +107,6 @@ function SSOFormContent({
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
 
-  const emailEnabled = emailPasswordEnabled
-
   /**
    * Derived during render rather than seeded into state from an effect: the
    * first painted frame otherwise carries the app-entry default, so the
@@ -223,7 +221,7 @@ function SSOFormContent({
           Continue with SSO
         </AuthSubmitButton>
       </form>
-      {emailEnabled && (
+      {emailPasswordEnabled && (
         <>
           <AuthDivider label='Or' />
           <AuthLinkButton href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`} fullWidth>
@@ -231,7 +229,7 @@ function SSOFormContent({
           </AuthLinkButton>
         </>
       )}
-      {emailEnabled && !registrationDisabled && (
+      {emailPasswordEnabled && !registrationDisabled && (
         <AuthNavPrompt
           prompt="Don't have an account?"
           href={`/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`}

@@ -101,7 +101,7 @@ describe('setup coherence checks', () => {
       group: 'coherence',
       status: 'warn',
       message:
-        'NEXT_PUBLIC_SSO_ENABLED is set but no longer does anything — the browser reads enterprise features from the server',
+        'NEXT_PUBLIC_SSO_ENABLED is set but no longer does anything — the browser reads this from the server',
       fix: 'set SSO_ENABLED=true and remove NEXT_PUBLIC_SSO_ENABLED',
     })
   })
