@@ -39,6 +39,7 @@ vi.unmock('@/lib/core/config/env')
 vi.unmock('@/lib/core/config/env-flags')
 
 import {
+  getRegistrationMode,
   isAccessControlEnabled,
   isAuditLogsEnabled,
   isEmailPasswordAuthEnabled,
@@ -49,7 +50,6 @@ import {
   isSelfServeRegistrationClosed,
   isSessionPoliciesEnabled,
   isSsoEnabled,
-  registrationMode,
 } from '@/lib/core/config/env-flags'
 
 describe('browser enterprise flags', () => {
@@ -69,7 +69,7 @@ describe('browser enterprise flags', () => {
 
 describe('browser registration flags', () => {
   it('take the projected registration mode over the browser environment', () => {
-    expect(registrationMode).toBe('closed-no-email')
+    expect(getRegistrationMode()).toBe('closed-no-email')
     expect(isSelfServeRegistrationClosed).toBe(true)
     expect(isEmailSignupAllowed).toBe(false)
     expect(isEmailPasswordAuthEnabled).toBe(false)

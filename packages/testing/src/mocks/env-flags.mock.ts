@@ -144,6 +144,7 @@ export const envFlagsMockFns = {
   getBlacklistedProvidersFromEnv: vi.fn<() => string[]>(() => []),
   getAllowedMcpDomainsFromEnv: vi.fn<() => string[] | null>(() => null),
   getCostMultiplier: vi.fn<() => number>(() => 1),
+  getRegistrationMode: vi.fn<() => RegistrationMode>(() => envFlagsState.registrationMode),
 }
 
 /**
@@ -173,6 +174,9 @@ export function resetEnvFlagsMock(): void {
   envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReset().mockImplementation(() => [])
   envFlagsMockFns.getAllowedMcpDomainsFromEnv.mockReset().mockImplementation(() => null)
   envFlagsMockFns.getCostMultiplier.mockReset().mockImplementation(() => 1)
+  envFlagsMockFns.getRegistrationMode
+    .mockReset()
+    .mockImplementation(() => envFlagsState.registrationMode)
   envFlagsMockFns.getEgressAllowedHosts
     .mockReset()
     .mockImplementation(() =>

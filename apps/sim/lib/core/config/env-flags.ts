@@ -215,6 +215,11 @@ if (env.EGRESS_ALLOWED_HOSTS || env.EGRESS_ALLOWED_IP_RANGES) {
     })
 }
 
+const resolvedRegistrationMode: RegistrationMode =
+  typeof window === 'undefined'
+    ? resolveServerRegistrationMode()
+    : (readProjectedRegistrationMode() ?? 'open')
+
 /**
  * Who may create an account and whether email/password and email OTP work at all
  * (`REGISTRATION_MODE`; see `@sim/deployment-config/registration` for the modes).
@@ -225,10 +230,9 @@ if (env.EGRESS_ALLOWED_HOSTS || env.EGRESS_ALLOWED_IP_RANGES) {
  * without one (a bare 404 or `global-error` shell) reads `open`, which only affects
  * which links render — the server still refuses.
  */
-export const registrationMode: RegistrationMode =
-  typeof window === 'undefined'
-    ? resolveServerRegistrationMode()
-    : (readProjectedRegistrationMode() ?? 'open')
+export function getRegistrationMode(): RegistrationMode {
+  return resolvedRegistrationMode
+}
 
 function resolveServerRegistrationMode(): RegistrationMode {
   const { mode, warnings } = resolveRegistrationMode(getEnv)
@@ -249,7 +253,7 @@ function resolveServerRegistrationMode(): RegistrationMode {
   return mode
 }
 
-const registrationPolicy = getRegistrationPolicy(registrationMode)
+const registrationPolicy = getRegistrationPolicy(resolvedRegistrationMode)
 
 /**
  * No self-serve account creation by any method, social included (`closed`,

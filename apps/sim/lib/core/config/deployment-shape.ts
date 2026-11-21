@@ -8,6 +8,7 @@ import {
 } from '@/lib/api/contracts/workspaces'
 import { readDeploymentProjection } from '@/lib/core/config/deployment-projection'
 import {
+  getRegistrationMode,
   isAccessControlEnabled,
   isAuditLogsEnabled,
   isAzureConfigured,
@@ -27,7 +28,6 @@ import {
   isSessionPoliciesEnabled,
   isSsoEnabled,
   isUsageMonitoringEnabled,
-  registrationMode,
 } from '@/lib/core/config/env-flags'
 
 /**
@@ -107,7 +107,7 @@ export function resolveDeploymentShape(): DeploymentShape {
     chatEnabled: isChatEnabled,
     azureConfigured: isAzureConfigured,
     cohereConfigured: isCohereConfigured,
-    registrationMode,
+    registrationMode: getRegistrationMode(),
     features: {
       accessControl: isAccessControlEnabled,
       auditLogs: isAuditLogsEnabled,
