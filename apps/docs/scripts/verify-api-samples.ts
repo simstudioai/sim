@@ -120,6 +120,9 @@ const captured: Array<{ method?: string; url: string; body: string; contentType:
 const binary = new Uint8Array([0, 255, 254, 65, 128, 10])
 const eventStream = 'data: {"ok":true}\n\n'
 const server = createServer(async (request, response) => {
+  // A `spawnSync` syntax check blocks the loop past the idle keep-alive timeout, so the server
+  // closes a pooled socket just as the next request reuses it: Bun's fetch then reports ECONNRESET.
+  response.setHeader('Connection', 'close')
   const chunks: Buffer[] = []
   let bytes = 0
   for await (const chunk of request) {
