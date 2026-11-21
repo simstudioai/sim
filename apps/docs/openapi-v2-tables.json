@@ -981,9 +981,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort, filters and table reference (its id or its name, as the first page used); only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort, filters and table reference (its id or its name, as the first page used); only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -7811,7 +7811,7 @@
             "maximum": 1000
           },
           "cursor": {
-            "description": "Opaque cursor returned by the previous query page.",
+            "description": "Opaque cursor returned by the previous query page. Send it back under the same table reference (its id or its name, as the first page used).",
             "type": "string",
             "minLength": 1
           },

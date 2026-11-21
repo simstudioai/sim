@@ -897,7 +897,7 @@ export const v2TableRowsQuerySchema = tableRowsQueryBaseSchema
       .min(1, 'cursor must be a non-empty token')
       .optional()
       .describe(
-        'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.'
+        'Opaque cursor from the previous page. Send it back with the same sort, filters and table reference (its id or its name, as the first page used); only `limit` may change. Change anything else and pagination must restart without a cursor.'
       ),
     includeRunState: booleanQueryFlagSchema
       .optional()
@@ -972,7 +972,9 @@ export const v2QueryRowsBodySchema = z
       .string()
       .min(1, 'cursor must be a non-empty token')
       .optional()
-      .describe('Opaque cursor returned by the previous query page.'),
+      .describe(
+        'Opaque cursor returned by the previous query page. Send it back under the same table reference (its id or its name, as the first page used).'
+      ),
     includeRunState: z
       .boolean()
       .optional()

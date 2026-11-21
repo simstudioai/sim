@@ -27003,7 +27003,7 @@ export const V2_OPERATIONS = {
       cursor: {
         kind: 'string',
         describe:
-          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+          'Opaque cursor from the previous page. Send it back with the same sort, filters and table reference (its id or its name, as the first page used); only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
       includeRunState: {
         kind: 'boolean',
@@ -28055,7 +28055,11 @@ export const V2_OPERATIONS = {
         describe:
           'Maximum rows per page. `0` requests all matches, subject to a 5 MiB row-data ceiling; larger results return `400` with `TABLE_QUERY_RESULT_TOO_LARGE`. Use paged queries or an export for larger results.',
       },
-      cursor: { kind: 'string', describe: 'Opaque cursor returned by the previous query page.' },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor returned by the previous query page. Send it back under the same table reference (its id or its name, as the first page used).',
+      },
       includeRunState: {
         kind: 'boolean',
         default: false,
