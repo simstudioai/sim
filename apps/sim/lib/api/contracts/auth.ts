@@ -12,6 +12,11 @@ export const authProviderStatusResponseSchema = z.object({
   githubAvailable: z.boolean(),
   googleAvailable: z.boolean(),
   microsoftAvailable: z.boolean(),
+  /**
+   * Whether `REGISTRATION_MODE` closes self-serve registration. The app reads the
+   * deployment shape instead; kept so a tab still running an older client keeps
+   * parsing this response during a rolling deploy.
+   */
   registrationDisabled: z.boolean(),
 })
 

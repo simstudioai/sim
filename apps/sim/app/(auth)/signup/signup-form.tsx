@@ -9,7 +9,7 @@ import { trackGoogleEvent } from '@/lib/analytics/google'
 import { client, useSession } from '@/lib/auth/client'
 import { DISPOSABLE_EMAIL_ERROR_CODE, DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth/constants'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
-import { getEnv, isFalsy } from '@/lib/core/config/env'
+import { getEnv } from '@/lib/core/config/env'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -95,6 +95,7 @@ interface SignupFormProps {
   githubAvailable: boolean
   googleAvailable: boolean
   microsoftAvailable: boolean
+  /** Whether `REGISTRATION_MODE` lets new accounts sign up with email/password or email OTP. */
   emailSignupEnabled: boolean
   /** Server-derived: verification is enabled AND a mail provider is configured. */
   emailVerificationEnabled: boolean
@@ -387,8 +388,7 @@ function SignupFormContent({
   }
 
   const ssoEnabled = isSsoEnabled
-  const emailEnabled =
-    !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && emailSignupEnabled
+  const emailEnabled = emailSignupEnabled
   const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
   const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
   const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)

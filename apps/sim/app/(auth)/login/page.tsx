@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
+import { isEmailPasswordAuthEnabled } from '@/lib/core/config/env-flags'
 import { getOAuthProviderStatus } from '@/app/(auth)/components/oauth-provider-checker'
 import LoginLoading from '@/app/(auth)/login/loading'
 import LoginForm from '@/app/(auth)/login/login-form'
@@ -19,6 +20,7 @@ export default async function LoginPage() {
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}
         microsoftAvailable={microsoftAvailable}
+        emailPasswordEnabled={isEmailPasswordAuthEnabled}
       />
     </Suspense>
   )

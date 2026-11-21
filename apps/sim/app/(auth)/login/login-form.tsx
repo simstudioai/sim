@@ -9,7 +9,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { forgetPasswordContract } from '@/lib/api/contracts'
 import { client } from '@/lib/auth/client'
-import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -79,10 +78,13 @@ export default function LoginPage({
   githubAvailable,
   googleAvailable,
   microsoftAvailable,
+  emailPasswordEnabled,
 }: {
   githubAvailable: boolean
   googleAvailable: boolean
   microsoftAvailable: boolean
+  /** Whether `REGISTRATION_MODE` leaves email/password and email OTP sign-in on. */
+  emailPasswordEnabled: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -346,7 +348,7 @@ export default function LoginPage({
   }
 
   const ssoEnabled = isSsoEnabled
-  const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
+  const emailEnabled = emailPasswordEnabled
   const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
   const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
   const showTopSSO = hasOnlySSO

@@ -25,6 +25,7 @@ import {
   type EnterpriseFeature,
   type EnterpriseFeatureState,
 } from '@sim/deployment-config/enterprise-features'
+import { isRegistrationMode, type RegistrationMode } from '@sim/deployment-config/registration'
 
 /** The `<html>` attribute holding the server-resolved deployment shape as JSON. */
 export const DEPLOYMENT_SHAPE_ATTRIBUTE = 'data-deployment-shape'
@@ -77,4 +78,13 @@ export function readProjectedEnterpriseFeatures(
     state[key] = typeof value === 'boolean' ? value : fallback[key]
   }
   return state
+}
+
+/**
+ * The projected registration mode, or `null` when there is no projection or it
+ * does not carry a recognized mode.
+ */
+export function readProjectedRegistrationMode(): RegistrationMode | null {
+  const mode = readDeploymentProjection()?.registrationMode
+  return isRegistrationMode(mode) ? mode : null
 }

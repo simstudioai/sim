@@ -35,6 +35,10 @@
       "default": "./src/integration-totals.ts"
     },
     "./integrations.json": "./src/integrations.json",
+    "./registration": {
+      "types": "./src/registration.ts",
+      "default": "./src/registration.ts"
+    },
     "./service-account-metadata": {
       "types": "./src/service-account-metadata.ts",
       "default": "./src/service-account-metadata.ts"

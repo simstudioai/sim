@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { isAwsMarketplaceEnabled } from '@/lib/billing/aws-marketplace/config'
 import { AWS_MARKETPLACE_ONBOARDING_ERRORS } from '@/lib/billing/aws-marketplace/onboarding'
-import { isRegistrationDisabled } from '@/lib/core/config/env-flags'
+import { isSelfServeRegistrationClosed } from '@/lib/core/config/env-flags'
 import { AwsMarketplaceOnboarding } from '@/app/marketplace/aws/aws-marketplace-onboarding'
 
 export const metadata: Metadata = {
@@ -24,7 +24,7 @@ export default async function AwsMarketplacePage({ searchParams }: AwsMarketplac
   return (
     <AwsMarketplaceOnboarding
       registrationError={registrationError}
-      registrationDisabled={isRegistrationDisabled}
+      registrationDisabled={isSelfServeRegistrationClosed}
     />
   )
 }

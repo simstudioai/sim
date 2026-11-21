@@ -32,7 +32,7 @@ const FRIENDLY: Record<string, string> = {
   access_denied: 'You declined the request at the provider, so nothing was connected.',
   oAuth_code_missing: 'The provider didn’t return a valid response. Please try again.',
   /**
-   * DISABLE_REGISTRATION rejecting a first-time social sign-in. Better Auth
+   * A closed `REGISTRATION_MODE` rejecting a first-time social sign-in. Better Auth
    * reports this as `signup disabled`, which it slugs into the `error` param.
    * Without a message here the visitor is told to "try again", which can never
    * succeed.

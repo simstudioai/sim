@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { getRegistrationPolicy } from '@sim/deployment-config/registration'
 import {
   cn,
   Loader,
@@ -19,7 +20,7 @@ import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { type AuthProviderStatusResponse, getAuthProvidersContract } from '@/lib/api/contracts/auth'
 import { type SocialSignInProvider, startSocialSignIn } from '@/lib/auth/social-sign-in'
-import { getEnv, isFalsy } from '@/lib/core/config/env'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { captureClientEvent } from '@/lib/posthog/client'
@@ -36,15 +37,15 @@ interface AuthModalProps {
   source: PostHogEventMap['auth_modal_opened']['source']
 }
 
-type ProviderStatus = AuthProviderStatusResponse
+/** Registration comes from the deployment shape; the response's `registrationDisabled` is for older clients. */
+type ProviderStatus = Omit<AuthProviderStatusResponse, 'registrationDisabled'>
 
-let fetchPromise: Promise<AuthProviderStatusResponse> | null = null
+let fetchPromise: Promise<ProviderStatus> | null = null
 
 const FALLBACK_STATUS: ProviderStatus = {
   githubAvailable: false,
   googleAvailable: false,
   microsoftAvailable: false,
-  registrationDisabled: false,
 }
 
 const SOCIAL_BTN =
@@ -60,11 +61,10 @@ function focusAuthDialog(event: Event): void {
 function fetchProviderStatus(): Promise<ProviderStatus> {
   if (fetchPromise) return fetchPromise
   fetchPromise = requestJson(getAuthProvidersContract, {})
-    .then(({ githubAvailable, googleAvailable, microsoftAvailable, registrationDisabled }) => ({
+    .then(({ githubAvailable, googleAvailable, microsoftAvailable }) => ({
       githubAvailable,
       googleAvailable,
       microsoftAvailable,
-      registrationDisabled,
     }))
     .catch(() => {
       fetchPromise = null
@@ -85,14 +85,16 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   }, [])
 
   const ssoEnabled = isSsoEnabled
-  const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
+  const {
+    selfServeRegistrationClosed: registrationDisabled,
+    emailPasswordAuthEnabled: emailEnabled,
+  } = getRegistrationPolicy(useDeploymentShape().registrationMode ?? 'open')
 
   /**
    * Signup is unavailable when registration is disabled, so the shown view is
    * clamped to login rather than mirrored into state through an effect.
    */
-  const effectiveView: AuthView =
-    view === 'signup' && providerStatus?.registrationDisabled ? 'login' : view
+  const effectiveView: AuthView = view === 'signup' && registrationDisabled ? 'login' : view
 
   /**
    * Tracks whether the visitor still wants the modal open. Cleared on dismiss so a
@@ -107,11 +109,11 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     if (!hasModalContent) {
       /** Close the loader (no-op if never opened) and route out; disabled registration sends signup to login. */
       setOpen(false)
-      router.push(status.registrationDisabled || defaultView === 'login' ? '/login' : '/signup')
+      router.push(registrationDisabled || defaultView === 'login' ? '/login' : '/signup')
       return
     }
     const initialView: AuthView =
-      defaultView === 'signup' && status.registrationDisabled ? 'login' : defaultView
+      defaultView === 'signup' && registrationDisabled ? 'login' : defaultView
     setOpen(true)
     setView(initialView)
     captureClientEvent('auth_modal_opened', { view: initialView, source })
@@ -290,7 +292,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     ? "Don't have an account? "
                     : 'Already have an account? '}
                 </span>
-                {effectiveView === 'login' && providerStatus.registrationDisabled ? (
+                {effectiveView === 'login' && registrationDisabled ? (
                   <span className='text-[var(--text-muted)]'>Registration is disabled</span>
                 ) : (
                   <button

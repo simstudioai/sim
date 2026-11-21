@@ -14,6 +14,7 @@ vi.hoisted(() => {
   vi.stubEnv('NEXT_PUBLIC_BILLING_ENABLED', '')
   vi.stubEnv('SSO_ENABLED', 'false')
   vi.stubEnv('INBOX_ENABLED', 'true')
+  vi.stubEnv('REGISTRATION_MODE', 'open')
   document.documentElement.setAttribute(
     'data-deployment-shape',
     JSON.stringify({
@@ -22,6 +23,7 @@ vi.hoisted(() => {
       chatEnabled: true,
       azureConfigured: false,
       cohereConfigured: false,
+      registrationMode: 'closed-no-email',
       features: {
         sso: true,
         accessControl: true,
@@ -39,11 +41,15 @@ vi.unmock('@/lib/core/config/env-flags')
 import {
   isAccessControlEnabled,
   isAuditLogsEnabled,
+  isEmailPasswordAuthEnabled,
+  isEmailSignupAllowed,
   isInboxEnabled,
   isOrganizationsEnabled,
   isSandboxesEnabled,
+  isSelfServeRegistrationClosed,
   isSessionPoliciesEnabled,
   isSsoEnabled,
+  registrationMode,
 } from '@/lib/core/config/env-flags'
 
 describe('browser enterprise flags', () => {
@@ -58,5 +64,14 @@ describe('browser enterprise flags', () => {
   it('fill features the projection omits from the registry defaults', () => {
     expect(isSessionPoliciesEnabled).toBe(true)
     expect(isAuditLogsEnabled).toBe(false)
+  })
+})
+
+describe('browser registration flags', () => {
+  it('take the projected registration mode over the browser environment', () => {
+    expect(registrationMode).toBe('closed-no-email')
+    expect(isSelfServeRegistrationClosed).toBe(true)
+    expect(isEmailSignupAllowed).toBe(false)
+    expect(isEmailPasswordAuthEnabled).toBe(false)
   })
 })

@@ -1,7 +1,11 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { isRegistrationDisabled, isSsoEnabled } from '@/lib/core/config/env-flags'
+import {
+  isEmailPasswordAuthEnabled,
+  isSelfServeRegistrationClosed,
+  isSsoEnabled,
+} from '@/lib/core/config/env-flags'
 import SSOLoading from '@/app/(auth)/sso/loading'
 import SSOForm from '@/ee/sso/components/sso-form'
 
@@ -18,7 +22,10 @@ export default async function SSOPage() {
 
   return (
     <Suspense fallback={<SSOLoading />}>
-      <SSOForm registrationDisabled={isRegistrationDisabled} />
+      <SSOForm
+        registrationDisabled={isSelfServeRegistrationClosed}
+        emailPasswordEnabled={isEmailPasswordAuthEnabled}
+      />
     </Suspense>
   )
 }

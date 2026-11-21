@@ -121,6 +121,81 @@ describe('setup coherence checks', () => {
   })
 })
 
+describe('registration mode checks', () => {
+  function registrationFindings(findings: Awaited<ReturnType<typeof runChecks>>) {
+    return findings.filter((finding) =>
+      /REGISTRATION|EMAIL_SIGNUP|EMAIL_PASSWORD_SIGNUP/.test(finding.message)
+    )
+  }
+
+  it('accepts a valid REGISTRATION_MODE alone', async () => {
+    const findings = await runChecks(rootContext({ REGISTRATION_MODE: 'closed' }), ['coherence'])
+
+    expect(registrationFindings(findings)).toEqual([])
+  })
+
+  it('fails an unknown REGISTRATION_MODE', async () => {
+    const findings = await runChecks(rootContext({ REGISTRATION_MODE: 'disabled' }), ['coherence'])
+
+    expect(registrationFindings(findings)).toEqual([
+      expect.objectContaining({
+        status: 'fail',
+        message: expect.stringContaining('REGISTRATION_MODE="disabled"'),
+      }),
+    ])
+  })
+
+  it('points deprecated variables at the equivalent mode', async () => {
+    const findings = await runChecks(
+      rootContext({ DISABLE_REGISTRATION: 'true', EMAIL_PASSWORD_SIGNUP_ENABLED: 'false' }),
+      ['coherence']
+    )
+
+    expect(registrationFindings(findings)).toEqual([
+      expect.objectContaining({
+        status: 'warn',
+        fix: 'set REGISTRATION_MODE=closed-no-email and remove DISABLE_REGISTRATION, EMAIL_PASSWORD_SIGNUP_ENABLED',
+      }),
+    ])
+  })
+
+  it('no longer requires the retired browser twin of EMAIL_PASSWORD_SIGNUP_ENABLED', async () => {
+    const findings = await runChecks(rootContext({ EMAIL_PASSWORD_SIGNUP_ENABLED: 'true' }), [
+      'coherence',
+    ])
+
+    expect(findings.filter((finding) => finding.status === 'fail')).toEqual([])
+  })
+
+  it('maps a leftover browser twin like the server variable', async () => {
+    const findings = await runChecks(
+      rootContext({ NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: 'false' }),
+      ['coherence']
+    )
+
+    expect(registrationFindings(findings)).toEqual([
+      expect.objectContaining({
+        status: 'warn',
+        fix: 'set REGISTRATION_MODE=no-email and remove NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED',
+      }),
+    ])
+  })
+
+  it('reports when deprecated variables tighten REGISTRATION_MODE', async () => {
+    const findings = await runChecks(
+      rootContext({ REGISTRATION_MODE: 'open', DISABLE_REGISTRATION: 'true' }),
+      ['coherence']
+    )
+
+    expect(registrationFindings(findings)).toContainEqual(
+      expect.objectContaining({
+        status: 'warn',
+        message: expect.stringContaining('REGISTRATION_MODE=open resolves to closed'),
+      })
+    )
+  })
+})
+
 describe('doctor --fix on env files', () => {
   const files = {
     sim: path.join(fakeRoot, 'apps/sim/.env'),

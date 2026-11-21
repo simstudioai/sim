@@ -192,9 +192,7 @@ app:
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
 
     # Registration Control
-    DISABLE_REGISTRATION: ""                              # Set to "true" to disable new user signups
-    EMAIL_PASSWORD_SIGNUP_ENABLED: ""                     # Set to "false" to disable email/password login (SSO-only mode, server-side enforcement)
-    NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: ""         # Set to "false" to hide email/password login form (UI-side)
+    REGISTRATION_MODE: ""                                 # open (default) | no-email-signup | closed | no-email | closed-no-email; no-email* also disables email/password login. Replaces DISABLE_REGISTRATION, DISABLE_EMAIL_SIGNUP, EMAIL_PASSWORD_SIGNUP_ENABLED
 
     # Bot Protection (Cloudflare Turnstile)
     TURNSTILE_SECRET_KEY: ""                              # Cloudflare Turnstile secret key (leave empty to disable captcha)

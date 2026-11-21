@@ -27,6 +27,7 @@ import {
   isSessionPoliciesEnabled,
   isSsoEnabled,
   isUsageMonitoringEnabled,
+  registrationMode,
 } from '@/lib/core/config/env-flags'
 
 /**
@@ -106,6 +107,7 @@ export function resolveDeploymentShape(): DeploymentShape {
     chatEnabled: isChatEnabled,
     azureConfigured: isAzureConfigured,
     cohereConfigured: isCohereConfigured,
+    registrationMode,
     features: {
       accessControl: isAccessControlEnabled,
       auditLogs: isAuditLogsEnabled,
@@ -132,7 +134,8 @@ function isSameDeploymentShape(seeded: DeploymentShape | null, next: DeploymentS
     seeded.billingEnabled !== next.billingEnabled ||
     seeded.chatEnabled !== next.chatEnabled ||
     seeded.azureConfigured !== next.azureConfigured ||
-    seeded.cohereConfigured !== next.cohereConfigured
+    seeded.cohereConfigured !== next.cohereConfigured ||
+    seeded.registrationMode !== next.registrationMode
   ) {
     return false
   }

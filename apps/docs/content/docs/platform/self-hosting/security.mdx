@@ -15,7 +15,7 @@ Review access, secrets, networking, and code execution before exposing a self-ho
 - TLS terminating at the ingress; HTTP redirected or disabled
 - `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` set to the real public origin
 - `AUTH_TRUSTED_PROXIES` set if behind a load balancer
-- Signup restricted (`DISABLE_REGISTRATION` or `ALLOWED_LOGIN_DOMAINS`)
+- Signup restricted (`REGISTRATION_MODE=closed` or `ALLOWED_LOGIN_DOMAINS`)
 - `DISABLE_AUTH` **not** set
 - NetworkPolicy enabled and `ingressFrom` scoped to the ingress controller
 - Namespace labelled `pod-security.kubernetes.io/enforce=restricted`, with the GPU device-plugin exception reviewed if GPU Ollama is enabled

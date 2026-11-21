@@ -15,13 +15,23 @@ import {
   SANDBOX_CAPABILITY,
 } from '@sim/deployment-config/env-capabilities'
 import {
+  DEPRECATED_REGISTRATION_ENV_VARS,
+  getRegistrationPolicy,
+  REGISTRATION_MODE_ENV_VAR,
+  type RegistrationMode,
+  resolveRegistrationMode,
+} from '@sim/deployment-config/registration'
+import {
   isImmutableDaytonaSnapshotRef,
   isImmutableE2BTemplateRef,
   isValidSandboxReleaseGeneration,
 } from '@sim/utils/sandbox-references'
 import { resolveCostMultiplier } from './cost-multiplier'
-import { readProjectedEnterpriseFeatures } from './deployment-projection'
-import { env, envBoolean, envNumber, getEnv, isFalsy, isTruthy } from './env'
+import {
+  readProjectedEnterpriseFeatures,
+  readProjectedRegistrationMode,
+} from './deployment-projection'
+import { env, envBoolean, envNumber, getEnv, isTruthy } from './env'
 
 /**
  * Is the application running in production mode
@@ -208,14 +218,69 @@ if (env.EGRESS_ALLOWED_HOSTS || env.EGRESS_ALLOWED_IP_RANGES) {
 }
 
 /**
- * Is user registration disabled
+ * Who may create an account and whether email/password and email OTP work at all
+ * (`REGISTRATION_MODE`; see `@sim/deployment-config/registration` for the modes).
+ *
+ * The server resolves it from `REGISTRATION_MODE` and the deprecated variables it
+ * replaces, failing closed, and enforces it in `@/lib/auth/auth`. The browser takes
+ * the server's answer from the deployment-shape projection on `<html>`; a document
+ * without one (a bare 404 or `global-error` shell) reads `open`, which only affects
+ * which links render — the server still refuses.
  */
-export const isRegistrationDisabled = isTruthy(env.DISABLE_REGISTRATION)
+export const registrationMode: RegistrationMode =
+  typeof window === 'undefined'
+    ? resolveServerRegistrationMode()
+    : (readProjectedRegistrationMode() ?? 'open')
+
+function resolveServerRegistrationMode(): RegistrationMode {
+  const { mode, warnings } = resolveRegistrationMode({
+    mode: getEnv(REGISTRATION_MODE_ENV_VAR),
+    legacy: {
+      disableRegistration: getEnv(DEPRECATED_REGISTRATION_ENV_VARS.disableRegistration),
+      disableEmailSignup: getEnv(DEPRECATED_REGISTRATION_ENV_VARS.disableEmailSignup),
+      emailPasswordSignupEnabled: getEnv(
+        DEPRECATED_REGISTRATION_ENV_VARS.emailPasswordSignupEnabled
+      ),
+      /** No longer a browser variable, but a server can still read it from its environment. */
+      publicEmailPasswordSignupEnabled: getEnv(
+        DEPRECATED_REGISTRATION_ENV_VARS.publicEmailPasswordSignupEnabled
+      ),
+    },
+  })
+  if (warnings.length > 0) {
+    import('@sim/logger')
+      .then(({ createLogger }) => {
+        const logger = createLogger('EnvFlags')
+        for (const warning of warnings) {
+          const details = { ...warning.details, resolvedMode: mode }
+          if (warning.severity === 'error') logger.error(warning.message, details)
+          else logger.warn(warning.message, details)
+        }
+      })
+      .catch(() => {
+        // Fallback during config compilation when logger is unavailable
+      })
+  }
+  return mode
+}
+
+const registrationPolicy = getRegistrationPolicy(registrationMode)
 
 /**
- * Is email/password authentication enabled (defaults to true)
+ * No self-serve account creation by any method, social included (`closed`,
+ * `closed-no-email`). Sign-in keeps working; SSO just-in-time provisioning and
+ * SCIM still create users.
  */
-export const isEmailPasswordEnabled = !isFalsy(env.EMAIL_PASSWORD_SIGNUP_ENABLED)
+export const isSelfServeRegistrationClosed = registrationPolicy.selfServeRegistrationClosed
+
+/** New accounts may sign up with email/password or email OTP (`open` only). */
+export const isEmailSignupAllowed = registrationPolicy.emailSignupAllowed
+
+/**
+ * Email/password and email OTP work at all, for sign-in as well as signup (every
+ * mode except `no-email` and `closed-no-email`).
+ */
+export const isEmailPasswordAuthEnabled = registrationPolicy.emailPasswordAuthEnabled
 
 /**
  * Is MX-based signup validation enabled (blocks no-MX domains and denylisted shared spam
@@ -534,13 +599,6 @@ export const isGithubAuthDisabled = isTruthy(env.DISABLE_GITHUB_AUTH)
  * When true, the Microsoft OAuth login button is hidden even when credentials are configured
  */
 export const isMicrosoftAuthDisabled = isTruthy(env.DISABLE_MICROSOFT_AUTH)
-
-/**
- * Is email/password signup disabled
- * When true, new registrations via email/password are blocked at the server level.
- * Existing users can still sign in with email/password.
- */
-export const isEmailSignupDisabled = isTruthy(env.DISABLE_EMAIL_SIGNUP)
 
 /**
  * Is React Grab enabled for UI element debugging

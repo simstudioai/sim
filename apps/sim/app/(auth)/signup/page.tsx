@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import type { SearchParams } from 'nuqs/server'
-import { isEmailSignupDisabled, isRegistrationDisabled } from '@/lib/core/config/env-flags'
+import { isEmailSignupAllowed, isSelfServeRegistrationClosed } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
@@ -20,7 +20,7 @@ export default async function SignupPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  if (isRegistrationDisabled) {
+  if (isSelfServeRegistrationClosed) {
     const { redirect, callbackUrl, inviteFlow } = await signupSearchParamsCache.parse(searchParams)
     const { rawCallbackUrl, isInviteFlow } = resolveAuthRedirect({
       redirect,
@@ -43,7 +43,7 @@ export default async function SignupPage({
       githubAvailable={githubAvailable}
       googleAvailable={googleAvailable}
       microsoftAvailable={microsoftAvailable}
-      emailSignupEnabled={!isEmailSignupDisabled}
+      emailSignupEnabled={isEmailSignupAllowed}
       emailVerificationEnabled={isEmailVerificationEffectivelyEnabled()}
     />
   )

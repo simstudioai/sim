@@ -8,7 +8,8 @@ interface RegistrationDisabledProps {
 }
 
 /**
- * The signup page under DISABLE_REGISTRATION. Visitors reach it from a stale
+ * The signup page when `REGISTRATION_MODE` closes self-serve registration
+ * (`closed` or `closed-no-email`). Visitors reach it from a stale
  * link, a bookmark, or an invitation, so it wears the same shell as the form it
  * replaces and carries the post-auth destination over to login — an invited
  * visitor who lands here can still sign in and end up back on their invitation

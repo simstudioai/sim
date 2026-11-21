@@ -1,4 +1,5 @@
 import type { EnterpriseFeatureState } from '@sim/deployment-config/enterprise-features'
+import type { RegistrationMode } from '@sim/deployment-config/registration'
 import { vi } from 'vitest'
 
 /** Shape of `DeploymentShape` from `@/lib/api/contracts/workspaces`. */
@@ -8,12 +9,13 @@ export interface MockDeploymentShape {
   chatEnabled: boolean
   azureConfigured: boolean
   cohereConfigured: boolean
+  registrationMode?: RegistrationMode
   features: EnterpriseFeatureState
 }
 
 /**
  * Builds a deployment shape from the `env-flags` mock defaults (self-hosted, billing off, Chat on,
- * inbox/session policies on, everything else off), with shallow `features` overrides.
+ * registration open, inbox/session policies on, everything else off), with shallow `features` overrides.
  */
 export function createMockDeploymentShape(
   overrides: Partial<Omit<MockDeploymentShape, 'features'>> & {
@@ -27,6 +29,7 @@ export function createMockDeploymentShape(
     chatEnabled: true,
     azureConfigured: false,
     cohereConfigured: false,
+    registrationMode: 'open',
     ...rest,
     features: {
       accessControl: false,

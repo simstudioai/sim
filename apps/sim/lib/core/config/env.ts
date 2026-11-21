@@ -1,3 +1,4 @@
+import { REGISTRATION_MODES } from '@sim/deployment-config/registration'
 import {
   IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR,
   IMMUTABLE_E2B_TEMPLATE_REF_ERROR,
@@ -128,8 +129,9 @@ export const env = createEnv({
     DATABASE_REPLICA_URL_REALTIME:         z.string().url().optional(),            // Per-role replica URL override (realtime)
     BETTER_AUTH_URL:                       z.string().url(),                       // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                    z.string().min(32),                     // Secret key for Better Auth JWT signing
-    DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
-    EMAIL_PASSWORD_SIGNUP_ENABLED:         z.boolean().optional().default(true),   // Enable email/password authentication (server-side enforcement)
+    REGISTRATION_MODE:                     z.enum(REGISTRATION_MODES).optional(),  // Who may sign up and whether email/password + OTP work: open (default), no-email-signup, closed, no-email, closed-no-email. Unknown values close registration
+    DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Deprecated: use REGISTRATION_MODE=closed. Still honored (most restrictive wins)
+    EMAIL_PASSWORD_SIGNUP_ENABLED:         z.boolean().optional(),                 // Deprecated: false means REGISTRATION_MODE=no-email. Still honored (most restrictive wins)
     DISABLE_AUTH:                          z.boolean().optional(),                 // Bypass authentication entirely (self-hosted only, creates anonymous session)
     ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Removed; read only to log a startup error that it has no effect. Use EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES.
     EGRESS_ALLOWED_HOSTS:                  z.string().optional(),                  // Comma-separated hostnames outbound requests may reach on a private network, leading wildcard allowed (e.g. "host.docker.internal,*.svc.cluster.local"). Self-hosted only; ignored on the hosted platform. Replaces ALLOW_PRIVATE_DATABASE_HOSTS.
@@ -532,7 +534,7 @@ export const env = createEnv({
     DISABLE_GOOGLE_AUTH:                   z.boolean().optional(),                 // Disable Google OAuth login even when credentials are configured
     DISABLE_GITHUB_AUTH:                   z.boolean().optional(),                 // Disable GitHub OAuth login even when credentials are configured
     DISABLE_MICROSOFT_AUTH:               z.boolean().optional(),                 // Disable Microsoft OAuth login even when credentials are configured
-    DISABLE_EMAIL_SIGNUP:                  z.boolean().optional(),                 // Block new email/password registrations while keeping email login working
+    DISABLE_EMAIL_SIGNUP:                  z.boolean().optional(),                 // Deprecated: use REGISTRATION_MODE=no-email-signup. Still honored (most restrictive wins)
 
     X_CLIENT_ID:                           z.string().optional(),                  // X (Twitter) OAuth client ID
     X_CLIENT_SECRET:                       z.string().optional(),                  // X (Twitter) OAuth client secret
@@ -764,7 +766,6 @@ export const env = createEnv({
     NEXT_PUBLIC_DISABLE_PUBLIC_API:        z.boolean().optional(),                   // Disable public API access UI toggle globally
     NEXT_PUBLIC_CHAT_DISABLED:             z.boolean().optional(),                   // Hide the Chat module (Chat is shown when unset)
     NEXT_PUBLIC_STATUS_NOTICE_PREVIEW:     z.boolean().optional(),                   // Force the sidebar service-status notice into its critical preview state
-    NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: z.boolean().optional().default(true), // Control visibility of email/password login forms
     NEXT_PUBLIC_TURNSTILE_SITE_KEY:        z.string().min(1).optional(),           // Cloudflare Turnstile site key for captcha widget
   },
 
@@ -783,7 +784,6 @@ export const env = createEnv({
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,
     NEXT_PUBLIC_CHAT_DISABLED: process.env.NEXT_PUBLIC_CHAT_DISABLED,
     NEXT_PUBLIC_STATUS_NOTICE_PREVIEW: process.env.NEXT_PUBLIC_STATUS_NOTICE_PREVIEW,
-    NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: process.env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
     NEXT_PUBLIC_SANDBOXES_ENABLED: process.env.NEXT_PUBLIC_SANDBOXES_ENABLED,

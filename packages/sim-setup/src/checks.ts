@@ -12,6 +12,12 @@ import {
   SANDBOX_CAPABILITY,
   STORAGE_CAPABILITY,
 } from '@sim/deployment-config/env-capabilities'
+import {
+  DEPRECATED_REGISTRATION_ENV_VARS,
+  REGISTRATION_MODE_ENV_VAR,
+  REGISTRATION_MODES,
+  resolveRegistrationMode,
+} from '@sim/deployment-config/registration'
 import { getSetupCommand } from './capability-config'
 import { portOpen } from './detect'
 import {
@@ -421,6 +427,8 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     })
   }
 
+  findings.push(...checkRegistrationMode(sim))
+
   for (const { server, client } of INERT_ENTERPRISE_BROWSER_FLAGS) {
     const clientValue = sim.vars.get(client)
     if (clientValue === undefined) continue
@@ -590,6 +598,56 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       status: 'pass',
       message: 'no conflicting settings',
     })
+  }
+  return findings
+}
+
+/**
+ * Validates `REGISTRATION_MODE` and points the variables it replaced at their
+ * equivalent, using the same resolver the app runs so doctor and the server
+ * cannot disagree about what a file means.
+ */
+function checkRegistrationMode(sim: EnvFile): Finding[] {
+  const rawMode = sim.vars.get(REGISTRATION_MODE_ENV_VAR)
+  const { mode, warnings } = resolveRegistrationMode({
+    mode: rawMode,
+    legacy: {
+      disableRegistration: sim.vars.get(DEPRECATED_REGISTRATION_ENV_VARS.disableRegistration),
+      disableEmailSignup: sim.vars.get(DEPRECATED_REGISTRATION_ENV_VARS.disableEmailSignup),
+      emailPasswordSignupEnabled: sim.vars.get(
+        DEPRECATED_REGISTRATION_ENV_VARS.emailPasswordSignupEnabled
+      ),
+      publicEmailPasswordSignupEnabled: sim.vars.get(
+        DEPRECATED_REGISTRATION_ENV_VARS.publicEmailPasswordSignupEnabled
+      ),
+    },
+  })
+  const findings: Finding[] = []
+  for (const warning of warnings) {
+    if (warning.code === 'invalid-mode') {
+      findings.push({
+        group: 'coherence',
+        status: 'fail',
+        message: `REGISTRATION_MODE="${rawMode?.trim()}" is not a recognized value — the app closes self-serve registration until it is corrected`,
+        fix: `set REGISTRATION_MODE to one of ${REGISTRATION_MODES.join(', ')}`,
+      })
+    } else if (warning.code === 'deprecated-variables') {
+      const variables = warning.details.variables
+      const names = Array.isArray(variables) ? variables.join(', ') : String(variables)
+      findings.push({
+        group: 'coherence',
+        status: 'warn',
+        message: `deprecated registration variables are set (${names}) — REGISTRATION_MODE replaces them`,
+        fix: `set REGISTRATION_MODE=${warning.details.equivalentMode} and remove ${names}`,
+      })
+    } else {
+      findings.push({
+        group: 'coherence',
+        status: 'warn',
+        message: `REGISTRATION_MODE=${warning.details.configured} resolves to ${mode} because deprecated registration variables are more restrictive`,
+        fix: `set REGISTRATION_MODE=${mode} and remove the deprecated variables, or remove them to keep ${warning.details.configured}`,
+      })
+    }
   }
   return findings
 }

@@ -1,11 +1,14 @@
+import type { RegistrationMode } from '@sim/deployment-config/registration'
 import { vi } from 'vitest'
 
 /**
  * Mutable value-export state for the shared `@/lib/core/config/env-flags` mock.
  * Defaults mirror the real module evaluated under the vitest environment
- * (NODE_ENV=test, no feature env vars set): only `isTest`,
- * `isEmailPasswordEnabled`, and `isChatEnabled` are true — the last because it
- * is an opt-out flag, on unless `NEXT_PUBLIC_CHAT_DISABLED` is set.
+ * (NODE_ENV=test, no feature env vars set): `registrationMode` is `open`, and
+ * only `isTest`, `isEmailSignupAllowed`, `isEmailPasswordAuthEnabled`, and
+ * `isChatEnabled` are true — the last because it is an opt-out flag, on unless
+ * `NEXT_PUBLIC_CHAT_DISABLED` is set. Keep the registration booleans consistent
+ * with `registrationMode` when overriding them.
  */
 interface EnvFlagsMockState {
   isProd: boolean
@@ -21,8 +24,10 @@ interface EnvFlagsMockState {
   isAuthDisabled: boolean
   egressAllowedHosts: string | undefined
   egressAllowedIpRanges: string | undefined
-  isRegistrationDisabled: boolean
-  isEmailPasswordEnabled: boolean
+  registrationMode: RegistrationMode
+  isSelfServeRegistrationClosed: boolean
+  isEmailSignupAllowed: boolean
+  isEmailPasswordAuthEnabled: boolean
   isSignupMxValidationEnabled: boolean
   isAppConfigEnabled: boolean
   isSlackExtendedScopesEnabled: boolean
@@ -53,7 +58,6 @@ interface EnvFlagsMockState {
   isGoogleAuthDisabled: boolean
   isGithubAuthDisabled: boolean
   isMicrosoftAuthDisabled: boolean
-  isEmailSignupDisabled: boolean
   isReactGrabEnabled: boolean
   isReactScanEnabled: boolean
 }
@@ -72,8 +76,10 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isAuthDisabled: false,
   egressAllowedHosts: undefined,
   egressAllowedIpRanges: undefined,
-  isRegistrationDisabled: false,
-  isEmailPasswordEnabled: true,
+  registrationMode: 'open',
+  isSelfServeRegistrationClosed: false,
+  isEmailSignupAllowed: true,
+  isEmailPasswordAuthEnabled: true,
   isSignupMxValidationEnabled: false,
   isAppConfigEnabled: false,
   isSlackExtendedScopesEnabled: false,
@@ -106,7 +112,6 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isGoogleAuthDisabled: false,
   isGithubAuthDisabled: false,
   isMicrosoftAuthDisabled: false,
-  isEmailSignupDisabled: false,
   isReactGrabEnabled: false,
   isReactScanEnabled: false,
 }

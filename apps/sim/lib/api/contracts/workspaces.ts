@@ -1,3 +1,4 @@
+import { REGISTRATION_MODES } from '@sim/deployment-config/registration'
 import { z } from 'zod'
 import { nonEmptyIdSchema, organizationRoleSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
@@ -268,6 +269,11 @@ export const deploymentShapeSchema = z.object({
   azureConfigured: z.boolean(),
   cohereConfigured: z.boolean(),
   features: deploymentFeaturesSchema,
+  /**
+   * `REGISTRATION_MODE`, resolved on the server. Optional for rolling compatibility
+   * with app versions that predate projecting it; readers treat absent as `open`.
+   */
+  registrationMode: z.enum(REGISTRATION_MODES).optional(),
 })
 
 export type DeploymentShape = z.output<typeof deploymentShapeSchema>
