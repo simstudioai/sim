@@ -746,9 +746,9 @@ export function buildProviderFaqs(provider: CatalogProvider): CatalogFaq[] {
   const faqs: CatalogFaq[] = [
     {
       question: `What ${provider.name} models are available in Sim?`,
-      answer: `Sim currently tracks ${provider.modelCount} ${provider.name} model${provider.modelCount === 1 ? '' : 's'} including ${namedModels
+      answer: `Sim currently supports ${provider.currentModels.length} ${provider.name} model${provider.currentModels.length === 1 ? '' : 's'} including ${namedModels
         .map((model) => model.displayName)
-        .join(', ')}${provider.modelCount > namedModels.length ? ', and more' : ''}.`,
+        .join(', ')}${provider.currentModels.length > namedModels.length ? ', and more' : ''}.`,
     },
     {
       question: `What is the default ${provider.name} model in Sim?`,
