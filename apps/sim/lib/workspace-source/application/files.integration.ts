@@ -20,6 +20,7 @@ import {
   workspaceFiles,
   workspaceFileVersion,
   workspaceResourceKey,
+  workspaceSourceStagedBlob,
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
@@ -50,6 +51,7 @@ import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import * as deleteUseCases from '@/lib/workspace-files/application/delete-workspace-file'
 import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
@@ -276,6 +278,27 @@ describe('workspace source files', () => {
       read.blobs.map(({ path: blobPath, sha256, size }) => ({ path: blobPath, sha256, size }))
     ).toEqual(blobsOf(STARTER, []).sort((a, b) => compareStrings(b.path, a.path)))
     expect(read.base.resources).toEqual(created.base.resources)
+  })
+
+  check('a dry run plans with staged bytes and leaves their expiry as it was', async () => {
+    const workspaceId = await newWorkspace()
+    await stageBlobsAs(
+      owner,
+      workspaceId,
+      blobsOf(STARTER).map(({ sha256, content }) => ({ sha256, content: content ?? '' }))
+    )
+    const soon = new Date(Date.now() + 30 * 60 * 1000)
+    const staged = eq(workspaceSourceStagedBlob.workspaceId, workspaceId)
+    await db.update(workspaceSourceStagedBlob).set({ expiresAt: soon }).where(staged)
+
+    const dryRun = await apply(workspaceId, STARTER, { dryRun: true })
+
+    expect(dryRun.needBlobs).toEqual([])
+    const expiries = await db
+      .select({ expiresAt: workspaceSourceStagedBlob.expiresAt })
+      .from(workspaceSourceStagedBlob)
+      .where(staged)
+    expect(expiries.map((row) => row.expiresAt.getTime())).toEqual([soon.getTime(), soon.getTime()])
   })
 
   check('re-applying what a get read changes nothing and records no version', async () => {
@@ -629,6 +652,38 @@ describe('workspace source files', () => {
         .from(workspaceFiles)
         .where(eq(workspaceFiles.id, id))
       expect(row?.deletedAt).toBeInstanceOf(Date)
+    }
+  )
+
+  check(
+    'a UI edit between the plan and a delete fails that delete and keeps the file with the UI bytes',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const id = fileId(read.base, 'docs/plan.md')
+      const remove = deleteUseCases.deleteWorkspaceFileOperation.execute
+      const spy = vi
+        .spyOn(deleteUseCases.deleteWorkspaceFileOperation, 'execute')
+        .mockImplementationOnce(async (args) => {
+          await editInUi(workspaceId, id, '# Plan, racing UI edit\n')
+          return remove(args)
+        })
+      try {
+        const result = await apply(
+          workspaceId,
+          { 'files/notes.txt': STARTER['files/notes.txt'] },
+          { base: read.base, allowDelete: true }
+        )
+        expect(result.failed).toMatchObject({ key: 'docs/plan.md', code: 'E_APPLY_STALE' })
+      } finally {
+        spy.mockRestore()
+      }
+      const [row] = await db
+        .select({ deletedAt: workspaceFiles.deletedAt })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.id, id))
+      expect(row?.deletedAt).toBeNull()
+      expect(await bytesOf(workspaceId, id)).toBe('# Plan, racing UI edit\n')
     }
   )
 

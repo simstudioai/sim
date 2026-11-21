@@ -162,11 +162,10 @@ async function enforceV2Buckets(
 const VALIDATED_BODY_CACHE_MAX = 4
 
 /**
- * The budget for writing workflow source (apply, dry run, and create from source), per subject
- * and on every plan. Each request parses, compiles, canonicalizes and diffs a body of up to
+ * The budget for writing workflow source (an apply or a create from source), per subject and on
+ * every plan. Each request parses, compiles, canonicalizes and diffs a body of up to
  * `SOURCE_REQUEST_MAX_BYTES`, so it costs far more than the row reads the generic budget is sized
- * for; a dry run costs nearly as much as an apply, so it is charged the same amount (a workspace
- * dry run on the plan bucket instead, see `sourceApply`).
+ * for. A dry run, which writes nothing, draws on the plan bucket instead (see `sourceApply`).
  */
 const V2_SOURCE_WRITE_RATE_LIMIT: TokenBucketConfig = {
   maxTokens: 40,
@@ -224,22 +223,6 @@ export const v2RateLimits = {
       return enforceV2Buckets(request, auth, operation.id, getRateLimit(plan, 'api-endpoint'), cost)
     },
   } satisfies V2RateLimitPolicy,
-  /**
-   * {@link V2_SOURCE_WRITE_RATE_LIMIT}, one bucket shared by every source write, so alternating
-   * an apply and a create from source cannot double it.
-   */
-  sourceWrite: {
-    maxCost: V2_SOURCE_WRITE_RATE_LIMIT.maxTokens,
-    async enforce(request, auth, _operation, cost = 1) {
-      return enforceV2Buckets(
-        request,
-        auth,
-        'workflows.source.write',
-        V2_SOURCE_WRITE_RATE_LIMIT,
-        cost
-      )
-    },
-  } satisfies V2RateLimitPolicy,
   /** {@link V2_SOURCE_READ_RATE_LIMIT}, for reading a workspace as source. */
   sourceRead: {
     async enforce(request, auth) {
@@ -254,10 +237,12 @@ export const v2RateLimits = {
     },
   } satisfies V2RateLimitPolicy,
   /**
-   * A source apply route that also serves dry runs (`?dryRun=true`): a dry run writes nothing and
-   * runs what a plan runs, so it draws on the {@link V2_SOURCE_PLAN_RATE_LIMIT} bucket as the plan
-   * routes do, and only a real apply spends the {@link V2_SOURCE_WRITE_RATE_LIMIT} bucket applies
-   * need. Capped at the smaller bucket, so the largest request fits either.
+   * A source write route (an apply or a create from source) that also serves dry runs
+   * (`?dryRun=true`): a dry run writes nothing and runs what a plan runs, so it draws on the
+   * {@link V2_SOURCE_PLAN_RATE_LIMIT} bucket as the plan routes do, and only a real write spends
+   * the {@link V2_SOURCE_WRITE_RATE_LIMIT} bucket, one shared by every source write so alternating
+   * an apply and a create cannot double it. Capped at the smaller bucket, so the largest request
+   * fits either.
    */
   sourceApply: {
     maxCost: Math.min(V2_SOURCE_WRITE_RATE_LIMIT.maxTokens, V2_SOURCE_PLAN_RATE_LIMIT.maxTokens),

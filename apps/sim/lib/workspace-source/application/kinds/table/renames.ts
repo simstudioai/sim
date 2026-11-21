@@ -5,6 +5,7 @@
  * the directory declares that workflow. A workflow folder the apply evaluates is checked by its own
  * lint against the declared columns, so only workflows the apply leaves as stored are scanned here.
  */
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { escapeRegExp } from '@sim/utils/string'
 import { splitLines } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
@@ -19,7 +20,14 @@ import {
 import { finding, where } from '@/lib/workspace-source/application/findings'
 import { liveVersionsReplaced, workflowsUsing } from '@/lib/workspace-source/application/in-use'
 import type { TablePlan } from '@/lib/workspace-source/application/kinds/table/adapter'
-import type { PlanContext, PlannedChange } from '@/lib/workspace-source/application/types'
+import type {
+  PlanContext,
+  PlannedChange,
+  WorkspaceSourceDiagnostic,
+} from '@/lib/workspace-source/application/types'
+
+/** Workflows whose draft, source or live version the check reads at once. */
+const READ_CONCURRENCY = 4
 
 /** A table this plan renames columns of: its id, name, and each old name → new name. */
 interface RenamingTable {
@@ -106,73 +114,55 @@ export async function checkColumnRenamesInUse(
     declared.set(change.storedId, { key: change.key, evaluated: change.refs !== undefined })
   }
   const replacedLive = liveVersionsReplaced(changes)
-  for (const table of tables) {
+  const deleted = new Set(
+    changes.flatMap((c) =>
+      c.kind === 'workflow' && c.action === 'delete' && c.storedId !== undefined ? [c.storedId] : []
+    )
+  )
+  const checks = tables.flatMap((table) => {
     const columns = new Map([
       [table.tableId, { name: table.tableName, columnNames: table.columnNames }],
     ])
-    for (const workflow of using.get(table.tableId) ?? []) {
-      const folder = declared.get(workflow.id)
-      if (
-        changes.some(
-          (c) => c.kind === 'workflow' && c.storedId === workflow.id && c.action === 'delete'
-        )
-      ) {
-        continue
-      }
-      /** `blockId:field` of each finding already made from the draft. */
-      const reported = new Set<string>()
-      if (workflow.draft && !folder?.evaluated) {
-        const loaded = await loadWorkflowFromNormalizedTables(workflow.id)
-        const issues = loaded
-          ? collectTableBlockFieldIssues(loaded.blocks, columns).filter((issue) =>
-              table.renamed.has(issue.field)
-            )
-          : []
-        const text =
-          folder && issues.length > 0
-            ? (
-                await readWorkflowSource.execute({
-                  principal: ctx.principal,
-                  input: { workflowId: workflow.id, plan: true },
-                })
-              ).files[SOURCE_ENTRY_FILE]
-            : undefined
-        for (const issue of issues) {
-          reported.add(`${issue.blockId}:${issue.field}`)
-          const renamedTo = table.renamed.get(issue.field)
-          const blockName = issue.blockName ?? issue.blockId
-          const at = text !== undefined ? locateWrite(text, blockName, issue.field) : undefined
-          table.change.diagnostics.push(
-            finding(
-              'W_TABLE_COLUMN_RENAMED_IN_USE',
-              `${where('table', table.change.key)} renames column "${issue.field}" to "${renamedTo}", but block "${blockName}" of workflow "${workflow.name}" still ${issue.rowWrite ? 'writes' : 'reads'} "${issue.field}"; the run drops it.`,
-              {
-                hint: `Write "${renamedTo}" in that block${folder ? ` (${workflowFolder(folder.key)}/${SOURCE_ENTRY_FILE})` : ''}, in this apply or right after it.`,
-                ...(folder
-                  ? { file: `${workflowFolder(folder.key)}/${SOURCE_ENTRY_FILE}`, ...(at ?? {}) }
-                  : {}),
-                kind: 'table',
-                key: table.change.key,
-              }
-            )
+    return (using.get(table.tableId) ?? [])
+      .filter((workflow) => !deleted.has(workflow.id))
+      .map((workflow) => ({ table, columns, workflow }))
+  })
+  const found = await mapWithConcurrency(checks, READ_CONCURRENCY, async (check) => {
+    const { table, columns, workflow } = check
+    const findings: WorkspaceSourceDiagnostic[] = []
+    const folder = declared.get(workflow.id)
+    /** `blockId:field` of each finding already made from the draft. */
+    const reported = new Set<string>()
+    if (workflow.draft && !folder?.evaluated) {
+      const loaded = await loadWorkflowFromNormalizedTables(workflow.id)
+      const issues = loaded
+        ? collectTableBlockFieldIssues(loaded.blocks, columns).filter((issue) =>
+            table.renamed.has(issue.field)
           )
-        }
-      }
-      if (!workflow.live || replacedLive.has(workflow.id)) continue
-      const live = await liveBlocks(workflow.id)
-      if (!live) continue
-      for (const issue of collectTableBlockFieldIssues(live, columns)) {
-        if (!table.renamed.has(issue.field) || reported.has(`${issue.blockId}:${issue.field}`)) {
-          continue
-        }
+        : []
+      const text =
+        folder && issues.length > 0
+          ? (
+              await readWorkflowSource.execute({
+                principal: ctx.principal,
+                input: { workflowId: workflow.id, plan: true },
+              })
+            ).files[SOURCE_ENTRY_FILE]
+          : undefined
+      for (const issue of issues) {
+        reported.add(`${issue.blockId}:${issue.field}`)
         const renamedTo = table.renamed.get(issue.field)
         const blockName = issue.blockName ?? issue.blockId
-        table.change.diagnostics.push(
+        const at = text !== undefined ? locateWrite(text, blockName, issue.field) : undefined
+        findings.push(
           finding(
             'W_TABLE_COLUMN_RENAMED_IN_USE',
-            `${where('table', table.change.key)} renames column "${issue.field}" to "${renamedTo}", but block "${blockName}" of workflow "${workflow.name}" (live version) still ${issue.rowWrite ? 'writes' : 'reads'} "${issue.field}"; its runs drop it until the workflow is deployed again.`,
+            `${where('table', table.change.key)} renames column "${issue.field}" to "${renamedTo}", but block "${blockName}" of workflow "${workflow.name}" still ${issue.rowWrite ? 'writes' : 'reads'} "${issue.field}"; the run drops it.`,
             {
-              hint: `Write "${renamedTo}" in that block and deploy the workflow (\`deployments/<key>.ts\` with live: 'draft'), in this apply or right after it.`,
+              hint: `Write "${renamedTo}" in that block${folder ? ` (${workflowFolder(folder.key)}/${SOURCE_ENTRY_FILE})` : ''}, in this apply or right after it.`,
+              ...(folder
+                ? { file: `${workflowFolder(folder.key)}/${SOURCE_ENTRY_FILE}`, ...(at ?? {}) }
+                : {}),
               kind: 'table',
               key: table.change.key,
             }
@@ -180,5 +170,28 @@ export async function checkColumnRenamesInUse(
         )
       }
     }
-  }
+    if (!workflow.live || replacedLive.has(workflow.id)) return { table, findings }
+    const live = await liveBlocks(workflow.id)
+    if (!live) return { table, findings }
+    for (const issue of collectTableBlockFieldIssues(live, columns)) {
+      if (!table.renamed.has(issue.field) || reported.has(`${issue.blockId}:${issue.field}`)) {
+        continue
+      }
+      const renamedTo = table.renamed.get(issue.field)
+      const blockName = issue.blockName ?? issue.blockId
+      findings.push(
+        finding(
+          'W_TABLE_COLUMN_RENAMED_IN_USE',
+          `${where('table', table.change.key)} renames column "${issue.field}" to "${renamedTo}", but block "${blockName}" of workflow "${workflow.name}" (live version) still ${issue.rowWrite ? 'writes' : 'reads'} "${issue.field}"; its runs drop it until the workflow is deployed again.`,
+          {
+            hint: `Write "${renamedTo}" in that block and deploy the workflow (\`deployments/<key>.ts\` with live: 'draft'), in this apply or right after it.`,
+            kind: 'table',
+            key: table.change.key,
+          }
+        )
+      )
+    }
+    return { table, findings }
+  })
+  for (const { table, findings } of found) table.change.diagnostics.push(...findings)
 }

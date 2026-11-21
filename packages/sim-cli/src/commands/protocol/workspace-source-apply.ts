@@ -8,9 +8,11 @@ import {
   KIND_DIRS,
   parseResourceAddress,
   parseWorkspaceBase,
+  resourceAddress,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
+import { workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import {
   type PromotionRecord,
@@ -21,17 +23,20 @@ import {
 } from '@sim/workspace-code/promote'
 import { serverResourceChanges } from '@sim/workspace-code/status'
 import type { Command } from 'commander'
+import { appendStepSummary } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
 import { setSoftExitCode } from '../../embed-context'
-import { SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
+import { SOURCE_HELD_EXIT_CODE, SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
 import type {
   ApplyWorkspaceSourceBody,
   ApplyWorkspaceSourceResponse,
   GetWorkspaceSourceResponse,
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
+import { safeOneLine } from '../../output/render'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
+import { type DeployedUrl, deployedUrls, deployedUrlsText, lockBlockNames } from './deployed-urls'
 import { gitProvenance } from './git-provenance'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
@@ -41,6 +46,7 @@ import {
   isMissing,
   orphanedCodeFiles,
   readSourceJson,
+  readSourceText,
   readWritten,
   recordedStats,
   updateSourceDir,
@@ -153,13 +159,21 @@ function notWritten(data: ApplyData): string[] {
     .map((change) => `${change.kind}:${change.key}`)
 }
 
-/** How a stopped apply left one planned write: written, the one that failed, or not attempted. */
-function outcomeText(change: Change, outcome: PlanOutcome): string {
-  if (change.held) return ''
-  if (wasWritten(change, outcome)) return ' — written'
+/** How an apply left one planned change: held back, written, the one that failed, or not attempted. */
+function changeOutcome(
+  change: Change,
+  outcome: PlanOutcome
+): 'held back' | 'written' | 'failed, not written' | 'not written' {
+  if (change.held) return 'held back'
+  if (wasWritten(change, outcome)) return 'written'
   return outcome.failed && sameChange(outcome.failed, change)
-    ? ' — failed, not written'
-    : ' — not written'
+    ? 'failed, not written'
+    : 'not written'
+}
+
+/** {@link changeOutcome} as a plan line's suffix; a held change says so on its own. */
+function outcomeText(change: Change, outcome: PlanOutcome): string {
+  return change.held ? '' : ` — ${changeOutcome(change, outcome)}`
 }
 
 /**
@@ -678,6 +692,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     'stageWorkspaceSourceBlobs',
     'getWorkspaceSource',
     'getSourceCatalog',
+    'getWorkflowDeployment',
   ])
   absoluteDirOption(command)
   verboseFlag(command)
@@ -822,17 +837,28 @@ export function attachWorkspaceSourceApply(source: Command): void {
                 }
               : data
           // The apply repeats findings the preview already showed: each is printed once.
-          const findings = findingsOutput(profile.output, options.verbose)
+          const findings = findingsOutput(profile.output, options.verbose, options.dir)
           const notSent = notSentFindings(submission.ignored)
           findings.print(notSent)
           /** Prints `data` as the result, with the findings about files the CLI did not send. */
-          const report = (data: ApplyData, next?: NextStep) => {
+          const report = (data: ApplyData, next?: NextStep, urls: WorkflowUrl[] = []) => {
             const diagnostics = [...notSent, ...data.diagnostics]
-            const result = { ...summarize({ ...data, diagnostics }), ...(next ? { next } : {}) }
+            appendStepSummary(() =>
+              planMarkdown({ ...data, diagnostics }, options.to ?? workspaceId)
+            )
+            const result = {
+              ...summarize({ ...data, diagnostics }),
+              ...(urls.length > 0 ? { urls } : {}),
+              ...(next ? { next } : {}),
+            }
             printProtocolResult(
               profile.output,
               { ...result, ...findings.result(diagnostics) },
-              { created: createdText(result.created), ...(next ? { next: next.command } : {}) }
+              {
+                created: createdText(result.created),
+                ...(urls.length > 0 ? { urls: workflowUrlsText(urls) } : {}),
+                ...(next ? { next: next.command } : {}),
+              }
             )
           }
           const data = await runSourceWrite<ApplyData>({
@@ -886,17 +912,126 @@ export function attachWorkspaceSourceApply(source: Command): void {
             printError(
               `Held back, not written: ${held.map((change) => `${change.kind} ${change.key}`).join(', ')}. Fix what each one's error names, then apply again.`
             )
-            setSoftExitCode(1)
+            // Written in part is not the same outcome as nothing written: a script must tell them apart.
+            setSoftExitCode(data.applied.length > 0 ? SOURCE_HELD_EXIT_CODE : 1)
           }
           if (data.failed) {
             printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
             setSoftExitCode(failedExitCode(data.failed))
           }
-          report(data)
+          report(
+            data,
+            undefined,
+            await deploymentUrls(
+              client,
+              data,
+              promotion ? undefined : (path) => readSourceText(options.dir, path)
+            )
+          )
         },
         { readOnly: mode === 'dry-run' || mode === 'plan' }
       )
     })
+}
+
+/** At most this many changes and errors are listed in a step summary; the rest are counted. */
+const SUMMARY_ROWS = 50
+
+/** A Markdown table cell: one line, with its pipes escaped. */
+function cell(text: string): string {
+  return safeOneLine(text).replaceAll('|', '\\|')
+}
+
+/**
+ * The plan of a dry run or apply to `workspaceId` as the Markdown a GitHub Actions step summary
+ * shows: each change and how it went, then each error.
+ */
+function planMarkdown(data: ApplyData, workspaceId: string): string {
+  const summary = summarize(data)
+  const [created, updated, deleted] = data.dryRun
+    ? ['to create', 'to update', 'to delete']
+    : ['created', 'updated', 'deleted']
+  const changes = data.plan.filter((change) => change.action !== 'noop')
+  const rows = changes.slice(0, SUMMARY_ROWS).map((change) => {
+    const fields = change.fields?.length ? ` (${cell(change.fields.join(', '))})` : ''
+    const fate = data.dryRun && !change.held ? 'planned' : changeOutcome(change, data)
+    return `| ${SYMBOLS[change.action]} | ${cell(resourceWhere(change.kind, change.key))}${fields} | ${change.action} | ${fate} |`
+  })
+  const errors = data.diagnostics.filter((finding) => finding.severity === 'error')
+  const lines = [
+    `### Sim workspace ${data.dryRun ? 'plan' : 'apply'}: ${cell(workspaceId)}`,
+    '',
+    `${summary.created.length} ${created}, ${summary.updated} ${updated}, ${summary.deleted} ${deleted}, ${summary.unchanged} unchanged; ${summary.errors} error(s), ${summary.warnings} warning(s).`,
+    ...(rows.length > 0
+      ? [
+          '',
+          '| | Resource | Change | Outcome |',
+          '|---|---|---|---|',
+          ...rows,
+          ...(changes.length > rows.length ? [`\n…and ${changes.length - rows.length} more.`] : []),
+        ]
+      : []),
+    ...(errors.length > 0
+      ? [
+          '',
+          '**Errors**',
+          '',
+          ...errors
+            .slice(0, SUMMARY_ROWS)
+            .map(
+              (finding) =>
+                `- \`${finding.code}\`${finding.file ? ` ${cell(finding.file)}${finding.line ? `:${finding.line}` : ''}` : ''}: ${cell(finding.message)}`
+            ),
+        ]
+      : []),
+  ]
+  return lines.join('\n')
+}
+
+/** A webhook URL of a workflow an apply deployed, named by the workflow's key and the block's. */
+interface WorkflowUrl extends DeployedUrl {
+  workflow: string
+}
+
+/** The URLs as one display line: `lead-intake: leadin (hook) https://…; …`. */
+function workflowUrlsText(urls: readonly WorkflowUrl[]): string {
+  const byWorkflow = new Map<string, DeployedUrl[]>()
+  for (const { workflow, ...url } of urls) {
+    byWorkflow.set(workflow, [...(byWorkflow.get(workflow) ?? []), url])
+  }
+  return [...byWorkflow]
+    .map(([workflow, each]) => `${workflow}: ${deployedUrlsText(each)}`)
+    .join('; ')
+}
+
+/**
+ * The webhook URLs of each workflow a written apply deployed (a `deployments/<key>.ts` it created
+ * or updated), in the workspace it wrote: a promotion's are the target's, which are new URLs.
+ * Each block is named as the workflow's reprinted lock names it, or, when the apply did not
+ * reprint the workflow (it wrote only the deployment), as `savedLock` reads it from the directory
+ * (none for a promotion, whose directory holds the source workspace's block ids).
+ */
+async function deploymentUrls(
+  client: OperationClient<'getWorkflowDeployment'>,
+  data: ApplyData,
+  savedLock?: (path: string) => Promise<string | null>
+): Promise<WorkflowUrl[]> {
+  if (data.dryRun) return []
+  const base = parseWorkspaceBase(data.base).base
+  const deployed = data.applied.filter(
+    (change) => change.kind === 'deployment' && change.action !== 'delete'
+  )
+  const perWorkflow = await Promise.all(
+    deployed.map(async ({ key }): Promise<WorkflowUrl[]> => {
+      const workflowId = base?.resources[resourceAddress('workflow', key)]?.id
+      if (!workflowId) return []
+      const lockPath = `${workflowFolder(key)}/${SOURCE_LOCK_FILE}`
+      const lock = data.files[lockPath] ?? (await savedLock?.(lockPath)) ?? null
+      const named = await deployedUrls(client, workflowId, lockBlockNames(lock))
+      return named.map((url) => ({ workflow: key, ...url }))
+    })
+  )
+  return perWorkflow.flat()
 }
 
 /** This apply as a command, without `--yes` or `--dry-run`: what a plan run names next. */

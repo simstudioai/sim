@@ -469,7 +469,8 @@ async function uploadDocs(
   for (const upload of uploads) {
     if (!ctx.blobs) throw new Error('A document upload needs its staged bytes')
     // One document's bytes at a time: a large knowledge base never sits in memory whole.
-    const buffer = await ctx.blobs.read(knowledgeDocPath(key, upload.name))
+    const path = knowledgeDocPath(key, upload.name)
+    const buffer = await ctx.blobs.read(path)
     const extension = getFileExtension(upload.name)
     const { document } = await uploadKnowledgeDocument.execute({
       principal: ctx.principal,
@@ -484,6 +485,7 @@ async function uploadDocs(
         },
       },
     })
+    ctx.blobs.stored(path)
     hashes.set(document.id, upload.doc.sha256)
     if (upload.replaces) {
       await finishReplace(ctx, knowledgeBaseId, upload.replaces, document.id, upload.name)

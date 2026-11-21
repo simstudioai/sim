@@ -368,6 +368,61 @@ describe('saveWorkflowToNormalizedTables', () => {
     expect(loaded?.edges.map((edge) => edge.id)).toEqual([`${workflowId}-z`, `${workflowId}-a`])
   })
 
+  it('loads blocks and subflows saved together in the order the state listed them, whatever a later save rewrote', async () => {
+    const workflowId = await insertWorkflow()
+    const blocks = [
+      containerBlock(`${workflowId}-z-loop`, 'loop', 'Z loop'),
+      containerBlock(`${workflowId}-a-loop`, 'loop', 'A loop'),
+      functionBlock(`${workflowId}-y`, 'Y', 0),
+      functionBlock(`${workflowId}-b`, 'B', 100),
+    ]
+    expect(await saveWorkflowToNormalizedTables(workflowId, stateOf(blocks, []))).toEqual({
+      success: true,
+    })
+
+    const edited = structuredClone(blocks)
+    edited[0].name = 'Renamed'
+    edited[2].position = { x: 50, y: 50 }
+    expect(await saveWorkflowToNormalizedTables(workflowId, stateOf(edited, []))).toEqual({
+      success: true,
+    })
+    const loaded = await loadWorkflowFromNormalizedTablesRaw(workflowId)
+
+    expect(Object.keys(loaded?.blocks ?? {})).toEqual(blocks.map((block) => block.id))
+    expect(Object.keys(loaded?.loops ?? {})).toEqual([blocks[0].id, blocks[1].id])
+  })
+
+  it('loads blocks and subflows an older save wrote with one timestamp in the order they were inserted', async () => {
+    const workflowId = await insertWorkflow()
+    const createdAt = new Date()
+    const [zLoop, aLoop] = [`${workflowId}-z-loop`, `${workflowId}-a-loop`]
+    await db.insert(workflowBlocks).values(
+      [zLoop, aLoop].map((id) => ({
+        id,
+        workflowId,
+        type: 'loop',
+        name: id,
+        positionX: '0',
+        positionY: '0',
+        createdAt,
+      }))
+    )
+    await db.insert(workflowSubflows).values(
+      [zLoop, aLoop].map((id) => ({
+        id,
+        workflowId,
+        type: 'loop',
+        config: { id, nodes: [], iterations: 1, loopType: 'for' },
+        createdAt,
+      }))
+    )
+
+    const loaded = await loadWorkflowFromNormalizedTablesRaw(workflowId)
+
+    expect(Object.keys(loaded?.blocks ?? {})).toEqual([zLoop, aLoop])
+    expect(Object.keys(loaded?.loops ?? {})).toEqual([zLoop, aLoop])
+  })
+
   it('saves and reloads a workflow at the 10,000-edge source limit, in order', async () => {
     const workflowId = await insertWorkflow()
     const blocks = ['b1', 'b2'].map((id, index) =>

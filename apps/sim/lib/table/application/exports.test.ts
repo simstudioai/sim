@@ -1,5 +1,8 @@
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
-import { createExecutorPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
 import { auditMock } from '@sim/testing/mocks/audit.mock'
 import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
 import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
@@ -132,6 +135,18 @@ describe('table export application use cases', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('cancels an export under its table named by its name, and conceals one under another table', async () => {
+    const cancel = (tableId: string) =>
+      cancelTableExportUseCase.execute({
+        principal: createSessionPrincipal({ userId: 'user-1' }),
+        input: { exportId: 'export-1', workspaceId: 'workspace-1', tableId },
+      })
+
+    await expect(cancel(table.name)).resolves.toMatchObject({ export: { status: 'canceled' } })
+    await expect(cancel('Elsewhere')).rejects.toMatchObject({ code: 'not_found' })
+    await expect(cancel('tbl_other')).rejects.toMatchObject({ code: 'not_found' })
   })
 
   describe('permission-group capability', () => {

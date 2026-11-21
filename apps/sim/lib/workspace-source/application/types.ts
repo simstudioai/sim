@@ -81,9 +81,12 @@ export interface ApplyContext extends SourceContext {
   writtenDrafts: Map<string, string>
   /**
    * Reads the staged bytes of a blob a write needs, by directory path, checked against its
-   * SHA-256. Loaded one blob at a time, so a write never holds more than it is writing.
+   * SHA-256. Loaded one blob at a time, so a write never holds more than it is writing. A write
+   * calls `stored` once the workspace holds a blob's bytes, which consumes its staged copy (it
+   * stops counting toward the payer's quota), so a write that fails partway still consumes those
+   * it stored.
    */
-  blobs?: { read(path: string): Promise<Buffer> }
+  blobs?: { read(path: string): Promise<Buffer>; stored(path: string): void }
 }
 
 /** A stored resource of one kind: its key (when bound), id, display name and kind state. */

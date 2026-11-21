@@ -4,7 +4,7 @@ import {
   v2GetWorkspaceSourceContract,
 } from '@/lib/api/contracts/v2/workspace-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { withSourceSlot } from '@/lib/workflows/api'
+import { applyOrDryRunLane, withSourceSlot } from '@/lib/workflows/api'
 import {
   v2WorkspaceSourceErrorPolicy,
   withBoundWorkspaceFindings,
@@ -45,8 +45,8 @@ export const GET = defineV2JsonRoute({
  * 200 with its findings. A write that fails mid-apply answers 200 with `failed` and what was
  * written before it. A real apply draws on the source-write budget and a dry run, which writes
  * nothing, on the source-plan budget the status plan route uses (`v2RateLimits.sourceApply`), each
- * charged per workflow folder sent with its files (`workspaceApplyRateCost`); a server already
- * running as many applies as it allows answers 429.
+ * charged per workflow folder sent with its files (`workspaceApplyRateCost`), and runs in an apply
+ * or a plan slot to match; a server already running as many as it allows answers 429.
  */
 export const POST = defineV2JsonRoute({
   contract: v2ApplyWorkspaceSourceContract,
@@ -67,6 +67,6 @@ export const POST = defineV2JsonRoute({
     ...(query.dryRun !== undefined ? { dryRun: query.dryRun } : {}),
   }),
   rateLimitCost: (input) => workspaceApplyRateCost(input.files, input.blobs),
-  useCase: withSourceSlot(applyWorkspaceSource, 'apply'),
+  useCase: withSourceSlot(applyWorkspaceSource, applyOrDryRunLane),
   present: (result) => ({ data: withBoundWorkspaceFindings(result) }),
 })

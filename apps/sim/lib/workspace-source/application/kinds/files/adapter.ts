@@ -3,7 +3,8 @@
  * and name, synced by SHA-256 through staged blobs. Creates go through
  * `createWorkspaceFileBufferByPath` (which creates missing folders), content changes through
  * `updateWorkspaceFileContentFromBuffer` guarded by the revision the plan saw (each one records a
- * new version), deletes through `deleteWorkspaceFileOperation` (Recently Deleted keeps the file).
+ * new version), deletes through `deleteWorkspaceFileOperation` guarded the same way (Recently
+ * Deleted keeps the file).
  * Only `context = 'workspace'` files are read; a file over the blob cap, or one whose path no
  * directory can hold, is left out of a get and never touched by an apply (a declaration of one is
  * refused, unless it is unchanged since a get that read the file). A path is the key, so a
@@ -224,6 +225,19 @@ async function stateOf(ctx: SourceContext, fileId: string): Promise<WorkspaceFil
   const state = (await contentStates(ctx, [fileId])).get(fileId)
   if (!state) throw new OrchestrationError('not_found', 'The file no longer exists.')
   return state
+}
+
+/**
+ * Rethrows a write's `conflict` (the file's content moved past the revision the plan saw) as the
+ * change being stale, and any other error as it is.
+ */
+function staleAs(change: PlannedChange) {
+  return (error: unknown): never => {
+    if (error instanceof OrchestrationError && error.code === 'conflict') {
+      throw new ResourceChangedError(change)
+    }
+    throw error
+  }
 }
 
 /** Why a directory never writes a file at a workflow test's path. */
@@ -466,14 +480,21 @@ async function claimFileKey(
 
 /**
  * The bytes a write sends and their SHA-256: read from the staging area, which checks them
- * against the declared hash, so the declaration's hash is theirs.
+ * against the declared hash, so the declaration's hash is theirs. `stored` reports them stored
+ * once the write lands, so their staged copy stops counting toward the quota.
  */
 async function contentOf(
   change: FileChange,
   ctx: ApplyContext
-): Promise<{ content: Buffer; sha256: string }> {
-  if (!change.decl || !ctx.blobs) throw new Error('A file write needs its declaration and bytes')
-  return { content: await ctx.blobs.read(fileBlobPath(change.key)), sha256: change.decl.sha256 }
+): Promise<{ content: Buffer; sha256: string; stored: () => void }> {
+  const { blobs } = ctx
+  if (!change.decl || !blobs) throw new Error('A file write needs its declaration and bytes')
+  const path = fileBlobPath(change.key)
+  return {
+    content: await blobs.read(path),
+    sha256: change.decl.sha256,
+    stored: () => blobs.stored(path),
+  }
 }
 
 /** The base entry of a file just written, from what the server recorded. */
@@ -577,16 +598,15 @@ export const fileAdapter: KindAdapter<'file', StoredFileState> = {
       const fileId = change.storedId
       const rev = change.detail?.rev
       if (!fileId || rev === undefined) throw new Error('A file delete needs its plan')
-      if ((await stateOf(ctx, fileId)).rev !== rev) {
-        throw new ResourceChangedError(change)
-      }
-      await deleteWorkspaceFileOperation.execute({
-        principal,
-        input: { fileId, assertedWorkspaceId: workspaceId },
-      })
+      await deleteWorkspaceFileOperation
+        .execute({
+          principal,
+          input: { fileId, assertedWorkspaceId: workspaceId, expectedRevision: rev },
+        })
+        .catch(staleAs(change))
       return { id: fileId, text: {} }
     }
-    const { content, sha256 } = await contentOf(change, ctx)
+    const { content, sha256, stored } = await contentOf(change, ctx)
     if (change.action === 'create') {
       const segments = change.key.split('/')
       const resourceKey = change.detail?.resourceKey
@@ -604,13 +624,14 @@ export const fileAdapter: KindAdapter<'file', StoredFileState> = {
             : {}),
         },
       })
+      stored()
       return written(ctx, change.key, created.id, sha256)
     }
     const fileId = change.storedId
     const rev = change.detail?.rev
     if (!fileId || rev === undefined) throw new Error('A file update needs its plan')
-    try {
-      await updateWorkspaceFileContentFromBuffer.execute({
+    await updateWorkspaceFileContentFromBuffer
+      .execute({
         principal,
         input: {
           fileId,
@@ -620,12 +641,8 @@ export const fileAdapter: KindAdapter<'file', StoredFileState> = {
           expectedRevision: rev,
         },
       })
-    } catch (error) {
-      if (error instanceof OrchestrationError && error.code === 'conflict') {
-        throw new ResourceChangedError(change)
-      }
-      throw error
-    }
+      .catch(staleAs(change))
+    stored()
     return written(ctx, change.key, fileId, sha256)
   },
 

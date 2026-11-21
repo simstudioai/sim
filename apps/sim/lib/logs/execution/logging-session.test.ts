@@ -141,6 +141,9 @@ function createDisplayProvenance(matches: ResolvedSecretTraceMatch[], complete =
   }
 }
 
+/** A run's input, as its completion records it. */
+const INPUT = { hello: 'world' }
+
 describe('LoggingSession diagnostic projection', () => {
   it('projects execution errors with the run-scoped secret provenance', () => {
     const secret = 'logging-session-secret-7f3a91'
@@ -548,6 +551,29 @@ describe('LoggingSession completion retries', () => {
         finalOutput: { ok: true, stage: 'done' },
         finalizationPath: 'fallback_completed',
       })
+    )
+  })
+
+  it.each([
+    ['success', (session: LoggingSession) => session.safeComplete({ workflowInput: INPUT })],
+    ['error', (session: LoggingSession) => session.safeCompleteWithError({ workflowInput: INPUT })],
+    [
+      'cancellation',
+      (session: LoggingSession) => session.safeCompleteWithCancellation({ workflowInput: INPUT }),
+    ],
+    ['pause', (session: LoggingSession) => session.safeCompleteWithPause({ workflowInput: INPUT })],
+  ])('keeps the run input when a %s completion falls back', async (_, complete) => {
+    const session = new LoggingSession('workflow-1', 'execution-input', 'api', 'req-1')
+    session.setResolvedSecretTraceRegistry(createSecretRegistry([]))
+    completeWorkflowExecutionMock
+      .mockRejectedValueOnce(new Error('finalize failed'))
+      .mockResolvedValueOnce({})
+
+    await complete(session)
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(2)
+    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ executionId: 'execution-input', workflowInput: INPUT })
     )
   })
 

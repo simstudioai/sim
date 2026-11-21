@@ -4,6 +4,7 @@ import {
   RATE_LIMITED_EXIT_CODE,
   SOURCE_BUSY_EXIT_CODE,
   SOURCE_DRIFT_EXIT_CODE,
+  SOURCE_HELD_EXIT_CODE,
   SOURCE_LOCAL_CHANGES_EXIT_CODE,
   SOURCE_LOCKED_EXIT_CODE,
   SOURCE_PARTIAL_EXIT_CODE,
@@ -79,7 +80,7 @@ function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRow[] {
         'workflows source get':
           "the command failed, the directory is a workspace source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force)",
         'workspaces source apply':
-          'the source has errors (each printed as file:line:column with its frame and hint), or changes were held back because they use a declared secret the workspace has no value for or a declared credential key nothing binds to (the rest was applied: set the secret or connect the credential, then apply again), the directory was read from another workspace than the one --workspace names (SOURCE_OTHER_WORKSPACE: drop --workspace, or promote it with --to; without --workspace an apply targets the workspace the directory was read from), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed',
+          'the source has errors (each printed as file:line:column with its frame and hint), or every change it would write was held back because it uses a declared secret the workspace has no value for or a declared credential key nothing binds to (nothing was written; a dry run that would hold changes back exits 1 too), the directory was read from another workspace than the one --workspace names (SOURCE_OTHER_WORKSPACE: drop --workspace, or promote it with --to; without --workspace an apply targets the workspace the directory was read from), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed',
         'workspaces source get':
           'the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace names another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), the directory is a workflow source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written)',
       },
@@ -161,7 +162,7 @@ function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRow[] {
         'workspaces source apply':
           'another apply is writing the workspace (SOURCE_BUSY), or another command is using the directory (SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished',
         'workspaces source get':
-          '(busy, retry) another sim workspaces source command is using this directory (SOURCE_DIR_BUSY): nothing was read or written, run it again once it finished',
+          '(busy, retry) another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY): nothing was read or written, run it again once it finished',
       },
     },
     {
@@ -198,6 +199,16 @@ function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRow[] {
           'without --yes and with no terminal to ask: the plan was printed with no errors and nothing was created (run the same command with --yes)',
         'workspaces source apply':
           'without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it)',
+      },
+    },
+    {
+      code: SOURCE_HELD_EXIT_CODE,
+      meaning:
+        '`sim workspaces source apply` (or `--to`) wrote part of its plan and held the rest back: a change that uses a declared secret the workspace has no value for, or a credential key nothing binds to',
+      next: 'Set the secret (`sim secrets set`) or connect the credential, then apply again',
+      help: {
+        'workspaces source apply':
+          'written in part: changes that use a declared secret the workspace has no value for, or a declared credential key nothing binds to, were held back and the rest was applied and saved (set the secret or connect the credential, then apply again)',
       },
     },
     {

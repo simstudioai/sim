@@ -25,7 +25,7 @@ import {
   tableFieldAudits,
   writeTableFields,
 } from '@/lib/table/application/tables'
-import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
+import { assertRowCapacity, getMaxRowsPerTable, notifyTableRowUsage } from '@/lib/table/billing'
 import {
   buildIdByName,
   columnMatchesRef,
@@ -271,15 +271,18 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
     const requestId = generateRequestId()
-    // Checked before the transaction opens (it reads the billing pool), for the rows the table
-    // holds once they are written.
-    const rowLimit = input.rows
-      ? await assertRowCapacity({
-          workspaceId,
-          currentRowCount: input.rows.mode === 'seed' ? context.table.rowCount : 0,
-          addedRows: input.rows.rows.length,
-        })
-      : null
+    // Read before the transaction opens (it reads the billing pool). Seed rows only add, so they
+    // are checked here; a managed write is checked under the lock once it has read the stored rows,
+    // so one that adds no rows on balance passes even on a table already over its limit.
+    const rowLimit = !input.rows
+      ? null
+      : input.rows.mode === 'seed'
+        ? await assertRowCapacity({
+            workspaceId,
+            currentRowCount: context.table.rowCount,
+            addedRows: input.rows.rows.length,
+          })
+        : await getMaxRowsPerTable(workspaceId)
     const actor = {
       userId: attributedUserId,
       capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
@@ -331,6 +334,7 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
           columnIds: rows.columns.flatMap((name) => idByName.get(name) ?? []),
           rows: stored,
           allowDelete: rows.allowDelete,
+          ...(rowLimit !== null ? { rowLimit } : {}),
         },
         actor,
         requestId

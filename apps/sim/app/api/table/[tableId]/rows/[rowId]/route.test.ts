@@ -26,6 +26,7 @@ vi.mock('@/lib/table/api', () => tableApiMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { TABLE_NOT_FOUND_MESSAGE } from '@/lib/table/constants'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { GET, PATCH } from '@/app/api/table/[tableId]/rows/[rowId]/route'
 
@@ -114,7 +115,7 @@ describe('deliberate wire changes', () => {
     const response = await GET(getRequest(), routeContext())
 
     expect(response.status).toBe(404)
-    await expect(response.json()).resolves.toMatchObject({ error: 'Table not found' })
+    await expect(response.json()).resolves.toMatchObject({ error: TABLE_NOT_FOUND_MESSAGE })
   })
 
   it('still answers 403 for an in-workspace denial, which is not concealed', async () => {

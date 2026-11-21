@@ -82,7 +82,9 @@ interface NamedVariable {
 /**
  * `E_APPLY_VARIABLE_DELETE` for the stored variables an apply removes, by name. When it removes
  * one and adds one of the same type, the edit may be a rename the apply could not tie to the
- * stored variable (its value changed too, or says nothing), so the hint says how to keep the id.
+ * stored variable (its value changed too, or says nothing), so the hint says how to keep the id;
+ * when it removes several and adds any, they may be renames made together, which the apply never
+ * ties, so the hint says to make them one apply at a time.
  */
 function variableDeleteRefusal(
   removed: readonly NamedVariable[],
@@ -95,7 +97,9 @@ function variableDeleteRefusal(
   const rename =
     removed.length === 1 && added.length === 1 && former.type === next.type
       ? `If ${next.name} renames ${former.name}, keep the value ${former.name} holds and move every vars reference to the new key in this apply, then change the value in a second apply, so the variable keeps its id; a variable no block reads that holds 0, false or an empty value cannot be tied, so pass --allow-delete (allowDelete=true) to replace it.`
-      : undefined
+      : removed.length > 1 && added.length > 0
+        ? `If these are renames, an apply ties only one renamed variable to its stored one: rename them one apply at a time (${listNames(names)}), so each keeps its id. Or pass --allow-delete (allowDelete=true) to delete them and create the new ones.`
+        : undefined
   return diagnostic(
     'E_APPLY_VARIABLE_DELETE',
     `This apply deletes ${names.length} variable${names.length === 1 ? '' : 's'} the source no longer declares: ${listNames(names)}.`,

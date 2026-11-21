@@ -1654,7 +1654,9 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
               blockId: z
                 .string()
                 .min(1, 'run.entry.blockId cannot be empty')
-                .describe('Saved workflow block at which manual execution should resume.'),
+                .describe(
+                  'Saved workflow block at which manual execution should resume: its id, display name or reference key (the name lowercased, whitespace and dots removed).'
+                ),
               sourceRunId: z
                 .string()
                 .min(1, 'run.entry.sourceRunId cannot be empty')
@@ -1673,7 +1675,7 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .min(1, 'run.stopAfterBlockId cannot be empty')
         .optional()
         .describe(
-          'Saved workflow block after which the run stops; downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.'
+          'Saved workflow block after which the run stops (its id, display name or reference key); downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.'
         ),
     })
     .strict(),

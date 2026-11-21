@@ -772,7 +772,8 @@ function segmentsOf(
 
 /**
  * Records `name` as read, and reports `W_ENV_UNKNOWN` when the caller's runs resolve a known set of
- * env names and `name` is not one.
+ * env names and `name` is not one. Names a file declares (`envDeclaredIn`, an offline check) say
+ * only what that file lists, not what the workspace holds, so the finding says that instead.
  */
 function checkEnvName(ctx: CompileContext, name: string, at: Range, blockKey: BlockKey): void {
   ctx.envReferences.add(name)
@@ -780,7 +781,9 @@ function checkEnvName(ctx: CompileContext, name: string, at: Range, blockKey: Bl
   if (!envNames || envNames.has(name)) return
   ctx.reporter.report(
     'W_ENV_UNKNOWN',
-    `The workspace has no env variable ${name}, so it resolves to nothing at run time.`,
+    ctx.envDeclaredIn
+      ? `${ctx.envDeclaredIn} does not declare ${name}. This check is offline, so it cannot tell whether the workspace holds a value for it; the dry run checks.`
+      : `The workspace has no env variable ${name}, so it resolves to nothing at run time.`,
     at,
     {
       hint: () => {

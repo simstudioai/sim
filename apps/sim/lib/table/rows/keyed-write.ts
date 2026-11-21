@@ -4,8 +4,9 @@
  * row service's transaction-bound writers: stored rows whose key no declared row has are deleted,
  * rows whose declared cells changed are patched (cells of other columns, a workflow group's
  * outputs say, are left alone), and new keys are inserted. A stored row with no key value (the
- * grid's "add row" makes one) is no declared row's, so it is kept. An unchanged row is not touched, so
- * its id, `updated_at`, run state and provenance stay, and no trigger fires for it.
+ * grid's "add row" makes one) is no declared row's, so it is kept, and counts toward the table's
+ * row limit with the rest. An unchanged row is not touched, so its id, `updated_at`, run state and
+ * provenance stay, and no trigger fires for it.
  */
 
 import { isDeepStrictEqual } from 'node:util'
@@ -13,6 +14,7 @@ import { userTableRows } from '@sim/db/schema'
 import { rowKeyText } from '@sim/workspace-code/kinds/table-rows'
 import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { TableRowLimitError, wouldExceedRowLimit } from '@/lib/table/billing'
 import type { DbTransaction } from '@/lib/table/planner'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import {
@@ -34,6 +36,12 @@ export interface KeyedRows {
   rows: RowData[]
   /** Whether stored rows no declared row matches are deleted; otherwise they refuse the write. */
   allowDelete: boolean
+  /**
+   * The plan's row limit for the table (negative for none): a write that grows the table is
+   * refused when the rows it leaves, the stored rows with no key value it keeps included, would
+   * cross it. A write that adds no rows on balance is never refused, as other row writes are not.
+   */
+  rowLimit?: number
 }
 
 /** What a keyed write changed, and the triggers to fire once the transaction commits. */
@@ -130,6 +138,14 @@ export async function writeKeyedRowsWithTx(
       'validation',
       `${removed.length} stored row(s) of "${table.name}" match no declared row; deleting them needs allow-delete.`
     )
+  }
+  const { rowLimit } = declared
+  if (
+    rowLimit !== undefined &&
+    inserts.length > removed.length &&
+    wouldExceedRowLimit(rowLimit, stored.length - removed.length, inserts.length)
+  ) {
+    throw new TableRowLimitError(rowLimit)
   }
 
   const deletion =

@@ -28,6 +28,7 @@ import {
   type WorkspaceSourceSubmission,
 } from '@/lib/workspace-source/application/plan'
 import { adapterOf } from '@/lib/workspace-source/application/registry'
+import { stagingScopeOf } from '@/lib/workspace-source/application/stage-blobs'
 import type {
   AppliedResource,
   ApplyContext,
@@ -41,7 +42,12 @@ import {
   isApplyLeaseLost,
   WorkspaceSourceBusyError,
 } from '@/lib/workspace-source/lease/store'
-import { readStagedBlob } from '@/lib/workspace-source/staging/store'
+import {
+  markStagedBlobsConsumed,
+  readStagedBlob,
+  type StagedBlob,
+  type StagingScope,
+} from '@/lib/workspace-source/staging/store'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { ResourceKeyTakenError } from '@/lib/workspaces/resource-keys'
 
@@ -330,16 +336,6 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       }
       const result = planned(plan, context.workspaceId, false)
       Object.assign(result.files, plan.reprint)
-      const writeCtx: ApplyContext = {
-        ...ctx,
-        blobs: {
-          read(path) {
-            const staged = plan.staged.get(path)
-            if (!staged) throw new Error('A blob write ran without its staged bytes')
-            return readStagedBlob(staged)
-          },
-        },
-      }
       const base: WorkspaceBaseV1 = { ...plan.base, resources: { ...plan.base.resources } }
       for (const change of plan.changes) {
         if (change.action === 'noop' && change.base) {
@@ -348,9 +344,10 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       }
       const applyId = generateId()
       result.applyId = applyId
-      await withAuditCorrelation(applyId, () =>
-        writeAll(plan.changes, writeCtx, lease, base, result)
+      const consumed = await withAuditCorrelation(applyId, () =>
+        writeAll(plan.changes, ctx, plan.staged, lease, base, result)
       )
+      await consumeStagedBlobs(stagingScopeOf(principal, context.workspaceId), consumed)
       result.base = base
       recordWorkspaceSourceApplied(facts, plan.changes, result)
       logger.info('Applied workspace source', {
@@ -386,22 +383,56 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
 })
 
 /**
+ * Marks the staged blobs the apply wrote as consumed, so the payer's quota stops counting bytes
+ * the workspace now stores. The writes are already committed, so a failure here is only logged:
+ * those blobs keep counting until they expire, as they did before an apply consumed any.
+ */
+async function consumeStagedBlobs(target: StagingScope, consumed: StagedBlob[]): Promise<void> {
+  try {
+    await markStagedBlobsConsumed(target, consumed)
+  } catch (error) {
+    logger.warn('Could not mark staged blobs consumed', {
+      workspaceId: target.workspaceId,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
+/**
  * Writes the plan's changes in write order under `lease`, recording each into `base` and
- * `result`; the first failure stops it and is reported as `result.failed`.
+ * `result`; the first failure stops it and is reported as `result.failed`. Each write reads its
+ * binary files from `staged`; returns the staged blobs the writes reported stored, the failed
+ * write's included.
  */
 async function writeAll(
   changes: PlannedChange[],
-  writeCtx: ApplyContext,
+  ctx: ApplyContext,
+  staged: ReadonlyMap<string, StagedBlob>,
   lease: Pick<ApplyLease, 'confirm'>,
   base: WorkspaceBaseV1,
   result: ApplyWorkspaceSourceResult
-): Promise<void> {
+): Promise<StagedBlob[]> {
   // A write re-reports what its plan already found: each finding is listed once, with the ids
   // the write gave it.
   const reported = new Map(
     result.diagnostics.map((diagnostic, at) => [findingIdentity(diagnostic), at])
   )
+  const consumed: StagedBlob[] = []
   for (const change of writeOrder(changes)) {
+    const stagedAt = (path: string) => {
+      const blob = staged.get(path)
+      if (!blob) throw new Error('A blob write ran without its staged bytes')
+      return blob
+    }
+    const writeCtx: ApplyContext = {
+      ...ctx,
+      blobs: {
+        read: (path) => readStagedBlob(stagedAt(path)),
+        stored: (path) => {
+          consumed.push(stagedAt(path))
+        },
+      },
+    }
     try {
       await lease.confirm()
       const written = await write(change, writeCtx)
@@ -434,4 +465,5 @@ async function writeAll(
       break
     }
   }
+  return consumed
 }

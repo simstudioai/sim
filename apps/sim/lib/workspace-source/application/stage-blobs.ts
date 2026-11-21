@@ -2,8 +2,9 @@
  * Staging the binary files of a workspace source apply: a client uploads each blob's bytes first,
  * keyed by SHA-256, then sends one apply that names them by hash. Staged blobs are scoped to the
  * workspace and the caller (a person, or a workspace API key), capped per scope
- * (`maxStagedBlobs`, `maxStagedBytes`) and expire a day after they were last used. A client asks
- * which hashes are missing before uploading, so a resumed apply never sends a blob twice.
+ * (`maxStagedBlobs`, `maxStagedBytes`), count against the workspace payer's storage quota while
+ * held, and expire a day after they were last staged. A client asks which hashes are missing
+ * before uploading, so a resumed apply never sends a blob twice.
  */
 import type { Principal } from '@sim/auth/principal'
 import { sha256Hex } from '@sim/security/hash'
@@ -14,6 +15,7 @@ import { workspaceSourceOperations } from '@/lib/workspace-source/application/op
 import {
   assertStagingFits,
   findStagedBlobs,
+  STAGED_BLOB_RESTAGE_MARGIN_MS,
   type StagingScope,
   stageBlobs,
   stagedUsage,
@@ -70,9 +72,9 @@ export interface StageSourceBlobsResult {
 
 /**
  * Stages a batch of blobs: refuses one over `maxBlobBytes`, a batch over the request caps (a single
- * blob may fill its request alone), and any
- * blob whose bytes do not hash to the SHA-256 it was named by (nothing of the batch is staged),
- * then stores the rest within the scope's caps. Staging a blob already staged only renews it.
+ * blob may fill its request alone), and any blob whose bytes do not hash to the SHA-256 it was
+ * named by (nothing of the batch is staged), then stores the rest within the scope's caps and the
+ * payer's storage quota. Staging a blob already staged only renews it.
  */
 export const stageSourceBlobs = defineAuthorizedWorkspaceUseCase({
   operation: workspaceSourceOperations.stageBlobs,
@@ -129,8 +131,10 @@ export interface FindMissingSourceBlobsInput {
 }
 
 /**
- * Which of `blobs` the caller has not staged in the workspace (or staged at another size), in the
- * order asked; those it has are renewed, so they outlive the apply that follows.
+ * Which of `blobs` the caller has not staged in the workspace (or staged at another size, or
+ * staged but expiring within {@link STAGED_BLOB_RESTAGE_MARGIN_MS}), in the order asked. A read:
+ * asking never renews a staged blob, so one about to expire is reported missing, and staging its
+ * bytes again renews it before the apply that follows.
  */
 export const findMissingSourceBlobs = defineAuthorizedWorkspaceUseCase({
   operation: workspaceSourceOperations.findMissingBlobs,
@@ -146,7 +150,8 @@ export const findMissingSourceBlobs = defineAuthorizedWorkspaceUseCase({
     }
     const staged = await findStagedBlobs(
       stagingScopeOf(principal, context.workspaceId),
-      input.blobs.map((blob) => blob.sha256)
+      input.blobs.map((blob) => blob.sha256),
+      new Date(Date.now() + STAGED_BLOB_RESTAGE_MARGIN_MS)
     )
     const missing = [
       ...new Set(

@@ -229,7 +229,8 @@ const LISTED_BUILDERS = 15
 /**
  * The hint for a builder path no catalog builder has, from most to least specific: the builder a
  * common other name stands for (`http.request` → `api`), a builder of the same namespace whose method differs only by a synonymous verb (`postMessage` → `sendMessage`),
- * the closest path by edit distance, the namespace's builders listed, else the closest namespace.
+ * the closest path by edit distance, the one builder of the namespace whose method starts with the
+ * written one, the namespace's builders listed (those it starts first), else the closest namespace.
  */
 export function suggestBuilder(written: string, paths: readonly string[]): string | undefined {
   const alias = BUILDER_ALIASES[(written.split('.')[0] ?? written).toLowerCase()]
@@ -254,7 +255,20 @@ export function suggestBuilder(written: string, paths: readonly string[]): strin
   const near = didYouMean(written, paths)
   if (near) return near
   if (siblings.length > 0) {
-    const shown = siblings.slice(0, LISTED_BUILDERS).join(', ')
+    // A method written short (`slack.send`) names the builders it starts: one is the answer, and
+    // several lead the list, which would otherwise start at whatever sorts first.
+    const start = method.toLowerCase()
+    const started = start
+      ? siblings.filter((path) =>
+          path
+            .slice(namespace.length + 1)
+            .toLowerCase()
+            .startsWith(start)
+        )
+      : []
+    if (started.length === 1) return `Did you mean ${started[0]}?`
+    const ranked = [...started, ...siblings.filter((path) => !started.includes(path))]
+    const shown = ranked.slice(0, LISTED_BUILDERS).join(', ')
     const more =
       siblings.length > LISTED_BUILDERS ? `, and ${siblings.length - LISTED_BUILDERS} more` : ''
     return `${namespace} has: ${shown}${more}.`

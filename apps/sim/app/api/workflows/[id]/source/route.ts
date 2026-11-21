@@ -6,7 +6,11 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
-import { internalWorkflowErrorPolicies, withBoundSourceFindings } from '@/lib/workflows/api'
+import {
+  internalWorkflowErrorPolicies,
+  withBoundSourceFindings,
+  withSourceSlot,
+} from '@/lib/workflows/api'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 
 export const dynamic = 'force-dynamic'
@@ -32,6 +36,11 @@ const SOURCE_READ_RATE_LIMIT: TokenBucketConfig = {
  * The bare fingerprint would not do: it ignores what it does not hash (canvas positions,
  * comments), which the printed files and lock can still carry.
  *
+ * Runs in a source slot of the editor's own lane, so API and CLI gets never starve the Code tab
+ * (`429` with `Retry-After` when the server already runs as many Code tab reads as it may).
+ * The tag is taken after the read: the printed resource keys are known only once the graph is
+ * canonicalized, so no earlier tag would be sound.
+ *
  * `headSafe: false` because the first read that references a resource with no key allocates one
  * (`workspace_resource_key`), so a `HEAD` probe must not run it.
  */
@@ -44,12 +53,12 @@ export const GET = defineInternalJsonRoute({
     bucketName: 'workflow-source-read',
     config: SOURCE_READ_RATE_LIMIT,
   }),
-  errorPolicy: internalWorkflowErrorPolicies.concealWorkflowAuthorization,
+  errorPolicy: internalWorkflowErrorPolicies.concealWorkflowSourceRead,
   mapInput: ({ params, query }) => ({
     workflowId: params.id,
     ...(query.functionCode ? { functionCode: query.functionCode } : {}),
   }),
-  useCase: readWorkflowSource,
+  useCase: withSourceSlot(readWorkflowSource, 'editor'),
   entityTag: (source) => `${source.base.fingerprint}.${sha256Hex(JSON.stringify(source))}`,
   present: (source) => ({ data: withBoundSourceFindings(source) }),
 })

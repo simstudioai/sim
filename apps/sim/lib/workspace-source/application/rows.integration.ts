@@ -40,6 +40,20 @@ vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 // The trigger module is mocked so each check sees exactly which row events an apply fires.
 vi.mock('@/lib/table/trigger', () => tableTriggerMock)
+/** A row limit a check sets for the table plan (billing is off here, so it is otherwise unlimited). */
+const planRowLimit = vi.hoisted(() => ({ value: undefined as number | undefined }))
+vi.mock('@/lib/table/constants', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/table/constants')>()
+  return {
+    ...actual,
+    getBillingDisabledTableLimits: () => {
+      const limits = actual.getBillingDisabledTableLimits()
+      return planRowLimit.value === undefined
+        ? limits
+        : { ...limits, maxRowsPerTable: planRowLimit.value }
+    },
+  }
+})
 
 const ownerId = generateId()
 const readerId = generateId()
@@ -1122,6 +1136,110 @@ export default defineTable({
       }
       const refused = await refusal(apply(workspaceId, required, { base: written.base }))
       expect(codes(refused.diagnostics)).toEqual(['E_APPLY_REFUSED'])
+    }
+  )
+
+  check(
+    'refuses a managed write whose rows, with the rows the UI added without a key that it keeps, would cross the row limit',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const optionalKey = MANAGED.replace(
+        'column.string({ required: true, unique: true })',
+        'column.string({ unique: true })'
+      )
+      const created = await apply(workspaceId, {
+        'tables/plans.ts': optionalKey,
+        'tables/plans.rows.jsonl': ROWS,
+      })
+      expect(created.failed).toBeUndefined()
+      await addUiRow(workspaceId, {})
+      await addUiRow(workspaceId, {})
+      const read = await runner.get(workspaceId)
+      const rowsBefore = await storedRows(workspaceId)
+      planRowLimit.value = 4
+      try {
+        const written = await apply(
+          workspaceId,
+          {
+            ...read.files,
+            'tables/plans.rows.jsonl': `${ROWS}{"code":"ent","seats":50,"tier":"pro"}\n`,
+          },
+          { base: read.base }
+        )
+        expect(written.failed?.message).toContain('row limit (4 rows)')
+      } finally {
+        planRowLimit.value = undefined
+      }
+      expect(await storedRows(workspaceId)).toEqual(rowsBefore)
+    }
+  )
+
+  check(
+    'still applies a managed write that adds no rows to a table already over its row limit',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const optionalKey = MANAGED.replace(
+        'column.string({ required: true, unique: true })',
+        'column.string({ unique: true })'
+      )
+      const created = await apply(workspaceId, {
+        'tables/plans.ts': optionalKey,
+        'tables/plans.rows.jsonl': ROWS,
+      })
+      expect(created.failed).toBeUndefined()
+      await addUiRow(workspaceId, {})
+      await addUiRow(workspaceId, {})
+      const read = await runner.get(workspaceId)
+      planRowLimit.value = 3
+      try {
+        const written = await apply(
+          workspaceId,
+          {
+            ...read.files,
+            'tables/plans.rows.jsonl': ROWS.replace('"seats":10', '"seats":12'),
+          },
+          { base: read.base }
+        )
+        expect(written.failed).toBeUndefined()
+      } finally {
+        planRowLimit.value = undefined
+      }
+      expect((await storedRows(workspaceId)).map((row) => row.seats)).toContain(12)
+    }
+  )
+
+  check(
+    'edits and shrinks a managed table whose declared rows alone already pass its row limit, as after a plan downgrade',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const three = `${ROWS}{"code":"ent","seats":50,"tier":"pro"}\n`
+      const created = await apply(workspaceId, {
+        'tables/plans.ts': MANAGED,
+        'tables/plans.rows.jsonl': three,
+      })
+      expect(created.failed).toBeUndefined()
+      planRowLimit.value = 1
+      try {
+        const read = await runner.get(workspaceId)
+        const twelve = three.replace('"seats":10', '"seats":12')
+        const edited = await apply(
+          workspaceId,
+          { ...read.files, 'tables/plans.rows.jsonl': twelve },
+          { base: read.base }
+        )
+        expect(edited.failed).toBeUndefined()
+
+        const reread = await runner.get(workspaceId)
+        const shrunk = await apply(
+          workspaceId,
+          { ...reread.files, 'tables/plans.rows.jsonl': twelve.split('\n').slice(1).join('\n') },
+          { base: reread.base, allowDelete: true }
+        )
+        expect(shrunk.failed).toBeUndefined()
+      } finally {
+        planRowLimit.value = undefined
+      }
+      expect((await storedRows(workspaceId)).map((row) => row.seats).sort()).toEqual([12, 50])
     }
   )
 

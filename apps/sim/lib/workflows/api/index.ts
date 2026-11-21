@@ -9,7 +9,7 @@ export {
 } from '@/lib/workflows/api/route-policies'
 export { withBoundSourceFindings } from '@/lib/workflows/api/source-findings'
 export { presentSourceOutcome } from '@/lib/workflows/api/source-presenters'
-export { withSourceSlot } from '@/lib/workflows/api/source-slots'
+export { applyOrDryRunLane, withSourceSlot } from '@/lib/workflows/api/source-slots'
 export {
   presentV2WorkflowTrigger,
   presentV2WorkspaceSchedule,

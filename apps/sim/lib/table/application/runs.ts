@@ -29,6 +29,7 @@ import {
   readDispatch,
 } from '@/lib/table/dispatcher'
 import { signalTableRowsChanged } from '@/lib/table/events'
+import { referencesTable } from '@/lib/table/ids'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 
 interface TableRunInput {
@@ -252,24 +253,25 @@ interface TableDispatchContext extends TableAuthorizationContext {
  * stored row, then asserts the caller's asserted scope against them.
  *
  * The canonical scope always comes from the dispatch itself — the asserted
- * workspace and table are compared to it, never substituted for it. A workspace
- * mismatch, a `tableId` naming a different table, a dispatch whose table was
- * deleted, and a dispatch that never existed all report the same not-found, so
- * the id space leaks nothing across tenants or across tables.
+ * workspace and table (by id or by name, as every table route takes it) are
+ * compared to it, never substituted for it. A workspace mismatch, a `tableId`
+ * naming a different table, a dispatch whose table was deleted, and a dispatch
+ * that never existed all report the same not-found, so the id space leaks
+ * nothing across tenants or across tables.
  */
 async function resolveTableDispatchContext(
   input: TableDispatchResourceInput
 ): Promise<TableDispatchContext> {
   const dispatch = await readDispatch(input.dispatchId)
-  if (
-    !dispatch ||
-    dispatch.workspaceId !== input.workspaceId ||
-    dispatch.tableId !== input.tableId
-  ) {
+  if (!dispatch || dispatch.workspaceId !== input.workspaceId) {
     throw new OrchestrationError('not_found', 'Table run dispatch not found')
   }
   const table = await getTableById(dispatch.tableId)
-  if (!table || table.workspaceId !== dispatch.workspaceId) {
+  if (
+    !table ||
+    table.workspaceId !== dispatch.workspaceId ||
+    !referencesTable(input.tableId, table)
+  ) {
     throw new OrchestrationError('not_found', 'Table run dispatch not found')
   }
   return { ...(await resolveTableWorkspaceContext(dispatch.workspaceId)), dispatch }

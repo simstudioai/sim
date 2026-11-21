@@ -75,6 +75,18 @@ import { claimResourceKey } from '@/lib/workspaces/resource-keys'
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
+/** The real check, counted: a dry run that changes the draft must not load its deployment twice. */
+const draftDeploymentChecks = vi.hoisted(() => ({ count: 0 }))
+vi.mock('@/lib/workflows/deployment-status', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/workflows/deployment-status')>()
+  return {
+    ...actual,
+    checkNeedsRedeployment: (workflowId: string) => {
+      draftDeploymentChecks.count += 1
+      return actual.checkNeedsRedeployment(workflowId)
+    },
+  }
+})
 
 const ownerId = generateId()
 const workspaceId = generateId()
@@ -2410,8 +2422,12 @@ export default workflow('Fresh', {}, () => {
       const source = await getSource(workflowId)
       const changed = edit(source.files, 'return 1', 'return 2')
 
+      draftDeploymentChecks.count = 0
       const unchangedDryRun = await apply(source, source.files, { dryRun: true })
+      // Only a dry run that leaves the draft as it is checks the stored draft's deployment.
+      expect(draftDeploymentChecks.count).toBe(1)
       const changedDryRun = await apply(source, changed, { dryRun: true })
+      expect(draftDeploymentChecks.count).toBe(1)
       const applied = await apply(source, changed)
 
       expect(unchangedDryRun.needsRedeployment).toBe(false)
@@ -3247,6 +3263,34 @@ describe('workflow variables in source', () => {
         removed: ['threshold'],
         renamed: [],
       })
+    }
+  )
+
+  check(
+    'two variables renamed in one apply are refused with a hint to rename them one apply at a time',
+    async () => {
+      const seeded = await seedWorkflow()
+      const first = await getSource(seeded.workflowId)
+      const added = await apply(
+        first,
+        withVariables(
+          first.files,
+          "{ threshold: { type: 'number', value: 3 }, limit: { type: 'string', value: 'x' } }"
+        )
+      )
+      expect(added.applied).toBe(true)
+      const source = await getSource(seeded.workflowId)
+      const entry = source.files['workflow.ts']
+      const renamed = entry.replace('threshold:', 'ceiling:').replace('limit:', 'cap:')
+      expect(renamed, 'the source declares both variables').not.toBe(entry)
+
+      const error = await expectRejected(
+        apply(source, { ...source.files, 'workflow.ts': renamed }),
+        'E_APPLY_VARIABLE_DELETE'
+      )
+      expect(error.diagnostics.find((d) => d.code === 'E_APPLY_VARIABLE_DELETE')?.hint).toMatch(
+        /rename them one apply at a time/
+      )
     }
   )
 

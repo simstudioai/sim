@@ -106,6 +106,35 @@ describe('POST /api/v2/workspaces/{workspaceId}/source', () => {
     expect(charges()).toEqual(['workflows.source.write 1', 'workflows.source.write 39'])
   })
 
+  it('runs dry runs in plan slots, never in an apply’s: past the plans this server runs at once a dry run answers 429 and a real apply still runs', async () => {
+    const result = {
+      workspaceId: WORKSPACE_ID,
+      dryRun: true,
+      plan: [],
+      applied: [],
+      needBlobs: [],
+      files: {},
+      base: { version: 1, workspaceId: WORKSPACE_ID, resources: {} },
+      diagnostics: [],
+    }
+    const finish: Array<() => void> = []
+    mocks.apply.mockImplementation(({ input }: { input: { dryRun?: boolean } }) =>
+      input.dryRun
+        ? new Promise((resolve) => finish.push(() => resolve(result)))
+        : Promise.resolve({ ...result, dryRun: false })
+    )
+    const running = Array.from({ length: 4 }, () => apply('?dryRun=true'))
+    await vi.waitFor(() => expect(finish).toHaveLength(4))
+
+    expect((await apply('?dryRun=true')).status).toBe(429)
+    expect((await apply('')).status).toBe(200)
+
+    for (const done of finish) done()
+    expect((await Promise.all(running)).map((response) => response.status)).toEqual([
+      200, 200, 200, 200,
+    ])
+  })
+
   it('answers a plan refused before any write with at most 1000 findings, and one that counts the rest', async () => {
     mocks.apply.mockRejectedValue(new WorkspaceSourceRejectedError(folderErrors(1_500)))
 

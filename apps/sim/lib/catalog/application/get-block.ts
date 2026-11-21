@@ -11,7 +11,8 @@ import { getContainerBlockDetail } from '@/lib/catalog/projection/container-bloc
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getLatestBlockForViewer } from '@/blocks/registry'
+import { getBlock, getLatestBlockForViewer } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
 
 export interface GetCatalogBlockInput {
   workspaceId: string
@@ -34,7 +35,13 @@ export interface GetCatalogBlockResult {
  * block hidden from the toolbar, an unrevealed preview block, a kill-switched
  * one, a type this deployment does not ship, and one the workspace's permission
  * groups exclude all answer identically. Anything softer would let a caller
- * enumerate unrevealed blocks one id at a time.
+ * enumerate unrevealed blocks one id at a time. The one exception is a sunset
+ * (legacy or deprecated) block hidden only for its lifecycle: placed instances
+ * keep running, so it reads by its exact id (`starter`), its description leading
+ * with the block that replaces it (`start_trigger`). An exact id that is also a
+ * base type with a visible newer version (`cursor`, beside `cursor_v3`) reads
+ * as that version, the name the list publishes it under, and the response
+ * echoes the resolved id.
  */
 export const getCatalogBlock = defineAuthorizedWorkspaceUseCase({
   operation: catalogOperations.readBlock,
@@ -49,9 +56,15 @@ export const getCatalogBlock = defineAuthorizedWorkspaceUseCase({
       // the catalog answers for the same vocabulary add_block accepts.
       const container = getContainerBlockDetail(input.blockId)
       if (container) return container
-      const block = getLatestBlockForViewer(input.blockId)
-      if (!block || !isBlockVisibleToCaller(block, gate)) return null
-      return projectBlockDetail(block, { deployment: { hostedKeys: isHosted } })
+      const project = (block: BlockConfig) =>
+        projectBlockDetail(block, { deployment: { hostedKeys: isHosted } })
+      const latest = getLatestBlockForViewer(input.blockId)
+      if (latest) return isBlockVisibleToCaller(latest, gate) ? project(latest) : null
+      const sunset = getBlock(input.blockId)
+      if (!sunset?.sunset || !isBlockVisibleToCaller(sunset, gate, { includeSunset: true })) {
+        return null
+      }
+      return project(sunset)
     })
 
     if (!detail) throw new OrchestrationError('not_found', 'Block not found')

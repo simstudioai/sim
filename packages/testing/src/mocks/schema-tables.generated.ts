@@ -713,6 +713,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'storageKey',
     'createdAt',
     'expiresAt',
+    'consumedAt',
   ],
   workspaceSourceApplyLease: ['workspaceId', 'token', 'acquiredAt', 'expiresAt'],
   workspaceForkDependentValue: [

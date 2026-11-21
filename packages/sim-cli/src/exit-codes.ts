@@ -79,5 +79,14 @@ export const AUTH_REQUIRED_EXIT_CODE = 13
  */
 export const SOURCE_PLANNED_EXIT_CODE = 14
 
+/**
+ * A `workspaces source apply` (or a promotion with `--to`) that wrote part of its plan and held the
+ * rest back: a change that uses a declared secret the workspace has no value for, or a declared
+ * credential key nothing binds to. What was written is saved; set the secret or connect the
+ * credential and apply again. Apart from exit 1 (nothing written), so a script can tell a clean
+ * refusal from a target left half-applied.
+ */
+export const SOURCE_HELD_EXIT_CODE = 15
+
 /** The error code of an {@link AUTH_REQUIRED_EXIT_CODE} refusal the CLI raises itself. */
 export const AUTH_REQUIRED_CODE = 'AUTH_REQUIRED'

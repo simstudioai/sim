@@ -1379,7 +1379,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2FindMissingWorkspaceSourceBlobsContract,
     summary: 'Find missing workspace source blobs',
     description:
-      'List which binary files of a workspace source directory the caller has not staged in this workspace, by SHA-256, so a client stages only those; an interrupted upload resumes without resending what is already staged. The staged ones are renewed: staged bytes expire a day after they were last staged, checked for, or planned with. Staging is per caller (a person, or one workspace API key). Requires workspace write access. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.',
+      'List which binary files of a workspace source directory the caller has not staged in this workspace, by SHA-256, so a client stages only those; an interrupted upload resumes without resending what is already staged. Asking renews nothing: staged bytes expire a day after they were last staged, and one that expires within the hour is listed as missing, so the client stages it again before applying. Staging is per caller (a person, or one workspace API key). Requires workspace write access. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workspaces/[workspaceId]/source/blobs/missing/route').then(
         (route) => route.POST

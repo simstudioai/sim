@@ -8,6 +8,7 @@ import { boundFindingText, type RefusalClass } from '@sim/workflow-code/diagnost
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { type FlatDiagnostic, refusalClass } from '@sim/workspace-code'
 import type { Command } from 'commander'
+import { annotationLine, annotationPath, printAnnotations } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
 import { askLine } from '#sim-cli/terminal/line-input'
 import type { OutputFormat } from '../../config/index'
@@ -23,7 +24,7 @@ import type {
   ApplyWorkflowSourceResponse,
   ApplyWorkspaceSourceResponse,
 } from '../../generated/v2-api'
-import { noAnswer, REQUEST_CANCELLED, SimApiError } from '../../http/client'
+import { isRequestCancelled, noAnswer, SimApiError } from '../../http/client'
 import { LocalRefusal } from './local-errors'
 
 /** One finding of a source write, as the workflow and workspace answers both carry it. */
@@ -138,7 +139,7 @@ function printDiagnostics(diagnostics: readonly Diagnostic[]): void {
 type ResultDiagnostic = Omit<FlatDiagnostic, 'frame' | 'code'> & { code: Diagnostic['code'] }
 
 /** Whether `format` prints one machine document on stdout rather than lines for a person. */
-function isMachine(format: OutputFormat): boolean {
+export function isMachine(format: OutputFormat): boolean {
   return format === 'json' || format === 'yaml'
 }
 
@@ -203,18 +204,59 @@ export interface FindingsOutput {
 }
 
 /**
- * The {@link FindingsOutput} of `format`; `verbose` keeps info findings in a machine result. It is
+ * A finding as a GitHub Actions annotation at its file, line and column (the file relative to the
+ * source directory `dir`, when known); none for an info finding.
+ */
+function findingAnnotation(diagnostic: Diagnostic, dir: string | undefined): string[] {
+  if (diagnostic.severity === 'info') return []
+  // A finding in a non-source file (`path`, a JSON path into it) has no line to point at.
+  const { file } = diagnostic
+  const site =
+    file !== undefined && diagnostic.path === undefined
+      ? {
+          file: dir === undefined ? file : annotationPath(dir, file),
+          line: diagnostic.line,
+          column: diagnostic.column,
+        }
+      : {}
+  const message = diagnostic.hint
+    ? `${diagnostic.message} Hint: ${diagnostic.hint}`
+    : diagnostic.message
+  return [annotationLine(diagnostic.severity, message, { ...site, title: diagnostic.code })]
+}
+
+/**
+ * Info findings a display format prints only with `--verbose`: they report what the server does
+ * for the person (a new block placed by autolayout), so there is nothing to act on.
+ */
+const QUIET_INFO_CODES: ReadonlySet<Diagnostic['code']> = new Set(['I_MAT_NEEDS_LAYOUT'])
+
+/**
+ * The {@link FindingsOutput} of `format`; `verbose` keeps info findings in a machine result, and
+ * the {@link QUIET_INFO_CODES} in a display one. In a GitHub Actions step every error and warning
+ * is also annotated at its file under the source directory `dir`, whatever the format. It is
  * the CLI's output edge, where each finding's message and hint are cut (`boundFindingText`): a
  * finding an offline check made is as long as its source made it until here.
  */
-export function findingsOutput(format: OutputFormat, verbose = false): FindingsOutput {
+export function findingsOutput(
+  format: OutputFormat,
+  verbose = false,
+  dir?: string
+): FindingsOutput {
   const printed = new Set<string>()
   const machine = isMachine(format)
   return {
     machine,
     print(diagnostics) {
-      const unseen = diagnostics.filter((diagnostic) => fresh(printed, findingKey(diagnostic)))
-      if (!machine) printDiagnostics(unseen.map((diagnostic) => boundFindingText(diagnostic)))
+      const unseen = diagnostics
+        .filter(
+          (diagnostic) =>
+            (verbose || !QUIET_INFO_CODES.has(diagnostic.code)) &&
+            fresh(printed, findingKey(diagnostic))
+        )
+        .map((diagnostic) => boundFindingText(diagnostic))
+      if (!machine) printDiagnostics(unseen)
+      printAnnotations(unseen.flatMap((diagnostic) => findingAnnotation(diagnostic, dir)))
     },
     result: (diagnostics) =>
       resultDiagnostics(
@@ -250,7 +292,7 @@ export function createdText(created: readonly CreatedResource[]): string {
 export function verboseFlag(command: Command): Command {
   return command.option(
     '--verbose',
-    'With --output json, also list info findings (such as blocks placed by autolayout)'
+    'Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display'
   )
 }
 
@@ -297,7 +339,7 @@ const LOST_ANSWER_STATUSES = new Set([502, 504])
  */
 function answerLost(error: SimApiError): boolean {
   if (error instanceof LocalRefusal) return false
-  return noAnswer(error, LOST_ANSWER_STATUSES) || error.code === REQUEST_CANCELLED
+  return noAnswer(error, LOST_ANSWER_STATUSES) || isRequestCancelled(error)
 }
 
 /**

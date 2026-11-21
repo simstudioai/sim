@@ -122,6 +122,7 @@ Every `sim workflows source` and `sim workspaces source` command exits with one 
 | 12 | `status`: the server changed since the get (drift, or a conflict with your edits) | Follow the `Next:` line it prints |
 | 13 | Not logged in, or the server refused the credential (`AUTH_REQUIRED`); nothing was sent | `sim login`, or fix or unset `SIM_API_KEY` |
 | 14 | `apply` or `create` without `--yes` and no terminal to ask: it printed the plan, found no errors, and wrote nothing | Run the same command with `--yes` |
+| 15 | `sim workspaces source apply` (or `--to`) wrote part of its plan and held the rest back: a change that uses a declared secret with no value, or a credential key nothing binds to | Set the secret or connect the credential, then apply again |
 | 130 | Interrupted (Ctrl-C). An apply or create already sent is finished and saved first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and says it may have been written | `sim workflows source status --dir ./wf` |
 
 ## Write declarations, not programs

@@ -893,7 +893,11 @@ export function useWorkspaceFileContent(
     },
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
-    retry: (failureCount, error) => failureCount < 1 && !(error instanceof FileTextSizeError),
+    // A superseded key is never retried: the record is re-resolved instead (useStaleKeyRecovery).
+    retry: (failureCount, error) =>
+      failureCount < 1 &&
+      !(error instanceof FileTextSizeError) &&
+      !(error instanceof StaleStorageKeyError),
     refetchOnWindowFocus: options?.refetchOnWindowFocus === false ? false : 'always',
     refetchInterval: options?.refetchInterval ?? false,
   })

@@ -462,6 +462,7 @@ function configureOperation(
       spec.describe ?? operationSpec.summary ?? `${operationSpec.method} ${operationSpec.path}`
     )
   )
+  if (spec.helpText) command.addHelpText('after', spec.helpText)
   addOperationOptions(command, operation, spec, operationSpec)
   assertNoReservedFlags(command, operation)
   // The last frame that still knows which operation ran, and so the only one

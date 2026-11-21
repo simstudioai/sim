@@ -11,14 +11,13 @@ import {
 import type { InferInsertModel, SQL } from 'drizzle-orm'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { PgInsertValue } from 'drizzle-orm/pg-core'
-import { edgeLoadOrder } from './load'
+import { creationOrder } from './load'
 import { pruneWorkflowSourceMeta } from './source-meta'
 import { generateLoopBlocks, generateParallelBlocks } from './subflow-helpers'
-import type { DbOrTx } from './types'
+import type { DbOrTx, GraphTable } from './types'
 
 const logger = createLogger('WorkflowPersistenceSave')
 
-type GraphTable = typeof workflowBlocks | typeof workflowEdges | typeof workflowSubflows
 type BlockRow = InferInsertModel<typeof workflowBlocks>
 type EdgeRow = InferInsertModel<typeof workflowEdges>
 type SubflowRow = InferInsertModel<typeof workflowSubflows>
@@ -195,14 +194,27 @@ async function deleteRows(
 }
 
 /**
+ * `rows` stamped a microsecond apart in their order, so a save's inserts load back in the order
+ * the state listed them (`creationOrder`) rather than by where the heap put them.
+ */
+function inCreationOrder<T extends object>(
+  rows: T[]
+): Array<Omit<T, 'createdAt'> & { createdAt: SQL }> {
+  return rows.map((row, index) => ({
+    ...row,
+    createdAt: sql`now() + ${index} * interval '1 microsecond'`,
+  }))
+}
+
+/**
  * Makes the workflow's normalized block, edge and subflow rows match `state`, leaving the rows a
  * delete-all and re-insert would leave; a state with an edge to a block it does not hold is
  * refused before anything is written, as that re-insert's foreign keys refused it. Only the
  * difference is written for blocks and subflows: rows whose stored columns already match are
  * untouched (keeping their timestamps), changed rows are rewritten, and missing or extra rows are
  * inserted or deleted, so an edit costs its size rather than the graph's. Edges, which nothing
- * references, are left alone when unchanged and in order, and otherwise rewritten whole in the
- * state's order (see `edgeLoadOrder`).
+ * references, are left alone when unchanged and in order, and otherwise rewritten whole. Rows
+ * inserted together are stamped in the state's order (see `creationOrder`).
  *
  * The stored rows are read `FOR UPDATE`, the rows a delete-all would lock. Writes run in
  * foreign-key order: an edge is retargeted before the block it left is deleted, so that block's
@@ -248,7 +260,7 @@ export async function saveWorkflowToNormalizedTables(
         .select()
         .from(workflowEdges)
         .where(eq(workflowEdges.workflowId, workflowId))
-        .orderBy(...edgeLoadOrder())
+        .orderBy(...creationOrder(workflowEdges))
         .for('update'),
       tx
         .select()
@@ -270,22 +282,22 @@ export async function saveWorkflowToNormalizedTables(
     }
     await deleteRows(tx, workflowSubflows, workflowId, subflows.deleteIds)
 
-    if (blocks.inserts.length > 0) await tx.insert(workflowBlocks).values(blocks.inserts)
+    if (blocks.inserts.length > 0) {
+      await tx.insert(workflowBlocks).values(inCreationOrder(blocks.inserts))
+    }
     await updateRows(tx, workflowBlocks, workflowId, blocks.updates, BLOCK_UPDATE_SET)
 
     if (rewriteEdges) {
-      const timed = desiredEdges.map((edge, index) => ({
-        ...edge,
-        createdAt: sql`now() + ${index} * interval '1 microsecond'`,
-      }))
-      for (const batch of chunkArray(timed, EDGE_INSERT_BATCH)) {
+      for (const batch of chunkArray(inCreationOrder(desiredEdges), EDGE_INSERT_BATCH)) {
         await tx.insert(workflowEdges).values(batch)
       }
     }
 
     await deleteRows(tx, workflowBlocks, workflowId, blocks.deleteIds)
 
-    if (subflows.inserts.length > 0) await tx.insert(workflowSubflows).values(subflows.inserts)
+    if (subflows.inserts.length > 0) {
+      await tx.insert(workflowSubflows).values(inCreationOrder(subflows.inserts))
+    }
     await updateRows(tx, workflowSubflows, workflowId, subflows.updates, SUBFLOW_UPDATE_SET)
 
     const savedBlockIds = new Set(Object.keys(state.blocks))

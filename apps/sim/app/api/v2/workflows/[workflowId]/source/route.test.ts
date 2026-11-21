@@ -466,10 +466,12 @@ describe('source write rate limit', () => {
     expect((await GET(request(), context)).status).toBe(200)
   })
 
-  it('answers 429 with Retry-After to a dry run past the applies this server runs at once', async () => {
+  it('runs dry runs in plan slots, never in an apply’s: past the plans this server runs at once a dry run answers 429 and a real apply still runs', async () => {
     const finish: Array<() => void> = []
-    mocks.apply.mockImplementation(
-      () => new Promise((resolve) => finish.push(() => resolve({ ...applied, dryRun: true })))
+    mocks.apply.mockImplementation(({ input }: { input: { dryRun?: boolean } }) =>
+      input.dryRun
+        ? new Promise((resolve) => finish.push(() => resolve({ ...applied, dryRun: true })))
+        : Promise.resolve(applied)
     )
     const dryRun = () => POST(applyRequest(applyBody, '?dryRun=true'), context)
     const running = Array.from({ length: 4 }, () => dryRun())
@@ -478,6 +480,7 @@ describe('source write rate limit', () => {
     const refused = await dryRun()
     expect(refused.status).toBe(429)
     expect(refused.headers.get('Retry-After')).toBe('5')
+    expect((await POST(applyRequest(applyBody), context)).status).toBe(200)
 
     for (const done of finish) done()
     expect((await Promise.all(running)).map((response) => response.status)).toEqual([
@@ -550,12 +553,29 @@ describe('source plan budget', () => {
     mocks.apply.mockResolvedValue({ ...applied, dryRun: true, applied: false })
   })
 
-  it('answers 429 to plans well inside the generic budget, and never spends the write budget', async () => {
+  it('answers 429 to plans well inside the generic budget, and dry-run applies and creates share it, never the write budget', async () => {
+    mocks.apply.mockResolvedValue(applied)
+    mocks.create.mockResolvedValue(applied)
+    const create = (query: string) =>
+      CREATE(
+        new NextRequest(
+          `http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/workflows/source${query}`,
+          {
+            method: 'POST',
+            headers: { 'x-api-key': 'key', 'content-type': 'application/json' },
+            body: JSON.stringify({ files: source.files }),
+          }
+        ),
+        { params: Promise.resolve({ workspaceId: WORKSPACE_ID }) }
+      )
     const limitedAt = await writesUntilLimited(plan)
 
     expect(limitedAt).not.toBeNull()
     expect(limitedAt).toBeLessThan(GENERIC_BUDGET)
-    expect((await POST(applyRequest(applyBody, '?dryRun=true'), context)).status).toBe(200)
+    expect((await POST(applyRequest(applyBody, '?dryRun=true'), context)).status).toBe(429)
+    expect((await create('?dryRun=true')).status).toBe(429)
+    expect((await POST(applyRequest(applyBody), context)).status).not.toBe(429)
+    expect((await create('')).status).not.toBe(429)
   })
 
   it('answers 429 with Retry-After to a plan past the plans this server runs at once', async () => {

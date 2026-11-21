@@ -46,6 +46,7 @@ import {
 import { lockUniqueColumns, lockUniqueValues } from '@/lib/table/rows/unique-locks'
 import { getTableById, withTableWriteTx } from '@/lib/table/service'
 import { getOrCreateTableSnapshot } from '@/lib/table/snapshot-cache'
+import { setTableTxTimeouts } from '@/lib/table/tx'
 import type { ColumnDefinition, JsonValue, RowData, TableDefinition } from '@/lib/table/types'
 import { checkBatchUniqueConstraintsDb } from '@/lib/table/validation'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -373,6 +374,22 @@ describe('table row writes against real PostgreSQL', () => {
 
     // The reshape's own transaction opens at the 10s default; the row API's bulk writes run at 60s.
     expect(timeout).toBe('1min')
+  })
+
+  it('keeps the timeouts of the transaction a column write joins', async () => {
+    const table = await createTable([{ id: 'key', name: 'key', type: 'string' }])
+
+    const timeouts = await withTableWriteTx(table.id, async (locked, tx) => {
+      await setTableTxTimeouts(tx.trx, { statementMs: 120_000, idleMs: 120_000 })
+      await addTableColumn(locked.id, { name: 'note', type: 'string' }, 'joined-timeouts', { tx })
+      const [setting] = await tx.trx.execute<{ statement: string; idle: string }>(
+        sql`SELECT current_setting('statement_timeout') AS statement,
+          current_setting('idle_in_transaction_session_timeout') AS idle`
+      )
+      return setting
+    })
+
+    expect(timeouts).toEqual({ statement: '2min', idle: '2min' })
   })
 
   describe('unique columns under concurrent writes', () => {

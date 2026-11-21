@@ -329,6 +329,20 @@ type OwnCode = (typeof OWN_CODES)[number]
 /** Every code a workspace source finding can carry, as a value: the wire contracts' enum. */
 export const WORKSPACE_DIAGNOSTIC_CODES = [...OWN_CODES, ...SHARED_CODES] as const
 
+const OWN_CODE_SET: ReadonlySet<string> = new Set(OWN_CODES)
+const SHARED_CODE_SET: ReadonlySet<string> = new Set(SHARED_CODES)
+
+/**
+ * Whether a finding comes from evaluating a workflow folder's files (compile, lint): a workflow
+ * pipeline code, or one {@link SHARED_CODES} holds pinned to a file. The server reports these only
+ * for a folder sent whole; a workspace code (a plan check such as `E_PLAN_REF_DELETED`, a held
+ * reference, a stale resource) can be about any folder, sent whole or by its base.
+ */
+export function isFolderEvaluationFinding(finding: { code: string; file?: string }): boolean {
+  if (OWN_CODE_SET.has(finding.code)) return false
+  return !SHARED_CODE_SET.has(finding.code) || finding.file !== undefined
+}
+
 /**
  * One of {@link WORKSPACE_DIAGNOSTIC_CODES}. It is `never`, which fails every use, if a workspace
  * code is declared twice or is also a workflow code outside {@link SHARED_CODES}.
