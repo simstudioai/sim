@@ -161,7 +161,7 @@ function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRow[] {
         'workspaces source apply':
           'another apply is writing the workspace (SOURCE_BUSY), or another command is using the directory (SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished',
         'workspaces source get':
-          '(busy, retry) another sim workspaces source command is using this directory (SOURCE_DIR_BUSY): nothing was read or written, run it again once it finished',
+          '(busy, retry) another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY): nothing was read or written, run it again once it finished',
       },
     },
     {

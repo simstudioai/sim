@@ -25,8 +25,9 @@ export const SOURCE_DIR_LOCK = '.sim/command.lock'
 
 /** The help line every command that holds {@link SOURCE_DIR_LOCK} adds to its exit codes. */
 export const SOURCE_DIR_BUSY_HELP = `
-Exit ${SOURCE_BUSY_EXIT_CODE} (busy, retry): another sim workspaces source command is using this directory
-(SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.`
+Exit ${SOURCE_BUSY_EXIT_CODE} (busy, retry): another sim workspaces source or workflows source command is using
+this directory or a workflow folder in it (SOURCE_DIR_BUSY); nothing was read or written. Run this one
+again once it finished.`
 
 /** The file-system codes of a directory the user may not write: its lock cannot be taken. */
 const UNWRITABLE_CODES: ReadonlySet<string> = new Set(['EACCES', 'EPERM', 'EROFS'])
