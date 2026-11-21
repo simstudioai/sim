@@ -208,6 +208,17 @@ function registerList(
   for (const [key, property] of entries) addItem(property, anchorOf(key))
 }
 
+/**
+ * The block meta keys an author most often writes among the params by mistake, each with the call
+ * that places it: the meta object is a builder's third argument, beside the params.
+ */
+const BLOCK_META_HINTS: Readonly<Record<string, string>> = {
+  retry: "agent('Name', {…}, { retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 2000 } })",
+  disabled: "agent('Name', {…}, { disabled: true })",
+  locked: "agent('Name', {…}, { locked: true })",
+  errorPort: "agent('Name', {…}, { errorPort: true })",
+}
+
 /** `meta`: block-level fields, in the printer's vocabulary. */
 function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSite): CompiledMeta {
   const meta: CompiledMeta = {
@@ -1140,7 +1151,9 @@ function compileWrittenParams(
         {
           hint: alias
             ? `Write it as ${alias}; the value kind picks the basic or advanced field.`
-            : didYouMean(key, index.fields.keys()),
+            : Object.hasOwn(BLOCK_META_HINTS, key)
+              ? `${key} is block meta, not a param: pass it in the third argument, ${BLOCK_META_HINTS[key]}.`
+              : didYouMean(key, index.fields.keys()),
           blockKey: decl.key,
           param: key,
         }
