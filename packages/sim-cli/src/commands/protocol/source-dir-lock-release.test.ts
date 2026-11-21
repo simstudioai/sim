@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -62,5 +70,18 @@ describe('the interrupt release of a directory lock', () => {
     })
 
     expect(target).toBeNull()
+  })
+  it('uninstalls the interrupt release even when removing the lock fails', async () => {
+    const listening = process.listenerCount('SIGINT')
+    const outside = realpathSync(mkdtempSync(join(tmpdir(), 'sim-source-lock-outside-')))
+
+    const failed = withSourceDirLock(dir, async () => {
+      rmSync(join(dir, SOURCE_DIR_LOCK), { recursive: true, force: true })
+      symlinkSync(outside, join(dir, SOURCE_DIR_LOCK))
+    })
+
+    await expect(failed).rejects.toMatchObject({ code: 'SOURCE_SYMLINK' })
+    expect(process.listenerCount('SIGINT')).toBe(listening)
+    rmSync(outside, { recursive: true, force: true })
   })
 })

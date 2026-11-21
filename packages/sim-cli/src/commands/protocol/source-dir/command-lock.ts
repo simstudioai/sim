@@ -205,10 +205,16 @@ export async function withSourceDirLock<T>(
   } finally {
     // The signal release stays installed until the lock is gone: an interrupt a deferred write
     // held is raised again as `run` ends, and with no handler it would end the process mid-removal.
-    await rm(await checkedPath(root, SOURCE_DIR_LOCK, new Set()), { recursive: true, force: true })
-    // Folders the lock alone created go with it; one the command filled stays.
-    await removeCreatedFolders()
-    disposeSignalRelease()
+    try {
+      await rm(await checkedPath(root, SOURCE_DIR_LOCK, new Set()), {
+        recursive: true,
+        force: true,
+      })
+      // Folders the lock alone created go with it; one the command filled stays.
+      await removeCreatedFolders()
+    } finally {
+      disposeSignalRelease()
+    }
   }
 }
 
