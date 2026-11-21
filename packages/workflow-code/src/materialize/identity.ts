@@ -1,4 +1,3 @@
-import { canonicalJson } from '@sim/utils/object'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import { type BlockState, normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { CanonicalizeResult } from '../canonicalize'
@@ -18,6 +17,7 @@ import {
 } from '../model'
 import { deepEqual, getOwn } from '../records'
 import type { MaterializeHooks } from './context'
+import { settingsIndex } from './settings-index'
 
 /** How identity rule matched a compiled block to a stored one (rules 1–4). */
 type IdentityMatchRule = 'lock-key' | 'lock-ident' | 'db-name' | 'inferred'
@@ -455,51 +455,6 @@ function referencedKeys(block: CanonicalBlock): Set<BlockKey> {
     }
   }
   return keys
-}
-
-/** Whether any string under `value` holds a `<`, the only way a reference can sit in it. */
-function holdsAngle(value: unknown): boolean {
-  for (const text of strings(value)) if (text.includes('<')) return true
-  return false
-}
-
-/**
- * The blocks among `blocks` whose settings may agree with a given block's ({@link settingsAgree}),
- * a superset found without comparing every pair, and the same whichever side is indexed. Settings
- * agree only when every param both blocks hold is equal, so a match either lacks a param the given
- * block holds or holds it equal. A value with no `<` holds no reference, so the old-key rewrite
- * leaves it as it is and equal values have equal canonical JSON; a value with one keeps one after
- * the rewrite, so it can only equal another such value.
- */
-function settingsIndex(blocks: ReadonlyArray<[BlockKey, CanonicalBlock]>) {
-  const byValue = new Map<string, BlockKey[]>()
-  const holders = new Map<string, Set<BlockKey>>()
-  const bucketOf = (id: string, value: unknown) =>
-    holdsAngle(value) ? `<\u0000${id}` : `=\u0000${id}\u0000${canonicalJson(value)}`
-  for (const [key, block] of blocks) {
-    for (const [id, value] of Object.entries(block.params)) {
-      pushTo(byValue, bucketOf(id, value), key)
-      const held = holders.get(id)
-      if (held) held.add(key)
-      else holders.set(id, new Set([key]))
-    }
-  }
-  return function* matches(block: CanonicalBlock): Generator<BlockKey> {
-    let best: { id: string; equal: BlockKey[] } | undefined
-    let bestSize = Number.POSITIVE_INFINITY
-    for (const [id, value] of Object.entries(block.params)) {
-      const equal = byValue.get(bucketOf(id, value)) ?? []
-      const size = blocks.length - (holders.get(id)?.size ?? 0) + equal.length
-      if (size < bestSize) {
-        best = { id, equal }
-        bestSize = size
-      }
-    }
-    if (!best) return
-    const held = holders.get(best.id)
-    for (const [key] of blocks) if (!held?.has(key)) yield key
-    yield* best.equal
-  }
 }
 
 /**
