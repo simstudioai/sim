@@ -112,7 +112,7 @@ app:
     FREE_TABLES_LIMIT: null
 ```
 
-**Do not use `""` — it is a silent no-op — and do not add a chart-level "unset list" to work around that.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates must read `""` as "not specified"; six of those collide with a real `envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `ORGANIZATIONS_ENABLED`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`, …) and would blank themselves out on every default install if `""` meant "delete". A list-shaped unset key is also the wrong interface — Helm merges dicts but not lists, so it cannot be modified or unset downstream.
+**Do not use `""` — it is a silent no-op — and do not add a chart-level "unset list" to work around that.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates must read `""` as "not specified"; four of those collide with a real `envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`) and would blank themselves out on every default install if `""` meant "delete". A list-shaped unset key is also the wrong interface — Helm merges dicts but not lists, so it cannot be modified or unset downstream.
 
 The `(ne (toString $value) "<nil>")` guards throughout the templates are what make `null` deletion work — preserve them in any new render path. Regression net: `tests/env-null-deletion_test.yaml`.
 
