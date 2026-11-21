@@ -1511,6 +1511,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       expect.objectContaining({
         totalDurationMs: 123,
         traceSpans: [{ id: 'span-1' }],
+        workflowInput: { hello: 'world' },
         executionState,
       })
     )
@@ -1549,6 +1550,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         error: { message: 'Execution timed out' },
         totalDurationMs: 123,
         traceSpans: [{ id: 'span-1' }],
+        workflowInput: { hello: 'world' },
         executionState,
       })
     )
@@ -1849,7 +1851,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     expect(safeCompleteWithErrorMock).toHaveBeenCalledTimes(1)
     expect(safeCompleteWithErrorMock).toHaveBeenCalledWith(
-      expect.objectContaining({ executionState })
+      expect.objectContaining({ executionState, workflowInput: { hello: 'world' } })
     )
     expect(clearExecutionCancellationMock).toHaveBeenCalledWith('execution-1')
     expect(wasExecutionFinalizedByCore(error, 'execution-1')).toBe(true)
@@ -1986,6 +1988,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       })
     )
     expect(safeCompleteWithErrorMock).toHaveBeenCalledTimes(1)
+    expect(safeCompleteWithErrorMock.mock.calls[0]?.[0]?.workflowInput).toBeUndefined()
     expect(wasExecutionFinalizedByCore(envError, 'execution-1')).toBe(true)
   })
 

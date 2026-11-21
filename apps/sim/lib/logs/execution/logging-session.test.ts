@@ -986,6 +986,26 @@ describe('LoggingSession completion retries', () => {
     )
   })
 
+  it('persists the run input of a failed or cancelled run', async () => {
+    completeWorkflowExecutionMock.mockResolvedValue({})
+    const failed = new LoggingSession('workflow-1', 'execution-7', 'manual', 'req-1')
+    failed.setResolvedSecretTraceRegistry(createSecretRegistry([]))
+    await failed.safeCompleteWithError({
+      error: { message: 'boom' },
+      workflowInput: { company: 'Acme' },
+    })
+    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ executionId: 'execution-7', workflowInput: { company: 'Acme' } })
+    )
+
+    const cancelled = new LoggingSession('workflow-1', 'execution-8', 'manual', 'req-1')
+    cancelled.setResolvedSecretTraceRegistry(createSecretRegistry([]))
+    await cancelled.safeCompleteWithCancellation({ workflowInput: { company: 'Acme' } })
+    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ executionId: 'execution-8', workflowInput: { company: 'Acme' } })
+    )
+  })
+
   it('marks paused completions as completed and deduplicates later attempts', async () => {
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
 
