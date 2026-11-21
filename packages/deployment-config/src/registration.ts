@@ -146,6 +146,11 @@ function isOff(value: EnvValue): boolean {
   return normalized === 'false' || normalized === '0'
 }
 
+/**
+ * Whether `value` is exactly one of the registration modes. It does no trimming or case
+ * folding, so it suits already-normalized values such as a projected deployment shape;
+ * raw environment input goes through {@link resolveRegistrationMode}.
+ */
 export function isRegistrationMode(value: unknown): value is RegistrationMode {
   return typeof value === 'string' && (REGISTRATION_MODES as readonly string[]).includes(value)
 }
@@ -222,6 +227,12 @@ export function resolveRegistrationMode(read: ReadEnv): RegistrationModeResoluti
   return { mode: resolved, warnings }
 }
 
+/**
+ * The concrete auth rules for an already-resolved registration mode: whether self-serve
+ * signup is closed, whether new accounts may use email/password or email OTP, and whether
+ * those email methods work at all. Pass the mode from {@link resolveRegistrationMode}
+ * (server) or the deployment shape (browser), never raw environment input.
+ */
 export function getRegistrationPolicy(mode: RegistrationMode): RegistrationPolicy {
   const { signup, emailAuth } = MODE_AXES[mode]
   return {

@@ -111,15 +111,17 @@ function describeToolChoice(toolChoice: ChatCompletionToolChoiceOption): string 
 export async function discoverSelfHostedModels(
   config: SelfHostedProviderConfig
 ): Promise<string[] | undefined> {
-  const { providerId, providerName, logger } = config
+  const { providerId, logger } = config
   if (typeof window !== 'undefined') {
-    logger.info(`Skipping ${providerName} initialization on client side to avoid CORS issues`)
+    logger.info('Skipping model discovery on the client to avoid CORS issues')
     return undefined
   }
 
   const baseUrl = config.getBaseUrl()?.trim()
   if (!baseUrl) {
-    logger.info(`${providerId.toUpperCase()}_BASE_URL not configured, skipping initialization`)
+    logger.info('Base URL not configured, skipping model discovery', {
+      envVar: `${providerId.toUpperCase()}_BASE_URL`,
+    })
     return undefined
   }
 
@@ -131,15 +133,15 @@ export async function discoverSelfHostedModels(
     })
     if (!models) {
       useProvidersStore.getState().setProviderModels(providerId, [])
-      logger.warn(`${providerName} service is not available. The provider will be disabled.`)
+      logger.warn('Model server is not available; the provider will be disabled')
       return undefined
     }
 
     useProvidersStore.getState().setProviderModels(providerId, models)
-    logger.info(`Discovered ${providerName} models`, { count: models.length, models })
+    logger.info('Discovered models', { count: models.length, models })
     return models
   } catch (error) {
-    logger.warn(`${providerName} model instantiation failed. The provider will be disabled.`, {
+    logger.warn('Model discovery failed; the provider will be disabled', {
       error: getErrorMessage(error, 'Unknown error'),
     })
     return undefined
@@ -176,7 +178,7 @@ async function createSelfHostedClient(
       'selfHostedService'
     )
     if (!validation.isValid) {
-      logger.warn(`Blocked SSRF attempt via ${providerName} endpoint`, {
+      logger.warn('Blocked SSRF attempt via the request endpoint', {
         endpoint: userProvidedEndpoint,
         error: validation.error,
       })
@@ -206,7 +208,7 @@ export async function executeSelfHostedChatRequest(
 ): Promise<ProviderResponse | StreamingExecution> {
   const { providerId, providerName, logger } = config
 
-  logger.info(`Preparing ${providerName} request`, {
+  logger.info('Preparing request', {
     model: request.model,
     hasSystemPrompt: !!request.systemPrompt,
     hasMessages: !!request.messages?.length,
@@ -287,7 +289,7 @@ export async function executeSelfHostedChatRequest(
       payload.tool_choice = activeToolChoice
       hasActiveTools = true
 
-      logger.info(`${providerName} request configuration:`, {
+      logger.info('Request configuration', {
         toolCount: filteredTools.length,
         toolChoice: describeToolChoice(activeToolChoice),
         model: payload.model,
@@ -299,7 +301,7 @@ export async function executeSelfHostedChatRequest(
     config.responseFormat === 'strict-deferred' && !!responseFormatPayload && hasActiveTools
   if (responseFormatPayload && !deferResponseFormat) {
     payload.response_format = responseFormatPayload
-    logger.info(`Added JSON schema response format to ${providerName} request`)
+    logger.info('Added JSON schema response format to request')
   }
 
   const providerStartTime = Date.now()
@@ -307,7 +309,7 @@ export async function executeSelfHostedChatRequest(
 
   try {
     if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
-      logger.info(`Using streaming response for ${providerName} request`)
+      logger.info('Using streaming response')
 
       const streamingParams: ChatCompletionCreateParamsStreaming = {
         ...payload,
@@ -446,9 +448,10 @@ export async function executeSelfHostedChatRequest(
         break
       }
 
-      logger.info(
-        `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1})`
-      )
+      logger.info('Processing tool calls', {
+        toolCallCount: toolCallsInResponse.length,
+        iteration: iterationCount + 1,
+      })
 
       const toolsStartTime = Date.now()
 
@@ -624,7 +627,7 @@ export async function executeSelfHostedChatRequest(
             type: 'function',
             function: { name: remainingTools[0] },
           }
-          logger.info(`Forcing next tool: ${remainingTools[0]}`)
+          logger.info('Forcing next tool', { tool: remainingTools[0] })
         } else {
           nextPayload.tool_choice = 'auto'
           logger.info('All forced tools have been used, switching to auto tool_choice')
@@ -894,15 +897,12 @@ export async function executeSelfHostedChatRequest(
       }
     }
 
-    logger[providerFailureLogLevel(error, request.abortSignal)](
-      `Error in ${providerName} request:`,
-      {
-        error: errorMessage,
-        errorType,
-        errorCode,
-        duration: totalDuration,
-      }
-    )
+    logger[providerFailureLogLevel(error, request.abortSignal)]('Provider request failed', {
+      error: errorMessage,
+      errorType,
+      errorCode,
+      duration: totalDuration,
+    })
 
     if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
