@@ -592,7 +592,7 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     .option('--manual', 'Run the current saved workflow state instead of the active deployment')
     .option(
       '--trigger <blockId>',
-      'Enter the run through this runnable trigger; runs the current saved workflow state (implies --manual)'
+      'Enter the run through this runnable trigger, by its block id; runs the current saved workflow state (implies --manual)'
     )
     .option(
       '--mock-payload',

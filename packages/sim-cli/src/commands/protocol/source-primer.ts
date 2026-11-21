@@ -16,6 +16,7 @@ import {
   RATE_LIMITED_EXIT_CODE,
   SOURCE_BUSY_EXIT_CODE,
   SOURCE_DRIFT_EXIT_CODE,
+  SOURCE_HELD_EXIT_CODE,
   SOURCE_LOCAL_CHANGES_EXIT_CODE,
   SOURCE_STALE_EXIT_CODE,
 } from '../../exit-codes'
@@ -73,6 +74,7 @@ This directory is a Sim workspace as files (\`tables/\`, \`workflows/<key>/workf
 - **Deletes**: a removed file (a resource this directory managed), table column, workflow block or workflow variable is deleted only with \`apply --allow-delete\` (else refused), and cannot be undone. A kind is managed only when its folder exists.
 - **Deploy**: \`deployments/<workflow key>.ts\` (\`defineDeployment({ live: 'draft' })\`) deploys that workflow on apply, which prints its webhook URLs; without one, apply never deploys.
 - **Promote** (dev → prod): \`sim workspaces source apply --dir . --to <workspaceId> --dry-run\`, then \`--yes\`.
+- **Exit ${SOURCE_HELD_EXIT_CODE}**: written in part; changes using an unset secret or unbound credential were held back: set it, apply again.
 ${sharedRules('sim workspaces source', WORKSPACE_RENAMES)}
 `
 
