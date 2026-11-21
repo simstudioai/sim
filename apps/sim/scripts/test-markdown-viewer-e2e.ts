@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
+import type { TiptapEditorHTMLElement } from '@tiptap/core'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 
@@ -395,6 +396,175 @@ async function editLastCell(page: Page, marker: string) {
   await page.keyboard.press('ArrowRight')
 }
 
+async function provePastePersistence(page: Page, browserName: string) {
+  const created = toRecord(
+    toRecord(
+      await (
+        await request(`/api/workspaces/${workspaceId}/files`, {
+          name: `clipboard-${browserName}.md`,
+          content: 'Clipboard proof\n\nStart here.',
+          contentType: 'text/markdown',
+        })
+      ).json()
+    ).file
+  )
+  assert.equal(typeof created.id, 'string')
+  const pastedFileId = String(created.id)
+  const pastedShareId = generateId()
+  const pastedShareToken = generateShortId()
+  const readPasteSource = async () =>
+    (await request(`/api/files/public/${pastedShareToken}/content`)).text()
+  try {
+    await sql`insert into public_share (id, resource_type, resource_id, entity_type, entity_id, workspace_id, created_by, token) values (${pastedShareId}, 'file', ${pastedFileId}, 'workspace', ${workspaceId}, ${workspaceId}, ${userId}, ${pastedShareToken})`
+    await page.goto(new URL(`/workspace/${workspaceId}/files/${pastedFileId}`, base).href)
+    const editor = page.locator('.rich-markdown-prose[contenteditable="true"]')
+    await expect(editor).toBeVisible({ timeout: 120_000 })
+    await expect(editor).toContainText('Start here.')
+    const marker = `paste-${browserName}`
+    const focusLastParagraph = async () => {
+      await editor.locator(':scope > p').last().click()
+      await expect
+        .poll(() =>
+          editor.evaluate((element) => {
+            const state = (element as TiptapEditorHTMLElement).editor?.state
+            if (!state) return false
+            const { doc, selection } = state
+            return selection.$from.depth === 1 && selection.$from.index(0) === doc.childCount - 1
+          })
+        )
+        .toBe(true)
+    }
+    const paste = async (data: Record<string, string>, plain = false) => {
+      await focusLastParagraph()
+      await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End')
+      await page.keyboard.press('Enter')
+      await editor.evaluate(
+        (element, { representations, plain }) => {
+          const key = { key: 'v', keyCode: 86, ctrlKey: true, shiftKey: true, bubbles: true }
+          if (plain) element.dispatchEvent(new KeyboardEvent('keydown', key))
+          try {
+            const clipboardData = new DataTransfer()
+            for (const [type, text] of Object.entries(representations))
+              clipboardData.setData(type, text)
+            element.dispatchEvent(
+              new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true })
+            )
+          } finally {
+            if (plain) element.dispatchEvent(new KeyboardEvent('keyup', key))
+          }
+        },
+        { representations: data, plain }
+      )
+    }
+    await paste({
+      'text/plain': [
+        `${marker} title\n==================`,
+        '~~~js\nconst pastedAnswer = 42\n~~~',
+        '1) Pasted first\n2) Pasted second',
+        `[${marker} guide][paste-ref]\n\n[paste-ref]: https://example.test/guide`,
+        `| ${marker} measure<br> | Value<br> |\n| --- | --- |\n| Quality<br> | **98.7**<br> |`,
+      ].join('\n\n'),
+    })
+    await expect(editor.locator('h1').filter({ hasText: `${marker} title` })).toBeVisible()
+    await expect(
+      editor.locator('pre').filter({ hasText: 'const pastedAnswer = 42' }).last()
+    ).toBeVisible()
+    await expect(
+      editor.locator(`a[href="https://example.test/guide"]`).filter({ hasText: `${marker} guide` })
+    ).toBeVisible()
+    const pastedTable = editor.locator('table').filter({ hasText: `${marker} measure` })
+    await expect(pastedTable.locator('strong')).toHaveText('98.7')
+    await expect(
+      pastedTable.locator('th').first().locator('br:not(.ProseMirror-trailingBreak)')
+    ).toHaveCount(1)
+    await paste({
+      'text/plain': 'Fallback representation',
+      'text/html': '<p>Wrong representation</p>',
+      'text/markdown': `## ${marker} explicit`,
+    })
+    await expect(editor.locator('h2').filter({ hasText: `${marker} explicit` })).toBeVisible()
+    await paste({
+      'text/plain': 'Label\tValue\n**literal**\t42',
+      'text/html': `<table><tr><th>${marker} HTML</th><th>Value</th></tr><tr><td>**literal**</td><td>42</td></tr></table>`,
+    })
+    const htmlTable = editor.locator('table').filter({ hasText: `${marker} HTML` })
+    await expect(htmlTable).toContainText('**literal**')
+    await expect(htmlTable.locator('strong')).toHaveCount(0)
+    await paste({
+      'text/plain': `const ${browserName}Clipboard = "<literal>"`,
+      'text/html': `<pre>const ${browserName}Clipboard = &quot;&lt;literal&gt;&quot;</pre>`,
+      'vscode-editor-data': JSON.stringify({ mode: 'javascript' }),
+    })
+    await expect(
+      editor.locator('pre').filter({ hasText: `const ${browserName}Clipboard` })
+    ).toContainText('"<literal>"')
+    await paste({ 'text/plain': 'List<Code>' })
+    const genericParagraph = editor.locator(':scope > p').filter({ hasText: /^List<Code>$/ })
+    await expect(genericParagraph).toHaveCount(1)
+    await paste(
+      { 'text/plain': `**${marker} literal**`, 'text/html': `<b>${marker} literal</b>` },
+      true
+    )
+    await expect(editor.locator(':scope > p').last()).toHaveText(`**${marker} literal**`)
+    await expect.poll(readPasteSource, { timeout: 30_000 }).toContain(`${marker} literal`)
+    const saved = await readPasteSource()
+    for (const preserved of [
+      `# ${marker} title`,
+      'const pastedAnswer = 42',
+      `[${marker} guide](https://example.test/guide)`,
+      `${marker} measure<br>`,
+      `## ${marker} explicit`,
+      `\\*\\*${marker} literal\\*\\*`,
+    ])
+      assert(saved.includes(preserved), `Pasted content did not persist: ${preserved}`)
+    await page.reload()
+    await expect(editor).toBeVisible({ timeout: 120_000 })
+    await expect(editor.locator('h1').filter({ hasText: `${marker} title` })).toBeVisible()
+    await expect(editor.locator('table').filter({ hasText: `${marker} measure` })).toContainText(
+      '98.7'
+    )
+    await expect(editor.locator(':scope > p').last()).toHaveText(`**${marker} literal**`)
+    await contained(page)
+    await expect(genericParagraph).toHaveCount(1)
+    await page.screenshot({ path: resolve(artifactDir, `${browserName}-paste-reopened.png`) })
+    const metadata = toRecord(
+      toRecord(await (await request(`/api/workspaces/${workspaceId}/files/${pastedFileId}`)).json())
+        .file
+    )
+    const remoteMarker = `${marker} external update`
+    await request(
+      `/api/workspaces/${workspaceId}/files/${pastedFileId}/content`,
+      {
+        content: `${await readPasteSource()}\n\n## ${remoteMarker}\n\nRemote paragraph.`,
+        expectedUpdatedAt: metadata.contentUpdatedAt ?? metadata.updatedAt,
+      },
+      'PUT'
+    )
+    await expect(editor.locator('h2').filter({ hasText: remoteMarker })).toBeVisible({
+      timeout: 30_000,
+    })
+    await focusLastParagraph()
+    await page.keyboard.press('End')
+    await page.keyboard.insertText(` ${marker} after external update`)
+    await expect
+      .poll(readPasteSource, { timeout: 30_000 })
+      .toContain(`${marker} after external update`)
+    const afterLocalEdit = await readPasteSource()
+    await expect(genericParagraph).toHaveCount(1)
+    assert(afterLocalEdit.includes(`## ${remoteMarker}`), 'Local edit lost the external update')
+    assert(
+      afterLocalEdit.includes(`${marker} measure<br>`),
+      'External update lost the pasted table'
+    )
+  } finally {
+    try {
+      await request(`/api/workspaces/${workspaceId}/files/${pastedFileId}`, undefined, 'DELETE')
+    } finally {
+      await sql`delete from public_share where id=${pastedShareId}`
+    }
+  }
+}
+
 async function proveCollaborationCursor(page: Page) {
   const peer = await page.context().newPage()
   peer.on('pageerror', (error) => errors.push(error.message))
@@ -677,6 +847,11 @@ try {
             page
           )
       }
+      await check(
+        `${browserName}: Markdown and rich HTML paste survive collaboration and reload`,
+        () => provePastePersistence(page, browserName),
+        page
+      )
     } finally {
       await browser.close()
     }

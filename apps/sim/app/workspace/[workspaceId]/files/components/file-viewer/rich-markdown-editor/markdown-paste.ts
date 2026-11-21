@@ -1,7 +1,10 @@
 import { type Editor, Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
-import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import {
+  hasMarkdownFormatting,
+  parseMarkdownToDoc,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 
 interface MarkdownPasteStorage {
   pasteWithoutFormatting: boolean
@@ -38,41 +41,6 @@ function pastedLinkHref(text: string): string | null {
   if (BARE_WWW.test(text)) return `https://${text}`
   if (EMAIL.test(text)) return `mailto:${text}`
   return null
-}
-
-/**
- * Structural markdown — strong signals the plain text is genuinely markdown (a link, image, badge,
- * list, heading, blockquote, fenced block, or GFM table). Only used after clipboard provenance has
- * established that the source is plain text or explicitly Markdown.
- */
-const STRUCTURAL_MARKDOWN_HINTS: ReadonlyArray<RegExp> = [
-  /^#{1,6}\s/m,
-  /\*\*[^*]+\*\*/,
-  /\[[^\]]*]\([^)]+\)/,
-  /^\s*[-*+]\s/m,
-  /^\s*\d+\.\s/m,
-  /^>\s/m,
-  /```/,
-  /^\|.*\|.*\|/m,
-]
-
-/**
- * Inline marks — weaker markdown signals (`*italic*` / `_italic_`, `~~strike~~`, `` `code` ``) that a
- * rich HTML sibling encodes just as well. Parsed for a plain-text-only paste (so markdown copied from a
- * terminal or `.md` source renders), but deferred to an HTML sibling: its presence means the source was
- * rich, and it may carry structure the plain text can't (a copied table's plain form is tab-separated,
- * not a `| … |` grid, so parsing it would flatten the table).
- */
-const INLINE_MARK_HINTS: ReadonlyArray<RegExp> = [
-  /\*[^*\n]+\*/,
-  /_[^_\n]+_/,
-  /~~[^~\n]+~~/,
-  /`[^`\n]+`/,
-  /==(?:[^=\n]|=(?!=))+==/,
-]
-
-function hasAny(hints: ReadonlyArray<RegExp>, text: string): boolean {
-  return hints.some((hint) => hint.test(text))
 }
 
 /**
@@ -157,8 +125,8 @@ function stripNonContentHtml(html: string): string {
  *
  * Provenance decides plain-text-vs-HTML: a `text/html` sibling (copied from a browser, Slack, Notion,
  * GitHub, or this editor) is the signal the source was rich. Defer to that structure even when literal
- * cell text resembles Markdown. VSCode's explicit Markdown mode is the exception: its colored-span
- * HTML represents source, not a rendered document. Explicit paste-without-formatting bypasses every
+ * cell text resembles Markdown. Explicit `text/markdown` and VSCode's Markdown mode prefer source
+ * over the HTML representation. Explicit paste-without-formatting bypasses every
  * transformation, including link wrapping and source-language code blocks.
  *
  * The strictness of the parse matters: `marked` follows CommonMark flanking rules, so `*text*` becomes
@@ -221,7 +189,8 @@ export const MarkdownPaste = Extension.create<Record<string, never>, MarkdownPas
               return true
             }
             if (editor.isActive('codeBlock') || editor.isActive('code')) return false
-            const text = event.clipboardData?.getData('text/plain')
+            const markdown = event.clipboardData?.getData('text/markdown')
+            const text = markdown || event.clipboardData?.getData('text/plain')
             if (!text) return false
             const { selection } = view.state
             if (
@@ -242,10 +211,10 @@ export const MarkdownPaste = Extension.create<Record<string, never>, MarkdownPas
                 content: [{ type: 'text', text }],
               })
             }
-            const isMarkdownSource = mode === 'markdown' || mode === 'md' || mode === 'mdx'
+            const isMarkdownSource =
+              Boolean(markdown) || mode === 'markdown' || mode === 'md' || mode === 'mdx'
             if (event.clipboardData?.getData('text/html') && !isMarkdownSource) return false
-            if (!hasAny(STRUCTURAL_MARKDOWN_HINTS, text) && !hasAny(INLINE_MARK_HINTS, text))
-              return false
+            if (!isMarkdownSource && !hasMarkdownFormatting(text)) return false
             const doc = parseMarkdownToDoc(text)
             if (!doc.content?.length) return false
             return editor.commands.insertContent(doc)
