@@ -24,8 +24,11 @@ import { SOURCE_AGENTS_FILE } from './source-dir'
 /** Which directory a primer is for. */
 export type PrimerKind = 'workflow' | 'workspace'
 
-/** The primer without its builder snippets stays within this many bytes. */
-export const PRIMER_MAX_BYTES = 3072
+/**
+ * The primer without its builder snippets stays within this many bytes: about one screen, room for
+ * the rules agents otherwise spend a lookup on (renames, failures, test runs).
+ */
+export const PRIMER_MAX_BYTES = 4096
 
 /** At most this many snippets, and this many bytes of them; the rest are named for `params`. */
 const MAX_SNIPPETS = 12
@@ -35,12 +38,14 @@ const MAX_SNIPPET_BYTES = 4096
 const PARAMS_COMMAND = 'sim workflows source params'
 
 /** The rules every source directory shares, after the kind's own edit loop. */
-function sharedRules(group: string): string {
-  return `- **Identity**: a block is its entry in \`${SOURCE_LOCK_FILE}\`, which binds it by its const name or its display name. Change the display name (first argument) freely. Renaming the const too keeps it when settings, neighbours or references still tie it to the old block; otherwise the apply refuses a delete (\`E_APPLY_BLOCK_DELETE\`). Safest: keep the const.
-- **References**: in \`${SOURCE_ENTRY_FILE}\` read an output as \`x.content\`, a loop or parallel item as \`p.currentItem\` (\`p.index\`), text as \`\` t\`…\` \`\`, env as \`env.NAME\`. In a function code file (\`codeFile('./functions/x.js')\`) read an output as \`$ref.<key>.<path>\`, the key being the display name lowercased, whitespace and dots removed ("Triage Agent" → \`$ref.triageagent.content\`); in a loop body \`$ref.loop.currentItem\` / \`$ref.loop.index\`, in a parallel \`$ref.parallel.currentItem\` / \`$ref.parallel.index\`; env as \`$env.NAME\`. In \`.py\`/\`.sh\` files write \`<key.path>\` and \`{{NAME}}\`, not \`$ref\`/\`$env\`. Read an index or item only inside its container (\`E_APPLY_REF_OUT_OF_SCOPE\`), after it its \`.results\`. A rename rewrites \`$ref.<old key>\` to the new key. A \`$ref\` naming no block is an error in a function file you edited (\`E_APPLY_UNRESOLVED_REF\`).
+function sharedRules(group: string, extraRenames = ''): string {
+  return `- **Identity**: a block is its entry in \`${SOURCE_LOCK_FILE}\`, which binds it by its const name or its display name. Change the display name (first argument) freely: references through the const follow it, and the apply rewrites every \`$ref.<old key>\` and \`<old key.…>\` to the new key and reprints the files (don't hand-edit them). Renaming the const too keeps it when settings, neighbours or references still tie it to the old block; otherwise the apply refuses a delete (\`E_APPLY_BLOCK_DELETE\`). Safest: keep the const.
+- **References**: in \`${SOURCE_ENTRY_FILE}\` read an output as \`x.content\`, a loop or parallel item as \`p.currentItem\` (\`p.index\`), text as \`\` t\`…\` \`\`, env as \`env.NAME\`. In a function code file (\`codeFile('./functions/x.js')\`) read an output as \`$ref.<key>.<path>\`, the key being the display name lowercased, whitespace and dots removed ("Triage Agent" → \`$ref.triageagent.content\`); in a loop body \`$ref.loop.currentItem\` / \`$ref.loop.index\`, in a parallel \`$ref.parallel.currentItem\` / \`$ref.parallel.index\`; env as \`$env.NAME\`. In \`.py\`/\`.sh\` files write \`<key.path>\` and \`{{NAME}}\`, not \`$ref\`/\`$env\`. Read an index or item only inside its container (\`E_APPLY_REF_OUT_OF_SCOPE\`), after it its \`.results\`. A \`$ref\` naming no block is an error in a function file you edited (\`E_APPLY_UNRESOLVED_REF\`).
+- **Renames**: one variable per apply (two at once read as a delete and an add).${extraRenames}
 - **Look up a builder**: \`${PARAMS_COMMAND} <builder>\` (\`agent\`, \`trigger.schedule\`; a namespace like \`gmail\` lists its builders), offline.
 - **Credentials**: \`sim credentials connect <provider> --name "<Name>"\`, give the owner its link, then \`credential('<key>')\` (\`sim workflows source resources\`).
-- **Run and debug**: \`sim workflows run <workflowId> --input '{…}'\` runs the deployed version (\`apply --deploy\` first); a failed run: \`sim logs get <runId> --trace --no-include-workflow-state\` (spans hold resolved inputs).
+- **Failures**: \`x.onError(y)\` runs \`y\` when \`x\` fails, reading the message as \`x.error\`. A retry is block meta, the third argument: \`agent('Name', {…}, { retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 2000 } })\`. Branches that each reply: a \`response\` per branch.
+- **Run and debug**: \`sim workflows run <workflowId> --manual --input '{…}'\` runs the saved draft, no deploy needed (without \`--manual\` it runs the deployed version). Runs write real data (rows, emails): test on test resources. With \`--dir <the workflow's folder>\`, a failed run names the file and line that failed; then \`sim logs get <runId> --trace --no-include-workflow-state\` (spans hold resolved inputs).
 - **Exit codes**: 0 ok, 1 errors, ${SOURCE_STALE_EXIT_CODE} stale (\`${group} get --dir <fresh dir>\`, redo the edit there), ${RATE_LIMITED_EXIT_CODE} rate limited, ${SOURCE_BUSY_EXIT_CODE} busy, ${SOURCE_LOCAL_CHANGES_EXIT_CODE}/${SOURCE_DRIFT_EXIT_CODE} \`status\`: your edits / the server changed. Every code: \`${SOURCE_AGENTS_FILE}\`.`
 }
 
@@ -55,6 +60,10 @@ const WORKFLOW_PRIMER = `# Sim workflow source: primer
 ${sharedRules('sim workflows source')}
 `
 
+/** What a rename in a workspace directory rewrites beyond a workflow's own blocks. */
+const WORKSPACE_RENAMES =
+  " A column: change its \`name\`, keep its key (cells stay); Table blocks using the old name are not rewritten (\`W_TABLE_COLUMN_RENAMED_IN_USE\`). A file's key never changes (\`E_KEY_RENAMED\`): rename by \`name\`."
+
 const WORKSPACE_PRIMER = `# Sim workspace source: primer
 
 This directory is a Sim workspace as files (\`tables/\`, \`workflows/<key>/workflow.ts\`, …); read statically; nothing runs. Commands read the workspace id from \`${SOURCE_BASE_FILE}\`; run them from this directory.
@@ -62,9 +71,9 @@ This directory is a Sim workspace as files (\`tables/\`, \`workflows/<key>/workf
 **Edit loop**: edit the files → \`sim workspaces source check --dir .\` (offline; refreshes \`workspace.d.ts\` and \`tsconfig.json\`) → \`${typecheckCommand()}\` → \`sim workspaces source apply --dir . --dry-run\` → \`--yes\`. Rerun each step until it exits 0. Apply rewrites the directory from what it stored: read a file again before the next edit.
 
 - **Deletes**: a removed file (a resource this directory managed), table column, workflow block or workflow variable is deleted only with \`apply --allow-delete\` (else refused), and cannot be undone. A kind is managed only when its folder exists.
-- **Deploy**: \`deployments/<workflow key>.ts\` (\`defineDeployment({ live: 'draft' })\`) deploys that workflow on apply; without one, apply never deploys.
+- **Deploy**: \`deployments/<workflow key>.ts\` (\`defineDeployment({ live: 'draft' })\`) deploys that workflow on apply, which prints its webhook URLs; without one, apply never deploys.
 - **Promote** (dev → prod): \`sim workspaces source apply --dir . --to <workspaceId> --dry-run\`, then \`--yes\`.
-${sharedRules('sim workspaces source')}
+${sharedRules('sim workspaces source', WORKSPACE_RENAMES)}
 `
 
 /** The primer for a `kind` directory, without builder snippets. */

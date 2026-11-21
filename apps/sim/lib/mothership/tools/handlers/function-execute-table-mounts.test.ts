@@ -163,6 +163,8 @@ describe('Mothership table mounts through code calls', () => {
     'conceals %s IDs before materialization',
     async (mode) => {
       mocks.table.mockResolvedValue(mode === 'missing' ? null : { ...table, workspaceId: 'other' })
+      // Missing means by id and by name: an id the workspace lacks is also looked up as a name.
+      mocks.named.mockResolvedValue([])
       await expect(run('table-orders')).rejects.toThrow('not found')
       expect(mocks.snapshot).not.toHaveBeenCalled()
       expect(mocks.download).not.toHaveBeenCalled()

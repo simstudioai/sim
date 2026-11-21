@@ -379,6 +379,7 @@ async function finalizeExecutionOutcome(params: {
         totalDurationMs: totalDuration || 0,
         error: { message: getTimeoutErrorMessage() },
         traceSpans: traceSpans || [],
+        workflowInput,
         executionState: result.executionState,
       })
     } else if (result.status === 'cancelled') {
@@ -386,6 +387,7 @@ async function finalizeExecutionOutcome(params: {
         endedAt,
         totalDurationMs: totalDuration || 0,
         traceSpans: traceSpans || [],
+        workflowInput,
         executionState: result.executionState,
       })
     } else if (result.status === 'paused') {
@@ -438,8 +440,10 @@ async function finalizeExecutionError(params: {
   workflowId: string
   executionId: string
   requestId: string
+  /** The input the executor ran with; absent when the run failed before its input stage finished. */
+  workflowInput: unknown
 }): Promise<boolean> {
-  const { error, loggingSession, workflowId, executionId, requestId } = params
+  const { error, loggingSession, workflowId, executionId, requestId, workflowInput } = params
   const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
   const { traceSpans } = executionResult
     ? buildTraceSpansForLog(executionResult, loggingSession, requestId, executionId)
@@ -455,6 +459,7 @@ async function finalizeExecutionError(params: {
         stackTrace: error instanceof Error ? error.stack : undefined,
       },
       traceSpans,
+      workflowInput,
       executionState: executionResult?.executionState,
     })
 
@@ -702,6 +707,8 @@ async function executeWorkflowCoreImpl(
   }
 
   let processedInput = input || {}
+  // Set once the input stage (file fields, PII redaction) finishes.
+  let executorInput: unknown
   let deploymentVersionId: string | undefined
   let loggingStarted = false
   let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
@@ -1357,6 +1364,7 @@ async function executeWorkflowCoreImpl(
       }
     }
 
+    executorInput = processedInput
     const executorInstance = new Executor({
       workflow: serializedWorkflow,
       envVarValues: decryptedEnvVars,
@@ -1453,6 +1461,7 @@ async function executeWorkflowCoreImpl(
                 workflowId,
                 executionId,
                 requestId,
+                workflowInput: executorInput,
               })
             : false
 

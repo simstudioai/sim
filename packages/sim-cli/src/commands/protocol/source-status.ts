@@ -151,7 +151,7 @@ export function printStatusReport<Plan>(
   planLine: (plan: Plan) => string,
   findings: readonly Diagnostic[]
 ): void {
-  const shown = findingsOutput(format)
+  const shown = findingsOutput(format, false, report.dir)
   if (format === 'json' || format === 'yaml') {
     printDocument(format, findings.length > 0 ? { ...report, ...shown.result(findings) } : report)
     return

@@ -175,7 +175,12 @@ export function attachWorkspaceSourceCheck(source: Command): void {
             profile.output,
             findings,
             { workflows: keys.length, catalogHash: catalog.hash },
-            { verbose: options.verbose === true, bound: WORKSPACE_ANSWER_BOUND, unlisted }
+            {
+              verbose: options.verbose === true,
+              bound: WORKSPACE_ANSWER_BOUND,
+              unlisted,
+              dir: options.dir,
+            }
           )
         })
       }

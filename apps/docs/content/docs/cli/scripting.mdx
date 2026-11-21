@@ -207,7 +207,7 @@ The CLI resends a request the API answers `429` only when sending it twice is sa
 | Code | `sim workspaces source apply` |
 | --- | --- |
 | `0` | Applied, or a dry run with no errors |
-| `1` | The source has errors, changes were held back for a secret or credential the workspace cannot satisfy, or command/request failure |
+| `1` | The source has errors, every change it would write was held back for a secret or credential the workspace cannot satisfy (nothing was written), or command/request failure |
 | `5` | A resource changed since the directory was read (`409 SOURCE_STALE`): get it again into a fresh directory, reapply the edit, and retry |
 | `6` | A resource (a workflow or its folder, a table) is locked (`423`); a locked block exits `1` (`E_APPLY_LOCKED_BLOCK`) |
 | `7` | The directory is over the size limits (`413`) |
@@ -215,6 +215,7 @@ The CLI resends a request the API answers `429` only when sending it twice is sa
 | `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
 | `10` | Busy, retry: another apply is writing the workspace (`409 SOURCE_BUSY`), or another `sim workspaces source` command is using the same directory (`SOURCE_DIR_BUSY`); nothing was written: run the command again once the other finished |
 | `13` | `AUTH_REQUIRED`: not logged in, or the server refused the credential; nothing was sent |
+| `15` | Written in part: changes that use a declared secret with no value, or a credential key nothing binds to, were held back and the rest was applied and saved; set the secret or connect the credential, then apply again (a promotion with `--to` too) |
 | `130` | Interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check |
 
 Both waits default to 3600 seconds; `--wait-timeout 0` waits indefinitely. `SIM_TIMEOUT_SECONDS` independently bounds one API request. A timeout does not cancel the underlying run or operation.
@@ -377,7 +378,7 @@ exit "$status"
 
 ## Workspace source in CI
 
-Keep a [workspace source directory](/workflows/workspace-code) in a repository, `.sim/` included, and let CI plan each pull request and apply each merge. The dry run exits `1` on errors and `5` when the workspace changed since the committed base; `check` downloads the block catalog once on a fresh runner.
+Keep a [workspace source directory](/workflows/workspace-code) in a repository, `.sim/` included, and let CI plan each pull request and apply each merge. The dry run exits `1` on errors and `5` when the workspace changed since the committed base; `check` downloads the block catalog once on a fresh runner. On GitHub Actions (`GITHUB_ACTIONS=true`), every source command also annotates each error and warning at its file and line, so they show inline on the pull request, and `apply` (a dry run too) appends its plan and errors to the job's step summary.
 
 ```yaml title=".github/workflows/sim-workspace.yml"
 on:

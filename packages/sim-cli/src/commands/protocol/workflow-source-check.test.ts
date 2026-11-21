@@ -435,7 +435,7 @@ describe('sim workflows source check', () => {
     expect(process.exitCode).toBe(1)
   })
 
-  it('warns on an env name secrets.ts does not declare', async () => {
+  it('warns on an env name secrets.ts does not declare, without claiming the workspace lacks it', async () => {
     cacheCatalog()
     writeWorkspace()
     const folder = writeWorkflowFolder(
@@ -447,6 +447,31 @@ describe('sim workflows source check', () => {
 
     expect(result()).toMatchObject({ errors: 0, warnings: 1 })
     expect(findingLines()).toContain('W_ENV_UNKNOWN')
+    expect(findingLines()).toContain('secrets.ts does not declare ANTHROPIC_KEY')
+    expect(findingLines()).not.toContain('The workspace has no env variable')
+  })
+
+  it('annotates each finding at its file, line and column in a GitHub Actions job', async () => {
+    vi.stubEnv('GITHUB_ACTIONS', 'true')
+    cacheCatalog()
+    writeWorkspace()
+    const folder = writeWorkflowFolder(
+      'notify',
+      workspaceWorkflow((source) => source.replace('env.ANTHROPIC_API_KEY', 'env.ANTHROPIC_KEY'))
+    )
+
+    await checkIn(folder)
+
+    const annotations = vi
+      .mocked(console.error)
+      .mock.calls.map((call) => call.join(' '))
+      .filter((line) => line.startsWith('::'))
+    expect(annotations).toHaveLength(1)
+    expect(annotations[0]).toMatch(
+      new RegExp(
+        `^::warning file=${join(folder, 'workflow.ts')},line=\\d+,col=\\d+,title=W_ENV_UNKNOWN::secrets.ts does not declare ANTHROPIC_KEY`
+      )
+    )
   })
 
   it('lists at most 20 warnings of one code, as a workflow answer does, and counts every one', async () => {

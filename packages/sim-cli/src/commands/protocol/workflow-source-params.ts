@@ -9,6 +9,7 @@ import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import { readSourceJson, workspaceFolderOf } from './source-dir'
 import { cachedCatalog, cachedSourceCatalog } from './source-tree'
+import { isMachine } from './source-ui'
 
 const PARAMS_HELP = `
 Prints a builder's params (required first, with enums and defaults), the gate field that picks
@@ -61,7 +62,7 @@ export function attachWorkflowSourceParams(source: Command): void {
       const profile = profileFrom(command)
       const catalog = await lookupCatalog(options.dir, profile.workspaceId)
       const found = lookupBuilder(catalog, query)
-      const machine = profile.output === 'json' || profile.output === 'yaml'
+      const machine = isMachine(profile.output)
       switch (found.kind) {
         case 'builder':
           if (machine) printProtocolResult(profile.output, { builder: found.reference })

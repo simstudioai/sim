@@ -400,7 +400,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_DUPLICATE_VARIABLE` | Two variables with one key. |
 | `E_VARIABLE_NAME_MISMATCH` | A variable's `name` does not normalize to its key. |
 | `E_INVALID_ENV_NAME` | `env.X` with an invalid name. |
-| `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known); the hint has a did-you-mean, and in a workspace directory points at `secrets.ts`. |
+| `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known); the hint has a did-you-mean. An offline check in a workspace directory knows only the names `secrets.ts` declares, so there the finding says `secrets.ts` does not declare it, and the hint points there. |
 | `W_CHILD_INPUT_UNKNOWN` | A child workflow call's `inputMapping` sets an input the child's Start trigger does not declare (`sim workspaces source check`, with the child in the same directory); the hint names the nearest input. |
 | `W_CHILD_NO_START` | A child workflow call names a workflow of the same directory that has no Start trigger (`sim workspaces source check`). |
 | `E_UNKNOWN_SUBFLOW_PROPERTY` | `p.<prop>` that a loop or parallel does not have. |
@@ -424,7 +424,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_EDGE_CYCLE` | A cycle the stored workflow already holds, kept so it round-trips; none of it runs. An offline check reports it for a cycle among blocks the lock binds, which an apply keeps only if the stored workflow holds every edge of it. |
 | `W_BRANCH_UNWIRED` | A condition or router branch no edge leaves, so a run that takes it ends there; the hint names the wiring. Not reported for a branch the stored workflow already leaves unwired. |
 | `E_UNKNOWN_BUILDER` | A builder path the catalog does not have, a bare builder-shaped call (`apii('Name', …)`) nothing binds, or a namespace the SDK lacks or the file did not import; `hint` names the builder a common other name stands for (`http.request` → `api`), then prefers a synonymous verb (`postMessage` → `sendMessage`), then the closest path, then the namespace's builders. |
-| `E_UNKNOWN_PARAM` | A param the block does not have; the hint has a did-you-mean. |
+| `E_UNKNOWN_PARAM` | A param the block does not have; the hint has a did-you-mean, or for block meta written there (`retry`, `disabled`, `locked`, `errorPort`) the third argument that takes it. |
 | `E_FIXED_PARAM` | A param the builder already pins. |
 | `W_FIELD_NOT_APPLICABLE` | A param not visible under the block's values; apply keeps the stored value and the written-back source drops it. |
 | `W_REQUIRED_MISSING` | A required field left empty, including `todo()`; not repeated for a field an `E_UNKNOWN_PARAM` did-you-mean names, or one written with a value that failed to compile. |

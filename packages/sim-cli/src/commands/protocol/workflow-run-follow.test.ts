@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -372,7 +375,7 @@ describe('sim workflows run --follow', () => {
 
   it('refuses an empty --stop-after rather than running the whole draft', async () => {
     await expect(run(WORKFLOW_ID, '--stop-after', '')).rejects.toThrow(
-      '--stop-after requires a block ID'
+      '--stop-after requires a block id, name or key'
     )
     expect(requestRaw).not.toHaveBeenCalled()
   })
@@ -402,6 +405,68 @@ describe('sim workflows run --follow', () => {
 
     await expect(run(WORKFLOW_ID)).rejects.toThrow('Agent failed')
     expect(stdout).toHaveBeenCalled()
+  })
+
+  it('with --dir, names the source file and line of the block that failed, through the lock', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sim-run-site-'))
+    try {
+      mkdirSync(join(dir, '.sim'), { recursive: true })
+      writeFileSync(join(dir, '.sim/base.json'), JSON.stringify({ workflowId: WORKFLOW_ID }))
+      writeFileSync(
+        join(dir, '.sim/lock.json'),
+        JSON.stringify({
+          version: 1,
+          blocks: {
+            normalize: {
+              id: 'b-fn',
+              parent: null,
+              ident: 'clean',
+              order: 0,
+              codeFile: 'functions/normalize.js',
+            },
+          },
+          variables: {},
+        })
+      )
+      writeFileSync(
+        join(dir, 'workflow.ts'),
+        "export default workflow('W', () => {\n  const start = trigger.start('Start', {})\n  const clean = fn('Normalize', { code: codeFile('./functions/normalize.js') })\n})\n"
+      )
+      const failed = (blockId: string) =>
+        ndjsonResponse({
+          type: 'final',
+          data: {
+            runId: 'run-1',
+            workflowId: WORKFLOW_ID,
+            status: 'failed',
+            output: {},
+            error: {
+              message:
+                "Type Error: Line 3: `raw.email.split('@')` - Cannot read properties of undefined",
+              code: 'BLOCK_EXECUTION_FAILED',
+              blockId,
+            },
+          },
+        })
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      const stderr = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      requestRaw.mockResolvedValue(failed('b-fn'))
+      await expect(run(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('Type Error')
+      const lines = stderr.mock.calls.map((call) => call.join(' '))
+      expect(lines).toContain(
+        `${join(dir, 'functions/normalize.js')}:3: Type Error: Line 3: \`raw.email.split('@')\` - Cannot read properties of undefined (block normalize (clean), declared at ${join(dir, 'workflow.ts')}:3)`
+      )
+
+      stderr.mockClear()
+      requestRaw.mockResolvedValue(failed('b-unbound'))
+      await expect(run(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('Type Error')
+      expect(stderr.mock.calls.map((call) => call.join(' ')).join('\n')).toContain(
+        'is not mapped to a source line'
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('explains a deployment that answers JSON instead of an event stream', async () => {

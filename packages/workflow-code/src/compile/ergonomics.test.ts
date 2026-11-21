@@ -68,6 +68,16 @@ describe('param aliases', () => {
     const unknown = result.diagnostics.find((d) => d.code === 'E_UNKNOWN_PARAM')
     expect(unknown?.hint).toMatch(/^Write it as credential;/)
   })
+
+  it('points block meta written among the params at the third argument', () => {
+    const result = run(
+      source("  mail.send('M', { to: 'a@b.c', retry: { enabled: true, maxTries: 3 } })")
+    )
+    const unknown = result.diagnostics.find((d) => d.code === 'E_UNKNOWN_PARAM')
+    expect(unknown?.hint).toMatch(
+      /^retry is block meta, not a param: pass it in the builder's third argument/
+    )
+  })
 })
 
 describe('stored()', () => {

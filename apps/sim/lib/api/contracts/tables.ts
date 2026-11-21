@@ -177,7 +177,12 @@ const descriptionSchema = z
 export const tableScopeSchema = z.enum(['active', 'archived', 'all'])
 
 export const tableIdParamsSchema = z.object({
-  tableId: z.string().min(1).describe('Unique table identifier.'),
+  tableId: z
+    .string()
+    .min(1)
+    .describe(
+      'Unique table identifier. With a workspace named, the name of one of its active tables also works.'
+    ),
 })
 
 export const tableRowParamsSchema = tableIdParamsSchema.extend({

@@ -184,8 +184,10 @@ describe('sim workflows source apply', () => {
       applied: false,
       dryRun: true,
       next: { command: `sim workflows source apply --dir ${dir} --allow-delete --yes` },
+      blocksAdded: 1,
     })
-    expect(stderrLines().join('\n')).toContain('Blocks: 1 added')
+    // The JSON on stdout is the plan: stderr does not repeat it.
+    expect(stderrLines().join('\n')).not.toContain('Blocks:')
   })
 
   it('prints the whole next command in a table, never clipping the flag it names', async () => {
@@ -253,13 +255,20 @@ describe('sim workflows source apply', () => {
     })
   })
 
-  it('with --yes, prints the summary of what it applied', async () => {
+  it('with --yes, prints the summary of what it applied for a person, and only the JSON for a machine', async () => {
     setTerminal(false)
     request.mockResolvedValue(outcome())
 
     await apply(WORKFLOW_ID, '--dir', dir, '--yes')
 
     expect(dryRunFlags()).toEqual([false])
+    expect(stderrLines().join('\n')).not.toContain('Blocks:')
+    expect(stdoutJson()).toMatchObject({ applied: true, blocksAdded: 1 })
+
+    vi.mocked(console.error).mockClear()
+    contextMockState.output = 'text'
+    request.mockResolvedValue(outcome())
+    await apply(WORKFLOW_ID, '--dir', dir, '--yes')
     expect(stderrLines().join('\n')).toContain('Blocks: 1 added, 0 removed')
   })
 
@@ -611,7 +620,7 @@ describe('sim workflows source apply', () => {
     expect(JSON.stringify(printed.created)).not.toContain('"id"')
   })
 
-  it('folds info findings into one line per code and keeps frames on warnings', async () => {
+  it('hides autolayout infos unless --verbose, folds infos into one line per code and keeps frames on warnings', async () => {
     setTerminal(false)
     contextMockState.output = 'text'
     const layout = (key: string, line: number) => ({
@@ -640,6 +649,10 @@ describe('sim workflows source apply', () => {
     )
 
     await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    expect(stderrLines().filter((line) => line.includes('I_MAT_NEEDS_LAYOUT'))).toEqual([])
+    vi.mocked(console.error).mockClear()
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--verbose')
 
     const lines = stderrLines()
     const layoutLines = lines.filter((line) => line.includes('I_MAT_NEEDS_LAYOUT'))
@@ -923,15 +936,63 @@ describe('sim workflows source apply', () => {
       },
     }
 
-    it('deploys through the deploy operation once the apply is saved', async () => {
+    const STATUS_PATH = `/api/v2/workflows/${WORKFLOW_ID}/deployment`
+    const HOOK_URL = 'https://sim.example/api/webhooks/trigger/abc'
+    /** A deployment status serving one webhook from the block `b-hook`. */
+    const liveStatus = {
+      data: {
+        ...deployed.data,
+        needsRedeployment: false,
+        isPublicApi: false,
+        webhooks: [{ blockId: 'b-hook', provider: 'generic', url: HOOK_URL }],
+      },
+    }
+    /** An apply whose stored lock binds `b-hook` as the block `leadin`, const `hook`. */
+    const withHookLock = () => {
+      const answer = outcome()
+      answer.data.lock = {
+        ...LOCK,
+        blocks: { leadin: { id: 'b-hook', parent: null, ident: 'hook', order: 0 } },
+      } as typeof LOCK
+      return answer
+    }
+
+    it('names each webhook URL the deploy made live, by its block and const', async () => {
       setTerminal(false)
       request.mockImplementation(async (path: string) =>
-        path === DEPLOY_PATH ? deployed : outcome()
+        path === DEPLOY_PATH ? deployed : path === STATUS_PATH ? liveStatus : withHookLock()
       )
 
       await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
 
-      expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH, DEPLOY_PATH])
+      expect(request.mock.calls.map((call) => call[0])).toEqual([
+        APPLY_PATH,
+        DEPLOY_PATH,
+        STATUS_PATH,
+      ])
+      expect(stdoutJson()).toMatchObject({ urls: [{ block: 'leadin (hook)', url: HOOK_URL }] })
+
+      vi.mocked(console.log).mockClear()
+      contextMockState.output = 'text'
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+      expect(vi.mocked(console.log).mock.calls.map((call) => call.join(' '))).toContain(
+        `urls\tleadin (hook) ${HOOK_URL}`
+      )
+    })
+
+    it('deploys through the deploy operation once the apply is saved', async () => {
+      setTerminal(false)
+      request.mockImplementation(async (path: string) =>
+        path === DEPLOY_PATH ? deployed : path === STATUS_PATH ? liveStatus : outcome()
+      )
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+
+      expect(request.mock.calls.map((call) => call[0])).toEqual([
+        APPLY_PATH,
+        DEPLOY_PATH,
+        STATUS_PATH,
+      ])
       // The deploy names the draft the apply stored, so an edit made since is never published.
       expect(request.mock.calls[1][1].body).toEqual({
         expectedDraftFingerprint: outcome().data.base.fingerprint,
@@ -946,7 +1007,6 @@ describe('sim workflows source apply', () => {
 
     it('deploys no new version when a no-op apply leaves the live version matching the draft', async () => {
       setTerminal(false)
-      const STATUS_PATH = `/api/v2/workflows/${WORKFLOW_ID}/deployment`
       const noop = outcome()
       noop.data.applied = false
       noop.data.diff.noop = true
@@ -984,6 +1044,7 @@ describe('sim workflows source apply', () => {
         APPLY_PATH,
         STATUS_PATH,
         DEPLOY_PATH,
+        STATUS_PATH,
       ])
     })
 
@@ -1387,12 +1448,13 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
       knownKeys: new Set(),
     })
     expect(compiled.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
-    expect(stderrLines().join('\n')).toContain('Edit')
+    expect(stderrLines()).toEqual([])
     const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
     expect(printed).toMatchObject({
       scaffolded: true,
       workspaceTypes: true,
       guide: '.sim/AGENTS.md',
+      next: { command: expect.stringContaining('sim workflows source create --dir') },
     })
     expect(printed.files).toBeGreaterThan(0)
   })
@@ -1440,9 +1502,11 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     expect(JSON.parse(readFileSync(join(empty, '.sim/starter.json'), 'utf8'))).toEqual({
       workspaceId: WORKSPACE_ID,
     })
-    expect(stderrLines().join('\n')).toContain(
-      `sim workflows source create --dir ${empty} --workspace ${WORKSPACE_ID} --yes`
-    )
+    expect(JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')).toMatchObject({
+      next: {
+        command: `sim workflows source create --dir ${empty} --workspace ${WORKSPACE_ID} --yes`,
+      },
+    })
   })
 
   it('creates a starter in the workspace it was typed for, whatever the profile default', async () => {

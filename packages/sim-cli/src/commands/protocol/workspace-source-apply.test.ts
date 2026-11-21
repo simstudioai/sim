@@ -1597,7 +1597,7 @@ describe('workspaces source apply', () => {
     expect(Object.keys(body.files)).not.toContain('notes.ts')
   })
 
-  it('saves what an apply wrote around the changes it held back, and exits 1', async () => {
+  it('saves what an apply wrote around the changes it held back, and exits 15 (written in part)', async () => {
     request.mockResolvedValue(
       answer({
         plan: [
@@ -1622,7 +1622,7 @@ describe('workspaces source apply', () => {
 
     await apply('--yes')
 
-    expect(process.exitCode).toBe(1)
+    expect(process.exitCode).toBe(15)
     const printed = vi
       .mocked(console.log)
       .mock.calls.map(([line]) => String(line))
@@ -1634,6 +1634,106 @@ describe('workspaces source apply', () => {
       .mock.calls.map(([line]) => String(line))
       .join('\n')
     expect(warned).toContain('Held back, not written: workflow ingest')
+  })
+
+  it('names the webhook URLs of each workflow it deployed, by workflow, block and const', async () => {
+    const hookUrl = 'https://sim.example/api/webhooks/trigger/abc'
+    const lock = {
+      version: 1,
+      blocks: { leadin: { id: 'b-hook', parent: null, ident: 'hook', order: 0 } },
+      variables: {},
+    }
+    request.mockImplementation(async (path: string) =>
+      path === '/api/v2/workflows/wf_1/deployment'
+        ? {
+            data: {
+              id: 'wf_1',
+              isDeployed: true,
+              webhooks: [{ blockId: 'b-hook', provider: 'generic', url: hookUrl }],
+            },
+          }
+        : answer({
+            plan: [{ kind: 'deployment', key: 'ingest', action: 'create' }],
+            applied: [{ kind: 'deployment', key: 'ingest', action: 'create' }],
+            files: { 'workflows/ingest/.sim/lock.json': JSON.stringify(lock) },
+            base: { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } },
+          })
+    )
+
+    await apply('--yes')
+
+    const printed = vi
+      .mocked(console.log)
+      .mock.calls.map(([line]) => String(line))
+      .join('\n')
+    expect(JSON.parse(printed)).toMatchObject({
+      urls: [{ workflow: 'ingest', block: 'leadin (hook)', url: hookUrl }],
+    })
+  })
+
+  it('appends the plan and its errors to the GitHub Actions step summary', async () => {
+    const summary = join(dir, 'step-summary.md')
+    vi.stubEnv('GITHUB_ACTIONS', 'true')
+    vi.stubEnv('GITHUB_STEP_SUMMARY', summary)
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        plan: [
+          { kind: 'table', key: 'leads', action: 'create' },
+          { kind: 'workflow', key: 'ingest', action: 'update', fields: ['blocks'] },
+        ],
+        diagnostics: [
+          {
+            code: 'E_APPLY_UNRESOLVED_REF',
+            severity: 'error',
+            message: 'Score lead | has no output teir.',
+            file: 'workflows/ingest/workflow.ts',
+            line: 12,
+            kind: 'workflow',
+            key: 'ingest',
+          },
+        ],
+      })
+    )
+
+    await apply('--dry-run')
+
+    const markdown = readFileSync(summary, 'utf8')
+    expect(markdown).toContain('### Sim workspace plan: ws_local')
+    expect(markdown).toContain('| + | tables/leads | create | planned |')
+    expect(markdown).toContain('| ~ | workflows/ingest (blocks) | update | planned |')
+    expect(markdown).toContain(
+      '- `E_APPLY_UNRESOLVED_REF` workflows/ingest/workflow.ts:12: Score lead \\| has no output teir.'
+    )
+    const annotations = vi
+      .mocked(console.error)
+      .mock.calls.map(([line]) => String(line))
+      .filter((line) => line.startsWith('::error'))
+    expect(annotations).toEqual([
+      `::error file=${join(dir, 'workflows/ingest/workflow.ts')},line=12,title=E_APPLY_UNRESOLVED_REF::Score lead | has no output teir.`,
+    ])
+  })
+
+  it('exits 1, not 15, when every change it would write was held back and nothing was written', async () => {
+    request.mockResolvedValue(
+      answer({
+        plan: [{ kind: 'workflow', key: 'ingest', action: 'create', held: true }],
+        applied: [],
+        diagnostics: [
+          {
+            code: 'E_SECRET_MISSING',
+            severity: 'error',
+            message: 'workflows/ingest is held back: it reads the secret OPENAI_API_KEY.',
+            kind: 'workflow',
+            key: 'ingest',
+          },
+        ],
+      })
+    )
+
+    await apply('--yes')
+
+    expect(process.exitCode).toBe(1)
   })
 
   it('saves the applied answer when the catalog of a workflow it reprinted cannot be fetched, and says its edges are unrecorded', async () => {

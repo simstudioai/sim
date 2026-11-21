@@ -20545,7 +20545,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Add column',
     body: {
@@ -20557,7 +20560,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Add workflow group',
     body: {
@@ -20927,7 +20933,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/bulk-update',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Bulk update rows',
     body: {
@@ -20974,7 +20983,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
     pathParams: ['tableId', 'dispatchId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
       dispatchId: 'Unique table run-dispatch identifier.',
     },
     responseMode: 'json',
@@ -20992,7 +21002,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/exports/[exportId]',
     pathParams: ['tableId', 'exportId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
@@ -21030,7 +21041,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/cancel-runs',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Cancel column runs',
     body: {
@@ -22126,7 +22140,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/dispatches',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Create run dispatch',
     body: {
@@ -22156,7 +22173,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/exports',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Create table export',
     body: {
@@ -22235,7 +22255,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Create rows',
     body: {
@@ -22247,7 +22270,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/views',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Create view',
     body: {
@@ -22771,7 +22797,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Delete table',
     query: {
@@ -22782,7 +22811,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Delete column',
     body: {
@@ -22825,7 +22857,11 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+      rowId: 'Unique table row identifier.',
+    },
     responseMode: 'json',
     summary: 'Delete row',
     query: {
@@ -22836,7 +22872,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Delete rows',
     body: {
@@ -22854,7 +22893,11 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+      viewId: 'Unique saved-view identifier.',
+    },
     responseMode: 'json',
     summary: 'Delete view',
     query: {
@@ -22913,7 +22956,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Delete workflow group',
     body: {
@@ -23471,7 +23517,7 @@ export const V2_OPERATIONS = {
     pathParams: ['blockId'] as const,
     pathParamDocs: {
       blockId:
-        'Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID.',
+        'Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. A legacy or deprecated block (such as `starter`) is readable by its exact ID, and its description opens with the block that replaces it.',
     },
     responseMode: 'json',
     summary: 'Get block',
@@ -24015,7 +24061,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
     pathParams: ['tableId', 'rowId', 'groupId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
       rowId: 'Unique table row identifier.',
       groupId: 'Workflow or enrichment group to run.',
     },
@@ -24296,7 +24343,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Get table',
     query: {
@@ -24308,7 +24358,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
     pathParams: ['tableId', 'dispatchId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
       dispatchId: 'Unique table run-dispatch identifier.',
     },
     responseMode: 'json',
@@ -24326,7 +24377,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/exports/[exportId]',
     pathParams: ['tableId', 'exportId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
@@ -24364,7 +24416,11 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+      rowId: 'Unique table row identifier.',
+    },
     responseMode: 'json',
     summary: 'Get row',
     query: {
@@ -24380,7 +24436,11 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+      viewId: 'Unique saved-view identifier.',
+    },
     responseMode: 'json',
     summary: 'Get view',
     query: {
@@ -26875,7 +26935,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/dispatches',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'List run dispatches',
     query: {
@@ -26922,7 +26985,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'List rows',
     query: {
@@ -27004,7 +27070,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/views',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'List views',
     query: {
@@ -27104,7 +27173,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'List workflow groups',
     query: {
@@ -27963,7 +28035,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Query rows',
     body: {
@@ -27993,7 +28068,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query/count',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Count rows',
     body: {
@@ -28535,7 +28613,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/restore',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Restore table',
     body: {
@@ -28717,7 +28798,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
     pathParams: ['tableId', 'rowId', 'groupId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
       rowId: 'Unique table row identifier.',
       groupId: 'Workflow or enrichment group to run.',
     },
@@ -29173,7 +29255,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/search',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Search rows',
     body: {
@@ -29276,7 +29361,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/exports/[exportId]/download',
     pathParams: ['tableId', 'exportId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
@@ -29893,7 +29979,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Update rows by filter',
     body: {
@@ -30020,7 +30109,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Update table',
     body: {
@@ -30041,7 +30133,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Update column',
     body: {
@@ -30058,7 +30153,11 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+      rowId: 'Unique table row identifier.',
+    },
     responseMode: 'json',
     summary: 'Update row',
     body: {
@@ -30074,7 +30173,11 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+      viewId: 'Unique saved-view identifier.',
+    },
     responseMode: 'json',
     summary: 'Update view',
     body: {
@@ -30114,7 +30217,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Update workflow group',
     body: {
@@ -30382,7 +30488,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/upsert',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works.',
+    },
     responseMode: 'json',
     summary: 'Upsert row',
     body: {

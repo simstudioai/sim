@@ -422,7 +422,7 @@ sim blocks get <blockId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `blockId` | Yes | Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. |
+| `blockId` | Yes | Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. A legacy or deprecated block (such as `starter`) is readable by its exact ID, and its description opens with the block that replaces it. |
 
 </CommandTable>
 
@@ -5868,7 +5868,7 @@ sim tables columns create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -5900,7 +5900,7 @@ sim tables columns delete <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -5931,7 +5931,7 @@ sim tables columns update <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -5962,7 +5962,7 @@ sim tables groups create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -5997,7 +5997,7 @@ sim tables groups delete <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6028,7 +6028,7 @@ sim tables groups list <tableId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6048,7 +6048,7 @@ sim tables groups update <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6113,7 +6113,7 @@ sim tables rows update-each <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6143,7 +6143,7 @@ sim tables rows create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6176,7 +6176,7 @@ sim tables rows delete <tableId> <rowId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `rowId` | Yes | Unique table row identifier. |
 
 </CommandTable>
@@ -6209,7 +6209,7 @@ sim tables rows batch-delete <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6242,7 +6242,7 @@ sim tables rows get <tableId> <rowId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `rowId` | Yes | Unique table row identifier. |
 
 </CommandTable>
@@ -6274,7 +6274,7 @@ sim tables rows list <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6307,7 +6307,7 @@ sim tables rows query <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6342,7 +6342,7 @@ sim tables rows count <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6372,7 +6372,7 @@ sim tables rows enrich <tableId> <rowId> <groupId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `rowId` | Yes | Unique table row identifier. |
 | `groupId` | Yes | Workflow or enrichment group to run. |
 
@@ -6394,7 +6394,7 @@ sim tables rows search <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6428,7 +6428,7 @@ sim tables rows batch-update <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6461,7 +6461,7 @@ sim tables rows update <tableId> <rowId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `rowId` | Yes | Unique table row identifier. |
 
 </CommandTable>
@@ -6494,7 +6494,7 @@ sim tables dispatches cancel <tableId> <dispatchId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `dispatchId` | Yes | Unique table run-dispatch identifier. |
 
 </CommandTable>
@@ -6525,7 +6525,7 @@ sim tables dispatches create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6560,7 +6560,7 @@ sim tables dispatches get <tableId> <dispatchId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `dispatchId` | Yes | Unique table run-dispatch identifier. |
 
 </CommandTable>
@@ -6581,7 +6581,7 @@ sim tables dispatches list <tableId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6601,7 +6601,7 @@ sim tables exports cancel <tableId> <exportId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `exportId` | Yes | Unique table-export identifier. |
 
 </CommandTable>
@@ -6622,7 +6622,7 @@ sim tables exports create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6652,7 +6652,7 @@ sim tables exports get <tableId> <exportId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `exportId` | Yes | Unique table-export identifier. |
 
 </CommandTable>
@@ -6673,7 +6673,7 @@ sim tables exports download <tableId> <exportId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `exportId` | Yes | Unique table-export identifier. |
 
 </CommandTable>
@@ -6748,7 +6748,7 @@ sim tables cancel-runs <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6926,7 +6926,7 @@ sim tables views create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -6959,7 +6959,7 @@ sim tables views delete <tableId> <viewId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `viewId` | Yes | Unique saved-view identifier. |
 
 </CommandTable>
@@ -6990,7 +6990,7 @@ sim tables views get <tableId> <viewId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `viewId` | Yes | Unique saved-view identifier. |
 
 </CommandTable>
@@ -7011,7 +7011,7 @@ sim tables views list <tableId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -7031,7 +7031,7 @@ sim tables views update <tableId> <viewId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `viewId` | Yes | Unique saved-view identifier. |
 
 </CommandTable>
@@ -7068,7 +7068,7 @@ sim tables delete <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -7098,7 +7098,7 @@ sim tables enrichment get <tableId> <rowId> <groupId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `rowId` | Yes | Unique table row identifier. |
 | `groupId` | Yes | Workflow or enrichment group to run. |
 
@@ -7120,7 +7120,7 @@ sim tables get <tableId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -7187,7 +7187,7 @@ sim tables restore <tableId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -7207,7 +7207,7 @@ sim tables update <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -7239,7 +7239,7 @@ sim tables mv <tableId> <folder>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 | `folder` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
@@ -7260,7 +7260,7 @@ sim tables upsert <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works. |
 
 </CommandTable>
 
@@ -7746,7 +7746,7 @@ sim workflows operations apply <workflowId> [options]
 | --- | --- | --- |
 | `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
 | `--no-dry-run` | No | Send --dry-run as false. |
-| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId. To move an existing block into a loop or parallel (keeping its id), edit it with params &#123;"parentId":"&lt;loop-id&gt;"&#125;; &#123;"parentId":null&#125; moves it out (JSON, or @path / @- to read a file or stdin). |
+| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"source":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId. To move an existing block into a loop or parallel (keeping its id), edit it with params &#123;"parentId":"&lt;loop-id&gt;"&#125;; &#123;"parentId":null&#125; moves it out (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
@@ -7754,6 +7754,8 @@ sim workflows operations apply <workflowId> [options]
 | `-y, --yes` | Conditional | Confirm this operation (required unless --dry-run). |
 
 </CommandTable>
+
+Edges: connections maps a source handle to its targets: &#123;"source":"&lt;id&gt;"&#125;, &#123;"source":["&lt;a&gt;","&lt;b&gt;"]&#125;, or &#123;"source":&#123;"block":"&lt;id&gt;","handle":"&lt;target handle&gt;"&#125;&#125;; "success" is an alias of "source". An add's connections create the new block's edges. An edit's connections REPLACE every outgoing edge of that block, on every handle: list again each edge to keep. To remove one edge, edit its source block with &#123;"removeEdges":[&#123;"targetBlockId":"&lt;id&gt;","sourceHandle":"source"&#125;]&#125; (sourceHandle defaults to "source"). Source handles: source               the normal path error                a failure (a block that has an error output) if, else-if-0, else  a condition's branches, in order (else-if-1, … for more) route-0, route-1, …  a router's routes, in order loop-start-source    a loop into its body; loop-end-source after the loop parallel-start-source, parallel-end-source  the same for a parallel Renames: An edit's &#123;"name":"New name"&#125; also rewrites every &lt;old key.field&gt; reference to the block, in other blocks' inputs and in a loop's or parallel's collection and condition.
 
 API request and response schemas: [applyWorkflowOperations](/api-reference/workflows/applyWorkflowOperations).
 
@@ -8441,9 +8443,10 @@ sim workflows run <workflowId> [options]
 | `--manual` | No | Run the current saved workflow state instead of the active deployment. |
 | `--trigger <blockId>` | No | Enter the run through this runnable trigger; runs the current saved workflow state (implies --manual). |
 | `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
-| `--from-block <blockId>` | No | Run manually from this saved workflow block. |
+| `--from-block <block>` | No | Run manually from this saved workflow block: its id, display name or key. |
 | `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
-| `--stop-after <blockId>` | No | Stop the run after this saved block, failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). |
+| `--stop-after <block>` | No | Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). |
+| `--dir <dir>` | No | This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json. |
 | `--wait-timeout <seconds>` | No | Wait at most this many seconds for a synchronous run (0 waits until it settles). A run still going then continues in the background under async limits: the command prints its run record and exits 4, and `sim workflows runs wait` keeps waiting. Not with --async or --follow. |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
 | `--include-thinking` | No | Show model reasoning while following (requires --follow). |
@@ -8575,7 +8578,7 @@ sim workflows source apply [workflowId] [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. Defaults to `.`. |
 | `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
@@ -8602,7 +8605,7 @@ sim workflows source create [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 | `--dir <dir>` | Yes | Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry-run or --yes). |
 | `--dry-run` | No | Check the source and show the outcome without creating anything. |
 | `--name <name>` | No | The workflow name (default: the source's). |
@@ -8633,7 +8636,7 @@ sim workflows source check [options]
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
 | `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
 | `--no-strict` | No | Never fail on a warning an apply saves. |
-| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 
 </CommandTable>
 
@@ -9978,7 +9981,7 @@ sim workspaces source apply [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 | `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
 | `--dry-run` | No | Plan and check without writing anything. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
@@ -9989,9 +9992,9 @@ sim workspaces source apply [options]
 
 </CommandTable>
 
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), or changes were held back because they use a declared secret the workspace has no value for or a declared credential key nothing binds to (the rest was applied: set the secret or connect the credential, then apply again), the directory was read from another workspace than the one --workspace names (SOURCE_OTHER_WORKSPACE: drop --workspace, or promote it with --to; without --workspace an apply targets the workspace the directory was read from), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed or was deleted on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource (a workflow or its folder, a table) is locked (a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was written is saved into the directory, and applying again continues. An apply a resource refused part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a minute and apply again (binary files already uploaded are not sent again); 10 another apply is writing the workspace (SOURCE_BUSY), or another command is using the directory (SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it). Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), or every change it would write was held back because it uses a declared secret the workspace has no value for or a declared credential key nothing binds to (nothing was written; a dry run that would hold changes back exits 1 too), the directory was read from another workspace than the one --workspace names (SOURCE_OTHER_WORKSPACE: drop --workspace, or promote it with --to; without --workspace an apply targets the workspace the directory was read from), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed or was deleted on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource (a workflow or its folder, a table) is locked (a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was written is saved into the directory, and applying again continues. An apply a resource refused part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a minute and apply again (binary files already uploaded are not sent again); 10 another apply is writing the workspace (SOURCE_BUSY), or another command is using the directory (SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it); 15 written in part: changes that use a declared secret the workspace has no value for, or a declared credential key nothing binds to, were held back and the rest was applied and saved (set the secret or connect the credential, then apply again). Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
 
-API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource), [findMissingWorkspaceSourceBlobs](/api-reference/workflows/findMissingWorkspaceSourceBlobs), [stageWorkspaceSourceBlobs](/api-reference/workflows/stageWorkspaceSourceBlobs), [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog).
+API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource), [findMissingWorkspaceSourceBlobs](/api-reference/workflows/findMissingWorkspaceSourceBlobs), [stageWorkspaceSourceBlobs](/api-reference/workflows/stageWorkspaceSourceBlobs), [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment).
 
 ### sim workspaces source check
 
@@ -10010,7 +10013,7 @@ sim workspaces source check [options]
 | `--dir <dir>` | No | Workspace source directory: the kind folders and .sim/base.json. Defaults to `.`. |
 | `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
 | `--no-strict` | No | Never fail on a warning an apply saves. |
-| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 
 </CommandTable>
 

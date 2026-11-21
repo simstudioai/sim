@@ -372,7 +372,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
             throw withSourceExitCode(error)
           })
         const result = await writeWorkspaceSource(client, options.dir, data, options.force === true)
-        const findings = findingsOutput(profile.output)
+        const findings = findingsOutput(profile.output, false, options.dir)
         findings.print(data.diagnostics)
         for (const { kind, key, reason } of data.skipped) {
           printError(

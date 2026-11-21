@@ -173,6 +173,8 @@ export interface SessionErrorCompleteParams {
   }
   traceSpans?: TraceSpan[]
   skipCost?: boolean
+  /** The input the run started with, once its input stage finished; absent for a run refused before it. */
+  workflowInput?: unknown
   executionState?: SerializableExecutionState
 }
 
@@ -180,6 +182,7 @@ export interface SessionCancelledParams {
   endedAt?: string
   totalDurationMs?: number
   traceSpans?: TraceSpan[]
+  workflowInput?: unknown
   executionState?: SerializableExecutionState
 }
 
@@ -1094,6 +1097,7 @@ export class LoggingSession {
         costSummary,
         finalOutput: { error: message },
         traceSpans: spans,
+        workflowInput: params.workflowInput,
         executionState: params.executionState,
         finalOutputResolvedSecretTraceProvenance: errorDisplayProvenance,
         level: 'error',
@@ -1175,6 +1179,7 @@ export class LoggingSession {
         costSummary,
         finalOutput: { cancelled: true },
         traceSpans,
+        workflowInput: params.workflowInput,
         executionState: params.executionState,
         finalOutputResolvedSecretTraceProvenance: emptyResolvedSecretTraceProvenance(),
         finalizationPath: 'cancelled',

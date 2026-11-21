@@ -128,7 +128,7 @@ export function attachWorkflowSourceGet(source: Command): void {
         workflowSource,
         workflowSource.blockTypes
       )
-      const findings = findingsOutput(profile.output)
+      const findings = findingsOutput(profile.output, false, dir)
       findings.print(workflowSource.diagnostics)
       printTreeResult(profile.output, {
         workflowId: workflowSource.workflowId,

@@ -318,11 +318,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -405,11 +405,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -492,11 +492,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -597,11 +597,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -702,11 +702,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -841,11 +841,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -945,11 +945,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -1067,11 +1067,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -1172,11 +1172,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -1285,11 +1285,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -1389,11 +1389,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -1497,11 +1497,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -1612,11 +1612,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -1712,11 +1712,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -1820,11 +1820,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -1959,11 +1959,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -2064,11 +2064,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -2148,11 +2148,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -2266,11 +2266,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -2361,11 +2361,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -2472,11 +2472,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -2569,11 +2569,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -2653,11 +2653,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -2771,11 +2771,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -2877,11 +2877,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -2981,11 +2981,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -3080,11 +3080,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -3166,11 +3166,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -3286,11 +3286,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -3397,11 +3397,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -4039,11 +4039,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -4143,11 +4143,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -4239,11 +4239,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -4340,11 +4340,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -4441,11 +4441,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -5056,11 +5056,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -5159,11 +5159,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           }
         ],
@@ -5276,11 +5276,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {
@@ -5372,11 +5372,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works."
             }
           },
           {

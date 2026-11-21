@@ -13,6 +13,13 @@ import type {
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
+import {
+  type DeployedUrl,
+  deployedUrls,
+  deployedUrlsText,
+  lockBlockNames,
+  namedUrls,
+} from './deployed-urls'
 import { gitProvenance } from './git-provenance'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
@@ -36,6 +43,7 @@ import {
   type FindingsOutput,
   findingsOutput,
   fresh,
+  isMachine,
   printRefusal,
   refusedExitCode,
   shellWord,
@@ -158,7 +166,7 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
       })
     }
   }
-  const findings = findingsOutput(args.output, options.verbose)
+  const findings = findingsOutput(args.output, options.verbose, options.dir)
   const notes = new Set<string>()
   const report = (data: SourceApplyData, deployment: DeployOutcome = {}) => {
     const result = { ...summarize(data, creating, findings.machine), ...deployment }
@@ -171,6 +179,7 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
         ...(deployment.deployed
           ? { deployed: `version ${deployment.deployed.version ?? '?'}` }
           : {}),
+        ...(deployment.urls?.length ? { urls: deployedUrlsText(deployment.urls) } : {}),
       }
     )
   }
@@ -186,7 +195,11 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
     preview: () => send(true),
     show: (preview) => printFindings(preview, findings, notes),
     refuses: hasErrors,
-    explain: (preview) => printError(diffSummary(preview)),
+    // A machine result carries the same counts, so its stderr holds findings and notes only; a
+    // person asked to confirm still reads what the write would change.
+    explain: (preview) => {
+      if (!findings.machine || mode === 'ask') printError(diffSummary(preview))
+    },
     commit: async () => {
       const answer = await send(false)
       printFindings(answer, findings, notes)
@@ -203,7 +216,7 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
   })
   if (!data) return
 
-  if (mode === 'write' && stored(data)) printError(diffSummary(data))
+  if (mode === 'write' && stored(data) && !findings.machine) printError(diffSummary(data))
   let deployment: DeployOutcome = {}
   if (stored(data)) {
     try {
@@ -225,6 +238,8 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
 interface DeployOutcome {
   deployed?: { version?: number; isDeployed: boolean; warnings?: string[] }
   needsRedeployment?: boolean
+  /** The URL of each webhook the live deployment serves. */
+  urls?: DeployedUrl[]
   next?: NextStep
 }
 
@@ -272,6 +287,7 @@ async function deployStep(
           isDeployed: true,
         },
         needsRedeployment: false,
+        urls: namedUrls(status.webhooks, lockBlockNames(data.lock)),
       }
     }
   }
@@ -297,6 +313,9 @@ async function deployStep(
       ...(options.machine && deployed.warnings.length > 0 ? { warnings: deployed.warnings } : {}),
     },
     needsRedeployment: false,
+    ...(deployed.isDeployed
+      ? { urls: await deployedUrls(client, data.workflowId, lockBlockNames(data.lock)) }
+      : {}),
   }
 }
 
@@ -473,10 +492,18 @@ export function attachWorkflowSourceCreate(source: Command): void {
             const { client, profile } = connectCreate()
             const workspaceId = client.requireWorkspace()
             const tree = await writeSourceScaffold(client, options.dir, workspaceId)
-            printError(
-              `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, then run \`${createCommand(options.dir, workspaceId)} --yes\`.`
-            )
-            printTreeResult(profile.output, { created: false, scaffolded: true, ...tree })
+            const next: NextStep = {
+              command: `${createCommand(shellWord(options.dir), workspaceId)} --yes`,
+              reason: `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, check it, then create it.`,
+            }
+            const machine = isMachine(profile.output)
+            if (!machine) printError(`${next.reason} Next: ${next.command}`)
+            printTreeResult(profile.output, {
+              created: false,
+              scaffolded: true,
+              ...tree,
+              ...(machine ? { next } : {}),
+            })
             return
           }
           assertDeployable(options)

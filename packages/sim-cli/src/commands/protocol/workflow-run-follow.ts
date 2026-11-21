@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { Command } from 'commander'
 import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
@@ -14,6 +14,7 @@ import { retypeApiError } from '../../runtime/naming'
 import { buildRequest } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
+import { printRunFailureSite } from './run-source-location'
 import {
   parseWaitTimeout,
   type RunSnapshot,
@@ -78,7 +79,7 @@ export function resolveWorkflowRunSelection(
     throw new SimApiError('--from-block requires --source-run <runId>', 0)
   }
   if (sourceRun && !fromBlock) {
-    throw new SimApiError('--source-run requires --from-block <blockId>', 0)
+    throw new SimApiError('--source-run requires --from-block <block>', 0)
   }
   if ((manual || fromBlock) && flags.async === true) {
     throw new SimApiError(
@@ -90,7 +91,7 @@ export function resolveWorkflowRunSelection(
     throw new SimApiError('--mock-payload cannot be combined with --input', 0)
   }
   if (stopAfter !== undefined && stopAfter.trim() === '') {
-    throw new SimApiError('--stop-after requires a block ID', 0)
+    throw new SimApiError('--stop-after requires a block id, name or key', 0)
   }
 
   const stop = stopAfter !== undefined ? { stopAfterBlockId: stopAfter } : {}
@@ -250,7 +251,12 @@ async function runWithResultStream(
     })
 
     const failure = runFailureMessage('executeWorkflow', payload)
-    if (failure) throw new SimApiError(failure, 0)
+    if (failure) {
+      if (typeof flags.dir === 'string') {
+        await printRunFailureSite(flags.dir, workflowId, toRecord(payload).error)
+      }
+      throw new SimApiError(failure, 0)
+    }
   } catch (error) {
     throw retypeApiError(error, 'executeWorkflow', commandSpec, operation)
   }
@@ -583,14 +589,21 @@ export function attachWorkflowRunFollow(workflows: Command): void {
       '--mock-payload',
       "Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual)"
     )
-    .option('--from-block <blockId>', 'Run manually from this saved workflow block')
+    .option(
+      '--from-block <block>',
+      'Run manually from this saved workflow block: its id, display name or key'
+    )
     .option(
       '--source-run <runId>',
       'Prior run whose persisted state supplies upstream outputs (requires --from-block)'
     )
     .option(
-      '--stop-after <blockId>',
-      'Stop the run after this saved block, failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual)'
+      '--stop-after <block>',
+      'Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual)'
+    )
+    .option(
+      '--dir <dir>',
+      "This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json"
     )
     .option(
       WAIT_TIMEOUT_FLAG,
