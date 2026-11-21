@@ -13,7 +13,7 @@ import { blockLabel } from './deployed-urls'
 import { readPreviousLock, readSourceJson, readSourceText } from './source-dir'
 
 /** A failed block, as the source directory names it. */
-export interface RunFailureSite {
+interface RunFailureSite {
   /** The file to open (relative to the working directory): the block's function file, else the entry. */
   file: string
   line: number | null
@@ -40,7 +40,7 @@ function declarationLine(entry: string, ident: string): number | null {
  * Where the run's failure sits in the workflow source directory `dir`: `null` when the error names
  * no block, the directory holds another workflow's source, or its lock does not bind the block.
  */
-export async function runFailureSite(
+async function runFailureSite(
   dir: string,
   workflowId: string,
   error: unknown
