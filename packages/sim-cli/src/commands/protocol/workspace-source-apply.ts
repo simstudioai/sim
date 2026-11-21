@@ -919,13 +919,13 @@ export function attachWorkspaceSourceApply(source: Command): void {
             printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
             setSoftExitCode(failedExitCode(data.failed))
           }
-          // A promotion's directory holds the source workspace's locks, whose ids the target's
-          // blocks do not have.
           report(
             data,
             undefined,
-            await deploymentUrls(client, data, async (path) =>
-              promotion ? null : readSourceText(options.dir, path)
+            await deploymentUrls(
+              client,
+              data,
+              promotion ? undefined : (path) => readSourceText(options.dir, path)
             )
           )
         },
@@ -1008,12 +1008,13 @@ function workflowUrlsText(urls: readonly WorkflowUrl[]): string {
  * The webhook URLs of each workflow a written apply deployed (a `deployments/<key>.ts` it created
  * or updated), in the workspace it wrote: a promotion's are the target's, which are new URLs.
  * Each block is named as the workflow's reprinted lock names it, or, when the apply did not
- * reprint the workflow (it wrote only the deployment), as `savedLock` reads it from the directory.
+ * reprint the workflow (it wrote only the deployment), as `savedLock` reads it from the directory
+ * (none for a promotion, whose directory holds the source workspace's block ids).
  */
 async function deploymentUrls(
   client: OperationClient<'getWorkflowDeployment'>,
   data: ApplyData,
-  savedLock: (path: string) => Promise<string | null>
+  savedLock?: (path: string) => Promise<string | null>
 ): Promise<WorkflowUrl[]> {
   if (data.dryRun) return []
   const base = parseWorkspaceBase(data.base).base
@@ -1025,7 +1026,7 @@ async function deploymentUrls(
       const workflowId = base?.resources[resourceAddress('workflow', key)]?.id
       if (!workflowId) return []
       const lockPath = `${workflowFolder(key)}/${SOURCE_LOCK_FILE}`
-      const lock = data.files[lockPath] ?? (await savedLock(lockPath))
+      const lock = data.files[lockPath] ?? (await savedLock?.(lockPath)) ?? null
       const named = await deployedUrls(client, workflowId, lockBlockNames(lock))
       return named.map((url) => ({ workflow: key, ...url }))
     })

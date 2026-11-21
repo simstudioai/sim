@@ -1098,11 +1098,11 @@ describe('knowledge bases as workspace source', () => {
       })
       .from(workspaceSourceStagedBlob)
       .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
-    const consumed = (path: string) =>
-      staging.find((row) => row.sha256 === sha256Hex(POLICIES.docs[path] ?? Buffer.alloc(0)))
-        ?.consumedAt ?? null
-    expect(consumed(REFUNDS)).toBeInstanceOf(Date)
-    expect(consumed('knowledge/policies/docs/shipping.txt')).toBeNull()
+    const consumedAt = new Map(staging.map((row) => [row.sha256, row.consumedAt]))
+    const hashOf = (path: string) => sha256Hex(POLICIES.docs[path] ?? Buffer.alloc(0))
+    expect(consumedAt.get(hashOf(REFUNDS))).toBeInstanceOf(Date)
+    // Still staged, and unconsumed: a missing row reads undefined, never null.
+    expect(consumedAt.get(hashOf('knowledge/policies/docs/shipping.txt'))).toBeNull()
 
     const second = await apply(workspaceId, POLICIES, { base: first.base })
 

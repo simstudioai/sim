@@ -194,18 +194,18 @@ function getWorkspaceBillingEntity(row: LockedWorkspaceStorage): BillingEntity {
     : { type: 'user', id: row.billedAccountUserId }
 }
 
-/** Whether the locked workspace row still routes storage to `context`'s payer. */
-function routesToContextPayer(
+/** The payer the locked workspace row routes storage to, when it is still `context`'s; else `null`. */
+function contextPayerOf(
   row: LockedWorkspaceStorage,
   context: StorageBillingContext
-): boolean {
-  const currentBillingEntity = getWorkspaceBillingEntity(row)
-  return (
-    row.id === context.workspaceId &&
-    currentBillingEntity.type === context.billingEntity.type &&
-    currentBillingEntity.id === context.billingEntity.id &&
+): BillingEntity | null {
+  const current = getWorkspaceBillingEntity(row)
+  return row.id === context.workspaceId &&
+    current.type === context.billingEntity.type &&
+    current.id === context.billingEntity.id &&
     row.billedAccountUserId === context.billedAccountUserId
-  )
+    ? current
+    : null
 }
 
 /**
@@ -216,12 +216,13 @@ function assertWorkspaceStorageContext(
   row: LockedWorkspaceStorage,
   context: StorageBillingContext
 ): BillingEntity {
-  if (!routesToContextPayer(row, context)) {
+  const payer = contextPayerOf(row, context)
+  if (!payer) {
     throw new Error(
       `Storage payer changed for workspace ${context.workspaceId}; resolve a fresh billing context`
     )
   }
-  return getWorkspaceBillingEntity(row)
+  return payer
 }
 
 /**
@@ -233,10 +234,8 @@ export async function isWorkspaceStoragePayerInTx(
   tx: DbOrTx,
   context: StorageBillingContext
 ): Promise<boolean> {
-  return routesToContextPayer(
-    await lockWorkspaceStorageForMutationInTx(tx, context.workspaceId),
-    context
-  )
+  const row = await lockWorkspaceStorageForMutationInTx(tx, context.workspaceId)
+  return contextPayerOf(row, context) !== null
 }
 
 /**

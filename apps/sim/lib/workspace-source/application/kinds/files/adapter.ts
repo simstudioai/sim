@@ -480,14 +480,21 @@ async function claimFileKey(
 
 /**
  * The bytes a write sends and their SHA-256: read from the staging area, which checks them
- * against the declared hash, so the declaration's hash is theirs.
+ * against the declared hash, so the declaration's hash is theirs. `stored` reports them stored
+ * once the write lands, so their staged copy stops counting toward the quota.
  */
 async function contentOf(
   change: FileChange,
   ctx: ApplyContext
-): Promise<{ content: Buffer; sha256: string }> {
-  if (!change.decl || !ctx.blobs) throw new Error('A file write needs its declaration and bytes')
-  return { content: await ctx.blobs.read(fileBlobPath(change.key)), sha256: change.decl.sha256 }
+): Promise<{ content: Buffer; sha256: string; stored: () => void }> {
+  const { blobs } = ctx
+  if (!change.decl || !blobs) throw new Error('A file write needs its declaration and bytes')
+  const path = fileBlobPath(change.key)
+  return {
+    content: await blobs.read(path),
+    sha256: change.decl.sha256,
+    stored: () => blobs.stored(path),
+  }
 }
 
 /** The base entry of a file just written, from what the server recorded. */
@@ -599,7 +606,7 @@ export const fileAdapter: KindAdapter<'file', StoredFileState> = {
         .catch(staleAs(change))
       return { id: fileId, text: {} }
     }
-    const { content, sha256 } = await contentOf(change, ctx)
+    const { content, sha256, stored } = await contentOf(change, ctx)
     if (change.action === 'create') {
       const segments = change.key.split('/')
       const resourceKey = change.detail?.resourceKey
@@ -617,6 +624,7 @@ export const fileAdapter: KindAdapter<'file', StoredFileState> = {
             : {}),
         },
       })
+      stored()
       return written(ctx, change.key, created.id, sha256)
     }
     const fileId = change.storedId
@@ -634,6 +642,7 @@ export const fileAdapter: KindAdapter<'file', StoredFileState> = {
         },
       })
       .catch(staleAs(change))
+    stored()
     return written(ctx, change.key, fileId, sha256)
   },
 

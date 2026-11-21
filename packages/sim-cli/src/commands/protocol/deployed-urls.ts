@@ -7,7 +7,7 @@ import { parseWorkflowLock } from '@sim/workflow-code'
 import { printError } from '#sim-cli/output/io'
 import { sanitize } from '#sim-cli/output/render'
 import type { GetWorkflowDeploymentResponse } from '../../generated/v2-api'
-import { REQUEST_CANCELLED, SimApiError } from '../../http/client'
+import { isRequestCancelled } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
 
 /** A webhook of a deployed workflow, which callers reach at `url`. */
@@ -63,7 +63,7 @@ export async function deployedUrls(
     })
     return namedUrls(data.webhooks, names)
   } catch (error) {
-    if (error instanceof SimApiError && error.code === REQUEST_CANCELLED) throw error
+    if (isRequestCancelled(error)) throw error
     printError(
       `The deploy succeeded, but its webhook URLs could not be read (${sanitize(getErrorMessage(error))}): \`sim workflows deployment status ${sanitize(workflowId)}\` lists them.`
     )

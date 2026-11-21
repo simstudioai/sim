@@ -59,6 +59,9 @@ export interface StagedBlob {
   storageKey: string
 }
 
+/** A staged blob as staging reads it: `consumed` once an apply wrote it into the workspace. */
+type HeldBlob = StagedBlob & { consumed: boolean }
+
 /** The workspace and caller a staged blob belongs to. */
 export interface StagingScope {
   workspaceId: string
@@ -89,8 +92,8 @@ export async function findStagedBlobs(
   target: StagingScope,
   hashes: readonly string[],
   until: Date = new Date()
-): Promise<Map<string, StagedBlob & { consumed: boolean }>> {
-  const found = new Map<string, StagedBlob & { consumed: boolean }>()
+): Promise<Map<string, HeldBlob>> {
+  const found = new Map<string, HeldBlob>()
   if (hashes.length === 0) return found
   const rows = await db
     .select({
@@ -304,7 +307,7 @@ export async function stageBlobs(
         count: fresh.length,
         bytes: fresh.reduce((sum, blob) => sum + blob.bytes.byteLength, 0),
       }
-      if (fresh.length > 0) assertStagingFits(await stagedUsage(target, tx), adding)
+      assertStagingFits(await stagedUsage(target, tx), adding)
       if (billing) await assertStagingWithinQuota(tx, billing, adding.bytes)
       if (fresh.length === 0) return new Map<string, StagedBlob>()
       const hashes = fresh.map((blob) => blob.sha256)

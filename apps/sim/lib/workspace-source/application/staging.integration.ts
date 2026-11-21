@@ -173,13 +173,14 @@ async function missing(
   return result.missing
 }
 
-/** What the staging table holds for the workspace: scope, hash and size per row. */
+/** The workspace's staging rows, read directly. */
 async function rows(workspaceId: string) {
   return db
     .select({
       scope: workspaceSourceStagedBlob.scope,
       sha256: workspaceSourceStagedBlob.sha256,
       storageKey: workspaceSourceStagedBlob.storageKey,
+      consumedAt: workspaceSourceStagedBlob.consumedAt,
     })
     .from(workspaceSourceStagedBlob)
     .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
@@ -340,16 +341,10 @@ describe('workspace source staging', () => {
         const restaged = { sha256: sha256Hex(notes), size: notes.byteLength, content: notes }
         const refused = await failure(stage(applier, workspaceId, [restaged]))
         expect(refused).toMatchObject({ name: 'SourceStagingFullError' })
-        const consumedNotes = await db
-          .select({ consumedAt: workspaceSourceStagedBlob.consumedAt })
-          .from(workspaceSourceStagedBlob)
-          .where(
-            and(
-              eq(workspaceSourceStagedBlob.workspaceId, workspaceId),
-              eq(workspaceSourceStagedBlob.sha256, restaged.sha256)
-            )
-          )
-        expect(consumedNotes).toEqual([{ consumedAt: expect.any(Date) }])
+        const [consumedNotes] = (await rows(workspaceId)).filter(
+          (row) => row.sha256 === restaged.sha256
+        )
+        expect(consumedNotes.consumedAt).toBeInstanceOf(Date)
 
         // Renewing a blob that still counts adds nothing, so it fits with 2 bytes left.
         expect((await stage(applier, workspaceId, [six])).staged).toEqual([
@@ -475,13 +470,7 @@ describe('workspace source staging', () => {
         { sha256: a.sha256, size: a.size, storageKey: read.storageKey },
       ])
 
-      const held = await db
-        .select({
-          storageKey: workspaceSourceStagedBlob.storageKey,
-          consumedAt: workspaceSourceStagedBlob.consumedAt,
-        })
-        .from(workspaceSourceStagedBlob)
-        .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
+      const held = await rows(workspaceId)
       expect(held).toHaveLength(1)
       expect(held[0].storageKey).not.toBe(read.storageKey)
       expect(held[0].consumedAt).toBeNull()

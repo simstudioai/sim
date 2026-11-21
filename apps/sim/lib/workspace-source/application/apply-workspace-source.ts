@@ -401,8 +401,8 @@ async function consumeStagedBlobs(target: StagingScope, consumed: StagedBlob[]):
 /**
  * Writes the plan's changes in write order under `lease`, recording each into `base` and
  * `result`; the first failure stops it and is reported as `result.failed`. Each write reads its
- * binary files from `staged`; returns the staged blobs the workspace now stores: those of the
- * writes that succeeded, and those the failed write reported stored before it failed.
+ * binary files from `staged`; returns the staged blobs the writes reported stored, the failed
+ * write's included.
  */
 async function writeAll(
   changes: PlannedChange[],
@@ -419,8 +419,6 @@ async function writeAll(
   )
   const consumed: StagedBlob[] = []
   for (const change of writeOrder(changes)) {
-    const read: StagedBlob[] = []
-    const stored: StagedBlob[] = []
     const stagedAt = (path: string) => {
       const blob = staged.get(path)
       if (!blob) throw new Error('A blob write ran without its staged bytes')
@@ -429,20 +427,15 @@ async function writeAll(
     const writeCtx: ApplyContext = {
       ...ctx,
       blobs: {
-        read(path) {
-          const blob = stagedAt(path)
-          read.push(blob)
-          return readStagedBlob(blob)
-        },
-        stored(path) {
-          stored.push(stagedAt(path))
+        read: (path) => readStagedBlob(stagedAt(path)),
+        stored: (path) => {
+          consumed.push(stagedAt(path))
         },
       },
     }
     try {
       await lease.confirm()
       const written = await write(change, writeCtx)
-      consumed.push(...read)
       Object.assign(result.files, written.text)
       for (const diagnostic of written.diagnostics ?? []) {
         const at = reported.get(findingIdentity(diagnostic))
@@ -466,7 +459,6 @@ async function writeAll(
       if (written.base) base.resources[address] = written.base
       else delete base.resources[address]
     } catch (error) {
-      consumed.push(...stored)
       const failure = failureOf(error, change, result.applyId)
       result.failed = failure.failed
       result.diagnostics.push(...failure.diagnostics)

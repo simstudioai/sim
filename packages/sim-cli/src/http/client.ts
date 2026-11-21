@@ -33,6 +33,11 @@ export class SimApiError extends Error {
 /** The code of a request the caller cancelled (its signal aborted): not an unreachable server. */
 export const REQUEST_CANCELLED = 'REQUEST_CANCELLED'
 
+/** Whether `error` is a request its caller cancelled, which no best-effort read may swallow. */
+export function isRequestCancelled(error: unknown): boolean {
+  return error instanceof SimApiError && error.code === REQUEST_CANCELLED
+}
+
 /**
  * Whether a request got no answer from the server: no connection or a timeout (status 0 with no
  * code, so never a cancellation), or one of the gateway `statuses` the caller treats as a gateway

@@ -1,10 +1,9 @@
 import { generateId } from '@sim/utils/id'
 
-/** What every table id starts with. */
 const TABLE_ID_PREFIX = 'tbl_'
 
-/** The shape {@link generateTableId} mints: `tbl_` and 32 lowercase hex digits. */
-const TABLE_ID_SHAPE = /^tbl_[0-9a-f]{32}$/
+/** The shape {@link generateTableId} mints: the prefix and 32 lowercase hex digits. */
+const TABLE_ID_SHAPE = new RegExp(`^${TABLE_ID_PREFIX}[0-9a-f]{32}$`)
 
 /**
  * Whether `reference` is shaped like a table id, so it is never read as a table name: a name

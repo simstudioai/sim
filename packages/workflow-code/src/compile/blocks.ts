@@ -1141,9 +1141,11 @@ function compileWrittenParams(
           hint: alias
             ? `Write it as ${alias}; the value kind picks the basic or advanced field.`
             : (BLOCK_META_KEYS as readonly string[]).includes(key)
-              ? builder.kind === 'generic'
-                ? `${key} is block meta, not a param: pass it in block()'s fourth argument, block('type', 'Name', {…}, { ${key}: … }).`
-                : `${key} is block meta, not a param: pass it in the builder's third argument, ('Name', {…}, { ${key}: … }).`
+              ? `${key} is block meta, not a param: pass it in ${
+                  builder.kind === 'generic'
+                    ? `block()'s fourth argument, block('type', 'Name', {…}, { ${key}: … }).`
+                    : `the builder's third argument, ('Name', {…}, { ${key}: … }).`
+                }`
               : didYouMean(key, index.fields.keys()),
           blockKey: decl.key,
           param: key,
