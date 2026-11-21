@@ -3270,6 +3270,13 @@
       "when": 1795151802047,
       "tag": "0467_workflow_edges_block_fk_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 468,
+      "version": "7",
+      "when": 1795223641227,
+      "tag": "0468_retire_legacy_search_and_contracts",
+      "breakpoints": true
     }
   ]
 }

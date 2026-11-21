@@ -1,9 +1,10 @@
 import { z } from 'zod'
-import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
+import { persistedContentBlockSchema } from '@/lib/api/contracts/copilot-messages'
 import {
   mothershipResourceRemovalSchema,
   mothershipResourceSchema,
 } from '@/lib/api/contracts/mothership-resources'
+import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
 import {
   mountedSecretNamesSchema,
@@ -181,37 +182,6 @@ export const mothershipChatPostEnvelopeSchema = z
   })
   .passthrough()
 
-export const mothershipChatStopEnvelopeSchema = z
-  .object({
-    chatId: z.string().optional(),
-    streamId: z.string().optional(),
-    content: z.string().optional(),
-    contentBlocks: z.array(z.unknown()).optional(),
-    requestId: z.string().optional(),
-  })
-  .passthrough()
-
-export const mothershipChatAbortEnvelopeSchema = z
-  .object({
-    streamId: z.string().optional(),
-    chatId: z.string().optional(),
-    workspaceId: z.string().min(1).optional(),
-  })
-  .passthrough()
-
-export const mothershipChatStreamQuerySchema = z
-  .object({
-    streamId: z.string().optional(),
-    after: z.string().optional(),
-    batch: z.string().optional(),
-    source: z.enum(['ring', 'log']).optional(),
-  })
-  .passthrough()
-
-export const mothershipChatResourceEnvelopeSchema = z
-  .object({ chatId: z.string().optional() })
-  .passthrough()
-
 export const adminMothershipQuerySchema = z
   .object({
     env: z.preprocess(
@@ -228,7 +198,29 @@ const mothershipChatResourcesResponseSchema = z.object({
   resources: z.array(mothershipResourceSchema),
 })
 
-export const addMothershipChatResourceBodySchema = addCopilotChatResourceBodySchema
+export const addMothershipChatResourceBodySchema = z
+  .object({
+    chatId: requiredFieldSchema('chatId cannot be empty'),
+    resource: mothershipResourceSchema,
+    clearViewId: z.literal(true).optional(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.clearViewId !== true) return
+    if (body.resource.type !== 'table') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['clearViewId'],
+        message: 'clearViewId is only valid for table resources',
+      })
+    }
+    if (body.resource.viewId !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['resource', 'viewId'],
+        message: 'viewId must be omitted when clearViewId is true',
+      })
+    }
+  })
 export type AddMothershipChatResourceBody = z.input<typeof addMothershipChatResourceBodySchema>
 
 const reorderMothershipChatResourcesBodySchema = z.object({
@@ -267,6 +259,75 @@ export const removeMothershipChatResourceContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: mothershipChatResourcesResponseSchema,
+  },
+})
+
+const mothershipChatStreamQuerySchema = z.object({
+  streamId: z.string().optional().default(''),
+  after: z.string().optional().default(''),
+  batch: z
+    .string()
+    .optional()
+    .transform((value) => value === 'true'),
+  /** `log` once the reader was re-synced from the worker log: its cursor is a log position. */
+  source: z.enum(['ring', 'log']).optional(),
+})
+
+/** Re-attaches to a chat run's event stream from a cursor, or returns one batch of it. */
+export const mothershipChatStreamContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mothership/chat/stream',
+  query: mothershipChatStreamQuerySchema,
+  response: { mode: 'stream' },
+})
+
+export const mothershipChatStopBodySchema = z.object({
+  chatId: z.string(),
+  streamId: z.string(),
+  /**
+   * Partial assistant content to persist. Optional: the worker backend persists partials
+   * itself, so a Stop with nothing client-buffered is valid — requiring this made bare
+   * stops 400 and left the turn running detached.
+   */
+  content: z.string().default(''),
+  contentBlocks: z.array(persistedContentBlockSchema).optional(),
+  requestId: z.string().optional(),
+})
+export type MothershipChatStopBody = z.input<typeof mothershipChatStopBodySchema>
+
+export const mothershipChatStopContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mothership/chat/stop',
+  body: mothershipChatStopBodySchema,
+  response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
+})
+
+const mothershipChatAbortBodySchema = z
+  .object({
+    streamId: z.string().min(1, 'streamId is required'),
+    chatId: z.string().optional(),
+    workspaceId: z.string().min(1).optional(),
+    organizationId: z.string().min(1).optional(),
+  })
+  .refine((body) => !(body.workspaceId && body.organizationId), {
+    message: 'Choose either workspaceId or organizationId, not both',
+    path: ['organizationId'],
+  })
+export type MothershipChatAbortBody = z.input<typeof mothershipChatAbortBodySchema>
+
+export const mothershipChatAbortContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/mothership/chat/abort',
+  headers: z.object({ traceparent: z.string().max(512).optional() }),
+  body: mothershipChatAbortBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      aborted: z.boolean(),
+      /** Execution ended, or admission was durably cancelled before execution could start. */
+      settled: z.boolean(),
+      forceReleased: z.boolean().optional(),
+    }),
   },
 })
 

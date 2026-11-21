@@ -36,8 +36,7 @@ interface RepairPage {
 async function repairContentRevisionPage(
   sql: Sql,
   batchSize: number,
-  afterFileId: string,
-  retireLegacyRows: boolean
+  afterFileId: string
 ): Promise<RepairPage> {
   const candidates = await sql<{ fileId: string }[]>`
     SELECT id AS "fileId"
@@ -95,27 +94,6 @@ async function repairContentRevisionPage(
           AND file.secret_provenance_version IS DISTINCT FROM restored.version
       `
     }
-
-    /** Chunk search retains the old tables for a later DROP; never bulk-delete that retired text here. */
-    if (retireLegacyRows) {
-      await tx`
-      DELETE FROM workspace_file_search_segment AS segment
-      USING workspace_files AS file
-      WHERE segment.file_id = file.id
-        AND segment.file_id = ANY(${rewrittenIds}::text[])
-        AND segment.source_content_updated_at <> file.content_updated_at
-        AND date_trunc('milliseconds', segment.source_content_updated_at) = file.content_updated_at
-    `
-      await tx`
-      DELETE FROM workspace_file_search_index AS search_index
-      USING workspace_files AS file
-      WHERE search_index.file_id = file.id
-        AND search_index.file_id = ANY(${rewrittenIds}::text[])
-        AND search_index.source_content_updated_at <> file.content_updated_at
-        AND date_trunc('milliseconds', search_index.source_content_updated_at) =
-          file.content_updated_at
-    `
-    }
     return rewritten.length
   })
 
@@ -126,18 +104,10 @@ export async function repairWorkspaceFileContentRevisions(
   sql: Sql,
   batchSize: number = CONTENT_REVISION_REPAIR_BATCH_SIZE
 ): Promise<number> {
-  const [index] = await sql<{ chunkSearchInstalled: boolean }[]>`
-    SELECT to_regclass('workspace_file_search_revision') IS NOT NULL AS "chunkSearchInstalled"
-  `
   let afterFileId = ''
   let repaired = 0
   for (;;) {
-    const page = await repairContentRevisionPage(
-      sql,
-      batchSize,
-      afterFileId,
-      !index.chunkSearchInstalled
-    )
+    const page = await repairContentRevisionPage(sql, batchSize, afterFileId)
     if (page.scanned === 0 || page.lastFileId === null) return repaired
     repaired += page.repaired
     afterFileId = page.lastFileId

@@ -74,7 +74,7 @@ vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthori
 vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { POST } from '@/app/api/copilot/chat/abort/route'
+import { POST } from '@/app/api/mothership/chat/abort/route'
 
 const { mockAuthorizeWorkspaceOperation: mockAuthorize } = workspaceAuthorizationMockFns
 const { mockGetActivelyBannedUserIds: mockBannedUsers } = authBanMockFns
@@ -94,7 +94,7 @@ function abortRequest() {
   return createMockRequest('POST', { streamId: 'stream-1', chatId: 'chat-1' })
 }
 
-describe('POST /api/copilot/chat/abort', () => {
+describe('POST /api/mothership/chat/abort', () => {
   beforeEach(() => {
     mockChatContext.mockResolvedValue({
       chatId: 'chat-1',

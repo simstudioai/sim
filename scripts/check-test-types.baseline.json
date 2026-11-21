@@ -90,12 +90,6 @@
   "apps/sim/app/api/copilot/api-keys/validate/route.test.ts": {
     "TS2554": 52
   },
-  "apps/sim/app/api/copilot/chat/stop/route.test.ts": {
-    "TS18046": 2,
-    "TS2345": 1,
-    "TS2554": 1,
-    "TS2571": 2
-  },
   "apps/sim/app/api/copilot/feedback/route.test.ts": {
     "TS2554": 1
   },
@@ -208,6 +202,12 @@
   },
   "apps/sim/app/api/mcp/servers/test-connection/route.test.ts": {
     "TS2554": 5
+  },
+  "apps/sim/app/api/mothership/chat/stop/route.test.ts": {
+    "TS18046": 2,
+    "TS2345": 1,
+    "TS2554": 1,
+    "TS2571": 2
   },
   "apps/sim/app/api/mothership/chats/[chatId]/fork/route.test.ts": {
     "TS2488": 1,

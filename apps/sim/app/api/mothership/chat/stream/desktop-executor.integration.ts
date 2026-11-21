@@ -31,7 +31,7 @@ import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { MOTHERSHIP_DESKTOP_EXECUTOR_HEADER } from '@/lib/mothership/constants'
-import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
+import { GET as streamGET } from '@/app/api/mothership/chat/stream/route'
 
 const userId = generateId()
 const workspaceId = generateId()
@@ -56,7 +56,7 @@ async function finishedRun(desktopDeviceId: string | null): Promise<string> {
 function reconnect(streamId: string, batch: boolean) {
   return streamGET(
     new NextRequest(
-      `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=0${batch ? '&batch=true' : ''}`
+      `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&after=0${batch ? '&batch=true' : ''}`
     ),
     { params: Promise.resolve({}) }
   )

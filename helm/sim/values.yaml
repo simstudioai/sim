@@ -1160,31 +1160,6 @@ podDisruptionBudget:
   # Set to null to use K8s default (IfHealthyBudget)
   unhealthyPodEvictionPolicy: null
 
-# Prometheus monitoring integration.
-# Creates a ServiceMonitor CR scraped by the Prometheus Operator. Requires
-# the kube-prometheus-stack (or prometheus-operator) CRDs to be installed
-# in the cluster — otherwise the manifest is rejected by the API server.
-monitoring:
-  # ServiceMonitor for Prometheus
-  serviceMonitor:
-    enabled: false
-    # Additional labels for ServiceMonitor
-    labels: {}
-    # Additional annotations for ServiceMonitor
-    annotations: {}
-    # Metrics path
-    path: /metrics
-    # Scrape interval
-    interval: 30s
-    # Scrape timeout
-    scrapeTimeout: 10s
-    # Target labels to be added to scraped metrics
-    targetLabels: []
-    # Metric relabeling configurations
-    metricRelabelings: []
-    # Relabeling configurations
-    relabelings: []
-
 # NetworkPolicy for east-west and egress isolation.
 # When enabled, the chart creates policies that allow Sim components to talk
 # to each other and to required external services (DNS, HTTPS) while blocking
@@ -1232,36 +1207,6 @@ networkPolicy:
   # CIDR lists — the bundled Postgres and Redis are already allowed by pod
   # selector and do not need it.
   allowExternalEgress: false
-
-# Shared storage for enterprise workflows requiring data sharing between pods
-sharedStorage:
-  enabled: false
-  # Storage class for shared volumes (must support ReadWriteMany access)
-  storageClass: ""
-  # Default access modes for shared volumes (ReadWriteMany required for multi-pod access)
-  defaultAccessModes:
-    - ReadWriteMany
-  # Define shared volumes for your workflows (uncomment and customize as needed)
-  # Example volume configurations:
-  # volumes:
-  #   - name: output-share
-  #     size: 100Gi
-  #     accessModes:
-  #       - ReadWriteMany
-  #     annotations: {}
-  #   - name: rawdata-share
-  #     size: 500Gi
-  #     accessModes:
-  #       - ReadWriteMany
-  #   - name: model-share
-  #     size: 200Gi
-  #     accessModes:
-  #       - ReadWriteMany
-  #   - name: logs-share
-  #     size: 50Gi
-  #     accessModes:
-  #       - ReadWriteMany
-  volumes: []
 
 # Additional volumes for custom configurations (advanced users)
 extraVolumes: []

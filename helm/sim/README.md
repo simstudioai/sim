@@ -57,7 +57,6 @@ Optional components (off by default):
 * **`networkPolicy`** — east-west and egress isolation (blocks cloud metadata endpoints by default).
 * **`hpa`** — HorizontalPodAutoscaler for `app` and `realtime`.
 * **`podDisruptionBudget`** — auto-activates when `replicaCount > 1`.
-* **`servicemonitor`** — Prometheus Operator integration.
 
 ---
 
@@ -72,7 +71,6 @@ Optional components (off by default):
 | cert-manager | Only if you want auto-issued TLS certificates. See [cert-manager docs](https://cert-manager.io/docs/). |
 | metrics-server | Only if `autoscaling.enabled=true` (HPA needs metrics). |
 | External Secrets Operator | Only if `externalSecrets.enabled=true`. See [ESO docs](https://external-secrets.io/). |
-| Prometheus Operator | Only if `monitoring.serviceMonitor.enabled=true`. |
 | Namespace PSS labels | Recommended: `pod-security.kubernetes.io/enforce=restricted`. The chart's pod and container security contexts are PSS-restricted by default. |
 
 ---
@@ -235,12 +233,14 @@ helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.5 --namespac
 helm uninstall sim --namespace sim
 ```
 
-**PVCs are not deleted by `helm uninstall`.** If you want to wipe data too:
+**The Postgres PVCs are not deleted by `helm uninstall`** (they come from StatefulSet volume claim templates). The Ollama PVC is a chart-managed resource, so `helm uninstall` deletes it along with its downloaded models. If you want to wipe the remaining data too:
 
 ```bash
-# WARNING: this destroys all Postgres, Ollama, and shared-storage data.
+# WARNING: this destroys all remaining Postgres data. The second selector term
+# spares shared-storage PVCs kept with helm.sh/resource-policy=keep when
+# upgrading past chart 1.13; drop it to delete those too.
 kubectl delete pvc --namespace sim \
-  -l app.kubernetes.io/instance=sim
+  -l 'app.kubernetes.io/instance=sim,sim.ai/volume-type!=shared-storage'
 
 # Or list and delete by name
 kubectl get pvc --namespace sim
@@ -259,7 +259,7 @@ Pre-built values files for common scenarios live in [`helm/sim/examples/`](https
 | File | When to use |
 |---|---|
 | `values-development.yaml` | Local dev / `kind` / `minikube`. Minimal resources, no TLS. |
-| `values-production.yaml` | Generic production: HA, network policy, autoscaling, monitoring. |
+| `values-production.yaml` | Generic production: HA, network policy, autoscaling. |
 | `values-aws.yaml` | EKS — EBS GP3 storage, ALB ingress, IRSA-friendly. |
 | `values-aws-marketplace.yaml` | EKS from the AWS Marketplace listing — Sim's images only, RDS + ElastiCache, Enterprise from the Marketplace license. |
 | `values-gcp.yaml` | GKE — Persistent Disk storage, GCP managed certs, Workload Identity. |
@@ -436,14 +436,13 @@ See `examples/values-external-secrets.yaml`.
 
 ## Persistence
 
-Postgres, Ollama, and any configured `sharedStorage.volumes[]` use PersistentVolumeClaims. PVCs **survive `helm uninstall`** — see [Uninstalling](#uninstalling) for full cleanup.
+Postgres and Ollama use PersistentVolumeClaims. The Postgres PVCs (from StatefulSet volume claim templates) **survive `helm uninstall`**; the Ollama PVC does not, so `helm uninstall` deletes it and its downloaded models. See [Uninstalling](#uninstalling) for full cleanup.
 
 | Component | Default size | Access mode | Storage class |
 |---|---|---|---|
 | `postgresql` | 10Gi | `ReadWriteOnce` | `global.storageClass` |
 | `copilot.postgresql` | 10Gi | `ReadWriteOnce` | `global.storageClass` |
 | `ollama` | 100Gi | `ReadWriteOnce` | `global.storageClass` |
-| `sharedStorage.volumes[]` | user-defined | `ReadWriteMany` recommended | `sharedStorage.storageClass` |
 
 For production, use a `StorageClass` with `reclaimPolicy: Retain` on database volumes.
 
@@ -511,19 +510,6 @@ autoscaling:
 ```
 
 When `autoscaling.enabled=true`, the chart omits `spec.replicas` from the Deployment so the HPA owns replica count. Requires `metrics-server` in the cluster. The realtime Deployment gets the same HPA unless `autoscaling.realtime.enabled=false` — scale realtime past one replica only with `REDIS_URL` set (Socket.IO Redis adapter), or cross-pod collaboration events are dropped.
-
----
-
-## Monitoring
-
-```yaml
-monitoring:
-  serviceMonitor:
-    enabled: true
-    interval: 30s
-```
-
-Requires the Prometheus Operator CRDs. Scrapes `/metrics` on the app and realtime services — note the default images do not currently expose a `/metrics` endpoint, so enable this only with a build that does.
 
 ---
 

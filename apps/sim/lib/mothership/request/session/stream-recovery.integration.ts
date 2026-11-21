@@ -73,7 +73,7 @@ import {
 import { appendEvents, readEvents } from '@/lib/mothership/request/session/buffer'
 import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
 import { createEvent } from '@/lib/mothership/request/session/event'
-import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
+import { GET as streamGET } from '@/app/api/mothership/chat/stream/route'
 
 const userId = generateId()
 const workspaceId = generateId()
@@ -152,7 +152,9 @@ async function orphanedRunWithTrimmedRing() {
 /** Opens a reconnect, which recovers the run, and waits for the recovered turn to finish. */
 async function recoverAndFinish(streamId: string, runId: string) {
   const reconnect = await streamGET(
-    new NextRequest(`http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=4`),
+    new NextRequest(
+      `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&after=4`
+    ),
     { params: Promise.resolve({}) }
   )
   await reconnect.body?.cancel()

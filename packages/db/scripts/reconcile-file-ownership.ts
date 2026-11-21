@@ -16,6 +16,7 @@ const migrations = [
   '0425_public_share_entity_ownership.sql',
   '0426_file_search_owner_scope.sql',
   '0428_file_search_dependency_owner.sql',
+  '0468_retire_legacy_search_and_contracts.sql',
 ]
 
 /** Backfills run after the DDL transaction commits, as in the migrations, so they never hold its table locks. */

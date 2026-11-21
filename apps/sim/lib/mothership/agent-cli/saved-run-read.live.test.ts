@@ -162,7 +162,7 @@ import { calculateNextRunTime, getScheduleTimeValues } from '@/lib/workflows/sch
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
-import { POST as abortChatRoute } from '@/app/api/copilot/chat/abort/route'
+import { POST as abortChatRoute } from '@/app/api/mothership/chat/abort/route'
 import {
   POST as addChatResourceRoute,
   DELETE as removeChatResourceRoute,
@@ -3809,7 +3809,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                     stoppedAt = Date.now()
                     // The Stop button's request: it stops the run, not just the stream.
                     const response = await abortChatRoute(
-                      new NextRequest('https://sim.test/api/copilot/chat/abort', {
+                      new NextRequest('https://sim.test/api/mothership/chat/abort', {
                         method: 'POST',
                         headers: { 'content-type': 'application/json' },
                         body: JSON.stringify({ chatId, streamId: messageId, workspaceId }),

@@ -49,9 +49,7 @@ const findFolderInfoForTag = (
   group: NestedBlockTagGroup
 ): {
   id: string
-  title: string
   parentTag: string
-  group: NestedBlockTagGroup
   nestedTag: NestedTag
 } | null => {
   for (const nestedTag of nestedTags) {
@@ -61,9 +59,7 @@ const findFolderInfoForTag = (
     ) {
       return {
         id: `${group.blockId}-${nestedTag.key}`,
-        title: nestedTag.display,
         parentTag: nestedTag.parentTag,
-        group,
         nestedTag,
       }
     }
@@ -193,15 +189,9 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
   const handleKeyboardEvent = useEffectEvent((e: KeyboardEvent) => {
     if (!flatTagList.length) return
 
-    const openFolderWithSelection = (
-      folderId: string,
-      folderTitle: string,
-      parentTag: string,
-      group: BlockTagGroup
-    ) => {
+    const enterFolder = (folderId: string, parentTag: string) => {
       const parentIdx = flatTagList.findIndex((item) => item.tag === parentTag)
-      const selectionCallback = () => handleTagSelect(parentTag, group)
-      openFolder(folderId, folderTitle, undefined, selectionCallback)
+      openFolder(folderId)
       if (parentIdx >= 0) {
         setSelectedIndex(parentIdx)
       }
@@ -210,13 +200,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
     const selected = flatTagList[selectedIndex]
     if (!selected && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
 
-    let currentFolderInfo: {
-      id: string
-      title: string
-      parentTag: string
-      group: NestedBlockTagGroup
-      nestedTag: NestedTag
-    } | null = null
+    let currentFolderInfo: ReturnType<typeof findFolderInfoForTag> = null
 
     if (selected) {
       for (const group of nestedBlockTagGroups) {
@@ -290,14 +274,9 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
           e.preventDefault()
           e.stopPropagation()
           if (isInFolder && nestedNav) {
-            nestedNav.navigateIn(currentFolderInfo.nestedTag, currentFolderInfo.group)
+            nestedNav.navigateIn(currentFolderInfo.nestedTag)
           } else {
-            openFolderWithSelection(
-              currentFolderInfo.id,
-              currentFolderInfo.title,
-              currentFolderInfo.parentTag,
-              currentFolderInfo.group
-            )
+            enterFolder(currentFolderInfo.id, currentFolderInfo.parentTag)
             onFolderEnter?.()
           }
         }

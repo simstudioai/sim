@@ -3,8 +3,8 @@
  *
  * `ChipModal` owns the panel chrome (outer ring, inner surface, header
  * separator, footer separator + tinted footer bar) and the underlying Radix
- * dialog lifecycle. Composition mirrors `Modal` / `ModalHeader` / `ModalBody`
- * / `ModalFooter` — drop your controls in as children.
+ * dialog lifecycle. Compose `ChipModalHeader` / `ChipModalBody` /
+ * `ChipModalFooter` inside it and drop your controls in as children.
  *
  * Body items are declared via the polymorphic `ChipModalField`. Each field
  * picks a `type` (`'input'`, `'email'`, `'textarea'`, `'dropdown'`, `'copy'`,

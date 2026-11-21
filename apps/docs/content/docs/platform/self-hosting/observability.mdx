@@ -71,7 +71,7 @@ Deploy the PII service, configure its internal network path, and enable the stor
 ## Metrics
 
 <Callout type="warn">
-  The default app and realtime images **do not expose a `/metrics` endpoint**. The chart's `monitoring.serviceMonitor` option exists for builds that do — enabling it against the stock images produces a ServiceMonitor that scrapes nothing.
+  The app and realtime images **do not expose a `/metrics` endpoint**, and the Helm chart ships no ServiceMonitor. There is nothing for Prometheus to scrape from the Sim pods directly.
 </Callout>
 
 Until an application metrics endpoint ships, build alerting from the signals that do exist:
