@@ -37,8 +37,9 @@ export interface KeyedRows {
   /** Whether stored rows no declared row matches are deleted; otherwise they refuse the write. */
   allowDelete: boolean
   /**
-   * The plan's row limit for the table, when it has one: the write is refused when the rows it
-   * leaves, the stored rows with no key value it keeps included, would cross it.
+   * The plan's row limit for the table (negative for none): a write that grows the table is
+   * refused when the rows it leaves, the stored rows with no key value it keeps included, would
+   * cross it. A write that adds no rows on balance is never refused, as other row writes are not.
    */
   rowLimit?: number
 }
@@ -141,6 +142,7 @@ export async function writeKeyedRowsWithTx(
   const { rowLimit } = declared
   if (
     rowLimit !== undefined &&
+    inserts.length > removed.length &&
     wouldExceedRowLimit(rowLimit, stored.length - removed.length, inserts.length)
   ) {
     throw new TableRowLimitError(rowLimit)

@@ -1175,6 +1175,40 @@ export default defineTable({
   )
 
   check(
+    'still applies a managed write that adds no rows to a table already over its row limit',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const optionalKey = MANAGED.replace(
+        'column.string({ required: true, unique: true })',
+        'column.string({ unique: true })'
+      )
+      const created = await apply(workspaceId, {
+        'tables/plans.ts': optionalKey,
+        'tables/plans.rows.jsonl': ROWS,
+      })
+      expect(created.failed).toBeUndefined()
+      await addUiRow(workspaceId, {})
+      await addUiRow(workspaceId, {})
+      const read = await runner.get(workspaceId)
+      planRowLimit.value = 3
+      try {
+        const written = await apply(
+          workspaceId,
+          {
+            ...read.files,
+            'tables/plans.rows.jsonl': ROWS.replace('"seats":10', '"seats":12'),
+          },
+          { base: read.base }
+        )
+        expect(written.failed).toBeUndefined()
+      } finally {
+        planRowLimit.value = undefined
+      }
+      expect((await storedRows(workspaceId)).map((row) => row.seats)).toContain(12)
+    }
+  )
+
+  check(
     'refuses at plan time a column made required that a row the UI added leaves empty, though the rows file is unchanged',
     async () => {
       const workspaceId = await newWorkspace()
