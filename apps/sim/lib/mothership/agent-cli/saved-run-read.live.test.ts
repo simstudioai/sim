@@ -1379,7 +1379,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         message: { id: streamId, content: 'Preserve the original instruction and attachments' },
         recovery: {
           kind: 'interactive_stream' as const,
-          workerRoute: '/api/mothership' as const,
+          goRoute: '/api/mothership' as const,
           clientToolPickupExpected: false,
           request: {
             messageId: streamId,

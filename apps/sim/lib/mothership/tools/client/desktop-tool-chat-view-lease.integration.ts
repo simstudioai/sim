@@ -43,7 +43,6 @@ import {
   getChatViewDesktopLeaseRemainingMs,
 } from '@/lib/mothership/async-runs/repository'
 import { prePersistClientExecutableToolCall } from '@/lib/mothership/request/handlers'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamingContext } from '@/lib/mothership/request/types'
 import { chatViewDesktopLeaseOwnerToken } from '@/lib/mothership/tools/desktop-tools'
 import { POST as confirmPOST } from '@/app/api/copilot/confirm/route'
@@ -143,7 +142,6 @@ describe.runIf(Boolean(redisUrl))('a chat-view import kept alive by its lease', 
       accumulatedContent: '',
       finalAssistantContent: '',
       sawMainToolCall: false,
-      trace: new TraceCollector(),
       contentBlocks: [],
       toolCalls: new Map(),
       pendingToolPromises: new Map(),

@@ -8738,7 +8738,7 @@ describe('Cost Field Handling', () => {
     Object.assign(tools, originalTools)
   })
 
-  it('emits _serviceCost for copilot executions using a hosted key', async () => {
+  it('records a service receipt for copilot executions using a hosted key', async () => {
     const mockTool = {
       id: 'test_copilot_hosted_cost',
       name: 'Test Copilot Hosted Cost',
@@ -8799,12 +8799,11 @@ describe('Cost Field Handling', () => {
     expect(result.success).toBe(true)
     expect(mockRateLimiterFns.acquireKey).toHaveBeenCalled()
     expect(result.output.cost).toEqual({ total: 0.005 })
-    expect(result.output._serviceCost).toEqual({ service: 'exa', cost: 0.005 })
 
     Object.assign(tools, originalTools)
   })
 
-  it('does not emit _serviceCost for workflow executions using a hosted key', async () => {
+  it('records no service receipt for workflow executions using a hosted key', async () => {
     const mockTool = {
       id: 'test_workflow_hosted_cost',
       name: 'Test Workflow Hosted Cost',
@@ -8846,17 +8845,15 @@ describe('Cost Field Handling', () => {
     ) as typeof fetch
 
     const mockContext = createToolExecutionContext({ userId: 'user-123' } as any)
-    const result = await executeTool(
-      'test_workflow_hosted_cost',
-      {},
-      { executionContext: mockContext }
+    const metered = vi.fn().mockResolvedValue(undefined)
+    const result = await observeServiceCosts(metered, () =>
+      executeTool('test_workflow_hosted_cost', {}, { executionContext: mockContext })
     )
 
     expect(result.success).toBe(true)
-    // Workflow executions bill through the execution ledger; emitting
-    // _serviceCost here would double-bill via Go's service-charge path.
+    // Workflow executions bill through the execution ledger; a service receipt would double-bill.
+    expect(metered).not.toHaveBeenCalled()
     expect(result.output.cost).toEqual({ total: 0.005 })
-    expect(result.output._serviceCost).toBeUndefined()
 
     Object.assign(tools, originalTools)
   })

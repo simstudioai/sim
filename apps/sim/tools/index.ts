@@ -1007,9 +1007,11 @@ interface HostedKeyCostResult {
  * Returns the cost and its metadata for the caller to attach to the tool
  * output. It does NOT write a usage-ledger row: the only `usageLog` insert is
  * `recordUsage` in `lib/billing/core/usage-log.ts`, which nothing on this path
- * calls. Cost reaches the ledger only through the `_serviceCost` field
- * `applyHostedKeyCostToResult` emits under `copilotToolExecution`, so any new
- * caller of `executeTool` that is not Copilot must arrange its own metering.
+ * calls. Under `copilotToolExecution`, `applyHostedKeyCostToResult` meters it
+ * with `recordServiceCost` inside `withToolServiceMeter`
+ * (`lib/mothership/request/tools/executor.ts`), which sends a receipt to the
+ * worker's `/api/billing/services`. Any new caller of `executeTool` that is not
+ * Copilot must arrange its own metering.
  */
 async function processHostedKeyCost(
   tool: ToolDefinition,
@@ -1147,11 +1149,10 @@ async function scheduleExactCostSettlement(
  * Billing capture differs by caller:
  * - Workflow executions bill `output.cost.total` through trace spans and the
  *   execution ledger (`recordUsage`), so the `cost` field alone suffices.
- * - Copilot tool executions have no execution ledger. Their only billing hook
- *   is Go's `extractServiceCost`, which reads a top-level `_serviceCost` field
- *   from the tool result and charges it through the per-round update-cost
- *   callback (the same path the media tools use). Without it, hosted-key spend
- *   from copilot-dispatched integration tools is never charged.
+ * - Copilot tool executions have no execution ledger. Their spend is recorded
+ *   by `recordServiceCost` inside `withToolServiceMeter`
+ *   (`lib/mothership/request/tools/executor.ts`), which sends a receipt to the
+ *   worker's `/api/billing/services` (the same path the media tools use).
  */
 async function applyHostedKeyCostToResult(
   finalResult: ToolResponse,
@@ -1197,17 +1198,15 @@ async function applyHostedKeyCostToResult(
   await scheduleExactCostSettlement(tool, metadata, scope, envVarName)
 
   if (hostedKeyCost > 0) {
-    const { copilotToolExecution } = scope
-    if (copilotToolExecution) await recordServiceCost(provider, hostedKeyCost)
+    // Copilot-only: workflow runs bill through the execution ledger, so a
+    // service receipt for them would bill the cost twice.
+    if (scope.copilotToolExecution) await recordServiceCost(provider, hostedKeyCost)
     finalResult.output = {
       ...finalResult.output,
       cost: {
         ...metadata,
         total: hostedKeyCost,
       },
-      // Copilot-only: workflow runs must not emit _serviceCost or the cost
-      // would be billed twice (execution ledger + Go service charge).
-      ...(copilotToolExecution ? { _serviceCost: { service: provider, cost: hostedKeyCost } } : {}),
     }
   }
 }

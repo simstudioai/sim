@@ -25,7 +25,7 @@
 /apps/sim/app/workspace/*/home/hooks/use-chat.ts @simstudioai/mothership
 /apps/sim/app/workspace/*/home/hooks/preview/ @simstudioai/mothership
 /apps/sim/app/workspace/*/home/hooks/stream/ @simstudioai/mothership
-/apps/sim/hooks/queries/tasks.ts @simstudioai/mothership
+/apps/sim/hooks/queries/mothership-tasks.ts @simstudioai/mothership
 
 # Dependency manifests and package-manager config. Any change here — adding,
 # removing, or bumping a dependency, or altering install/security settings —

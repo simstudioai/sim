@@ -215,7 +215,7 @@ async function orphanedRun(
       recovery: {
         kind: 'interactive_stream',
         request,
-        workerRoute: '/api/mothership',
+        goRoute: '/api/mothership',
         clientToolPickupExpected: false,
       },
       ...(options.recoveryBackoff ? { recoveryBackoff: options.recoveryBackoff } : {}),

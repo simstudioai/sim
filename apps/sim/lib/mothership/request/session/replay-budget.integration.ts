@@ -548,7 +548,7 @@ describe('a turn whose stream exhausts its replay budget', () => {
           recovery: {
             kind: 'interactive_stream',
             request,
-            workerRoute: '/api/mothership',
+            goRoute: '/api/mothership',
             clientToolPickupExpected: false,
           },
         },
@@ -911,7 +911,7 @@ describe('a turn whose stream exhausts its replay budget', () => {
         recovery: {
           kind: 'interactive_stream',
           request,
-          workerRoute: '/api/mothership',
+          goRoute: '/api/mothership',
           clientToolPickupExpected: false,
         },
       },

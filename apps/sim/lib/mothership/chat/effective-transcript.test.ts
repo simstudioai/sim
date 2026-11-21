@@ -397,7 +397,6 @@ describe('buildEffectiveChatTranscript', () => {
               kind: MothershipStreamV1SpanPayloadKind.subagent,
               event: MothershipStreamV1SpanLifecycleEvent.start,
               agent: 'workflow',
-              data: { tool_call_id: 'tc-workflow' },
             },
           }),
           toBatchEvent(2, {

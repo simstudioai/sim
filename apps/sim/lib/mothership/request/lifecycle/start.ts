@@ -38,7 +38,7 @@ import {
   type CopilotLifecycleOptions,
   runCopilotLifecycle,
 } from '@/lib/mothership/request/lifecycle/run'
-import { type CopilotLifecycleOutcome, startCopilotOtelRoot } from '@/lib/mothership/request/otel'
+import { startCopilotOtelRoot } from '@/lib/mothership/request/otel'
 import {
   cleanupAbortMarker,
   clearFilePreviewSessions,
@@ -62,11 +62,7 @@ import {
 import { StreamReplayBudgetExhaustedError } from '@/lib/mothership/request/session/replay-budget'
 import { SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/session/sse'
 import { type StreamTurnFailure, turnFailure } from '@/lib/mothership/request/session/turn-failure'
-import {
-  RequestTraceOutcome,
-  RequestTraceSpanStatus,
-  TraceCollector,
-} from '@/lib/mothership/request/trace'
+import { RequestTraceOutcome } from '@/lib/mothership/request/trace'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
@@ -228,8 +224,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     return cancelReason
   }
 
-  const collector = new TraceCollector()
-
   /**
    * The failure that ends this turn. Once the controller is aborted its reason is
    * authoritative, so a failure that follows a Stop stays a Stop.
@@ -314,7 +308,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       // Next handler → ReadableStream.start boundary.
       await otelContextApi.with(activeOtelRoot.context, async () => {
         const otelContext = activeOtelRoot.context
-        let rootOutcome: CopilotLifecycleOutcome = RequestTraceOutcome.error
+        let rootOutcome: RequestTraceOutcome = RequestTraceOutcome.error
         let rootError: unknown
         // `cancelReason` must be declared OUTSIDE the outer `try` so
         // it remains in scope for the outer `finally` that calls
@@ -326,12 +320,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         // orphan under a phantom parent. (Regression landed 2026-04-21.)
         let cancelReason: CopilotRequestCancelReasonValue | undefined
         try {
-          const requestSpan = collector.startSpan('Sim Agent Request', 'request', {
-            streamId,
-            chatId,
-            runId,
-          })
-          let outcome: CopilotLifecycleOutcome = RequestTraceOutcome.error
+          let outcome: RequestTraceOutcome = RequestTraceOutcome.error
           let lifecycleResult:
             | {
                 usage?: { prompt: number; completion: number }
@@ -432,7 +421,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                 !publisher.clientDisconnected || (await hasStreamViewer(streamId)),
               executionId,
               runId,
-              trace: collector,
               simRequestId: requestId,
               otelContext,
               abortSignal: abortController.signal,
@@ -539,15 +527,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             }
             await endTurn(syntheticResult, publisher, runId, outcome, requestId)
           } finally {
-            collector.endSpan(
-              requestSpan,
-              outcome === RequestTraceOutcome.success
-                ? RequestTraceSpanStatus.ok
-                : outcome === RequestTraceOutcome.cancelled
-                  ? RequestTraceSpanStatus.cancelled
-                  : RequestTraceSpanStatus.error
-            )
-
             clearInterval(abortPoller)
             try {
               await publisher.close()

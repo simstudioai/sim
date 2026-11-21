@@ -57,9 +57,6 @@
   "apps/sim/app/api/billing/switch-plan/route.test.ts": {
     "TS2554": 1
   },
-  "apps/sim/app/api/billing/update-cost/replay.live.test.ts": {
-    "TS2554": 1
-  },
   "apps/sim/app/api/billing/update-cost/route.test.ts": {
     "TS2554": 50
   },

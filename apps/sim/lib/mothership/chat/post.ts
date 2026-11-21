@@ -1296,7 +1296,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               kind: 'interactive_stream',
               resourceAuthoringVersion,
               request: { ...requestPayload, messageId: userMessageId, chatId: actualChatId },
-              workerRoute: branch.workerRoute,
+              goRoute: branch.workerRoute,
               clientToolPickupExpected,
               userTimezone: executionContext.userTimezone,
               requestMode: body.mode,

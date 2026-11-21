@@ -59,12 +59,6 @@ export const WORKFLOW_MUTATION_TOOL_NAMES: Set<string> = new Set([
   'rename_workflow',
 ])
 
-export type StreamPayload = Record<string, unknown>
-
-export function asPayloadRecord(value: unknown): StreamPayload | undefined {
-  return isRecordLike(value) ? value : undefined
-}
-
 /**
  * Settles every unfinished tool row (running, pending, or awaiting approval) at
  * a turn terminal by propagating the turn's outcome: a clean `complete` settles

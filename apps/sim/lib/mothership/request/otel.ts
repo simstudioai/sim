@@ -122,9 +122,8 @@ function marshalAgentMessages(messages: GenAIAgentMessage[]): string | undefined
   if (messages.length === 0) return undefined
   const json = JSON.stringify(messages)
   if (json.length <= GENAI_MESSAGE_ATTR_MAX_BYTES) return json
-  // Simple tail-preserving truncation: drop from the front until we
-  // fit. The last message is
-  // usually the most diagnostic for span-level outcome.
+  // Simple tail-preserving truncation: drop from the front until we fit.
+  // The last message is usually the most diagnostic for span-level outcome.
   let remaining = messages.slice()
   while (remaining.length > 1) {
     remaining = remaining.slice(1)
@@ -201,8 +200,6 @@ function setAgentOutputMessages(span: Span, output: CopilotAgentOutputMessages):
     span.setAttribute(TraceAttr.GenAiOutputMessages, serialized)
   }
 }
-
-export type CopilotLifecycleOutcome = (typeof RequestTraceOutcome)[keyof typeof RequestTraceOutcome]
 
 // Lazy tracer — Next 16/Turbopack can evaluate modules before NodeSDK
 // installs the real TracerProvider; resolving per call avoids a
@@ -413,7 +410,7 @@ interface CopilotOtelRoot {
    * for non-cancellation outcomes.
    */
   finish: (
-    outcome?: CopilotLifecycleOutcome,
+    outcome?: RequestTraceOutcome,
     error?: unknown,
     cancelReason?: CopilotRequestCancelReasonValue
   ) => void

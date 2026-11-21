@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto'
-import { isRecordLike } from '@sim/utils/object'
 import type { StreamEvent } from '@/lib/mothership/request/types'
 
 export const PROVIDER_TOOL_CALL_IDENTITY_LIMITS = {
@@ -85,26 +84,6 @@ export function scopeProviderToolCallEvent(
         pendingToolCallIds: scoped.payload.pendingToolCallIds.map(scopeId),
       },
     }
-  }
-  if (
-    scoped.type === 'span' &&
-    scoped.payload.kind === 'subagent' &&
-    isRecordLike(scoped.payload.data)
-  ) {
-    const mapped = { ...scoped }
-    mapped.payload = {
-      ...scoped.payload,
-      data: {
-        ...scoped.payload.data,
-        ...(typeof scoped.payload.data.tool_call_id === 'string'
-          ? { tool_call_id: scopeId(scoped.payload.data.tool_call_id) }
-          : {}),
-        ...(typeof scoped.payload.data.toolCallId === 'string'
-          ? { toolCallId: scopeId(scoped.payload.data.toolCallId) }
-          : {}),
-      },
-    }
-    return mapped
   }
   return scoped
 }

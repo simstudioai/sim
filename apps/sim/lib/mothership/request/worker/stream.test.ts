@@ -79,7 +79,6 @@ vi.mock('@/lib/mothership/tools/server/files/preview', async () => {
 })
 
 import { createEvent, hasAbortMarker } from '@/lib/mothership/request/session'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
 import {
   buildPreviewContentUpdate,
@@ -144,7 +143,6 @@ function createStreamingContext(): StreamingContext {
     errors: [],
     activeFileIntents: new Map(),
     filePreviewBudget: { contentBytes: 0 },
-    trace: new TraceCollector(),
     toolPermissions: {
       enabled: false,
       autoAllowed: new Set(),

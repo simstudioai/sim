@@ -338,21 +338,3 @@ export const MothershipStreamV1ToolOutcome = {
   skipped: "skipped",
   rejected: "rejected",
 } as const satisfies { [K in MothershipStreamV1ToolOutcome]: K };
-
-/** Sim's async tool record lifecycle; not a wire field, kept beside the vocabulary Sim shares. */
-export type MothershipStreamV1AsyncToolRecordStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "delivered";
-
-export const MothershipStreamV1AsyncToolRecordStatus = {
-  pending: "pending",
-  running: "running",
-  completed: "completed",
-  failed: "failed",
-  cancelled: "cancelled",
-  delivered: "delivered",
-} as const satisfies { [K in MothershipStreamV1AsyncToolRecordStatus]: K };

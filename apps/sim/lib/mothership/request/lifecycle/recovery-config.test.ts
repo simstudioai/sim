@@ -26,7 +26,7 @@ function config(request: object, requestMode?: string) {
     kind: 'interactive_stream',
     request,
     requestMode,
-    workerRoute: '/api/mothership',
+    goRoute: '/api/mothership',
     clientToolPickupExpected: false,
   }
 }
@@ -85,29 +85,6 @@ describe('durable recovery admission contract', () => {
   })
 })
 
-describe('worker route key', () => {
-  it('reads a run recorded under the legacy goRoute key as workerRoute', () => {
-    const parsed = StreamRecoveryConfigSchema.parse({
-      kind: 'interactive_stream',
-      request: workspaceRequest,
-      requestMode: 'agent',
-      goRoute: '/api/copilot',
-      clientToolPickupExpected: false,
-    })
-    expect(parsed.workerRoute).toBe('/api/copilot')
-    expect(parsed).not.toHaveProperty('goRoute')
-  })
-
-  it('rejects a record that names both route keys', () => {
-    expect(
-      StreamRecoveryConfigSchema.safeParse({
-        ...config(workspaceRequest, 'agent'),
-        goRoute: '/api/copilot',
-      }).success
-    ).toBe(false)
-  })
-})
-
 it('preserves the explicit Plan wire mode on recovery', () => {
   expect(
     StreamRecoveryConfigSchema.parse(config({ ...workspaceRequest, mode: 'plan' }, 'plan')).request
@@ -138,10 +115,10 @@ describe('recovery marker written by an admitted turn', () => {
     }
   )
 
-  it('stores the route under workerRoute', async () => {
+  it('stores the route under the goRoute key every deployed Sim parses', async () => {
     const recovery = await streamRecoveryConfig(options, workspaceRequest)
-    expect(recovery?.workerRoute).toBe('/api/mothership')
-    expect(recovery).not.toHaveProperty('goRoute')
+    expect(recovery?.goRoute).toBe('/api/mothership')
+    expect(recovery).not.toHaveProperty('workerRoute')
   })
 
   it('stays off a turn that was never admitted', async () => {

@@ -437,6 +437,15 @@ export function isSubagentSpanStreamEvent(
   return event.type === 'span' && isRecordLike(event.payload) && event.payload.kind === 'subagent'
 }
 
+/** What a subagent span's `data` carries: the lane `name` on start, its `error` on a failed end. */
+export function subagentSpanData(data: unknown): { name?: string; error?: string } {
+  if (!isRecordLike(data)) return {}
+  return {
+    ...(typeof data.name === 'string' && data.name ? { name: data.name } : {}),
+    ...(typeof data.error === 'string' && data.error ? { error: data.error } : {}),
+  }
+}
+
 // Public contract validators & parsers
 
 export function isContractStreamEventEnvelope(

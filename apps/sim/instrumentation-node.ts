@@ -1,6 +1,6 @@
-// Sim OTel bootstrap. Filter by `mothership.origin` or span-name
-// prefix (`sim-mothership:` / `go-mothership:`) to separate the two
-// halves of a mothership trace in the OTLP backend.
+// Sim OTel bootstrap. Sim's half of a mothership trace carries
+// `mothership.origin=sim-mothership` and the `sim-mothership:` span-name
+// prefix; the worker's half is identified by service.name `mothership-worker`.
 
 import { hostname } from 'node:os'
 import type { Attributes, Context, Link, SpanKind } from '@opentelemetry/api'

@@ -8,10 +8,7 @@ import type {
   StreamEventScope,
   StreamLoopContext,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
-import {
-  asPayloadRecord,
-  FILE_SUBAGENT_ID,
-} from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
+import { FILE_SUBAGENT_ID } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
 
 type SpanEvent = Extract<PersistedStreamEventEnvelope, { type: 'span' }>
 
@@ -29,20 +26,11 @@ export function handleSpanEvent(
   scope: StreamEventScope
 ): void {
   const { state, ops, deps } = ctx
-  const { scopedParentToolCallId, scopedAgentId, scopedSpanId } = scope
+  const { scopedParentToolCallId: parentToolCallId, scopedAgentId, scopedSpanId } = scope
   const payload = parsed.payload
   if (payload.kind !== MothershipStreamV1SpanPayloadKind.subagent) {
     return
   }
-  const spanData = asPayloadRecord(payload.data)
-  const parentToolCallIdFromData =
-    typeof spanData?.tool_call_id === 'string'
-      ? spanData.tool_call_id
-      : typeof spanData?.toolCallId === 'string'
-        ? spanData.toolCallId
-        : undefined
-  const parentToolCallId = scopedParentToolCallId ?? parentToolCallIdFromData
-  const isPendingPause = spanData?.pending === true
   const name = typeof payload.agent === 'string' ? payload.agent : scopedAgentId
   const runId = scopedSpanId ?? parentToolCallId
 
@@ -79,9 +67,6 @@ export function handleSpanEvent(
   }
 
   if (payload.event === MothershipStreamV1SpanLifecycleEvent.end) {
-    if (isPendingPause) {
-      return
-    }
     if (
       deps.previewSessionRef.current &&
       (!deps.activePreviewSessionIdRef.current ||

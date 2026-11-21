@@ -71,7 +71,6 @@ import {
   failPendingToolCall,
   pendingToolWaitBudgetMs,
 } from '@/lib/mothership/request/tools/executor'
-import { RequestTraceSpanStatus, type TraceCollector } from '@/lib/mothership/request/trace'
 import type {
   ExecutionContext,
   OrchestratorOptions,
@@ -309,7 +308,6 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
     userTimezone?: string
     requestMode?: string
   }
-  trace?: TraceCollector
   simRequestId?: string
   otelContext?: Context
   executionContext?: ExecutionContext
@@ -563,7 +561,6 @@ export async function runCopilotLifecycle(
           ? undefined
           : createProviderToolCallIdentity(resolvedRunId ?? generateId()),
       toolPermissions: await resolveToolPermissions(lifecycleOptions),
-      ...(lifecycleOptions.trace ? { trace: lifecycleOptions.trace } : {}),
     })
     if (options.recovery) {
       const { restoreStreamingContext } = await import('@/lib/mothership/request/context/restore')
@@ -939,17 +936,6 @@ async function runCheckpointLoop(
     }
 
     retry ??= new StreamRetryWindow(options.timeout)
-    const streamSpan = context.trace.startSpan(
-      isResume ? 'Sim → worker (resume)' : 'Sim → worker stream',
-      isResume ? 'lifecycle.resume' : 'sim.stream',
-      {
-        route,
-        isResume,
-        ...(isResume ? { attempt: retry.attempts } : {}),
-      }
-    )
-    context.trace.setActiveSpan(streamSpan)
-
     logger.info('Starting stream loop', {
       route,
       isResume,
@@ -989,17 +975,8 @@ async function runCheckpointLoop(
         execContext,
         { ...loopOptions, timeout: retry.remainingMs() }
       )
-      const streamStatus = isAborted(options, context)
-        ? RequestTraceSpanStatus.cancelled
-        : context.errors.length > 0
-          ? RequestTraceSpanStatus.error
-          : RequestTraceSpanStatus.ok
-      context.trace.endSpan(streamSpan, streamStatus)
-      context.trace.setActiveSpan(undefined)
       retry = undefined
     } catch (streamError) {
-      context.trace.endSpan(streamSpan, RequestTraceSpanStatus.error)
-      context.trace.setActiveSpan(undefined)
       const backoff = retry?.nextDelay(streamError, options.abortSignal) ?? null
       if (backoff !== null) {
         /** A recovered connection must not finalize with an earlier transport failure. */
@@ -1040,12 +1017,7 @@ async function runCheckpointLoop(
     if (!continuation) break
 
     if (context.pendingToolPromises.size > 0) {
-      const waitSpan = context.trace.startSpan('Wait for Tools', 'lifecycle.wait_tools', {
-        checkpointId: continuation.checkpointId,
-        pendingCount: context.pendingToolPromises.size,
-      })
       let maximumWaitBudgetMs = 0
-      let timedOutCount = 0
       const pendingWatchdogs = new Map<string, PendingToolWatchdog>()
 
       /**
@@ -1157,7 +1129,6 @@ async function runCheckpointLoop(
               pendingWatchdogs.delete(toolCallId)
             })
           )
-          timedOutCount += expiredTools.length
           continue
         }
 
@@ -1194,18 +1165,6 @@ async function runCheckpointLoop(
           watchdogController.abort()
         }
       }
-      const waitWasAborted = isAborted(options, context)
-      waitSpan.attributes = {
-        ...waitSpan.attributes,
-        waitBudgetMs: maximumWaitBudgetMs,
-        timedOutCount,
-        aborted: waitWasAborted,
-        settledInTime: timedOutCount === 0 && !waitWasAborted,
-      }
-      context.trace.endSpan(
-        waitSpan,
-        waitWasAborted ? RequestTraceSpanStatus.cancelled : RequestTraceSpanStatus.ok
-      )
     }
 
     if (isAborted(options, context)) {

@@ -170,8 +170,7 @@ export function abortPendingToolIfStreamDead(
     error: 'Tool was not dispatched because its stream had already been aborted',
   })
   markToolResultSeen(context, toolCallId)
-  // Sim's logs do not reach Loki and the trace span below is collected
-  // in-process but never exported, so the counter is the only signal that
+  // Sim's logs do not reach Loki, so the counter is the only signal that
   // survives to somewhere queryable.
   recordDegraded(CopilotDegradedReason.StreamDeadBeforeDispatch)
   logger.warn('Cancelled tool call before dispatch: stream already aborted', {
@@ -182,15 +181,6 @@ export function abortPendingToolIfStreamDead(
     ...(abortReason ? { abortReason } : {}),
     wasAborted: context.wasAborted ?? false,
   })
-  const toolSpan = context.trace.startSpan(toolCall.name || 'unknown_tool', 'tool.execute', {
-    toolCallId,
-    toolName: toolCall.name,
-    cancelReason: 'stream_dead_before_dispatch',
-    abortSignalAborted: options.abortSignal?.aborted ?? false,
-    abortReason,
-    wasAborted: context.wasAborted ?? false,
-  })
-  context.trace.endSpan(toolSpan, 'cancelled')
   return true
 }
 

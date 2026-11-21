@@ -31,7 +31,6 @@ import { NextRequest } from 'next/server'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import { prePersistClientExecutableToolCall, sseHandlers } from '@/lib/mothership/request/handlers'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamEvent, StreamingContext } from '@/lib/mothership/request/types'
 import { POST as confirmPOST } from '@/app/api/copilot/confirm/route'
 import { POST as authorizePOST } from '@/app/api/desktop/tool/authorize/route'
@@ -91,7 +90,6 @@ describe.runIf(Boolean(redisUrl)).concurrent('a desktop tool call nobody picks u
       accumulatedContent: '',
       finalAssistantContent: '',
       sawMainToolCall: false,
-      trace: new TraceCollector(),
       contentBlocks: [],
       toolCalls: new Map(),
       pendingToolPromises: new Map(),

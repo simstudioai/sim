@@ -4,7 +4,8 @@
 // e.g. `copilot.tool.duration` split by `tool.executor`.
 //
 // Bounded cardinality only: tool.name and gen_ai.agent.name are capped to the
-// shared catalogs (else "other"). NEVER a user/chat/request id (those explode Prometheus series).
+// shared catalogs (else "other"). NEVER a user/chat/request id (those explode
+// Prometheus series).
 import { type Counter, type Histogram, metrics } from '@opentelemetry/api'
 import { Metric } from '@/lib/mothership/generated/metrics-v1'
 import { TOOL_CATALOG } from '@/lib/mothership/generated/tool-catalog-v1'
@@ -45,9 +46,9 @@ function instruments(): CopilotMeterInstruments {
   return cached
 }
 
-// Caps tool.name to the shared catalog: a
-// catalog tool keeps its name, everything else (user MCP/custom/unknown)
-// collapses to "other" so series count stays finite.
+// Caps tool.name to the shared catalog: a catalog tool keeps its name,
+// everything else (user MCP/custom/unknown) collapses to "other" so series
+// count stays finite.
 function cappedToolName(name: string): string {
   return TOOL_CATALOG[name] ? name : 'other'
 }
@@ -84,9 +85,8 @@ export function recordSimToolMetric(
 // recordDegraded counts one non-fatal fallback, labelled by the bounded reason
 // it took. Every degradation path reports here so "are we degrading, and why" is
 // one query instead of a per-incident investigation — and so a path that should
-// be impossible can be alerted on at > 0. Sim's own logs do not reach Loki and
-// the in-process TraceCollector is not exported, so without this a fallback is
-// invisible.
+// be impossible can be alerted on at > 0. Sim's own logs do not reach Loki, so
+// without this a fallback is invisible.
 export function recordDegraded(reason: CopilotDegradedReasonValue): void {
   instruments().degradedCount.add(1, {
     [TraceAttr.CopilotDegradedReason]: reason,

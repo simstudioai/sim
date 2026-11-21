@@ -99,7 +99,7 @@ export async function startUnattendedTurn(
     const recovery = StreamRecoveryConfigSchema.parse({
       kind: 'unattended_stream',
       request,
-      workerRoute: '/api/mothership',
+      goRoute: '/api/mothership',
       clientToolPickupExpected: false,
       requestMode: 'agent',
       resourceAuthoringVersion: durableResourceAuthoringVersion(true),

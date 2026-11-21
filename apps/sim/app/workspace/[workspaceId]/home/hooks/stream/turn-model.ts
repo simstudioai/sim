@@ -12,7 +12,10 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import {
+  type PersistedStreamEventEnvelope,
+  subagentSpanData,
+} from '@/lib/mothership/request/session/contract'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
 import { readFrameActivity } from '@/lib/mothership/tools/activity'
 import {
@@ -591,11 +594,10 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
     case MothershipStreamV1EventType.span: {
       const payload = envelope.payload
       if (payload.kind !== MothershipStreamV1SpanPayloadKind.subagent) break
-      const data = isRecordLike(payload.data) ? payload.data : undefined
-      const triggerToolCallId =
-        scope?.parentToolCallId ?? asString(data?.tool_call_id) ?? asString(data?.toolCallId)
+      const data = subagentSpanData(payload.data)
+      const triggerToolCallId = scope?.parentToolCallId
       const agentId = asString(payload.agent) ?? scope?.agentId ?? ''
-      const displayName = asString(data?.name)
+      const displayName = data.name
       const resolvedSpanId =
         scope?.spanId ?? (triggerToolCallId ? `span:${triggerToolCallId}` : `span:${seq}`)
       const parentSpanId = scope?.parentSpanId ?? MAIN_SPAN
@@ -642,11 +644,9 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         model.order.push(node.id)
         model.agentBySpanId.set(resolvedSpanId, node.id)
       } else if (payload.event === MothershipStreamV1SpanLifecycleEvent.end) {
-        // A pending pause is not a terminal — the run resumes later.
-        if (data?.pending === true) break
         breakLane(model, resolvedSpanId, tsMs)
         const node = model.nodes.get(resolvedSpanId)
-        const error = data && asString(data.error)
+        const error = data.error
         const spanErrored = Boolean(error)
         if (node && node.kind === 'agent' && !isNodeTerminal(node.status)) {
           node.status = spanErrored ? 'error' : 'success'

@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 
 const { toolRequiresApproval, waitForToolPermissionDecision } = vi.hoisted(() => ({
   toolRequiresApproval: vi.fn().mockReturnValue(true),
@@ -36,7 +35,6 @@ function makeContext() {
     autoAllowed: new Set(),
     autoAllowPermitted: true,
   }
-  context.trace = new TraceCollector()
   return context
 }
 

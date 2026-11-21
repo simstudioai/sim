@@ -5,7 +5,6 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { StreamActivityReceipt, ToolActivity } from '@/lib/mothership/generated/protocol'
 import type { StreamEvent } from '@/lib/mothership/request/session'
-import type { RequestTraceSpan, TraceCollector } from '@/lib/mothership/request/trace'
 import type { ProviderToolCallIdentity } from '@/lib/mothership/request/worker/tool-call-identity'
 import type {
   ToolExecutionContext,
@@ -224,8 +223,6 @@ export interface StreamingContext {
   activeFileIntents: Map<string, ActiveFileIntent>
   /** File preview content this turn has streamed; one object shared by every leg. */
   filePreviewBudget: { contentBytes: number }
-  trace: TraceCollector
-  subAgentTraceSpans?: Map<string, RequestTraceSpan>
   /**
    * Per-request state for the tool permission gate. `autoAllowed` starts from
    * the user's saved always-allow list and is added to in place when they pick

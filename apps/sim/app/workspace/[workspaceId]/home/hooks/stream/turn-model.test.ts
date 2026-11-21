@@ -62,7 +62,6 @@ function spanStart(
       kind: 'subagent',
       event: 'start',
       agent,
-      data: parentToolCallId ? { tool_call_id: parentToolCallId } : {},
     },
     {
       lane: 'subagent',
@@ -74,12 +73,7 @@ function spanStart(
   )
 }
 
-function spanEnd(
-  seq: number,
-  spanId: string,
-  agent: string,
-  opts?: { error?: string; pending?: boolean }
-) {
+function spanEnd(seq: number, spanId: string, agent: string, opts?: { error?: string }) {
   return envelope(
     seq,
     'span',
@@ -87,10 +81,7 @@ function spanEnd(
       kind: 'subagent',
       event: 'end',
       agent,
-      data: {
-        ...(opts?.error ? { error: opts.error } : {}),
-        ...(opts?.pending ? { pending: true } : {}),
-      },
+      data: opts?.error ? { error: opts.error } : {},
     },
     { lane: 'subagent', spanId, agentId: agent }
   )
@@ -300,7 +291,7 @@ describe('reduceEvent — span-start owner reconciliation', () => {
       envelope(
         2,
         'span',
-        { kind: 'subagent', event: 'start', agent: 'workflow', data: { tool_call_id: 'd1' } },
+        { kind: 'subagent', event: 'start', agent: 'workflow' },
         { lane: 'subagent', spanId: 'S1', parentToolCallId: 'd1' }
       )
     )
@@ -316,12 +307,7 @@ describe('reduceEvent — span end settles stale lane tools', () => {
 
   it('marks still-running tools success when their lane ends cleanly', () => {
     const model = apply([
-      envelope(
-        1,
-        'span',
-        { kind: 'subagent', event: 'start', agent: 'browser', data: { tool_call_id: 'd1' } },
-        laneScope
-      ),
+      envelope(1, 'span', { kind: 'subagent', event: 'start', agent: 'browser' }, laneScope),
       toolCall(2, 'click-1', 'browser_click', laneScope),
       // No result for click-1 — dropped/reordered past the lane end.
       envelope(
@@ -344,12 +330,7 @@ describe('reduceEvent — span end settles stale lane tools', () => {
 
   it('leaves settled tools alone and lets a late result overwrite the settle', () => {
     const model = apply([
-      envelope(
-        1,
-        'span',
-        { kind: 'subagent', event: 'start', agent: 'browser', data: { tool_call_id: 'd1' } },
-        laneScope
-      ),
+      envelope(1, 'span', { kind: 'subagent', event: 'start', agent: 'browser' }, laneScope),
       toolCall(2, 'click-1', 'browser_click', laneScope),
       envelope(
         3,

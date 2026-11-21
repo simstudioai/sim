@@ -114,7 +114,7 @@ async function orphanedRunWithTrimmedRing() {
       recovery: {
         kind: 'interactive_stream',
         request,
-        workerRoute: '/api/mothership',
+        goRoute: '/api/mothership',
         clientToolPickupExpected: false,
       },
     },

@@ -160,21 +160,4 @@ describe('provider tool-call identity boundary', () => {
     })
     expect(scopeProviderToolCallEvent(call)).toBe(call)
   })
-
-  it('maps both subagent span ID spellings', () => {
-    const identity = createProviderToolCallIdentity('span-run')
-    const data = { tool_call_id: 'parent', toolCallId: 'parent', nested: { toolCallId: 'parent' } }
-    const span: StreamEvent = {
-      type: 'span',
-      payload: { kind: 'subagent', event: 'start', data },
-    }
-    const parentId = scopeProviderToolCallId('parent', identity)
-    expect(scopeProviderToolCallEvent(span, identity)).toEqual({
-      ...span,
-      payload: {
-        ...span.payload,
-        data: { ...data, tool_call_id: parentId, toolCallId: parentId },
-      },
-    })
-  })
 })

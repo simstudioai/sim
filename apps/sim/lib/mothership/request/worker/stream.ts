@@ -216,12 +216,6 @@ export async function runStreamLoop(
 
   const pathname = new URL(fetchUrl).pathname
   const requestBodyBytes = estimateBodyBytes(fetchOptions.body)
-  const fetchSpan = context.trace.startSpan(`HTTP Request → ${pathname}`, 'sim.http.fetch', {
-    url: fetchUrl,
-    method: fetchOptions.method ?? 'GET',
-    requestBodyBytes,
-  })
-  const fetchStart = performance.now()
   let response: Response
   armIdleTimeout()
   try {
@@ -237,26 +231,13 @@ export async function runStreamLoop(
       },
     })
   } catch (error) {
-    fetchSpan.attributes = {
-      ...(fetchSpan.attributes ?? {}),
-      headersMs: Math.round(performance.now() - fetchStart),
-    }
-    context.trace.endSpan(fetchSpan, abortSignal?.aborted ? 'cancelled' : 'error')
     if (idle.signal.aborted) throw new WorkerUnreachableError(idle.signal.reason)
     if (requestSignal.aborted) throw error
     throw new WorkerUnreachableError(error)
   } finally {
     clearTimeout(idleTimer)
   }
-  const headersElapsedMs = Math.round(performance.now() - fetchStart)
-  fetchSpan.attributes = {
-    ...(fetchSpan.attributes ?? {}),
-    status: response.status,
-    headersMs: headersElapsedMs,
-  }
-
   if (!response.ok) {
-    context.trace.endSpan(fetchSpan, 'error')
     // An error body is bounded by the same silence as the leg; a stalled one reads as empty.
     armIdleTimeout()
     const errorText = await new Promise<string>((resolve) => {
@@ -275,22 +256,13 @@ export async function runStreamLoop(
   }
 
   if (!response.body) {
-    context.trace.endSpan(fetchSpan, 'error')
     throw new CopilotBackendError('Copilot backend response missing body')
   }
 
-  context.trace.endSpan(fetchSpan)
-
-  const bodySpan = context.trace.startSpan(`SSE Body → ${pathname}`, 'sim.http.stream_body', {
-    url: fetchUrl,
-    method: fetchOptions.method ?? 'GET',
-  })
-
   // Aggregate counters populated inline by the reader wrapper + onEvent
-  // dispatcher below and flushed to both the legacy TraceCollector span
-  // and the OTel read-loop span when the loop terminates. Kept as plain
-  // JS variables (not span attrs) so incrementing them is free — we
-  // only pay OTel cost once at span End().
+  // dispatcher below and flushed to the OTel read-loop span when the loop
+  // terminates. Kept as plain JS variables (not span attrs) so incrementing
+  // them is free — we only pay OTel cost once at span End().
   //
   // Idle-gap tracking is split two ways so we can tell apart
   // upstream-silent from we-were-busy:
@@ -602,26 +574,6 @@ export async function runStreamLoop(
     flushThinkingBlock(context)
     clearTimeout(timeoutId)
     clearTimeout(idleTimer)
-
-    // Legacy TraceCollector span (consumed by the in-memory trace
-    // collector, kept for backwards compatibility with existing
-    // tooling). The real OTel span is stamped below.
-    const bodyDurationMs = Math.round(performance.now() - bodyStart)
-    bodySpan.attributes = {
-      ...(bodySpan.attributes ?? {}),
-      eventsReceived: counters.events,
-      firstEventMs: counters.firstEventMs,
-      endedOn,
-      durationMs: bodyDurationMs,
-    }
-    context.trace.endSpan(
-      bodySpan,
-      endedOn === CopilotSseCloseReason.Terminal
-        ? 'ok'
-        : endedOn === CopilotSseCloseReason.Aborted
-          ? 'cancelled'
-          : 'error'
-    )
 
     // Real OTel span for Tempo/Grafana. Stamped aggregate-only so
     // there is no per-chunk OTel cost — one span per read loop with

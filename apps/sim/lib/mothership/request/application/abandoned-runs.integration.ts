@@ -193,7 +193,7 @@ async function runAbandonedMidTool(
       recovery: {
         kind: 'interactive_stream',
         request,
-        workerRoute: '/api/mothership',
+        goRoute: '/api/mothership',
         clientToolPickupExpected: false,
       },
     },
@@ -845,7 +845,7 @@ describe('taking over a run whose controller died', () => {
           recovery: {
             kind: 'interactive_stream',
             request,
-            workerRoute: '/api/mothership',
+            goRoute: '/api/mothership',
             clientToolPickupExpected: false,
           },
         },

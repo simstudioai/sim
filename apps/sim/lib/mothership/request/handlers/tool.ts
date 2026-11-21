@@ -10,9 +10,10 @@ import { getRunDesktopDeviceId } from '@/lib/desktop/executor/repository'
 import { executeCopilotAssistantAction } from '@/lib/mothership/application/assistant-actions'
 import { isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
-import type {
-  AsyncCompletionSignal,
-  AsyncTerminalCompletionSnapshot,
+import {
+  ASYNC_TOOL_STATUS,
+  type AsyncCompletionSignal,
+  type AsyncTerminalCompletionSnapshot,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { getAsyncToolCall, upsertAsyncToolCall } from '@/lib/mothership/async-runs/repository'
 import {
@@ -22,7 +23,6 @@ import {
   DESKTOP_TOOL_PICKUP_GRACE_MS,
 } from '@/lib/mothership/constants'
 import {
-  MothershipStreamV1AsyncToolRecordStatus,
   MothershipStreamV1ToolExecutor,
   MothershipStreamV1ToolOutcome,
   type MothershipStreamV1ToolResultPayload,
@@ -448,8 +448,8 @@ export async function prePersistClientExecutableToolCall(
         data.arguments,
         desktopClaimsLocalReads(options, desktopDeviceId)
       )
-        ? MothershipStreamV1AsyncToolRecordStatus.pending
-        : MothershipStreamV1AsyncToolRecordStatus.running,
+        ? ASYNC_TOOL_STATUS.pending
+        : ASYNC_TOOL_STATUS.running,
     permissionRequested: gated,
     executionDeadlineAt: toDeadlineDate(frameToolDeadlineAt(data.deadlineMs, Date.now())),
   }).catch((err) => {
