@@ -611,7 +611,7 @@ describe('sim workflows source apply', () => {
     expect(JSON.stringify(printed.created)).not.toContain('"id"')
   })
 
-  it('folds info findings into one line per code and keeps frames on warnings', async () => {
+  it('hides autolayout infos unless --verbose, folds infos into one line per code and keeps frames on warnings', async () => {
     setTerminal(false)
     contextMockState.output = 'text'
     const layout = (key: string, line: number) => ({
@@ -640,6 +640,10 @@ describe('sim workflows source apply', () => {
     )
 
     await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+    expect(stderrLines().filter((line) => line.includes('I_MAT_NEEDS_LAYOUT'))).toEqual([])
+    vi.mocked(console.error).mockClear()
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--verbose')
 
     const lines = stderrLines()
     const layoutLines = lines.filter((line) => line.includes('I_MAT_NEEDS_LAYOUT'))

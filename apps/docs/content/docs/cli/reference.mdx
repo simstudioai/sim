@@ -8575,7 +8575,7 @@ sim workflows source apply [workflowId] [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. Defaults to `.`. |
 | `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
@@ -8602,7 +8602,7 @@ sim workflows source create [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 | `--dir <dir>` | Yes | Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry-run or --yes). |
 | `--dry-run` | No | Check the source and show the outcome without creating anything. |
 | `--name <name>` | No | The workflow name (default: the source's). |
@@ -8633,7 +8633,7 @@ sim workflows source check [options]
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
 | `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
 | `--no-strict` | No | Never fail on a warning an apply saves. |
-| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 
 </CommandTable>
 
@@ -9978,7 +9978,7 @@ sim workspaces source apply [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 | `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
 | `--dry-run` | No | Plan and check without writing anything. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
@@ -10010,7 +10010,7 @@ sim workspaces source check [options]
 | `--dir <dir>` | No | Workspace source directory: the kind folders and .sim/base.json. Defaults to `.`. |
 | `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
 | `--no-strict` | No | Never fail on a warning an apply saves. |
-| `--verbose` | No | With --output json, also list info findings (such as blocks placed by autolayout). |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
 
 </CommandTable>
 

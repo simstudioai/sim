@@ -203,7 +203,14 @@ export interface FindingsOutput {
 }
 
 /**
- * The {@link FindingsOutput} of `format`; `verbose` keeps info findings in a machine result. It is
+ * Info findings a display format prints only with `--verbose`: they report what the server does
+ * for the person (a new block placed by autolayout), so there is nothing to act on.
+ */
+const QUIET_INFO_CODES: ReadonlySet<Diagnostic['code']> = new Set(['I_MAT_NEEDS_LAYOUT'])
+
+/**
+ * The {@link FindingsOutput} of `format`; `verbose` keeps info findings in a machine result, and
+ * the {@link QUIET_INFO_CODES} in a display one. It is
  * the CLI's output edge, where each finding's message and hint are cut (`boundFindingText`): a
  * finding an offline check made is as long as its source made it until here.
  */
@@ -213,7 +220,11 @@ export function findingsOutput(format: OutputFormat, verbose = false): FindingsO
   return {
     machine,
     print(diagnostics) {
-      const unseen = diagnostics.filter((diagnostic) => fresh(printed, findingKey(diagnostic)))
+      const unseen = diagnostics.filter(
+        (diagnostic) =>
+          (verbose || !QUIET_INFO_CODES.has(diagnostic.code)) &&
+          fresh(printed, findingKey(diagnostic))
+      )
       if (!machine) printDiagnostics(unseen.map((diagnostic) => boundFindingText(diagnostic)))
     },
     result: (diagnostics) =>
@@ -250,7 +261,7 @@ export function createdText(created: readonly CreatedResource[]): string {
 export function verboseFlag(command: Command): Command {
   return command.option(
     '--verbose',
-    'With --output json, also list info findings (such as blocks placed by autolayout)'
+    'Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display'
   )
 }
 
