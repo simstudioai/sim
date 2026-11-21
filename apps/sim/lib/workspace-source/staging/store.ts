@@ -79,21 +79,22 @@ const inScope = ({ workspaceId, scope }: StagingScope) =>
   )
 
 /**
- * The staged blobs among `hashes` that are still staged `until` (default now), by hash, with when
- * each expires. A read: it never extends an expiry.
+ * The staged blobs among `hashes` that are still staged `until` (default now), by hash, each
+ * marked `consumed` once an apply wrote it. A read: it never extends an expiry.
  */
 export async function findStagedBlobs(
   target: StagingScope,
   hashes: readonly string[],
   until: Date = new Date()
-): Promise<Map<string, StagedBlob>> {
-  const found = new Map<string, StagedBlob>()
+): Promise<Map<string, StagedBlob & { consumed: boolean }>> {
+  const found = new Map<string, StagedBlob & { consumed: boolean }>()
   if (hashes.length === 0) return found
   const rows = await db
     .select({
       sha256: workspaceSourceStagedBlob.sha256,
       size: workspaceSourceStagedBlob.size,
       storageKey: workspaceSourceStagedBlob.storageKey,
+      consumed: sql<boolean>`${workspaceSourceStagedBlob.consumedAt} is not null`,
     })
     .from(workspaceSourceStagedBlob)
     .where(
@@ -213,7 +214,8 @@ export function assertStagingFits(
  * Stages `blobs` (bytes the caller already hashed): writes each one not yet staged to storage,
  * then records them under one lock on the scope, refusing a batch that would pass the caps or the
  * payer's storage quota (and removing the objects it wrote). A blob already staged is not written
- * again: sending its bytes renews it, and counts it toward the quota again if an apply consumed it.
+ * again: sending its bytes renews it, and counts it toward the quota again (refused like a new
+ * blob when the quota has no room) if an apply consumed it.
  */
 export async function stageBlobs(
   target: StagingScope,
@@ -222,25 +224,30 @@ export async function stageBlobs(
   const unique = new Map(blobs.map((blob) => [blob.sha256, blob]))
   const known = await findStagedBlobs(target, [...unique.keys()])
   const fresh = [...unique.values()].filter((blob) => !known.has(blob.sha256))
+  const held = [...known.values()]
+  const renewing = held.filter((blob) => !blob.consumed).map((blob) => blob.sha256)
+  const reclaiming = held.filter((blob) => blob.consumed).map((blob) => blob.sha256)
+  const charged = fresh.length > 0 || reclaiming.length > 0
   const keys = new Map<string, string>()
   const replaced: string[] = []
   let recorded = new Map<string, StagedBlob>()
   // The payer resolves before the transaction, so the transaction reads no billing rows. Renewing
-  // adds no bytes, so it needs no quota check and commits on its own: a batch whose new blobs are
-  // refused still keeps the ones it re-sent.
+  // a blob that still counts adds no bytes, so it needs no quota check and commits on its own: a
+  // batch whose other blobs are refused still keeps the ones it re-sent.
   const [billing] = await Promise.all([
-    fresh.length > 0 && isStorageEnforcementEnabled()
+    charged && isStorageEnforcementEnabled()
       ? resolveStorageBillingContext(target.workspaceId)
       : null,
-    known.size > 0
+    renewing.length > 0
       ? db
           .update(workspaceSourceStagedBlob)
-          .set({ expiresAt: expiry(), consumedAt: null })
+          .set({ expiresAt: expiry() })
           .where(
             and(
               inScope(target),
-              inArray(workspaceSourceStagedBlob.sha256, [...known.keys()]),
-              gt(workspaceSourceStagedBlob.expiresAt, new Date())
+              inArray(workspaceSourceStagedBlob.sha256, renewing),
+              gt(workspaceSourceStagedBlob.expiresAt, new Date()),
+              isNull(workspaceSourceStagedBlob.consumedAt)
             )
           )
       : null,
@@ -265,13 +272,29 @@ export async function stageBlobs(
         'workspace_source_staging',
         `workspace-source-staging:${target.workspaceId}:${target.scope}`
       )
-      if (fresh.length === 0) return new Map<string, StagedBlob>()
+      if (!charged) return new Map<string, StagedBlob>()
+      // A consumed blob staged again counts toward the quota again: it is restored here, so the
+      // quota check below reads its bytes among the payer's staged ones (its row already counts
+      // toward the caps), and a refusal leaves it consumed.
+      if (reclaiming.length > 0) {
+        await tx
+          .update(workspaceSourceStagedBlob)
+          .set({ expiresAt: expiry(), consumedAt: null })
+          .where(
+            and(
+              inScope(target),
+              inArray(workspaceSourceStagedBlob.sha256, reclaiming),
+              gt(workspaceSourceStagedBlob.expiresAt, new Date())
+            )
+          )
+      }
       const adding = {
         count: fresh.length,
         bytes: fresh.reduce((sum, blob) => sum + blob.bytes.byteLength, 0),
       }
-      assertStagingFits(await stagedUsage(target, tx), adding)
+      if (fresh.length > 0) assertStagingFits(await stagedUsage(target, tx), adding)
       if (billing) await assertStagingWithinQuota(tx, billing, adding.bytes)
+      if (fresh.length === 0) return new Map<string, StagedBlob>()
       const hashes = fresh.map((blob) => blob.sha256)
       // An expired row of the same hash is replaced, so the unique index admits the new one.
       const expired = await tx

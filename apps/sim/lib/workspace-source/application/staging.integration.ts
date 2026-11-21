@@ -271,7 +271,7 @@ describe('workspace source staging', () => {
   )
 
   check(
-    'a blob an apply wrote stops counting toward the quota, since the workspace now stores it; staging it again counts it again',
+    'a blob an apply wrote stops counting toward the quota, since the workspace now stores it; staging it again counts it again, refused when the quota has no room',
     async () => {
       const quota = 1024 ** 3
       await db
@@ -293,13 +293,36 @@ describe('workspace source staging', () => {
         expect(usage.storageUsedBytes).toBe(quota - 20 + notes.byteLength)
 
         // Stored 8 short of the quota: 6 more fit, unless the 12 applied bytes count twice.
-        await stage(applier, workspaceId, [blob('six b3')])
+        const six = blob('six b3')
+        await stage(applier, workspaceId, [six])
 
-        await stage(applier, workspaceId, [
-          { sha256: sha256Hex(notes), size: notes.byteLength, content: notes },
-        ])
-        const refused = await failure(stage(applier, workspaceId, [blob('1')]))
+        const restaged = { sha256: sha256Hex(notes), size: notes.byteLength, content: notes }
+        const refused = await failure(stage(applier, workspaceId, [restaged]))
         expect(refused).toMatchObject({ name: 'SourceStagingFullError' })
+        const consumedNotes = await db
+          .select({ consumedAt: workspaceSourceStagedBlob.consumedAt })
+          .from(workspaceSourceStagedBlob)
+          .where(
+            and(
+              eq(workspaceSourceStagedBlob.workspaceId, workspaceId),
+              eq(workspaceSourceStagedBlob.sha256, restaged.sha256)
+            )
+          )
+        expect(consumedNotes).toEqual([{ consumedAt: expect.any(Date) }])
+
+        // Renewing a blob that still counts adds nothing, so it fits with 2 bytes left.
+        expect((await stage(applier, workspaceId, [six])).staged).toEqual([
+          { sha256: six.sha256, size: six.size },
+        ])
+        // Room left for exactly the notes: staging them again takes it, so 1 byte more is refused.
+        await db
+          .update(userStats)
+          .set({ storageUsedBytes: quota - six.size - restaged.size })
+          .where(eq(userStats.userId, applierId))
+        await stage(applier, workspaceId, [restaged])
+        expect(await failure(stage(applier, workspaceId, [blob('1')]))).toMatchObject({
+          name: 'SourceStagingFullError',
+        })
       } finally {
         vi.unstubAllEnvs()
       }
