@@ -86,7 +86,7 @@ Use a discovery process that includes:
 
 1. **Review identity-provider activity.** Look for AI applications using single sign-on, social login, or employee email domains, including applications that have not completed procurement review.
 2. **Inspect OAuth grants.** Identify applications with access to email, calendars, files, messaging, CRM, source control, and other business systems.
-3. **Analyze network and browser telemetry.** Secure web gateways, DNS logs, proxies, browser-management tools, CASBs, and security service edge products can reveal visits and data transfers to known AI services.
+3. **Analyze network and browser telemetry.** Secure web gateways, DNS logs, proxies, browser-management tools, cloud access security brokers (CASBs), and security service edge products can reveal visits and data transfers to known AI services. CASBs help monitor and restrict cloud-app use.
 4. **Check endpoint and cloud inventories.** Look for desktop applications, browser extensions, local model runtimes, containers, scheduled jobs, serverless functions, and unregistered cloud resources.
 5. **Search developer environments.** Review repositories, CI/CD variables, secret-scanning alerts, package manifests, and infrastructure accounts for model-provider SDKs, endpoints, and personal API keys.
 6. **Reconcile purchasing data.** Examine procurement systems, accounts payable, expense reports, and corporate card records for AI subscriptions and usage charges.
@@ -143,7 +143,7 @@ A governed AI agent workspace reduces shadow AI by giving employees one approved
 
 [Sim](https://www.sim.ai) is the open-source AI workspace where teams build, deploy, and manage AI agents. A sanctioned Sim deployment can help IT consolidate employee-built agents into shared workspaces instead of leaving them in personal accounts or isolated scripts.
 
-As of November 2026, Sim’s core is Apache 2.0, while SSO, SCIM, access control, access requests, audit logs, data retention, data drains, session policies, credential groups, and other code in `apps/sim/ee` are governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Production use of that enterprise code requires an active Sim Enterprise subscription.
+As of November 2026, Sim’s core is Apache 2.0, while SSO, SCIM for automatically adding and removing employee accounts, access control, access requests, audit logs, data retention, data drains, session policies, credential groups, and other code in `apps/sim/ee` are governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Production use of that enterprise code requires an active Sim Enterprise subscription.
 
 For organizations that [self-host Sim](https://docs.sim.ai/platform/self-hosting), Ollama, vLLM, LM Studio, and LiteLLM can support local model deployments. Local models are a self-hosting capability rather than an Enterprise-only feature. Model location alone does not make an agent safe, so IT must still govern its data sources, tools, credentials, permissions, and outputs.
 
