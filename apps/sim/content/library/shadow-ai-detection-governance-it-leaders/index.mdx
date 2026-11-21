@@ -1,0 +1,206 @@
+---
+slug: shadow-ai-detection-governance-it-leaders
+title: 'Shadow AI Detection and Governance: A Practical Guide for IT Leaders'
+description: 'Learn how IT leaders can detect shadow AI, assess risk, contain unsafe use, and move valuable agents into governed environments.'
+seoTitle: 'Shadow AI Detection and Governance Guide'
+date: 2026-11-21
+updated: 2026-11-21
+authors:
+  - andrew
+readingTime: 10
+tags: [Shadow AI, AI Governance, AI Agents, IT Leadership, Security, Sim]
+ogImage: /library/shadow-ai-detection-governance-it-leaders/cover.jpg
+draft: false
+faq:
+  - q: "Is shadow AI the same as shadow IT?"
+    a: "Shadow AI is a subset of shadow IT focused on unapproved AI models, assistants, agents, and AI-enabled automations, with additional risks arising from prompts, model outputs, autonomous actions, and model-provider data handling."
+  - q: "Is using ChatGPT at work always shadow AI?"
+    a: "ChatGPT use is shadow AI when an employee uses it outside the organization’s approved accounts, policies, data rules, or oversight; use through an approved account within defined boundaries is not necessarily shadow AI."
+  - q: "Should companies ban shadow AI?"
+    a: "Companies should contain clearly unsafe shadow AI, but a blanket ban is usually weaker than a policy that combines risk-based restrictions, employee disclosure, and an approved alternative for legitimate work."
+  - q: "Can DLP alone stop shadow AI?"
+    a: "Data loss prevention can reduce some shadow AI data transfers, but DLP cannot by itself inventory every local model, personal account, API integration, autonomous action, or hidden business dependency."
+  - q: "Who owns shadow AI governance?"
+    a: "Shadow AI governance should have an executive owner and shared operating responsibility across IT, security, legal, privacy, procurement, finance, and the business teams that own each use case."
+  - q: "How often should IT review shadow AI?"
+    a: "IT should monitor shadow AI continuously and review high-risk tools and agents on a defined recurring schedule, with additional reviews after material changes to data, permissions, models, integrations, or actions."
+  - q: "Does Sim detect every shadow AI tool employees use?"
+    a: "Sim does not detect every shadow AI tool across browsers, endpoints, networks, and personal accounts; Sim provides a governed workspace for approved agents and should be paired with identity, network, endpoint, financial, and employee-reported discovery."
+  - q: "Can n8n help replace shadow AI workflows?"
+    a: "n8n can be part of an approved automation environment, but IT must still govern each deployment’s ownership, credentials, permissions, data flows, logs, and production use rather than treating platform adoption as automatic approval."
+  - q: "What should IT do first after discovering a high-risk shadow AI agent?"
+    a: "IT should first contain the high-risk shadow AI agent by stopping unsafe actions, revoking exposed or personal credentials, preserving necessary evidence, and identifying the affected systems and accountable owner."
+  - q: "Can an approved AI tool still create shadow AI risk?"
+    a: "An approved AI tool can still create shadow AI risk when employees use unapproved accounts, data, integrations, credentials, permissions, or autonomous actions inside that tool."
+  - q: "Are local AI models automatically safer than cloud AI services?"
+    a: "Local AI models are not automatically safer because local deployment can reduce some external data transfers while still leaving risks involving permissions, credentials, vulnerable infrastructure, unlogged actions, and unmanaged outputs."
+  - q: "What is the best way to encourage employees to disclose unsanctioned AI use?"
+    a: "IT should encourage disclosure by using a nonpunitive reporting process, responding quickly, offering a practical approved alternative, and separating good-faith experimentation from deliberate policy violations."
+---
+
+## TL;DR
+
+Shadow AI is the use of AI tools, agents, models, or automations without an organization’s approval, visibility, or governance. For CIOs and Heads of IT, the goal is to discover where employees already use it, assess the real risk, preserve useful work, and move appropriate use cases onto approved systems with clear owners and controls.
+
+- Shadow AI is a governance condition, not a single product category.
+- Shadow AI detection requires multiple evidence sources because no single scanner sees every browser app, API call, local model, or agent deployment.
+- Shadow AI risk depends on the data, credentials, permissions, actions, and business process involved, not merely whether a tool has been approved.
+- Shadow AI governance works best when IT offers a sanctioned path that preserves useful employee innovation.
+
+## What is shadow AI?
+
+Shadow AI is any employee-created or employee-adopted AI capability that operates outside the organization’s approved technology, security, procurement, or governance processes.
+
+Shadow AI can include:
+
+- Consumer AI assistants used with company information
+- Browser extensions that read pages, messages, or documents
+- Unapproved meeting, writing, coding, or research assistants
+- Personal model-provider accounts and API keys
+- AI agents connected to email, CRM, ticketing, file storage, or source control
+- Locally run models or scripts that IT does not inventory
+- Unapproved automation platforms, including [personal n8n deployments](https://docs.n8n.io/deploy/host-n8n) or similar tools
+- Departmental AI purchases charged to expense cards
+
+## Why is shadow AI risky?
+
+Shadow AI is risky because unsanctioned tools can receive sensitive data, use unmanaged credentials, take actions without review, create untracked costs, and leave no reliable audit trail.
+
+The main risks are:
+
+1. **Data leaves approved systems.** Employees may submit customer records, source code, contracts, financial data, or internal communications to tools whose retention and model-training terms have not been reviewed.
+2. **Personal credentials gain business access.** Personal API keys, OAuth grants, service accounts, or copied tokens can bypass normal provisioning and offboarding.
+3. **Agents receive excessive permissions.** An agent connected to email, CRM, cloud storage, or source control may be able to read or change more than its task requires.
+4. **Actions lack an accountable owner.** IT may be unable to determine who built an agent, who approved it, or who should respond when it fails.
+5. **Activity lacks an audit trail.** Consumer tools and personal deployments may not produce logs that security and compliance teams can access.
+6. **Spend becomes fragmented.** Individual subscriptions and API accounts make total AI expenditure difficult to measure or control.
+7. **Business processes become dependent on hidden systems.** A useful but undocumented agent can become operationally important without monitoring, support, version control, or a continuity plan.
+
+A low-cost writing assistant and an autonomous agent with production credentials should not receive the same response. IT should evaluate what the system can access and do before deciding whether to tolerate, restrict, migrate, or disable it.
+
+## How do IT leaders detect shadow AI?
+
+IT leaders detect shadow AI by combining identity, network, endpoint, financial, OAuth, developer, and employee-reported evidence into one inventory.
+
+Use a discovery process that includes:
+
+1. **Review identity-provider activity.** Look for AI applications using single sign-on, social login, or employee email domains, including applications that have not completed procurement review.
+2. **Inspect OAuth grants.** Identify applications with access to email, calendars, files, messaging, CRM, source control, and other business systems.
+3. **Analyze network and browser telemetry.** Secure web gateways, DNS logs, proxies, browser-management tools, cloud access security brokers (CASBs), and security service edge products can reveal visits and data transfers to known AI services. CASBs help monitor and restrict cloud-app use.
+4. **Check endpoint and cloud inventories.** Look for desktop applications, browser extensions, local model runtimes, containers, scheduled jobs, serverless functions, and unregistered cloud resources.
+5. **Search developer environments.** Review repositories, CI/CD variables, secret-scanning alerts, package manifests, and infrastructure accounts for model-provider SDKs, endpoints, and personal API keys.
+6. **Reconcile purchasing data.** Examine procurement systems, accounts payable, expense reports, and corporate card records for AI subscriptions and usage charges.
+7. **Ask employees directly.** Use a short, nonpunitive survey that asks which tools people use, what work they perform, what data they provide, and which approved option would meet the same need.
+8. **Create a reporting channel.** Give employees a simple way to disclose useful experiments before those experiments become hidden production dependencies.
+
+The resulting inventory should record the tool or agent, business owner, technical owner, users, connected systems, data categories, credentials, permissions, actions, deployment location, cost, and approval status.
+
+Detection should be continuous rather than a one-time audit. New browser tools, model endpoints, local applications, and employee-built agents can appear faster than an annual review cycle can capture them.
+
+## How should IT assess shadow AI risk?
+
+IT should assess shadow AI risk according to data sensitivity, credential ownership, system permissions, action autonomy, business criticality, and available evidence.
+
+A practical triage model has three levels:
+
+- **Low risk:** The tool handles public or nonsensitive information, has no access to business systems, cannot take external actions, and is not part of a critical process.
+- **Moderate risk:** The tool handles internal information, connects to a business application, uses company-funded credentials, or influences a business decision while a person remains responsible for the final action.
+- **High risk:** The tool handles regulated or highly sensitive data, uses personal credentials for company systems, can modify records or communicate externally, operates without human review, or supports a critical process without accessible logs and ownership.
+
+High-risk use should be paused or isolated until IT can validate the data flow, revoke unsafe credentials, preserve necessary records, and establish an approved replacement. Low-risk use may be documented and permitted with boundaries instead of being forced through a heavyweight exception process.
+
+| Shadow AI risk | Control that addresses it | Evidence IT should retain |
+|---|---|---|
+| Sensitive data sent to an unreviewed tool | Data classification, approved-provider rules, DLP or CASB controls, and a sanctioned alternative | Data categories, approved purpose, retention terms, and review decision |
+| Personal API keys or OAuth grants | Centrally managed credentials, least-privilege scopes, rotation, and offboarding | Credential owner, scope, storage location, rotation date, and revocation record |
+| Agent can change records or communicate externally | Human approval for consequential actions and narrowly scoped permissions | Approval point, authorized approvers, action logs, and exception history |
+| No accountable owner | Named business and technical owners with periodic attestation | Owner names, review date, support plan, and retirement decision |
+| No accessible audit trail | Central execution and administrative logging with defined retention | Run records, administrative events, retention period, and reviewer access |
+| Untracked subscriptions and model usage | Central purchasing, usage reporting, budgets, and alerts | Vendor, account, billing owner, budget, and monthly usage |
+| Hidden production dependency | Migration plan, monitoring, version control, rollback, and continuity procedures | Dependency map, service owner, recovery steps, and decommission date |
+
+For deeper credential and audit design, see [AI Agent Identity, Credential Management, and Audit Trails: Enterprise Guide](https://www.sim.ai/library/ai-agent-identity-credentials-audit-trails-enterprise-guide). For budget controls, see [How Do You Control AI Agent Spend Across Teams?](https://www.sim.ai/library/control-ai-agent-spend-across-teams).
+
+## How should IT respond after finding shadow AI?
+
+IT should respond to shadow AI by containing urgent risk first, preserving useful work second, and moving suitable use cases onto an approved platform with explicit controls.
+
+Use this sequence:
+
+1. **Inventory the use case.** Document the job being done, users, owner, data, integrations, credentials, outputs, actions, and current cost.
+2. **Contain immediate exposure.** Revoke leaked or personal credentials, remove unnecessary permissions, stop unsafe data transfers, and pause high-impact actions where needed.
+3. **Assign a risk tier.** Apply consistent criteria rather than judging a tool by brand recognition or procurement status alone.
+4. **Decide the disposition.** Approve with conditions, migrate, restrict, isolate, or retire the use case.
+5. **Offer a sanctioned alternative.** Rebuild or transfer valuable work into an approved environment with managed access, credentials, logs, and ownership.
+6. **Document policy and exceptions.** State which data, tools, integrations, and actions are permitted and how employees can request an exception.
+7. **Monitor continuously.** Repeat discovery, review new OAuth grants and expenses, rotate credentials, and require owners to re-attest higher-risk agents.
+
+A blanket ban can suppress disclosure without eliminating use. A credible approved path gives employees a reason to report what they have built and lets IT retain the productivity benefit while reducing risk.
+
+## How does a governed AI agent workspace reduce shadow AI?
+
+A governed AI agent workspace reduces shadow AI by giving employees one approved place to build and manage agents while IT controls access, credentials, deployment, and oversight.
+
+[Sim](https://www.sim.ai) is the open-source AI workspace where teams build, deploy, and manage AI agents. A sanctioned Sim deployment can help IT consolidate employee-built agents into shared workspaces instead of leaving them in personal accounts or isolated scripts.
+
+As of November 2026, Sim’s core is Apache 2.0, while SSO, SCIM for automatically adding and removing employee accounts, access control, access requests, audit logs, data retention, data drains, session policies, credential groups, and other code in `apps/sim/ee` are governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Production use of that enterprise code requires an active Sim Enterprise subscription.
+
+For organizations that [self-host Sim](https://docs.sim.ai/platform/self-hosting), Ollama, vLLM, LM Studio, and LiteLLM can support local model deployments. Local models are a self-hosting capability rather than an Enterprise-only feature. Model location alone does not make an agent safe, so IT must still govern its data sources, tools, credentials, permissions, and outputs.
+
+A governed workspace can address several common shadow AI conditions:
+
+- Access control replaces informal sharing of personal accounts.
+- Credential groups reduce reliance on keys copied into scripts or held by one employee.
+- Audit logs give authorized reviewers evidence about administrative activity.
+- Data-retention and data-drain controls support organizational monitoring and recordkeeping requirements.
+- Central ownership makes it easier to review, update, disable, or transfer an agent when employees change roles.
+
+Sim fits organizations that need a governed destination for approved agent use cases, but it is not the only discovery mechanism. Sim cannot identify every consumer assistant, local script, browser extension, or external agent already operating across an organization.
+
+Once agents are sanctioned, [Governing AI Agents Built by Different Teams in One Enterprise Workspace](https://www.sim.ai/library/govern-ai-agents-multiple-teams-enterprise-workspace) explains how to manage ownership and controls across teams. Organizations evaluating a deployment can also use [How to Pilot an AI Agent Platform Through Security Review](https://www.sim.ai/library/pilot-ai-agent-platform-security-review).
+
+## When should IT use a CASB or network security tool for shadow AI?
+
+IT should use a CASB, secure web gateway, browser-management product, DLP system, or security service edge tool when it needs organization-wide discovery or enforcement outside the approved agent workspace.
+
+These controls are better suited to detecting visits to known AI services, inspecting supported data transfers, enforcing browser restrictions, and applying network policy. A governed agent workspace is better suited to providing the approved environment where legitimate use cases can be rebuilt with managed ownership and access.
+
+Neither control layer is complete alone. Network tools may see a destination without understanding the full business purpose or locally executed code, while an agent workspace generally sees only the agents that have been moved into it. IT should combine discovery telemetry with workspace governance and human review.
+
+## What should a shadow AI policy include?
+
+A shadow AI policy should define permitted use, prohibited data and actions, approval paths, credential requirements, monitoring, ownership, exceptions, and consequences in language employees can apply to real work.
+
+At minimum, the policy should state:
+
+- Which AI tools and agent platforms are approved
+- Which data classifications may be used with each category of tool
+- Whether prompts, files, outputs, and execution records must be retained
+- Which integrations and permission scopes are allowed
+- Whether personal accounts, API keys, or OAuth grants may access company systems
+- Which actions require human approval
+- Who owns an agent and how ownership transfers during role changes or offboarding
+- How employees request a new tool, disclose an experiment, or obtain an exception
+- How IT monitors use and how often higher-risk agents are reviewed
+- What happens when an unsafe tool or agent is discovered
+
+The policy should distinguish experimentation from production use. A low-risk prototype using public data should have a faster approval path than an agent that can send emails, change customer records, deploy code, or approve payments.
+
+## How should IT measure shadow AI governance?
+
+IT should measure shadow AI governance by tracking discovery coverage, remediation speed, migration outcomes, credential hygiene, ownership, review completion, and repeat violations.
+
+Useful measures include:
+
+- Number of newly discovered AI tools, agents, accounts, and OAuth grants
+- Percentage of discovered use cases with named business and technical owners
+- Percentage risk-tiered within the target response time
+- Median time to contain a high-risk finding
+- Percentage of personal credentials replaced with managed credentials
+- Percentage of valuable use cases migrated to an approved environment
+- Percentage of higher-risk agents reviewed on schedule
+- AI spend moved from personal subscriptions into managed accounts
+- Number of incidents caused by unsanctioned AI
+- Rate of repeat findings after remediation
+
+A falling discovery count does not necessarily prove success because employees may have stopped disclosing their use. IT should interpret discovery data alongside survey participation, reporting-channel usage, network coverage, and the adoption rate of sanctioned alternatives.
