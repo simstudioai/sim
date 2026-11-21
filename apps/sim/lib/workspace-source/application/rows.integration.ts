@@ -1176,9 +1176,10 @@ export default defineTable({
     async () => {
       const workspaceId = await newWorkspace()
       const read = await managedPlans(workspaceId)
-      const tierId =
-        (await storedTable(workspaceId)).schema.columns.find((column) => column.name === 'tier')
-          ?.id ?? ''
+      const tierId = (await storedTable(workspaceId)).schema.columns.find(
+        (column) => column.name === 'tier'
+      )?.id
+      if (tierId === undefined) throw new Error('The seeded table has no tier column')
       const dropped = await apply(
         workspaceId,
         {
