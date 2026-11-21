@@ -210,6 +210,28 @@ function inferHeader(key: string, format: ColumnSpec['format'] | null): string {
   return humanizeKey(trimmed || key)
 }
 
+/**
+ * Whether a record is a map keyed by data, such as `workflows outline`'s blocks keyed by block id,
+ * rather than a resource keyed by field names: every value is itself an object. Its keys are
+ * printed as sent, since a humanized block id can no longer be copied.
+ */
+function keyedByData(record: object): boolean {
+  const values = Object.values(record)
+  return (
+    values.length > 0 &&
+    values.every((value) => value !== null && typeof value === 'object' && !Array.isArray(value))
+  )
+}
+
+/** A record's fields, each labelled by its humanized field name, or as sent when keyed by data. */
+function inferredFields(record: object): Array<[string, string]> {
+  const literal = keyedByData(record)
+  return Object.entries(record).map<[string, string]>(([key, value]) => [
+    literal ? key : inferHeader(key, inferFormat(key, value)),
+    inferredCell(key, value),
+  ])
+}
+
 function columnsFrom(specs: ColumnSpec[]): Column<unknown>[] {
   return specs.map((spec) => ({
     header: spec.header,
@@ -456,10 +478,7 @@ export function renderResult(
   const fields = spec.fields
     ? fieldsFrom(data, spec.fields, options)
     : data && typeof data === 'object'
-      ? Object.entries(data).map<[string, string]>(([key, value]) => [
-          inferHeader(key, inferFormat(key, value)),
-          inferredCell(key, value),
-        ])
+      ? inferredFields(data)
       : []
 
   printRecord(format, fields, data)
