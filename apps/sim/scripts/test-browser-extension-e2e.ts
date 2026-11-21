@@ -38,6 +38,12 @@ const logger = createLogger('BrowserExtensionAppE2E')
 const expect = browserExpect.configure({ timeout: 30_000 })
 const ACCESS_REVALIDATION_TIMEOUT_MS = 35_000
 const ACCESS_POLL_INTERVAL_MS = 30_000
+/**
+ * `next start` on Node 24 destroys a keep-alive socket idle for 6s (keepAliveTimeout plus its 1s
+ * buffer), and an API-context request reusing that socket as it closes hangs up (ECONNRESET), so
+ * every fixture call opens its own connection.
+ */
+const FRESH_CONNECTION = { Connection: 'close' } as const
 function required(name: string): string {
   const value = process.env[name]
   assert(value, `${name} must be explicitly provided`)
@@ -538,7 +544,7 @@ try {
   })
   const signInAndSeed = async () => {
     const signup = await browserContext.request.post(`${base.origin}/api/auth/sign-up/email`, {
-      headers: { origin: base.origin },
+      headers: { ...FRESH_CONNECTION, origin: base.origin },
       data: {
         name: 'Extension QA',
         email: `extension-${generateId()}@example.test`,
@@ -1129,7 +1135,7 @@ try {
       for (const theme of ['light', 'dark'] as const) {
         const settings = await browserContext.request.patch(
           `${base.origin}/api/users/me/settings`,
-          { data: { theme } }
+          { headers: FRESH_CONNECTION, data: { theme } }
         )
         assert.equal(settings.status(), 200)
         await navigate(`${base.origin}/extension/${alphaId}`)
@@ -2181,7 +2187,7 @@ try {
     const active = await browserContext.request.post(
       `${base.origin}/api/auth/organization/set-active`,
       {
-        headers: { origin: base.origin },
+        headers: { ...FRESH_CONNECTION, origin: base.origin },
         data: { organizationId },
       }
     )
@@ -2889,7 +2895,8 @@ try {
           await expect(attachments()).toHaveCount(1)
           await shell.bringToFront()
           const discovery = await browserContext.request.get(
-            `${base.origin}/api/access-requests/discovery?kind=workspace&workspaceId=${hostedWorkspaceId}&targetKind=feature`
+            `${base.origin}/api/access-requests/discovery?kind=workspace&workspaceId=${hostedWorkspaceId}&targetKind=feature`,
+            { headers: FRESH_CONNECTION }
           )
           assert.equal(discovery.status(), 200)
           assert.equal(toRecord(await discovery.json()).enabled, allowRequests)
@@ -2897,7 +2904,8 @@ try {
             values (${permissionGroupId}, ${otherOrganizationId}, 'Revoked Chat access',
             ${sql.json({ hideCopilot: true })}, ${otherUserId}, true)`
           const policy = await browserContext.request.get(
-            `${base.origin}/api/permission-groups/user?workspaceId=${hostedWorkspaceId}`
+            `${base.origin}/api/permission-groups/user?workspaceId=${hostedWorkspaceId}`,
+            { headers: FRESH_CONNECTION }
           )
           assert.equal(policy.status(), 200)
           assert.equal(toRecord(toRecord(await policy.json()).config).hideCopilot, true)
@@ -3338,7 +3346,7 @@ try {
     async () => {
       await capture()
       const response = await browserContext.request.post(`${base.origin}/api/auth/sign-out`, {
-        headers: { origin: base.origin },
+        headers: { ...FRESH_CONNECTION, origin: base.origin },
         data: {},
       })
       assert.equal(response.status(), 200)
