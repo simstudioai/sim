@@ -361,7 +361,6 @@ interface InferenceState {
 
 type CanonicalEdges = CanonicalWorkflow['edges']
 
-/** Appends `item` to the list `map` holds under `key`, starting the list when there is none. */
 function pushTo<K, V>(map: Map<K, V[]>, key: K, item: V): void {
   const list = map.get(key)
   if (list) list.push(item)

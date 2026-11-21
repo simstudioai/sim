@@ -812,31 +812,28 @@ export default defineTable({
     }
   )
 
-  check(
-    'stops reading managed rows once they pass the rows byte limit a directory holds',
-    async () => {
-      const workspaceId = await newWorkspace()
-      await managedPlans(workspaceId)
-      const filler = 'x'.repeat(370_000)
-      const rows = Math.ceil(WORKSPACE_SOURCE_LIMITS.maxRowsBytes / filler.length) + 1
-      for (let index = 0; index < rows; index++) {
-        await addUiRow(workspaceId, { code: `big${index}-${filler}`, seats: index })
-      }
-
-      const read = await runner.get(workspaceId)
-
-      expect(read.files['tables/plans.rows.jsonl']).toBeUndefined()
-      expect(read.skipped).toEqual([
-        {
-          kind: 'table',
-          key: 'plans',
-          reason: expect.stringContaining(
-            `rows of table "plans" pass the ${WORKSPACE_SOURCE_LIMITS.maxRowsBytes}-byte`
-          ),
-        },
-      ])
+  check('skips a table whose managed rows pass the rows byte limit, naming the table', async () => {
+    const workspaceId = await newWorkspace()
+    await managedPlans(workspaceId)
+    const filler = 'x'.repeat(370_000)
+    const rows = Math.ceil(WORKSPACE_SOURCE_LIMITS.maxRowsBytes / filler.length) + 1
+    for (let index = 0; index < rows; index++) {
+      await addUiRow(workspaceId, { code: `big${index}-${filler}`, seats: index })
     }
-  )
+
+    const read = await runner.get(workspaceId)
+
+    expect(read.files['tables/plans.rows.jsonl']).toBeUndefined()
+    expect(read.skipped).toEqual([
+      {
+        kind: 'table',
+        key: 'plans',
+        reason: expect.stringContaining(
+          `rows of table "plans" pass the ${WORKSPACE_SOURCE_LIMITS.maxRowsBytes}-byte`
+        ),
+      },
+    ])
+  })
 
   check('seeds a new table once, and only a new or empty one', async () => {
     const workspaceId = await newWorkspace()

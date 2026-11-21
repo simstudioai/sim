@@ -489,8 +489,8 @@ describe('header, names and hand-written references', () => {
     )
     expect(found).toEqual(warning ? [warning] : [])
     if (literal === "'<A.data>'") {
-      const warning = result.diagnostics.find((d) => d.code === 'W_REF_NOT_NORMALIZED')
-      expect(warning?.hint).toContain('${a.data}')
+      const diagnostic = result.diagnostics.find((d) => d.code === 'W_REF_NOT_NORMALIZED')
+      expect(diagnostic?.hint).toContain('${a.data}')
     }
   })
 })
