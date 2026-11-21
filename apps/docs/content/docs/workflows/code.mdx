@@ -98,7 +98,7 @@ Keep the `.sim/` folder the commands write. `.sim/lock.json` ties each block in 
 
 ## Example: support triage
 
-A webhook receives a ticket, an agent classifies it, billing tickets are logged to a table, and the team hears about them in Slack. This is the file `sim workflows source get` prints for it:
+A webhook receives a ticket, an agent classifies it, billing tickets are logged to a table, and the team hears about every ticket in Slack. This is the file `sim workflows source get` prints for it:
 
 ```ts title="workflow.ts"
 // @sim-sdk 1
@@ -108,7 +108,6 @@ import {
   credential,
   env,
   js,
-  response,
   slack,
   t,
   table,
@@ -124,6 +123,9 @@ export default workflow(
       requireAuth: true,
       token: env.TICKETS_WEBHOOK_TOKEN,
       inputFormat: { subject: 'string', body: 'string', contacts: 'array' },
+      responseMode: 'custom',
+      responseStatusCode: 202,
+      responseBody: { ok: true },
     })
     const classify = agent('Classify', {
       messages: [
@@ -152,7 +154,6 @@ ${ticketIn.body}`,
     })
     const byCategory = condition('By category', {
       billing: js`${classify.category} === 'billing'`,
-      urgent: js`${classify.urgent} === true`,
       else: true,
     })
     const logTicket = table.insertRow('Log ticket', {
@@ -162,21 +163,15 @@ ${ticketIn.body}`,
     const notify = slack.sendMessage('Notify', {
       credential: credential('support-slack'),
       channel: 'C0SUPPORT',
-      text: t`New ${classify.category} ticket: ${ticketIn.subject}`,
-    })
-    const reply = response('Reply', {
-      body: { ok: true, category: classify.category, urgent: classify.urgent },
-      status: 202,
+      text: t`New ${classify.category} ticket (urgent: ${classify.urgent}): ${ticketIn.subject}`,
     })
 
     ticketIn.to(classify)
     classify.to(byCategory)
     byCategory.billing.to(logTicket)
-    byCategory.urgent.to(notify)
-    byCategory.else.to(reply)
+    byCategory.else.to(notify)
     logTicket.to(notify)
     logTicket.onError(notify)
-    notify.to(reply)
   }
 )
 ```
@@ -187,7 +182,8 @@ How to read it:
 - `classify.category` is a typed reference to another block's output, the same as `<classify.category>` in the builder. `t` writes text with references in it; `js` writes code.
 - `table('tickets')` and `credential('support-slack')` name workspace resources by a stable key. Renaming the table in Sim keeps the key.
 - `env.TICKETS_WEBHOOK_TOKEN` reads an environment variable. Secret values are never printed: a key pasted into a password field prints as `stored()`, which keeps the saved value.
-- `.to()` connects blocks, `byCategory.billing` is one branch of the condition, and `.onError()` follows the error path.
+- `.to()` connects blocks, `byCategory.billing` is one branch of the condition, and `.onError()` follows the error path. `notify` has three incoming edges and runs once, after the branch that was taken.
+- A webhook answers its caller as soon as the request is accepted and runs the workflow in the background, so the caller never sees a `response` block's output. `responseMode: 'custom'` sets that fixed answer (here `202` with `{ "ok": true }`; without it, `200` with `{ "message": "Webhook processed" }`). To answer with values the run computes, start the workflow with `trigger.start` and call it through the API; a `response` block then sets what the caller receives.
 
 ## Function code
 
