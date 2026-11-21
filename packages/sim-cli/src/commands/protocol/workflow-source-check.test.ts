@@ -1036,7 +1036,7 @@ export default workflow('W', {}, () => {
     expect(process.exitCode).toBe(1)
   })
 
-  it('keeps a value outside options that vary by deployment a warning, as the cached catalog may predate the settings the server checks with', async () => {
+  it('keeps a value outside options that vary by deployment a warning on a new block under the default strict mode, as the cached catalog may predate the settings the server checks with', async () => {
     cacheCatalog()
     writeFileSync(
       join(dir, 'workflow.ts'),
@@ -1047,7 +1047,7 @@ export default workflow('W', {}, () => {
     )
     writeLock([])
 
-    await checkIn(dir, '--no-strict')
+    await checkIn(dir)
 
     expect(findingLines()).toMatch(/warning W_UNKNOWN_OPTION: language has no option shell/)
     expect(result()).toMatchObject({ errors: 0 })

@@ -555,14 +555,18 @@ export async function checkWorkflowDir(
    * cached catalog may have been built under other settings than the server's gate runs with, so
    * the check keeps the warning and leaves the verdict to the server.
    */
-  const variesByDeployment = (finding: (typeof compiled.diagnostics)[number]) => {
+  const variesByDeployment = (finding: { code: string; blockKey?: string; param?: string }) => {
     const { blockKey, param } = finding
     if (finding.code !== 'W_UNKNOWN_OPTION' || blockKey === undefined || param === undefined) {
       return false
     }
+    return optionsVaryOn(blockKey, (id) => id === param)
+  }
+  /** Whether a field of block `blockKey` that `matches` takes options varying by deployment. */
+  const optionsVaryOn = (blockKey: string, matches: (subBlockId: string) => boolean) => {
     const type = compiled.workflow ? getOwn(compiled.workflow.blocks, blockKey)?.type : undefined
     const block = type === undefined ? undefined : catalogBlock(compiledDir.catalog, type)
-    return block?.subBlocks.some((sub) => sub.id === param && sub.optionsVary === true) === true
+    return block?.subBlocks.some((sub) => matches(sub.id) && sub.optionsVary === true) === true
   }
   const exempt = (finding: (typeof compiled.diagnostics)[number]) =>
     mayBeRenamed(finding) || variesByDeployment(finding)
@@ -580,8 +584,9 @@ export async function checkWorkflowDir(
   const findings = [
     ...refused.filter((diagnostic) => reported(diagnostic.code, diagnostic.blockKey)),
     ...declared,
-  ].map(({ code, severity, message, hint, frame, span, blockKey }): CheckFinding => {
-    const raised = severity === 'warning' && fails(code, blockKey)
+  ].map((finding): CheckFinding => {
+    const { code, severity, message, hint, frame, span, blockKey } = finding
+    const raised = severity === 'warning' && !variesByDeployment(finding) && fails(code, blockKey)
     return {
       code,
       severity: raised ? 'error' : severity,
@@ -595,14 +600,27 @@ export async function checkWorkflowDir(
   // refusal raised is listed already.
   const unlisted: UnlistedCounts = { errors: 0, warnings: 0 }
   const edit = { changed, codeEdited }
-  for (const { code, blockKey, count } of [
-    ...compiled.omitted,
+  // An omitted finding names no field, so one on a block with any deployment-shaped field stays a
+  // warning.
+  for (const { code, blockKey, count, varies } of [
+    ...compiled.omitted.map((omitted) => ({
+      ...omitted,
+      varies:
+        omitted.code === 'W_UNKNOWN_OPTION' &&
+        omitted.blockKey !== undefined &&
+        optionsVaryOn(omitted.blockKey, () => true),
+    })),
     ...compiled.withheld
       .filter((finding) => !refusable(finding) || !refusesEdited(finding, edit))
-      .map(({ code, blockKey }) => ({ code, blockKey, count: 1 })),
+      .map((finding) => ({
+        code: finding.code,
+        blockKey: finding.blockKey,
+        count: 1,
+        varies: variesByDeployment(finding),
+      })),
   ]) {
     if (!reported(code, blockKey)) continue
-    if (fails(code, blockKey)) unlisted.errors += count
+    if (!varies && fails(code, blockKey)) unlisted.errors += count
     else unlisted.warnings += count
   }
   return { findings, entry: entryText, unlisted }
