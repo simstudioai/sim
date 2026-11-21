@@ -45,7 +45,7 @@ function sharedRules(group: string, extraRenames = ''): string {
 - **Look up a builder**: \`${PARAMS_COMMAND} <builder>\` (\`agent\`, \`trigger.schedule\`; a namespace like \`gmail\` lists its builders), offline.
 - **Credentials**: \`sim credentials connect <provider> --name "<Name>"\`, give the owner its link, then \`credential('<key>')\` (\`sim workflows source resources\`).
 - **Failures**: \`x.onError(y)\` runs \`y\` when \`x\` fails, reading the message as \`x.error\`. A retry is block meta, the third argument: \`agent('Name', {…}, { retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 2000 } })\`. Branches that each reply: a \`response\` per branch.
-- **Run and debug**: \`sim workflows run <workflowId> --manual --input '{…}'\` runs the saved draft, no deploy needed (without \`--manual\` it runs the deployed version). Runs write real data (rows, emails): test on test resources. A failed run: \`sim logs get <runId> --trace --no-include-workflow-state\` (spans hold resolved inputs).
+- **Run and debug**: \`sim workflows run <workflowId> --manual --input '{…}'\` runs the saved draft, no deploy needed (without \`--manual\` it runs the deployed version). Runs write real data (rows, emails): test on test resources. With \`--dir <the workflow's folder>\`, a failed run names the file and line that failed; then \`sim logs get <runId> --trace --no-include-workflow-state\` (spans hold resolved inputs).
 - **Exit codes**: 0 ok, 1 errors, ${SOURCE_STALE_EXIT_CODE} stale (\`${group} get --dir <fresh dir>\`, redo the edit there), ${RATE_LIMITED_EXIT_CODE} rate limited, ${SOURCE_BUSY_EXIT_CODE} busy, ${SOURCE_LOCAL_CHANGES_EXIT_CODE}/${SOURCE_DRIFT_EXIT_CODE} \`status\`: your edits / the server changed. Every code: \`${SOURCE_AGENTS_FILE}\`.`
 }
 

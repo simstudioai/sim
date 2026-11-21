@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { Command } from 'commander'
 import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
@@ -14,6 +14,7 @@ import { retypeApiError } from '../../runtime/naming'
 import { buildRequest } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
+import { printRunFailureSite } from './run-source-location'
 import {
   parseWaitTimeout,
   type RunSnapshot,
@@ -250,7 +251,12 @@ async function runWithResultStream(
     })
 
     const failure = runFailureMessage('executeWorkflow', payload)
-    if (failure) throw new SimApiError(failure, 0)
+    if (failure) {
+      if (typeof flags.dir === 'string') {
+        await printRunFailureSite(flags.dir, workflowId, toRecord(payload).error)
+      }
+      throw new SimApiError(failure, 0)
+    }
   } catch (error) {
     throw retypeApiError(error, 'executeWorkflow', commandSpec, operation)
   }
@@ -594,6 +600,10 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     .option(
       '--stop-after <block>',
       'Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual)'
+    )
+    .option(
+      '--dir <dir>',
+      "This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json"
     )
     .option(
       WAIT_TIMEOUT_FLAG,
