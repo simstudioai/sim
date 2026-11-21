@@ -1953,7 +1953,7 @@ export function compileBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   if (decl.duplicate || decl.builder.kind === 'unknown') return null
   if (decl.builder.kind !== 'container') {
     checkLegacyType(ctx, decl)
-    checkUncataloguedType(ctx, decl)
+    checkUnplaceableType(ctx, decl)
   }
   return decl.builder.kind === 'container'
     ? compileContainer(ctx, decl)
@@ -1970,12 +1970,29 @@ function lockBinds(ctx: CompileContext, decl: BlockDecl): boolean {
   )
 }
 
-/** `W_UNKNOWN_BLOCK_TYPE` for a new `block()` of a type the catalog does not hold. */
-function checkUncataloguedType(ctx: CompileContext, decl: BlockDecl): void {
+/**
+ * A new block of a type an apply cannot place: `W_UNKNOWN_BLOCK_TYPE` for a `block()` of a type the
+ * catalog does not hold, `W_TYPE_NOT_ADDABLE` for one it keeps only for blocks already using it
+ * (`addable: false`). A block the stored workflow may continue stays quiet: one the lock binds,
+ * or any block of a type the stored workflow holds, since rename inference may bind it to one.
+ */
+function checkUnplaceableType(ctx: CompileContext, decl: BlockDecl): void {
   const { builder } = decl
-  if (builder.kind !== 'generic' || builder.block || lockBinds(ctx, decl)) return
+  if (builder.kind !== 'generic' && builder.kind !== 'catalog') return
+  const notAddable = builder.block?.addable === false
+  if (!notAddable && (builder.kind !== 'generic' || builder.block)) return
+  if (lockBinds(ctx, decl)) return
   const stored = Object.values(ctx.stored?.blocks ?? {})
   if (stored.some((block) => block.type === builder.type)) return
+  if (notAddable) {
+    ctx.reporter.report(
+      'W_TYPE_NOT_ADDABLE',
+      `${builder.type} can stay where a workflow already uses it, but an apply cannot add a new block of it.`,
+      rangeOf(ctx, decl.call),
+      { hint: 'Use a block type this workspace offers.', blockKey: decl.key }
+    )
+    return
+  }
   ctx.reporter.report(
     'W_UNKNOWN_BLOCK_TYPE',
     `${builder.type} is not a block type this workspace offers, so an apply cannot add the block.`,

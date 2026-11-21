@@ -139,6 +139,44 @@ describe('refuseEditedFindings', () => {
     expect(errors(refuseEditedFindings(compiled, edited('a')))).toEqual([])
   })
 
+  it('refuses a new block of a type the catalog keeps only for blocks already using it', () => {
+    const catalog = {
+      ...TEST_CATALOG,
+      blocks: {
+        ...TEST_CATALOG.blocks,
+        api: { ...TEST_CATALOG.blocks.api, addable: false as const },
+      },
+    }
+    const body = [
+      START,
+      "const a = api('A', { url: 'x' })",
+      "const b = block('api', 'B', { url: 'x' })",
+    ]
+
+    const added = compile(body, {}, { catalog })
+    expect(errors(refuseEditedFindings(added, edited('a', 'b')))).toEqual([
+      'E_APPLY_TYPE_NOT_ADDABLE a',
+      'E_APPLY_TYPE_NOT_ADDABLE b',
+    ])
+
+    const bound = compile(
+      body,
+      {},
+      {
+        catalog,
+        storedUnread: {
+          version: 1,
+          blocks: {
+            a: { id: 'b-a', parent: null, ident: 'a', order: 0 },
+            b: { id: 'b-b', parent: null, ident: 'b', order: 1 },
+          },
+          variables: {},
+        },
+      }
+    )
+    expect(errors(refuseEditedFindings(bound, edited('a', 'b')))).toEqual([])
+  })
+
   it('refuses an iteration field a shared code file reads for a block outside the loop', () => {
     const compiled = compile(
       [
