@@ -89,7 +89,7 @@ Every recommendation should include:
 | **Pre-existing Secret** | GitOps with Sealed Secrets / SOPS, or hand-managed Secrets. Chart references a Secret you create. | `app.secrets.existingSecret.enabled: true` + `.name` |
 | **External Secrets Operator (recommended for prod)** | Vault, AWS SM, Azure KV, GCP SM. Chart renders an `ExternalSecret` that ESO syncs. | `externalSecrets.enabled: true` + `secretStoreRef` + `remoteRefs.app.<KEY>` |
 
-These modes are **mutually exclusive** for the app Secret. ESO takes precedence over inline. `existingSecret` takes precedence over inline. The chart **fails template rendering** when ESO is enabled and a required key (`BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, plus `CRON_SECRET` when cronjobs are enabled, and `REDIS_URL` when `redis.enabled=false`) is neither in `app.env` nor mapped in `remoteRefs.app` — see `references/install-paths.md`.
+These modes are **mutually exclusive** for the app Secret. ESO takes precedence over inline. `existingSecret` takes precedence over inline. The chart **fails template rendering** when ESO is enabled and a required key (`BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, plus `CRON_SECRET` when cronjobs are enabled) is neither in `app.env` nor mapped in `remoteRefs.app`. With `redis.enabled=false` it also fails unless `REDIS_URL` reaches each enabled pod — from `remoteRefs.app.REDIS_URL`, an `extraEnvVars` entry, or that component's `envDefaults` (ESO does not sync `app.env`) — see `references/install-paths.md`.
 
 ---
 
