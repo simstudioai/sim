@@ -1,5 +1,6 @@
 import { vi } from 'vitest'
 import { envMockFns } from './env.mock'
+import { createMockRedis } from './redis.mock'
 
 /**
  * Mirrors the real `resolveRedisTlsOptions`: `rediss://` URLs targeting a raw
@@ -45,14 +46,15 @@ function getRedisConnectionDefaultsImpl(url?: string): {
   }
 }
 
+const DEFAULT_REDIS_URL = 'redis://localhost:6379'
+
 /**
- * Mirrors the real `describeRedisConnection` under its Redis-unavailable
- * default: no client, no lifecycle history, and nothing derivable from an
- * unset REDIS_URL.
+ * Mirrors the real `describeRedisConnection` for the default mock client: a
+ * ready connection to a DNS-named, non-TLS host with no lifecycle history.
  */
 function describeRedisConnectionImpl() {
   return {
-    status: 'no-client',
+    status: 'ready',
     clientAgeMs: null,
     readyAgeMs: null,
     msSinceLastPingOk: null,
@@ -60,7 +62,7 @@ function describeRedisConnectionImpl() {
     reconnects: 0,
     errors: 0,
     lastErrorMessage: null,
-    hostKind: 'unknown' as const,
+    hostKind: 'dns' as const,
     tls: false,
     sniOverride: false,
   }
@@ -68,11 +70,12 @@ function describeRedisConnectionImpl() {
 
 /**
  * Controllable mock functions for `@/lib/core/config/redis`.
- * Default: `getConfiguredRedisUrl` and `getRedisClient` return `null` (tests
- * that need Redis override them), matching the real module's database-cache
- * behavior.
- * `acquireLock`/`releaseLock`/`extendLock` default to succeeding (`true`),
- * matching the real module's Redis-unavailable no-op path.
+ * Redis is required, so by default `getConfiguredRedisUrl` returns a local URL
+ * and `getRedisClient` returns one {@link createMockRedis} client (the same
+ * instance on every call until {@link resetRedisConfigMock} replaces it). Tests
+ * that assert on Redis traffic override it with their own client.
+ * `acquireLock`/`releaseLock`/`extendLock` default to succeeding (`true`): the
+ * lock is acquired, still owned, and released.
  * {@link resetRedisConfigMock} restores the default behaviors.
  *
  * @example
@@ -83,8 +86,8 @@ function describeRedisConnectionImpl() {
  * ```
  */
 export const redisConfigMockFns = {
-  mockGetConfiguredRedisUrl: vi.fn().mockReturnValue(null),
-  mockGetRedisClient: vi.fn().mockReturnValue(null),
+  mockGetConfiguredRedisUrl: vi.fn().mockReturnValue(DEFAULT_REDIS_URL),
+  mockGetRedisClient: vi.fn().mockReturnValue(createMockRedis()),
   mockGetRedisConnectionDefaults: vi.fn(getRedisConnectionDefaultsImpl),
   mockOnRedisReconnect: vi.fn(),
   mockAcquireLock: vi.fn().mockResolvedValue(true),
@@ -101,8 +104,8 @@ export const redisConfigMockFns = {
  * Restores every redis-config mock function to its default behavior.
  */
 export function resetRedisConfigMock(): void {
-  redisConfigMockFns.mockGetConfiguredRedisUrl.mockReset().mockReturnValue(null)
-  redisConfigMockFns.mockGetRedisClient.mockReset().mockReturnValue(null)
+  redisConfigMockFns.mockGetConfiguredRedisUrl.mockReset().mockReturnValue(DEFAULT_REDIS_URL)
+  redisConfigMockFns.mockGetRedisClient.mockReset().mockReturnValue(createMockRedis())
   redisConfigMockFns.mockGetRedisConnectionDefaults
     .mockReset()
     .mockImplementation(getRedisConnectionDefaultsImpl)

@@ -1,33 +1,17 @@
 import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetStorageMethod, reconnectCallbacks } = vi.hoisted(() => {
-  const callbacks: Array<() => void> = []
-  return {
-    mockGetStorageMethod: vi.fn(() => 'db'),
-    reconnectCallbacks: callbacks,
-  }
-})
+const { reconnectCallbacks } = vi.hoisted(() => ({
+  reconnectCallbacks: [] as Array<() => void>,
+}))
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 const mockOnRedisReconnect = redisConfigMockFns.mockOnRedisReconnect
 
-vi.mock('@/lib/core/storage', () => ({
-  getStorageMethod: mockGetStorageMethod,
-}))
-
-vi.mock('@/lib/core/rate-limiter/storage/db-token-bucket', () => ({
-  DbTokenBucket: vi.fn().mockImplementation(
-    class {
-      type = 'db'
-    }
-  ),
-}))
-
 vi.mock('@/lib/core/rate-limiter/storage/redis-token-bucket', () => ({
   RedisTokenBucket: vi.fn().mockImplementation(
     class {
-      type = 'redis'
+      constructor(readonly redis: unknown) {}
     }
   ),
 }))
@@ -36,50 +20,34 @@ import { createStorageAdapter, resetStorageAdapter } from '@/lib/core/rate-limit
 
 describe('rate limit storage factory', () => {
   beforeEach(() => {
-    mockGetRedisClient.mockReset().mockReturnValue(null)
-    mockGetStorageMethod.mockReset().mockReturnValue('db')
     mockOnRedisReconnect.mockImplementation((cb: () => void) => {
       reconnectCallbacks.push(cb)
     })
     resetStorageAdapter()
   })
 
-  it('should fall back to DbTokenBucket when Redis is configured but client unavailable', () => {
-    mockGetStorageMethod.mockReturnValue('redis')
-    mockGetRedisClient.mockReturnValue(null)
+  it('surfaces a missing Redis configuration instead of falling back to another backend', () => {
+    mockGetRedisClient.mockImplementationOnce(() => {
+      throw new Error('REDIS_URL is required')
+    })
 
-    const adapter = createStorageAdapter()
-    expect(adapter).toEqual({ type: 'db' })
+    expect(() => createStorageAdapter()).toThrow('REDIS_URL is required')
+
+    const recovered = { ping: vi.fn() }
+    mockGetRedisClient.mockReturnValue(recovered)
+    expect(createStorageAdapter()).toMatchObject({ redis: recovered })
   })
 
-  it('provider admission refuses a configured Redis outage instead of opening a second budget', () => {
-    mockGetStorageMethod.mockReturnValue('redis')
-    expect(createStorageAdapter()).toEqual({ type: 'db' })
-    expect(() => createStorageAdapter({ requireConfiguredBackend: true })).toThrow(
-      'Configured Redis rate limit storage is unavailable'
-    )
-  })
+  it('rebuilds the adapter against the replacement client after a forced reconnect', () => {
+    const first = { ping: vi.fn() }
+    mockGetRedisClient.mockReturnValue(first)
+    expect(createStorageAdapter()).toMatchObject({ redis: first })
 
-  it('strict admission uses recovered Redis even when the ordinary fallback adapter is cached', () => {
-    mockGetStorageMethod.mockReturnValue('redis')
-    createStorageAdapter()
-    mockGetRedisClient.mockReturnValue({ ping: vi.fn() } as never)
-    expect(createStorageAdapter({ requireConfiguredBackend: true })).toEqual({ type: 'redis' })
-  })
+    const replacement = { ping: vi.fn() }
+    mockGetRedisClient.mockReturnValue(replacement)
+    expect(createStorageAdapter()).toMatchObject({ redis: first })
 
-  it('should re-evaluate storage on next call after reconnect resets cache', () => {
-    mockGetStorageMethod.mockReturnValue('redis')
-    mockGetRedisClient.mockReturnValue(null)
-
-    const adapter1 = createStorageAdapter()
-    expect(adapter1).toEqual({ type: 'db' })
-
-    const latestCallback = reconnectCallbacks[reconnectCallbacks.length - 1]
-    latestCallback()
-
-    mockGetRedisClient.mockReturnValue({ ping: vi.fn() } as never)
-
-    const adapter2 = createStorageAdapter()
-    expect(adapter2).toEqual({ type: 'redis' })
+    reconnectCallbacks[reconnectCallbacks.length - 1]()
+    expect(createStorageAdapter()).toMatchObject({ redis: replacement })
   })
 })

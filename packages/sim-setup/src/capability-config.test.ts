@@ -8,9 +8,11 @@ import { CAPABILITY_SETUPS, defineCapabilitySetup } from './capability-config'
 
 describe('capability setup configuration', () => {
   it('maps every runtime capability and provider exactly once', () => {
-    expect(CAPABILITY_SETUPS.map((setup) => setup.definition.id)).toEqual(
-      ENV_CAPABILITIES.map((capability) => capability.id)
-    )
+    // The cache setup outlives the runtime capability until the wizard prompts for
+    // REDIS_URL as a required core value.
+    expect(
+      CAPABILITY_SETUPS.map((setup) => setup.definition.id).filter((id) => id !== 'cache')
+    ).toEqual(ENV_CAPABILITIES.map((capability) => capability.id))
     for (const setup of CAPABILITY_SETUPS) {
       expect(Object.keys(setup.providers).sort()).toEqual(
         setup.definition.providers.map((provider) => provider.id).sort()

@@ -5,15 +5,21 @@ import {
   readTestDatabaseUrl,
   readTestRedisUrl,
 } from '@sim/db/testing/test-infrastructure'
+import Redis from 'ioredis'
 import { afterAll } from 'vitest'
 
 /**
- * Setup for `vitest run --mode integration`. Suites run against real PostgreSQL (and Redis when
- * `TEST_REDIS_URL` is set) with real application modules: none of the unit-test global mocks are
- * installed here, so a suite that needs a fixture declares it itself.
+ * Setup for `vitest run --mode integration`. Suites run against real PostgreSQL and Redis with
+ * real application modules: none of the unit-test global mocks are installed here, so a suite
+ * that needs a fixture declares it itself.
  */
 const databaseUrl = readTestDatabaseUrl()
-readTestRedisUrl()
+const redisUrl = readTestRedisUrl()
+if (!redisUrl) {
+  throw new Error(
+    'Set TEST_REDIS_URL: Redis is required. `bun run test:integration` provisions a disposable one.'
+  )
+}
 const encryptionKey = process.env.TEST_ENCRYPTION_KEY ?? '0'.repeat(64)
 if (!/^[a-f0-9]{64}$/i.test(encryptionKey)) {
   throw new Error('TEST_ENCRYPTION_KEY must be a 64-character hexadecimal fixture key')
@@ -28,6 +34,7 @@ clearInheritedDatabaseUrls()
 Object.assign(process.env, {
   NODE_ENV: 'test',
   DATABASE_URL: databaseUrl,
+  REDIS_URL: redisUrl,
   DB_TX_TRIPWIRE: 'throw',
   NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
   NEXT_PUBLIC_FORCE_HOSTED: 'false',
@@ -48,6 +55,19 @@ Object.assign(process.env, {
   /** Only the opt-in disposable GitLab fixture may reach a private provider endpoint. */
   EGRESS_ALLOWED_HOSTS: process.env.GITLAB_LIVE_FIXTURE_FILE ? 'localhost' : '',
 })
+
+/**
+ * Every file starts from an empty Redis, so keys one file leaves behind never decide another's
+ * outcome. Files run one at a time (`fileParallelism: false`), and `readTestRedisUrl` only accepts
+ * a credential-free loopback URL, which is the disposable instance the harness provisions.
+ */
+const redisReset = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 1 })
+try {
+  await redisReset.connect()
+  await redisReset.flushdb()
+} finally {
+  redisReset.disconnect()
+}
 
 /** Local stand-in for the realtime process; deployments still perform their real HTTP notification. */
 const realtime = createServer(async (request, response) => {

@@ -8,10 +8,15 @@ import { and, eq, lt, or, sql } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
 import { extractProviderIdentifierFromBody, isDeliveryIdOptional } from '@/lib/webhooks/providers'
 
 const logger = createLogger('IdempotencyService')
+
+/**
+ * Where idempotency records live. Redis is the default; `'database'` keeps the
+ * record in Postgres so it can fate-share with a surrounding transaction.
+ */
+type StorageMethod = 'redis' | 'database'
 
 export interface IdempotencyConfig {
   ttlSeconds?: number
@@ -139,9 +144,7 @@ return redis.call('DEL', KEYS[1])
  * Universal idempotency service for webhooks, triggers, and any other operations
  * that need duplicate prevention.
  *
- * Storage is determined once based on configuration:
- * - If `forceStorage` is set → that backend unconditionally
- * - Else use the provider selected by the cache capability
+ * Records live in Redis unless `forceStorage: 'database'` keeps them in Postgres.
  */
 export class IdempotencyService {
   private config: Required<Omit<IdempotencyConfig, 'forceStorage'>>
@@ -155,7 +158,7 @@ export class IdempotencyService {
       retryFailures: config.retryFailures ?? false,
       storeResultBody: config.storeResultBody ?? true,
     }
-    this.storageMethod = config.forceStorage ?? getStorageMethod()
+    this.storageMethod = config.forceStorage ?? 'redis'
     logger.info(`IdempotencyService using ${this.storageMethod} storage`, {
       namespace: this.config.namespace,
       forced: Boolean(config.forceStorage),
@@ -193,9 +196,6 @@ export class IdempotencyService {
 
   private async checkIdempotencyRedis(normalizedKey: string): Promise<IdempotencyResult> {
     const redis = getRedisClient()
-    if (!redis) {
-      throw new Error('Redis not available for idempotency check')
-    }
 
     const redisKey = `${REDIS_KEY_PREFIX}${normalizedKey}`
     const cachedResult = await redis.get(redisKey)
@@ -286,9 +286,6 @@ export class IdempotencyService {
     inProgressResult: ProcessingResult
   ): Promise<AtomicClaimResult> {
     const redis = getRedisClient()
-    if (!redis) {
-      throw new Error('Redis not available for atomic claim')
-    }
 
     const redisKey = `${REDIS_KEY_PREFIX}${normalizedKey}`
     const inProgressTtlSeconds = Math.max(
@@ -415,9 +412,6 @@ export class IdempotencyService {
 
       if (storageMethod === 'redis') {
         const redis = getRedisClient()
-        if (!redis) {
-          throw new Error('Redis not available')
-        }
         const data = await redis.get(redisKey)
         currentResult = data ? JSON.parse(data) : null
       } else {
@@ -466,9 +460,6 @@ export class IdempotencyService {
     claimToken: string
   ): Promise<boolean> {
     const redis = getRedisClient()
-    if (!redis) {
-      throw new Error('Redis not available for storing result')
-    }
 
     const storedResult = { ...result, claimToken }
     const stored = await redis.eval(
@@ -531,7 +522,6 @@ export class IdempotencyService {
   ): Promise<boolean> {
     if (storageMethod === 'redis') {
       const redis = getRedisClient()
-      if (!redis) return false
       if (fence?.claimToken) {
         const deleted = await redis.eval(
           DELETE_REDIS_RESULT_IF_OWNER_SCRIPT,

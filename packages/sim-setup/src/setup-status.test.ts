@@ -19,6 +19,7 @@ const CORE_VALUES = {
   NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
   ENCRYPTION_KEY: 'b'.repeat(64),
   INTERNAL_API_SECRET: 'c'.repeat(32),
+  REDIS_URL: 'redis://localhost:6379',
 }
 
 describe('setup status', () => {

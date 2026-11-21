@@ -1,10 +1,12 @@
 import {
   ASYNC_JOBS_CAPABILITY,
-  CACHE_CAPABILITY,
+  CORE_CONFIGURATION_KEYS,
   defineCapability,
   EMAIL_CAPABILITY,
+  ENV_CAPABILITIES,
   EnvCapabilityConfigurationError,
   envField,
+  getRedisConfigurationError,
   inspectCapability,
   KNOWLEDGE_EMBEDDINGS_CAPABILITY,
   OCR_CAPABILITY,
@@ -651,32 +653,35 @@ describe('env capabilities', () => {
       ).toThrow(/TRIGGER_SECRET_KEY/)
     })
 
-    it('uses Redis only when REDIS_URL is present and valid', () => {
-      expect(requireCapability(CACHE_CAPABILITY, {}).providerId).toBe('database')
-      expect(
-        requireCapability(CACHE_CAPABILITY, { REDIS_URL: 'redis://cache.example.com:6379' })
-          .providerId
-      ).toBe('redis')
-      expect(() =>
-        requireCapability(CACHE_CAPABILITY, { REDIS_URL: 'https://cache.example.com' })
-      ).toThrow(/redis:\/\/ or rediss:\/\//)
+    it('requires a redis:// or rediss:// REDIS_URL', () => {
+      expect(getRedisConfigurationError({})).toBe('REDIS_URL is required')
+      expect(getRedisConfigurationError({ REDIS_URL: 'redis://cache.example.com:6379' })).toBeNull()
+      expect(getRedisConfigurationError({ REDIS_URL: 'https://cache.example.com' })).toMatch(
+        /redis:\/\/ or rediss:\/\//
+      )
+      expect(getRedisConfigurationError({ REDIS_URL: 'not a url' })).toMatch(
+        /redis:\/\/ or rediss:\/\//
+      )
     })
 
     it('requires a TLS server name for rediss IP addresses', () => {
-      expect(() =>
-        requireCapability(CACHE_CAPABILITY, { REDIS_URL: 'rediss://10.0.0.1:6379' })
-      ).toThrow(/REDIS_TLS_SERVERNAME/)
+      expect(getRedisConfigurationError({ REDIS_URL: 'rediss://10.0.0.1:6379' })).toMatch(
+        /REDIS_TLS_SERVERNAME/
+      )
       expect(
-        requireCapability(CACHE_CAPABILITY, {
+        getRedisConfigurationError({
           REDIS_URL: 'rediss://10.0.0.1:6379',
           REDIS_TLS_SERVERNAME: 'cache.internal',
-        }).providerId
-      ).toBe('redis')
+        })
+      ).toBeNull()
       expect(
-        requireCapability(CACHE_CAPABILITY, {
-          REDIS_URL: 'rediss://cache.example.com:6379',
-        }).providerId
-      ).toBe('redis')
+        getRedisConfigurationError({ REDIS_URL: 'rediss://cache.example.com:6379' })
+      ).toBeNull()
+    })
+
+    it('treats REDIS_URL as core configuration rather than an optional capability', () => {
+      expect(CORE_CONFIGURATION_KEYS).toContain('REDIS_URL')
+      expect(ENV_CAPABILITIES.map((capability) => capability.id)).not.toContain('cache')
     })
   })
 

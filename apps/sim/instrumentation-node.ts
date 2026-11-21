@@ -381,6 +381,12 @@ export async function register() {
   const { resolveEgressPolicy } = await import('./lib/core/security/egress/profiles')
   resolveEgressPolicy('requestTarget')
 
+  // Redis is required. Validating REDIS_URL here stops a misconfigured server at boot, naming the
+  // setting, instead of failing whichever request first needs Redis. Next.js never runs
+  // `register` during `next build`, so the build still works without REDIS_URL.
+  const { getConfiguredRedisUrl } = await import('@/lib/core/config/redis')
+  getConfiguredRedisUrl()
+
   await initializeOpenTelemetry()
 
   const { reportAccountTokenSealing } = await import('@sim/db/sealed-text')

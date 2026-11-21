@@ -13,7 +13,6 @@ import {
   knowledgeBase,
   organization,
   outboxEvent,
-  rateLimitBucket,
   usageLog,
   user,
   workspace,
@@ -21,7 +20,7 @@ import {
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
@@ -33,6 +32,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
 
 import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
+import { getRedisClient } from '@/lib/core/config/redis'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import * as egress from '@/lib/core/security/input-validation.server'
 import { getMistralCapacityScope } from '@/lib/internal/mistral/capacity'
@@ -93,7 +93,7 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
     Object.assign(env, prior)
     if (events.length) await db.delete(outboxEvent).where(inArray(outboxEvent.id, events))
     if (capacityKeys.length)
-      await db.delete(rateLimitBucket).where(inArray(rateLimitBucket.key, capacityKeys))
+      await getRedisClient().del(...capacityKeys.map((key) => `ratelimit:tb:${key}`))
     for (const ids of seeded) {
       await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
       await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
@@ -337,13 +337,16 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
 
         vi.useFakeTimers({ toFake: ['Date'] })
         vi.setSystemTime(event.availableAt.getTime() + 1)
-        /** PostgreSQL owns the capacity clock; model its elapsed cooldown without a ten-minute test sleep. */
-        await db
-          .update(rateLimitBucket)
-          .set({
-            capacityState: sql`${rateLimitBucket.capacityState} || '{"cooldownUntil":0,"nextRequestAt":0,"pageTokens":30}'::jsonb`,
-          })
-          .where(eq(rateLimitBucket.key, capacityKey))
+        /** Redis owns the capacity clock; model its elapsed cooldown without a ten-minute test sleep. */
+        const capacityRedisKey = `ratelimit:tb:${capacityKey}`
+        const capacityState = JSON.parse(
+          (await getRedisClient().hget(capacityRedisKey, 'capacityState')) ?? '{}'
+        )
+        await getRedisClient().hset(
+          capacityRedisKey,
+          'capacityState',
+          JSON.stringify({ ...capacityState, cooldownUntil: 0, nextRequestAt: 0, pageTokens: 30 })
+        )
         expect(
           await processOutboxEventById(eventId, knowledgeDocumentProcessingOutboxHandlers)
         ).toBe('completed')

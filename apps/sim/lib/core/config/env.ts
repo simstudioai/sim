@@ -174,7 +174,7 @@ export const env = createEnv({
     COPILOT_STREAM_EVENT_LIMIT:            z.number().optional(),                  // Max events retained per stream
 
     // Database & Storage
-    REDIS_URL:                             z.string().url().optional(),            // Redis connection string for caching/sessions
+    REDIS_URL:                             z.string().url(),                       // Required Redis connection string (redis:// or rediss://); checked when the client is first created and at server boot
     REDIS_TLS_SERVERNAME:                  z.string().min(1).optional(),           // TLS SNI override; required when REDIS_URL targets an IP over rediss:// (e.g. trigger.dev PrivateLink VPCE IP) so cert hostname verification matches the ElastiCache cert's CN
     /** Explicit file-storage backend; unset preserves Azure → S3 → GCS → local precedence. */
     STORAGE_PROVIDER:                      z.enum(['local', 's3', 'azure', 'gcs']).optional(),

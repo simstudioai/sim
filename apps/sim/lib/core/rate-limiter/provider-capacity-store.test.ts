@@ -1,16 +1,8 @@
-import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { getStorage } = vi.hoisted(() => ({
-  getStorage: vi.fn(),
-}))
-vi.mock('@/lib/core/storage', () => ({ getStorageMethod: getStorage }))
-
 import { mutateProviderCapacity } from '@/lib/core/rate-limiter/provider-capacity-store'
 
 const evalScript = vi.fn()
-const transaction = dbChainMockFns.transaction
 const getRedis = redisConfigMockFns.mockGetRedisClient
 
 const CONFIG = {
@@ -27,7 +19,6 @@ const RESULT = { allowed: true, retryAfterMs: 0, scale: 1, inFlight: 1 }
 describe('provider capacity storage bounds', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    getStorage.mockReturnValue('redis')
     getRedis.mockReturnValue({ eval: evalScript })
     evalScript.mockResolvedValue(JSON.stringify(RESULT))
   })
@@ -40,21 +31,16 @@ describe('provider capacity storage bounds', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it.each(['redis', 'database'])(
-    'bounds a stalled %s connection independently of the driver',
-    async (backend) => {
-      getStorage.mockReturnValue(backend)
-      evalScript.mockImplementation(() => new Promise(() => undefined))
-      transaction.mockImplementation(() => new Promise(() => undefined))
-      const pending = mutateProviderCapacity('quota', CONFIG, ACTION, Date.now() + 5000)
-      const rejected = expect(pending).rejects.toThrow('deadline expired')
-      await vi.advanceTimersByTimeAsync(5000)
-      await rejected
-      expect(vi.getTimerCount()).toBe(0)
-    }
-  )
+  it('bounds a stalled Redis connection independently of the driver', async () => {
+    evalScript.mockImplementation(() => new Promise(() => undefined))
+    const pending = mutateProviderCapacity('quota', CONFIG, ACTION, Date.now() + 5000)
+    const rejected = expect(pending).rejects.toThrow('deadline expired')
+    await vi.advanceTimersByTimeAsync(5000)
+    await rejected
+    expect(vi.getTimerCount()).toBe(0)
+  })
 
-  it('honors caller cancellation during a stalled Redis command without falling back to DB', async () => {
+  it('honors caller cancellation during a stalled Redis command', async () => {
     evalScript.mockImplementation(() => new Promise(() => undefined))
     const controller = new AbortController()
     const pending = mutateProviderCapacity(
@@ -67,20 +53,20 @@ describe('provider capacity storage bounds', () => {
     const rejected = expect(pending).rejects.toThrow('cancelled')
     controller.abort(new Error('cancelled'))
     await rejected
-    expect(transaction).not.toHaveBeenCalled()
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('fails closed when configured Redis is missing or gives malformed state', async () => {
-    getRedis.mockReturnValueOnce(null)
+  it('fails closed when Redis is not configured or gives malformed state', async () => {
+    getRedis.mockImplementationOnce(() => {
+      throw new Error('REDIS_URL is required')
+    })
     await expect(
       mutateProviderCapacity('quota', CONFIG, ACTION, Date.now() + 5000)
-    ).rejects.toThrow('Redis is unavailable')
+    ).rejects.toThrow('REDIS_URL is required')
     evalScript.mockResolvedValueOnce(JSON.stringify({ ...RESULT, scale: 100 }))
     await expect(
       mutateProviderCapacity('quota', CONFIG, ACTION, Date.now() + 5000)
     ).rejects.toThrow('Invalid provider capacity storage response')
-    expect(transaction).not.toHaveBeenCalled()
   })
 
   it('never contacts storage for already aborted or expired calls', async () => {

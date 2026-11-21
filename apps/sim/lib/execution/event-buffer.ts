@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { randomInt } from '@sim/utils/random'
-import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
@@ -388,8 +387,12 @@ async function compactEventForBuffer(
 
 const memoryExecutionStreams = new Map<string, MemoryExecutionStream>()
 
+/**
+ * Redis is required, so the in-memory buffer is never selected; its branches are
+ * unreachable behind `getRedisClient()`, which throws instead of returning null.
+ */
 function canUseMemoryEventBuffer(): boolean {
-  return typeof window === 'undefined' && getConfiguredCacheProvider() === 'database'
+  return false
 }
 
 function pruneExpiredMemoryStreams(now = Date.now()): void {
