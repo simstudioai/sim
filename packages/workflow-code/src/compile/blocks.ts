@@ -1951,7 +1951,10 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
 /** Pass 2 for one declaration. `null` for declarations already reported as invalid. */
 export function compileBlock(ctx: CompileContext, decl: BlockDecl): CompiledBlock | null {
   if (decl.duplicate || decl.builder.kind === 'unknown') return null
-  if (decl.builder.kind !== 'container') checkLegacyType(ctx, decl)
+  if (decl.builder.kind !== 'container') {
+    checkLegacyType(ctx, decl)
+    checkUncataloguedType(ctx, decl)
+  }
   return decl.builder.kind === 'container'
     ? compileContainer(ctx, decl)
     : compileRegularBlock(ctx, decl)
@@ -1963,20 +1966,41 @@ export function compileBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
  * offline check, which has only the lock, stays quiet on a block the lock binds by key or ident,
  * as the server does for the stored block it continues.
  */
+/** Whether the lock of an unread stored workflow binds `decl`, by key or by ident. */
+function lockBinds(ctx: CompileContext, decl: BlockDecl): boolean {
+  const lock = ctx.storedUnread
+  return (
+    lock !== undefined &&
+    (Object.hasOwn(lock.blocks, decl.key) ||
+      Object.values(lock.blocks).some((entry) => entry.ident === decl.ident))
+  )
+}
+
+/** `W_UNKNOWN_BLOCK_TYPE` for a new `block()` of a type the catalog does not hold. */
+function checkUncataloguedType(ctx: CompileContext, decl: BlockDecl): void {
+  const { builder } = decl
+  if (builder.kind !== 'generic' || builder.block || lockBinds(ctx, decl)) return
+  const stored = Object.values(ctx.stored?.blocks ?? {})
+  if (stored.some((block) => block.type === builder.type)) return
+  ctx.reporter.report(
+    'W_UNKNOWN_BLOCK_TYPE',
+    `${builder.type} is not a block type this workspace offers, so an apply cannot add the block.`,
+    rangeOf(ctx, decl.call),
+    {
+      hint: () =>
+        didYouMean(builder.type, Object.keys(ctx.catalog.blocks)) ??
+        'Use a block type from the catalog, or a builder such as api() or fn().',
+      blockKey: decl.key,
+    }
+  )
+}
+
 function checkLegacyType(ctx: CompileContext, decl: BlockDecl): void {
   const block = catalogBlockOf(decl)
   const sunset = block?.lifecycle?.sunset
   if (!block || !sunset) return
   const stored = ctx.stored ? getOwn(ctx.stored.blocks, decl.key) : undefined
-  if (stored?.type === block.type) return
-  const lock = ctx.storedUnread
-  if (
-    lock &&
-    (Object.hasOwn(lock.blocks, decl.key) ||
-      Object.values(lock.blocks).some((entry) => entry.ident === decl.ident))
-  ) {
-    return
-  }
+  if (stored?.type === block.type || lockBinds(ctx, decl)) return
   const replacement = sunset.replacedBy
   const namespaces = replacement
     ? [

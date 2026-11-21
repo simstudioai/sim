@@ -66,6 +66,7 @@ export type EditRefusalCode =
   | 'E_APPLY_REF_OUT_OF_SCOPE'
   | 'E_APPLY_CODE_FILE_REF_SYNTAX'
   | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+  | 'E_APPLY_INVALID_BLOCK_TYPE'
 
 /** What an edit changed, as the caller can tell it. */
 export interface EditedBlocks {
@@ -107,11 +108,13 @@ const PARAM_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
 
 /**
  * In `workflow.ts` on a block the edit changed: a path no output of the block has, or a literal
- * `<name.path>` whose head names no block, which the server's lint refuses as a dangling reference.
+ * `<name.path>` whose head names no block, which the server's lint refuses as a dangling reference,
+ * or a new block of a type the catalog does not hold, which its placement gate refuses.
  */
 const ENTRY_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_UNKNOWN_OUTPUT_PATH', 'E_APPLY_UNRESOLVED_REF'],
   ['W_UNRESOLVED_REF', 'E_APPLY_UNRESOLVED_REF'],
+  ['W_UNKNOWN_BLOCK_TYPE', 'E_APPLY_INVALID_BLOCK_TYPE'],
 ])
 
 /**
@@ -136,6 +139,7 @@ export const REFUSABLE_WARNING_CODES: ReadonlySet<CompileDiagnosticCode> = new S
   'W_UNKNOWN_OUTPUT_PATH',
   'W_UNRESOLVED_REF',
   'W_CODE_FILE_REF_SYNTAX',
+  'W_UNKNOWN_BLOCK_TYPE',
 ])
 
 /** The rules' error codes with the warning each refuses, for help text. */

@@ -111,6 +111,38 @@ describe('refuseEditedFindings', () => {
     expect(errors(refuseEditedFindings(compiled, edited('call')))).toEqual([])
   })
 
+  it('refuses a new block of a type the catalog does not hold, as the placement gate does', () => {
+    for (const type of ['slak', 'toString', '__proto__']) {
+      const text = `// @sim-sdk 1\nimport { block, trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Test', () => {\n  ${START}\n  const a = block('${type}', 'A', { text: 'hi' })\n})\n`
+      const compiled = compileWorkflow({
+        entry: { path: 'workflow.ts', text },
+        files: new Map(),
+        catalog: TEST_CATALOG,
+        sdkMajor: 1,
+      })
+      expect(errors(refuseEditedFindings(compiled, edited('a')))).toEqual([
+        'E_APPLY_INVALID_BLOCK_TYPE a',
+      ])
+    }
+  })
+
+  it('keeps a block of an uncatalogued type the lock already binds', () => {
+    const text = `// @sim-sdk 1\nimport { block, trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Test', () => {\n  ${START}\n  const a = block('retired_kind', 'A', { text: 'hi' })\n})\n`
+    const compiled = compileWorkflow({
+      entry: { path: 'workflow.ts', text },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      storedUnread: {
+        version: 1,
+        blocks: { a: { id: 'b-a', parent: null, ident: 'a', order: 0 } },
+        variables: {},
+      },
+    })
+    expect(compiled.diagnostics.map((d) => d.code)).toEqual([])
+    expect(errors(refuseEditedFindings(compiled, edited('a')))).toEqual([])
+  })
+
   it('refuses an iteration field a shared code file reads for a block outside the loop', () => {
     const compiled = compile(
       [
