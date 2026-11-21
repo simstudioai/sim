@@ -65,7 +65,7 @@ The editor and execution engine run within your deployment. Configure these depe
 | Agent blocks | A model provider key or a self-hosted compatible endpoint such as Ollama, vLLM, LM Studio, or LiteLLM. |
 | Chat | `COPILOT_API_KEY` for the default Sim service. Set `NEXT_PUBLIC_CHAT_DISABLED=true` to hide Chat when it is not configured. |
 | OAuth integrations | Your provider app and credentials for each OAuth service you use. API-key integrations take keys in their blocks. |
-| Remote Function or Pi execution | An E2B or Daytona provider key and the appropriate immutable image. Function and Pi use separate images. |
+| Remote Function or Pi execution | An E2B, Daytona, or boxd provider key and the appropriate immutable image. Function and Pi use separate images. |
 
 Plain JavaScript without `import` or `require` runs in isolated-vm within Node child workers in the app container. Python, Shell, imported JavaScript, custom Function Sandboxes, and file-path or sandbox execution require remote sandbox configuration. See [Sandboxes](/platform/self-hosting/sandboxes).
 

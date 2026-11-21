@@ -45,6 +45,23 @@ describe('env capability status', () => {
     expect(status.features.sandbox.issue?.message).toContain('immutable Daytona snapshot ID')
   })
 
+  it('reports an unpinned boxd Function snapshot as invalid', () => {
+    const status = buildEnvCapabilityStatus({
+      SANDBOX_PROVIDER: 'boxd',
+      BOXD_API_KEY: 'boxd-secret',
+      BOXD_FUNCTION_SNAPSHOT: 'sim-function',
+      NEXT_PUBLIC_SANDBOXES_ENABLED: 'true',
+    })
+
+    expect(status.features.sandbox).toMatchObject({
+      state: 'invalid',
+      providerId: 'boxd',
+      issue: { state: 'invalid' },
+    })
+    expect(status.features.sandbox.issue?.message).toContain('<snapshot>@<version>')
+    expect(JSON.stringify(status)).not.toContain('boxd-secret')
+  })
+
   it('captures partial and invalid entries without aborting the snapshot', () => {
     const status = buildEnvCapabilityStatus({
       SMTP_HOST: 'localhost',

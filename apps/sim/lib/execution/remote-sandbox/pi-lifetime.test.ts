@@ -46,6 +46,12 @@ describe('resolvePiSandboxLifetimeMs', () => {
     expect(lifetime).toBe(platformMax)
   })
 
+  it('uses the full execution ceiling for boxd', () => {
+    const { lifetime, platformMax } = resolveWith({ provider: 'boxd' })
+
+    expect(lifetime).toBe(platformMax)
+  })
+
   it('honors a configured Daytona lifetime', () => {
     const configured = 45 * 60 * 1000
     const { lifetime } = resolveWith({

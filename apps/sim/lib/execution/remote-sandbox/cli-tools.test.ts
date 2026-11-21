@@ -147,8 +147,8 @@ describe('sandbox CLI catalog', () => {
     ).toEqual([SANDBOX_CLI_TOOL_IDS[0]])
   })
 
-  it('supports per-recipe provider compatibility with both providers as the default', () => {
-    const providers = ['e2b', 'daytona'] as const
+  it('supports per-recipe provider compatibility with every provider as the default', () => {
+    const providers = ['e2b', 'daytona', 'boxd'] as const
     const recipes = catalogRecipes()
     expect(
       recipes.find((recipe) => recipe.id === 'aws-cli@2.36.15-r1')?.supportedProviders

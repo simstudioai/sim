@@ -5,7 +5,7 @@
  * `SANDBOX_PROVIDER` env var selects, and prints a pass/fail matrix.
  *
  * This is the pre-switch confidence check: run it against E2B, run it against
- * Daytona, and compare. Every case exercises the shared layer end-to-end
+ * Daytona or boxd, and compare. Every case exercises the shared layer end-to-end
  * (`executeInSandbox` / `executeShellInSandbox`) against a live sandbox — not
  * mocks — so it catches the failures unit tests cannot: a missing package, an
  * expired snapshot, an image that vanished during an org move, blocked egress.
@@ -21,6 +21,13 @@
  *   SANDBOX_PROVIDER=daytona \
  *   DAYTONA_FUNCTION_SNAPSHOT_ID=<snapshot-uuid> \
  *   DAYTONA_DOC_SNAPSHOT_ID=mothership-docs:<tag> \
+ *   SANDBOX_PARITY_MANIFEST_BASELINE=/tmp/function-sandbox-manifest.json \
+ *     bun run apps/sim/scripts/verify-sandbox-parity.ts
+ *
+ *   # boxd
+ *   SANDBOX_PROVIDER=boxd \
+ *   BOXD_FUNCTION_SNAPSHOT=<snapshot>@<version> \
+ *   BOXD_DOC_SNAPSHOT=<snapshot> \
  *   SANDBOX_PARITY_MANIFEST_BASELINE=/tmp/function-sandbox-manifest.json \
  *     bun run apps/sim/scripts/verify-sandbox-parity.ts
  *
@@ -231,8 +238,10 @@ async function main(): Promise<void> {
   const provider = process.env.SANDBOX_PROVIDER || 'e2b'
   const baselinePath = process.env.SANDBOX_PARITY_MANIFEST_BASELINE
   const outputPath = process.env.SANDBOX_PARITY_MANIFEST_OUT
-  if (provider === 'daytona' && !baselinePath) {
-    throw new Error('SANDBOX_PARITY_MANIFEST_BASELINE is required for Daytona parity verification')
+  if (provider !== 'e2b' && !baselinePath) {
+    throw new Error(
+      `SANDBOX_PARITY_MANIFEST_BASELINE is required for ${provider} parity verification`
+    )
   }
   if (provider !== 'e2b' && outputPath) {
     throw new Error('Only the E2B Function base may produce SANDBOX_PARITY_MANIFEST_OUT')
@@ -245,7 +254,9 @@ async function main(): Promise<void> {
   const docConfigured =
     provider === 'daytona'
       ? Boolean(process.env.DAYTONA_DOC_SNAPSHOT_ID)
-      : Boolean(process.env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
+      : provider === 'boxd'
+        ? Boolean(process.env.BOXD_DOC_SNAPSHOT)
+        : Boolean(process.env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
 
   logger.info('Starting sandbox parity verification', {
     provider,

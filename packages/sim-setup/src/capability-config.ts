@@ -570,6 +570,14 @@ export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
             kind: 'not',
             condition: { kind: 'present', key: 'DAYTONA_FUNCTION_SNAPSHOT_ID' },
           },
+          {
+            kind: 'not',
+            condition: { kind: 'present', key: 'BOXD_API_KEY' },
+          },
+          {
+            kind: 'not',
+            condition: { kind: 'present', key: 'BOXD_FUNCTION_SNAPSHOT' },
+          },
         ],
       },
     },
@@ -625,8 +633,31 @@ export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
         },
       ],
     },
+    boxd: {
+      hint: 'dedicated Function code and CLI sandboxes',
+      env: {
+        NEXT_PUBLIC_E2B_ENABLED: 'false',
+        NEXT_PUBLIC_SANDBOXES_ENABLED: 'true',
+      },
+      prompts: [
+        {
+          type: 'field',
+          key: 'BOXD_API_KEY',
+          input: 'secret',
+          required: true,
+        },
+        {
+          type: 'field',
+          key: 'BOXD_FUNCTION_SNAPSHOT',
+          input: 'text',
+          required: true,
+          validate: true,
+          hint: 'version-pinned snapshot ref printed by the Function boxd builder',
+        },
+      ],
+    },
   },
-  optionOrder: ['disabled', 'e2b', 'daytona'],
+  optionOrder: ['disabled', 'e2b', 'daytona', 'boxd'],
 })
 
 export const JOBS_SETUP = defineCapabilitySetup(ASYNC_JOBS_CAPABILITY, {

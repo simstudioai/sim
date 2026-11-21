@@ -619,6 +619,29 @@ describe('env capabilities', () => {
       ).toThrow(/immutable Daytona snapshot ID/)
     })
 
+    it('requires boxd credentials and a version-pinned Function snapshot', () => {
+      expect(
+        requireCapability(SANDBOX_CAPABILITY, {
+          SANDBOX_PROVIDER: 'boxd',
+          BOXD_API_KEY: 'boxd-key',
+          BOXD_FUNCTION_SNAPSHOT: 'sim-function@3',
+        }).providerId
+      ).toBe('boxd')
+      expect(() =>
+        requireCapability(SANDBOX_CAPABILITY, {
+          SANDBOX_PROVIDER: 'boxd',
+          BOXD_API_KEY: 'boxd-key',
+        })
+      ).toThrow(/BOXD_FUNCTION_SNAPSHOT/)
+      expect(() =>
+        requireCapability(SANDBOX_CAPABILITY, {
+          SANDBOX_PROVIDER: 'boxd',
+          BOXD_API_KEY: 'boxd-key',
+          BOXD_FUNCTION_SNAPSHOT: 'sim-function',
+        })
+      ).toThrow(/must pin a boxd snapshot version/)
+    })
+
     it('reports an unknown sandbox selector without throwing during inspection', () => {
       expect(inspectCapability(SANDBOX_CAPABILITY, { SANDBOX_PROVIDER: 'unknown' })).toMatchObject({
         providerId: null,
