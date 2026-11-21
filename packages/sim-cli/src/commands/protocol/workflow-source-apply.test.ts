@@ -184,8 +184,10 @@ describe('sim workflows source apply', () => {
       applied: false,
       dryRun: true,
       next: { command: `sim workflows source apply --dir ${dir} --allow-delete --yes` },
+      blocksAdded: 1,
     })
-    expect(stderrLines().join('\n')).toContain('Blocks: 1 added')
+    // The JSON on stdout is the plan: stderr does not repeat it.
+    expect(stderrLines().join('\n')).not.toContain('Blocks:')
   })
 
   it('prints the whole next command in a table, never clipping the flag it names', async () => {
@@ -253,13 +255,20 @@ describe('sim workflows source apply', () => {
     })
   })
 
-  it('with --yes, prints the summary of what it applied', async () => {
+  it('with --yes, prints the summary of what it applied for a person, and only the JSON for a machine', async () => {
     setTerminal(false)
     request.mockResolvedValue(outcome())
 
     await apply(WORKFLOW_ID, '--dir', dir, '--yes')
 
     expect(dryRunFlags()).toEqual([false])
+    expect(stderrLines().join('\n')).not.toContain('Blocks:')
+    expect(stdoutJson()).toMatchObject({ applied: true, blocksAdded: 1 })
+
+    vi.mocked(console.error).mockClear()
+    contextMockState.output = 'text'
+    request.mockResolvedValue(outcome())
+    await apply(WORKFLOW_ID, '--dir', dir, '--yes')
     expect(stderrLines().join('\n')).toContain('Blocks: 1 added, 0 removed')
   })
 
@@ -1391,12 +1400,13 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
       knownKeys: new Set(),
     })
     expect(compiled.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
-    expect(stderrLines().join('\n')).toContain('Edit')
+    expect(stderrLines()).toEqual([])
     const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
     expect(printed).toMatchObject({
       scaffolded: true,
       workspaceTypes: true,
       guide: '.sim/AGENTS.md',
+      next: { command: expect.stringContaining('sim workflows source create --dir') },
     })
     expect(printed.files).toBeGreaterThan(0)
   })
@@ -1444,9 +1454,11 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     expect(JSON.parse(readFileSync(join(empty, '.sim/starter.json'), 'utf8'))).toEqual({
       workspaceId: WORKSPACE_ID,
     })
-    expect(stderrLines().join('\n')).toContain(
-      `sim workflows source create --dir ${empty} --workspace ${WORKSPACE_ID} --yes`
-    )
+    expect(JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')).toMatchObject({
+      next: {
+        command: `sim workflows source create --dir ${empty} --workspace ${WORKSPACE_ID} --yes`,
+      },
+    })
   })
 
   it('creates a starter in the workspace it was typed for, whatever the profile default', async () => {
