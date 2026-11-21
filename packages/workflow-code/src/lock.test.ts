@@ -210,14 +210,11 @@ describe('parseWorkflowLock', () => {
   })
 
   it('refuses more blocks or variables than a workflow may hold, before reading them', () => {
-    const over = SOURCE_LIMITS.maxBlocks + 1
     const blocks: Record<string, unknown> = {}
     const variables: Record<string, string> = {}
     // Each entry is malformed, so a reader that walked them would report far more than the cap.
-    for (let i = 0; i < over; i += 1) {
-      blocks[`b${i}`] = { id: i }
-      variables[`v${i}`] = ''
-    }
+    for (let i = 0; i <= SOURCE_LIMITS.maxBlocks; i += 1) blocks[`b${i}`] = { id: i }
+    for (let i = 0; i <= SOURCE_LIMITS.maxVariables; i += 1) variables[`v${i}`] = ''
     expect(codesFor({ version: 1, blocks, variables: {} })).toEqual(['E_LOCK_SHAPE /blocks'])
     expect(codesFor({ version: 1, blocks: {}, variables })).toEqual(['E_LOCK_SHAPE /variables'])
   })

@@ -19,6 +19,8 @@ export const SOURCE_LIMITS = {
   maxBlocks: 2_000,
   /** Edges in one workflow. Mirrors the v2 graph cap (`MAX_WORKFLOW_GRAPH_EDGES`). */
   maxEdges: 10_000,
+  /** Variables in one workflow, so a lock holds at most this many variable entries. */
+  maxVariables: 2_000,
   /** Files in one source: `workflow.ts` plus one code file per block. */
   maxFiles: 2_001,
   /** UTF-8 bytes of every file together, the entry included. */
@@ -34,7 +36,7 @@ export const SOURCE_LIMITS = {
 /**
  * Body cap for a request carrying source files: every file at its limit, doubled for JSON string
  * escaping (quotes, backslashes, newlines and tabs each escape to two bytes), plus room for a lock
- * of `maxBlocks` entries.
+ * of `maxBlocks` block and `maxVariables` variable entries.
  */
 export const SOURCE_REQUEST_MAX_BYTES = 2 * SOURCE_LIMITS.maxTotalBytes + 2_000_000
 
@@ -78,7 +80,7 @@ export function isCodeFilePath(path: string): boolean {
 
 /** One size limit a source exceeds, with the measured value. */
 export interface SourceLimitExcess {
-  limit: 'maxBlocks' | 'maxEdges' | 'maxFiles' | 'maxTotalBytes'
+  limit: 'maxBlocks' | 'maxEdges' | 'maxVariables' | 'maxFiles' | 'maxTotalBytes'
   actual: number
   max: number
 }
@@ -103,12 +105,12 @@ export function utf8Bytes(text: string, cap = Number.POSITIVE_INFINITY): number 
 }
 
 /**
- * Every size limit a printed source of a workflow with `counts` blocks and edges exceeds, in limit
- * order; empty when it fits. Depth is `sourceDepthOverflow`'s.
+ * Every size limit a printed source of a workflow with `counts` blocks, edges and variables
+ * exceeds, in limit order; empty when it fits. Depth is `sourceDepthOverflow`'s.
  */
 export function sourceLimitExcesses(
   files: Readonly<Record<string, string>>,
-  counts: { blocks: number; edges: number }
+  counts: { blocks: number; edges: number; variables: number }
 ): SourceLimitExcess[] {
   const excesses: SourceLimitExcess[] = []
   if (counts.blocks > SOURCE_LIMITS.maxBlocks) {
@@ -116,6 +118,13 @@ export function sourceLimitExcesses(
   }
   if (counts.edges > SOURCE_LIMITS.maxEdges) {
     excesses.push({ limit: 'maxEdges', actual: counts.edges, max: SOURCE_LIMITS.maxEdges })
+  }
+  if (counts.variables > SOURCE_LIMITS.maxVariables) {
+    excesses.push({
+      limit: 'maxVariables',
+      actual: counts.variables,
+      max: SOURCE_LIMITS.maxVariables,
+    })
   }
   const paths = Object.keys(files)
   if (paths.length > SOURCE_LIMITS.maxFiles) {

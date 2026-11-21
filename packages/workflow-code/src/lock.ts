@@ -490,15 +490,15 @@ class LockReader {
     }
   }
 
-  /** Whether `raw` holds more entries than a workflow may; reported so it is never read. */
-  overCap(raw: unknown, at: readonly string[]): boolean {
-    if (!isRecordLike(raw) || Object.keys(raw).length <= SOURCE_LIMITS.maxBlocks) return false
-    this.report('E_LOCK_SHAPE', at, `Expected at most ${SOURCE_LIMITS.maxBlocks} entries.`)
+  /** Whether `raw` holds more than `max` entries, a workflow's cap; reported so it is never read. */
+  overCap(raw: unknown, max: number, at: readonly string[]): boolean {
+    if (!isRecordLike(raw) || Object.keys(raw).length <= max) return false
+    this.report('E_LOCK_SHAPE', at, `Expected at most ${max} entries.`)
     return true
   }
 
   variables(raw: unknown): Record<VarKey, string> {
-    if (this.overCap(raw, ['variables'])) return {}
+    if (this.overCap(raw, SOURCE_LIMITS.maxVariables, ['variables'])) return {}
     const variables = this.idRecord(raw, ['variables'])
     for (const key of Object.keys(variables)) {
       if (!key || normalizeWorkflowBlockName(key) !== key) {
@@ -634,7 +634,7 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
   const blockEntries: Array<[BlockKey, WorkflowLockBlock]> = []
   if (!isRecordLike(json.blocks)) {
     reader.report('E_LOCK_SHAPE', ['blocks'], '"blocks" must be an object.')
-  } else if (!reader.overCap(json.blocks, ['blocks'])) {
+  } else if (!reader.overCap(json.blocks, SOURCE_LIMITS.maxBlocks, ['blocks'])) {
     for (const [key, raw] of Object.entries(json.blocks)) {
       const block = reader.block(key, raw)
       if (block) blockEntries.push([key, block])

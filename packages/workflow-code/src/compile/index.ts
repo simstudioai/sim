@@ -208,6 +208,16 @@ function compileVariables(ctx: CompileContext, node: Node): void {
     )
     return
   }
+  const overLimit = node.properties[ctx.limits.maxVariables]
+  if (overLimit) {
+    ctx.reporter.report(
+      'E_LIMIT_EXCEEDED',
+      `The workflow declares ${node.properties.length} variables; the limit is ${ctx.limits.maxVariables}.`,
+      rangeOf(ctx, overLimit),
+      { hint: 'Keep related values together in one object or array variable.' }
+    )
+    return
+  }
   const entries = objectEntries(ctx, node)
   const addItem = ctx.comments.list(node.start ?? 0, node.end ?? 0, {
     owner: encodeAnchor({ kind: 'header' }),
