@@ -68,15 +68,11 @@ export interface CreateWorkflowFromSourceInput {
 
 /**
  * Whether the draft as it is differs from its deployment, for a dry run that leaves it so (a no-op
- * or a refusal): it writes nothing, so this is known now and runs beside the plan. A new workflow
- * has no deployment. A dry run that would change the draft compares what it would write instead.
- * The `catch` only keeps it observed when an error throws first or it goes unused.
+ * or a refusal). A new workflow has no deployment. A dry run that would change the draft compares
+ * what it would write instead, so this runs only once the plan says it will not.
  */
-function draftNeedsRedeployment(target: SourceTarget): Promise<boolean> {
-  if (target.kind === 'new') return Promise.resolve(false)
-  const check = checkNeedsRedeployment(target.context.workflowId)
-  check.catch(() => {})
-  return check
+async function draftNeedsRedeployment(target: SourceTarget): Promise<boolean> {
+  return target.kind === 'new' ? false : checkNeedsRedeployment(target.context.workflowId)
 }
 
 /**
@@ -95,7 +91,7 @@ async function writeSource(
     if (planned.kind === 'refused') throw refusalError(planned)
     return commitSource(principal, planned, target)
   }
-  const needsRedeployment = draftNeedsRedeployment(target)
+  const needsRedeployment = () => draftNeedsRedeployment(target)
   const planned = await planSource(principal, target, submission, { allocate: false })
   return planned.kind === 'refused'
     ? refusedOutcome(planned, target, submission, needsRedeployment)

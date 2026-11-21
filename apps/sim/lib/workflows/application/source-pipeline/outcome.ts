@@ -129,12 +129,12 @@ export function printWritten(
 /**
  * The dry run of a plan: what a commit would store, re-printed, and whether the draft would then
  * differ from its deployment. A graph no-op reports the source meta a commit would store, and
- * `draftNeedsRedeployment`, the deployment check of the draft as it is, started beside the plan.
+ * `draftNeedsRedeployment`, the deployment check of the draft as it is, run only for a no-op.
  */
 export async function previewSource(
   principal: Principal,
   planned: PlannedSource,
-  draftNeedsRedeployment: Promise<boolean>
+  draftNeedsRedeployment: () => Promise<boolean>
 ): Promise<SourceOutcome> {
   const { plan, loaded, target } = planned
   const frame = {
@@ -151,7 +151,7 @@ export async function previewSource(
         workflowName: plan.meta.name,
         diff: plan.diff,
         diagnostics: plan.diagnostics,
-        needsRedeployment: await draftNeedsRedeployment,
+        needsRedeployment: await draftNeedsRedeployment(),
       })
     }
     const preview = await previewSourceCommit(planned.workflowId, plan)
@@ -187,7 +187,7 @@ export async function refusedOutcome(
   refused: RefusedSource,
   target: CommitTarget,
   submission: { files: Record<string, string>; lock: WorkflowLockV1 },
-  draftNeedsRedeployment: Promise<boolean>
+  draftNeedsRedeployment: () => Promise<boolean>
 ): Promise<SourceOutcome> {
   return shapeOutcome(
     {
@@ -201,7 +201,7 @@ export async function refusedOutcome(
       applied: false,
       diff: emptyDiffSummary(),
       diagnostics: refused.diagnostics,
-      needsRedeployment: await draftNeedsRedeployment,
+      needsRedeployment: await draftNeedsRedeployment(),
     }
   )
 }
