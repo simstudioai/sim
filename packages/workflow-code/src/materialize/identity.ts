@@ -361,17 +361,19 @@ interface InferenceState {
 
 type CanonicalEdges = CanonicalWorkflow['edges']
 
+/** Appends `item` to the list `map` holds under `key`, starting the list when there is none. */
+function pushTo<K, V>(map: Map<K, V[]>, key: K, item: V): void {
+  const list = map.get(key)
+  if (list) list.push(item)
+  else map.set(key, [item])
+}
+
 /** Each block's edges, in or out, so a block's neighbourhood reads only its own edges. */
 function edgesByEndpoint(edges: CanonicalEdges): Map<BlockKey, CanonicalEdges> {
   const byKey = new Map<BlockKey, CanonicalEdges>()
-  const add = (key: BlockKey, edge: CanonicalEdges[number]) => {
-    const list = byKey.get(key)
-    if (list) list.push(edge)
-    else byKey.set(key, [edge])
-  }
   for (const edge of edges) {
-    add(edge.from, edge)
-    if (edge.to !== edge.from) add(edge.to, edge)
+    pushTo(byKey, edge.from, edge)
+    if (edge.to !== edge.from) pushTo(byKey, edge.to, edge)
   }
   return byKey
 }
@@ -479,10 +481,7 @@ function settingsIndex(blocks: ReadonlyArray<[BlockKey, CanonicalBlock]>) {
     holdsAngle(value) ? `<\u0000${id}` : `=\u0000${id}\u0000${canonicalJson(value)}`
   for (const [key, block] of blocks) {
     for (const [id, value] of Object.entries(block.params)) {
-      const bucket = bucketOf(id, value)
-      const keys = byValue.get(bucket)
-      if (keys) keys.push(key)
-      else byValue.set(bucket, [key])
+      pushTo(byValue, bucketOf(id, value), key)
       const held = holders.get(id)
       if (held) held.add(key)
       else holders.set(id, new Set([key]))
@@ -520,11 +519,7 @@ function neighbourPrefix(items: Set<string>, order: (left: string, right: string
 function invert(entries: Iterable<[BlockKey, Iterable<string>]>): Map<string, BlockKey[]> {
   const byItem = new Map<string, BlockKey[]>()
   for (const [key, items] of entries) {
-    for (const item of items) {
-      const keys = byItem.get(item)
-      if (keys) keys.push(key)
-      else byItem.set(item, [key])
-    }
+    for (const item of items) pushTo(byItem, item, key)
   }
   return byItem
 }
@@ -658,10 +653,7 @@ function inferRenames(state: InferenceState): void {
   const referrersOf = new Map<BlockKey, BlockKey[]>()
   for (const [other, block] of Object.entries(prevCanonical.blocks)) {
     for (const key of referencedKeys(block)) {
-      if (key === other || !Object.hasOwn(prevCanonical.blocks, key)) continue
-      const referrers = referrersOf.get(key)
-      if (referrers) referrers.push(other)
-      else referrersOf.set(key, [other])
+      if (key !== other && Object.hasOwn(prevCanonical.blocks, key)) pushTo(referrersOf, key, other)
     }
   }
   const targetReferences = new Map<BlockKey, Set<BlockKey>>()

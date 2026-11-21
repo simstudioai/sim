@@ -1960,12 +1960,6 @@ export function compileBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     : compileRegularBlock(ctx, decl)
 }
 
-/**
- * `W_LEGACY_BLOCK_TYPE` for a new block of a legacy or deprecated type, naming its replacement and
- * that type's builders. A block the stored workflow already holds under that type stays quiet; an
- * offline check, which has only the lock, stays quiet on a block the lock binds by key or ident,
- * as the server does for the stored block it continues.
- */
 /** Whether the lock of an unread stored workflow binds `decl`, by key or by ident. */
 function lockBinds(ctx: CompileContext, decl: BlockDecl): boolean {
   const lock = ctx.storedUnread
@@ -1995,6 +1989,12 @@ function checkUncataloguedType(ctx: CompileContext, decl: BlockDecl): void {
   )
 }
 
+/**
+ * `W_LEGACY_BLOCK_TYPE` for a new block of a legacy or deprecated type, naming its replacement and
+ * that type's builders. A block the stored workflow already holds under that type stays quiet; an
+ * offline check, which has only the lock, stays quiet on a block the lock binds by key or ident,
+ * as the server does for the stored block it continues.
+ */
 function checkLegacyType(ctx: CompileContext, decl: BlockDecl): void {
   const block = catalogBlockOf(decl)
   const sunset = block?.lifecycle?.sunset

@@ -270,7 +270,13 @@ function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: V
       checkIterationTag(ctx, rangeOf(ctx, node), site.decl.key, segments)
       continue
     }
-    const tag = { token: token.value, normalized, at: rangeOf(ctx, node), blockKey: site.decl.key }
+    const tag = {
+      token: token.value,
+      segments,
+      normalized,
+      at: rangeOf(ctx, node),
+      blockKey: site.decl.key,
+    }
     if (!ctx.declsByKey.has(normalized) && segments.length > 1) ctx.unresolvedTags.push(tag)
     else reportNotNormalized(ctx, tag)
   }
@@ -278,7 +284,6 @@ function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: V
 
 function reportNotNormalized(ctx: CompileContext, tag: LiteralTag): void {
   const target = ctx.declsByKey.get(tag.normalized)
-  const segments = parseStoredPath(tag.token.slice(1, -1)) ?? []
   ctx.reporter.report(
     'W_REF_NOT_NORMALIZED',
     target
@@ -286,9 +291,10 @@ function reportNotNormalized(ctx: CompileContext, tag: LiteralTag): void {
       : `${tag.token} names no block; the text is kept as written.`,
     tag.at,
     {
-      hint: target?.ident
-        ? `Write \${${formatMemberPath(target.ident, segments.slice(1))}} in a template, so a rename follows the block.`
-        : 'Reference a declared block through its ident, so a rename follows the block.',
+      hint: () =>
+        target?.ident
+          ? `Write \${${formatMemberPath(target.ident, tag.segments.slice(1))}} in a template, so a rename follows the block.`
+          : 'Reference a declared block through its ident, so a rename follows the block.',
       blockKey: tag.blockKey,
     }
   )
@@ -649,7 +655,7 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
           `No workflow variable is keyed ${name}.`,
           rangeOf(ctx, first),
           {
-            hint: didYouMean(key, ctx.variables.keys(), (known) => `vars.${known}`),
+            hint: () => didYouMean(key, ctx.variables.keys(), (known) => `vars.${known}`),
             blockKey: site.decl.key,
           }
         )

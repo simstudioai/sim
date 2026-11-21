@@ -199,6 +199,7 @@ export interface CompileContext {
 /** A `<Name.path>` in literal text whose head is no declared block's key. */
 export interface LiteralTag {
   token: string
+  segments: RefSegment[]
   normalized: BlockKey
   at: Range
   blockKey: BlockKey
