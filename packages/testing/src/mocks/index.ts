@@ -408,6 +408,8 @@ export {
   MockConflictingPendingInvitationError,
   MockGrantlessInvitationError,
 } from './invitations-send.mock'
+// Isolated VM mocks (for @/lib/execution/isolated-vm)
+export { isolatedVmMock, isolatedVmMockFns } from './isolated-vm.mock'
 export {
   kbConnectorsQueriesMock,
   kbConnectorsQueriesMockFns,

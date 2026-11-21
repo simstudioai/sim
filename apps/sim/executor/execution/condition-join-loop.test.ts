@@ -3,6 +3,7 @@ import {
   createSerializedBlock,
   createSerializedWorkflow,
 } from '@sim/testing/factories/serialized-block.factory'
+import { isolatedVmMock } from '@sim/testing/mocks/isolated-vm.mock'
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
@@ -13,11 +14,7 @@ import type { SerializedWorkflow } from '@/serializer/types'
 vi.mock('@/tools', () => toolsMock)
 
 /** The loop's continuation check runs as plain JavaScript instead of through the Redis-leased isolate. */
-vi.mock('@/lib/execution/isolated-vm', () => ({
-  executeInIsolatedVM: vi.fn(async ({ code }: { code: string }) => ({
-    result: new Function(code)(),
-  })),
-}))
+vi.mock('@/lib/execution/isolated-vm', () => isolatedVmMock)
 
 /** Real condition handler; every other block answers with its own name. */
 vi.mock('@/executor/handlers/registry', () => ({
