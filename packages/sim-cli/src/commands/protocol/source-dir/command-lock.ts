@@ -60,16 +60,16 @@ type LockSighting = Pick<Stats, 'dev' | 'ino' | 'mtimeMs'>
 
 /**
  * Whether the lock at `lock`, as `seen`, was left by a command that is gone: its process on this
- * machine no longer runs, or it never recorded an owner and had not changed for a minute when it
- * was seen. The age is the sighting's, not the folder's now, because a takeover's own claim
- * changes the folder. A lock another machine holds (a shared folder) is never taken over.
+ * machine no longer runs, or it never recorded an owner (no owner file, or one `writeFile` created
+ * but had not yet filled) and had not changed for a minute when it was seen. The age is the
+ * sighting's, not the folder's now, because a takeover's own claim changes the folder. A lock
+ * another machine holds (a shared folder) is never taken over.
  */
 async function isStaleLock(lock: string, seen: LockSighting): Promise<boolean> {
   const owner = toRecord(
-    await readFile(join(lock, LOCK_OWNER_FILE), 'utf8').then(
-      (text): unknown => JSON.parse(text),
-      () => null
-    )
+    await readFile(join(lock, LOCK_OWNER_FILE), 'utf8')
+      .then((text): unknown => JSON.parse(text))
+      .catch(() => null)
   )
   if (typeof owner.pid === 'number' && typeof owner.host === 'string') {
     return owner.host === hostname() && !isAlive(owner.pid)
