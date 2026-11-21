@@ -22,6 +22,7 @@ import { isIdentifierName } from './code-files/ref-path'
 import type { LockDiagnosticCode } from './diagnostics/codes'
 import { diagnostic } from './diagnostics/factory'
 import type { Diagnostic } from './diagnostics/frame'
+import { SOURCE_LIMITS } from './limits'
 import type { BlockKey, BranchKey, Json, SubBlockId, VarKey } from './model'
 import { SDK_RESERVED_IDENTIFIERS } from './sdk'
 
@@ -474,6 +475,7 @@ class LockReader {
       }
     }
 
+    const cyclic = blocksOnParentCycles(blocks)
     for (const [key, block] of Object.entries(blocks)) {
       if (block.parent === null) continue
       if (!Object.hasOwn(blocks, block.parent)) {
@@ -482,22 +484,21 @@ class LockReader {
           ['blocks', key, 'parent'],
           `Parent "${block.parent}" is not a block in this lock.`
         )
-        continue
-      }
-      const visited = new Set<BlockKey>()
-      let current: BlockKey | null = block.parent
-      while (current !== null && Object.hasOwn(blocks, current) && !visited.has(current)) {
-        if (current === key) {
-          this.report('E_LOCK_PARENT', ['blocks', key, 'parent'], `"${key}" contains itself.`)
-          break
-        }
-        visited.add(current)
-        current = blocks[current].parent
+      } else if (cyclic.has(key)) {
+        this.report('E_LOCK_PARENT', ['blocks', key, 'parent'], `"${key}" contains itself.`)
       }
     }
   }
 
+  /** Whether `raw` holds more entries than a workflow may; reported so it is never read. */
+  overCap(raw: unknown, at: readonly string[]): boolean {
+    if (!isRecordLike(raw) || Object.keys(raw).length <= SOURCE_LIMITS.maxBlocks) return false
+    this.report('E_LOCK_SHAPE', at, `Expected at most ${SOURCE_LIMITS.maxBlocks} entries.`)
+    return true
+  }
+
   variables(raw: unknown): Record<VarKey, string> {
+    if (this.overCap(raw, ['variables'])) return {}
     const variables = this.idRecord(raw, ['variables'])
     for (const key of Object.keys(variables)) {
       if (!key || normalizeWorkflowBlockName(key) !== key) {
@@ -510,6 +511,33 @@ class LockReader {
     }
     return variables
   }
+}
+
+/**
+ * The blocks whose parent chain leads back to themselves. Each block is walked once: a walk stops
+ * at a block an earlier walk finished, and the blocks from where it meets its own path onward are
+ * the cycle.
+ */
+function blocksOnParentCycles(blocks: Record<BlockKey, WorkflowLockBlock>): Set<BlockKey> {
+  const cyclic = new Set<BlockKey>()
+  const finished = new Set<BlockKey>()
+  for (const start of Object.keys(blocks)) {
+    const path: BlockKey[] = []
+    const onPath = new Map<BlockKey, number>()
+    let current: BlockKey | null = start
+    while (current !== null && Object.hasOwn(blocks, current) && !finished.has(current)) {
+      const index = onPath.get(current)
+      if (index !== undefined) {
+        for (const key of path.slice(index)) cyclic.add(key)
+        break
+      }
+      onPath.set(current, path.length)
+      path.push(current)
+      current = blocks[current].parent
+    }
+    for (const key of path) finished.add(key)
+  }
+  return cyclic
 }
 
 /**
@@ -604,13 +632,13 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
 
   const extensions = reader.extensions(json, LOCK_FIELDS, [])
   const blockEntries: Array<[BlockKey, WorkflowLockBlock]> = []
-  if (isRecordLike(json.blocks)) {
+  if (!isRecordLike(json.blocks)) {
+    reader.report('E_LOCK_SHAPE', ['blocks'], '"blocks" must be an object.')
+  } else if (!reader.overCap(json.blocks, ['blocks'])) {
     for (const [key, raw] of Object.entries(json.blocks)) {
       const block = reader.block(key, raw)
       if (block) blockEntries.push([key, block])
     }
-  } else {
-    reader.report('E_LOCK_SHAPE', ['blocks'], '"blocks" must be an object.')
   }
   const blocks: Record<BlockKey, WorkflowLockBlock> = Object.fromEntries(blockEntries)
   reader.crossCheckBlocks(blocks)

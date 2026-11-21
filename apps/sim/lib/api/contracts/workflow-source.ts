@@ -5,6 +5,7 @@ import type {
   WorkflowLockV1,
 } from '@sim/workflow-code'
 import { DIAGNOSTIC_CODES } from '@sim/workflow-code/diagnostics/codes'
+import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
@@ -77,6 +78,11 @@ const lockLayoutSchema = withExtensions({
   'Stored canvas geometry; applied only to new blocks.'
 )
 
+/** A lock never binds more entries than a workflow may hold blocks (`parseWorkflowLock` agrees). */
+function atMostMaxBlocks(record: Record<string, unknown>): boolean {
+  return Object.keys(record).length <= SOURCE_LIMITS.maxBlocks
+}
+
 const lockBlockSchema = withExtensions({
   id: z.string().describe('Block id.'),
   parent: z.string().nullable().describe('Key of the enclosing loop or parallel, or null.'),
@@ -107,8 +113,17 @@ const lockBlockSchema = withExtensions({
 
 export const workflowLockSchema = withExtensions({
   version: z.literal(1).describe('Lock format version.'),
-  blocks: z.record(z.string(), lockBlockSchema).describe('Block key → identity.'),
-  variables: z.record(z.string(), z.string()).describe('Variable key → variable id.'),
+  blocks: z
+    .record(z.string(), lockBlockSchema)
+    .refine(atMostMaxBlocks, `lock.blocks cannot hold more than ${SOURCE_LIMITS.maxBlocks} entries`)
+    .describe('Block key → identity.'),
+  variables: z
+    .record(z.string(), z.string())
+    .refine(
+      atMostMaxBlocks,
+      `lock.variables cannot hold more than ${SOURCE_LIMITS.maxBlocks} entries`
+    )
+    .describe('Variable key → variable id.'),
 } satisfies ShapeOf<WorkflowLockV1>).describe(
   'Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.'
 )
