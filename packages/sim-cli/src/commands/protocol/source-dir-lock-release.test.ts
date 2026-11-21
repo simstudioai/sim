@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -42,9 +42,25 @@ describe('the interrupt release of a directory lock', () => {
 
   it('targets nothing once the command removed its lock, so an interrupt during the rest of its cleanup leaves the next command’s lock', async () => {
     await withSourceDirLock(join(dir, 'out/a'), async () => {})
-    mkdirSync(join(dir, 'out/a', SOURCE_DIR_LOCK), { recursive: true })
+    const next = join(dir, 'out/a', SOURCE_DIR_LOCK)
+    mkdirSync(next, { recursive: true })
 
     expect(signalTargets[0]?.()).toBeNull()
-    expect(existsSync(join(dir, 'out/a', SOURCE_DIR_LOCK))).toBe(true)
+    writeFileSync(join(next, 'owner.json'), JSON.stringify({ pid: process.pid + 1, host: 'other' }))
+    expect(signalTargets[0]?.()).toBeNull()
+    expect(existsSync(next)).toBe(true)
+  })
+
+  it('targets nothing when the lock at the path names another command', async () => {
+    let target: string | null = 'unread'
+    await withSourceDirLock(dir, async () => {
+      writeFileSync(
+        join(dir, SOURCE_DIR_LOCK, 'owner.json'),
+        JSON.stringify({ pid: process.pid + 1, host: 'other' })
+      )
+      target = signalTargets[0]?.() ?? null
+    })
+
+    expect(target).toBeNull()
   })
 })

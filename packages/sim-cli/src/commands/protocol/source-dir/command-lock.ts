@@ -3,7 +3,7 @@
  * rewrites the directory, so two commands on it never interleave their writes.
  */
 
-import type { Stats } from 'node:fs'
+import { readFileSync, type Stats } from 'node:fs'
 import { lstat, mkdir, readFile, realpath, rm, rmdir, stat, writeFile } from 'node:fs/promises'
 import { hostname } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -184,18 +184,28 @@ export async function withSourceDirLock<T>(
   const owner: LockOwner = { pid: process.pid, host: hostname() }
   // An interrupt (Ctrl-C) releases the lock too: a lock left behind is taken over only by a
   // command on the same host, so one left on a folder shared with a container would stay.
-  // Once this command's lock is removed the path may be another command's, which an interrupt
-  // must leave alone.
-  let released = false
-  const disposeSignalRelease = removeStagingOnSignal(() => (released ? null : lock))
+  // Once this command removes its lock the path may become another command's, which an interrupt
+  // must leave alone: past the owner record, the release removes the lock only while it still
+  // names this command.
+  let ownerRecorded = false
+  const ownedLock = (): string | null => {
+    if (!ownerRecorded) return lock
+    try {
+      const recorded = toRecord(JSON.parse(readFileSync(join(lock, LOCK_OWNER_FILE), 'utf8')))
+      return recorded.pid === owner.pid && recorded.host === owner.host ? lock : null
+    } catch {
+      return null
+    }
+  }
+  const disposeSignalRelease = removeStagingOnSignal(ownedLock)
   try {
     await writeFile(join(lock, LOCK_OWNER_FILE), JSON.stringify(owner))
+    ownerRecorded = true
     return await run()
   } finally {
     // The signal release stays installed until the lock is gone: an interrupt a deferred write
     // held is raised again as `run` ends, and with no handler it would end the process mid-removal.
     await rm(await checkedPath(root, SOURCE_DIR_LOCK, new Set()), { recursive: true, force: true })
-    released = true
     // Folders the lock alone created go with it; one the command filled stays.
     await removeCreatedFolders()
     disposeSignalRelease()
