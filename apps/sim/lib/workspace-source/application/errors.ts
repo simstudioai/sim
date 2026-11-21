@@ -134,9 +134,11 @@ export function refusalDiagnostic(
       hint:
         error instanceof ResourceKeyTakenError
           ? 'Rename the key, or delete the resource that holds it.'
-          : resource.kind === 'file'
-            ? 'Rename it locally, or rename or delete the file that holds the name in Sim.'
-            : 'Rename it in its declaration, or rename or delete the resource that holds the name in Sim.',
+          : error instanceof WorkspaceFileFolderConflictError
+            ? 'Rename that folder in the file paths locally, or rename or delete the folder that holds the name in Sim.'
+            : resource.kind === 'file'
+              ? 'Rename it locally, or rename or delete the file that holds the name in Sim.'
+              : 'Rename it in its declaration, or rename or delete the resource that holds the name in Sim.',
       ...resource,
     })
   }

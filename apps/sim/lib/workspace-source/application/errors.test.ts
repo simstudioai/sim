@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableConflictError } from '@/lib/table/service'
+import { WorkspaceFileFolderConflictError } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { FileConflictError } from '@/lib/uploads/contexts/workspace/file-manager'
 import { WorkflowSourceNameTakenError } from '@/lib/workflows/application/source-error'
 import {
@@ -38,6 +39,17 @@ describe('refusalDiagnostic', () => {
     expect(finding.code).toBe('E_NAME_TAKEN')
     expect(finding.hint).not.toContain('declaration')
     expect(finding.hint).toContain('locally')
+  })
+
+  it('hints a folder in a file path that a folder in Sim holds be renamed, not a file', () => {
+    const finding = refusalDiagnostic(new WorkspaceFileFolderConflictError('reports'), {
+      kind: 'file',
+      key: 'reports/q3.csv',
+    })
+
+    expect(finding.code).toBe('E_NAME_TAKEN')
+    expect(finding.hint).toContain('folder')
+    expect(finding.hint).not.toContain('the file that holds')
   })
 
   it('rethrows an outage, so the request answers 503 rather than blaming the caller', () => {
