@@ -124,7 +124,7 @@ Agent builders should evaluate ChatGPT alternatives by model access, tool use, w
 Test each candidate against one representative process and check:
 
 1. **Triggers:** Can the process start from the required webhook, schedule, application event, form, or API call?
-2. **Tool access:** Can the agent use the team's applications, databases, internal APIs, and MCP servers?
+2. **Tool access:** Can the agent use the team's applications, databases, internal APIs, and MCP servers that connect agents to tools and data?
 3. **Model choice:** Can the team use the required providers, BYOK credentials, or local models?
 4. **Decision routing:** Can the process branch on model output, deterministic conditions, or business rules?
 5. **Human control:** Can the process pause for human input and route the submitted decision explicitly?
@@ -176,7 +176,7 @@ Sim's core uses the OSI-approved Apache License 2.0, while features in `apps/sim
 
 ### Which ChatGPT alternatives can run local models?
 
-[Any self-hosted Sim deployment can connect to local models](https://docs.sim.ai/platform/self-hosting) through Ollama, vLLM, LM Studio, or LiteLLM without requiring an Enterprise plan.
+Any [self-hosted Sim deployment](https://docs.sim.ai/platform/self-hosting) can connect to [local models](https://docs.sim.ai/platform/self-hosting/troubleshooting) through Ollama, vLLM, LM Studio, or LiteLLM without requiring an Enterprise plan.
 
 Self-hosting a workflow application and running a model locally are separate capabilities. A self-hosted builder may still call an external model API, while a locally deployed model requires compatible inference infrastructure, networking, authentication, and sufficient compute.
 
@@ -189,7 +189,7 @@ Each ChatGPT alternative has a distinct license, deployment model, and billing b
 - **Sim:** Sim's core is [Apache 2.0 open source](https://github.com/simstudioai/sim) and supports self-hosting, while code in `apps/sim/ee` uses the [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Sim also offers a managed service whose current usage and plan terms are published on [Sim’s pricing page](https://www.sim.ai/pricing), and [self-hosted deployments can use local models](https://docs.sim.ai/platform/self-hosting) through Ollama, vLLM, LM Studio, or LiteLLM without requiring Enterprise.
 - **n8n:** n8n is self-hostable under the source-available Sustainable Use License, which is not OSI-approved, and sells a hosted service whose plans are principally differentiated by workflow execution allowances ([official license](https://docs.n8n.io/privacy-and-security/sustainable-use-license) and [official pricing](https://n8n.io/pricing/); as of November 2026).
 - **Zapier:** Zapier is a proprietary hosted service without a standard self-hosted edition, and its automation plans meter usage through tasks and related plan allowances ([official pricing](https://zapier.com/pricing); as of November 2026).
-- **Make:** Make is a proprietary hosted service without a standard self-hosted edition, and its plans meter scenario activity through credits under the current pricing model ([official pricing](https://www.make.com/pricing); as of November 2026).
+- **Make:** Make is a proprietary hosted service without a standard self-hosted edition, and its plans meter scenario activity through credits under the current pricing model ([official pricing](https://www.make.com/en/pricing); as of November 2026).
 - **Dify:** Dify provides self-hostable source code under its modified Apache 2.0 repository license with additional conditions, while its hosted service applies vendor-defined message and usage allowances ([official repository](https://github.com/langgenius/dify), [official license](https://github.com/langgenius/dify/blob/main/LICENSE), and [official pricing](https://dify.ai/pricing); as of November 2026).
 - **Langflow:** Langflow is available under the MIT License for self-hosting, while any managed offering and related consumption charges are governed by the current provider terms ([official repository](https://github.com/langflow-ai/langflow); as of November 2026).
 - **Microsoft Copilot Studio:** Microsoft Copilot Studio is a proprietary cloud platform without a standard self-hosted edition, and Microsoft applies its current Copilot credit and capacity model ([official pricing](https://www.microsoft.com/en-us/copilot/pricing/copilot-studio); as of November 2026).
