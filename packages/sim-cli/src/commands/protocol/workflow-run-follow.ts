@@ -510,6 +510,15 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
         0
       )
     }
+    if (
+      typeof initialFlags.dir === 'string' &&
+      (initialFlags.follow === true || initialFlags.async === true)
+    ) {
+      throw new SimApiError(
+        '--dir maps the failure of a run this command waits for; --follow and --async do not report the block that failed. Drop --dir, or run without them',
+        0
+      )
+    }
     const selection = resolveWorkflowRunSelection(initialFlags)
     if (selection) command.setOptionValue('run', selection)
     const flags = command.optsWithGlobals() as Record<string, unknown>
@@ -603,7 +612,7 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option(
       '--dir <dir>',
-      "This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json"
+      "This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json. Not with --async or --follow, and not for a run --wait-timeout leaves running"
     )
     .option(
       WAIT_TIMEOUT_FLAG,

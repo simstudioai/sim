@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
@@ -467,6 +467,72 @@ describe('sim workflows run --follow', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+
+  it('with --dir, maps only a block failure, reads a line only from the executor prefix, and keeps the run failure when the directory cannot be read', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sim-run-site-'))
+    try {
+      mkdirSync(join(dir, '.sim'), { recursive: true })
+      writeFileSync(join(dir, '.sim/base.json'), JSON.stringify({ workflowId: WORKFLOW_ID }))
+      writeFileSync(
+        join(dir, '.sim/lock.json'),
+        JSON.stringify({
+          version: 1,
+          blocks: {
+            normalize: {
+              id: 'b-fn',
+              parent: null,
+              ident: 'normalize',
+              order: 0,
+              codeFile: 'functions/normalize.js',
+            },
+          },
+          variables: {},
+        })
+      )
+      const failed = (error: Record<string, unknown>) =>
+        ndjsonResponse({
+          type: 'final',
+          data: { runId: 'run-1', workflowId: WORKFLOW_ID, status: 'failed', output: {}, error },
+        })
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      const stderr = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const printed = () => stderr.mock.calls.map((call) => call.join(' ')).join('\n')
+
+      requestRaw.mockResolvedValue(failed({ message: 'The run timed out', code: 'TIMEOUT' }))
+      await expect(run(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('The run timed out')
+      expect(printed()).not.toContain(dir)
+
+      stderr.mockClear()
+      writeFileSync(join(dir, 'workflow.ts'), "export default workflow('W', () => {})\n")
+      requestRaw.mockResolvedValue(
+        failed({ message: 'Error: Line 3 of the CSV is bad', blockId: 'b-fn' })
+      )
+      await expect(run(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('Line 3 of the CSV')
+      expect(printed()).toContain(
+        `${join(dir, 'functions/normalize.js')}: Error: Line 3 of the CSV is bad (block normalize)`
+      )
+
+      stderr.mockClear()
+      rmSync(join(dir, 'workflow.ts'))
+      symlinkSync(join(dir, '.sim/base.json'), join(dir, 'workflow.ts'))
+      requestRaw.mockResolvedValue(failed({ message: 'Line 2 - boom', blockId: 'b-fn' }))
+      await expect(run(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('boom')
+      expect(printed()).toContain('could not be read')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses --dir with --follow or --async before sending anything', async () => {
+    await expect(run(WORKFLOW_ID, '--dir', '.', '--follow')).rejects.toThrow(
+      '--follow and --async do not report the block that failed'
+    )
+    await expect(run(WORKFLOW_ID, '--dir', '.', '--async')).rejects.toThrow(
+      '--follow and --async do not report the block that failed'
+    )
+    expect(request).not.toHaveBeenCalled()
+    expect(requestRaw).not.toHaveBeenCalled()
   })
 
   it('explains a deployment that answers JSON instead of an event stream', async () => {

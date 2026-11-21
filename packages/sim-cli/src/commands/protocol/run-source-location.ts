@@ -3,6 +3,7 @@
  * the directory's lock binds that id to the block's key, const and function file, and a function
  * block's error names its line, which the stored code keeps one to one with the file.
  */
+import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
 import { parseWorkflowLock } from '@sim/workflow-code'
@@ -23,9 +24,13 @@ interface RunFailureSite {
   declaredAt: string | null
 }
 
-/** The line a function block's error names (`Type Error: Line 3: …`), else `null`. */
+/**
+ * The line a function block's error names, in the executor's own prefix (`Line 3: …`,
+ * `Line 3 - …`, or either after an error type such as `Type Error: `), else `null`: a `Line 3`
+ * further into the message is the user's own text, not a source line.
+ */
 function errorLine(message: string): number | null {
-  const match = /\bLine (\d+)\b/.exec(message)
+  const match = /^(?:[A-Za-z]+(?: [A-Za-z]+)?: )?Line (\d+)(?::| - )/.exec(message)
   return match ? Number(match[1]) : null
 }
 
@@ -37,16 +42,15 @@ function declarationLine(entry: string, ident: string): number | null {
 }
 
 /**
- * Where the run's failure sits in the workflow source directory `dir`: `null` when the error names
- * no block, the directory holds another workflow's source, or its lock does not bind the block.
+ * Where the failure of `blockId` sits in the workflow source directory `dir`: `null` when the
+ * directory holds another workflow's source, or its lock does not bind the block.
  */
 async function runFailureSite(
   dir: string,
   workflowId: string,
-  error: unknown
+  blockId: string,
+  message: unknown
 ): Promise<RunFailureSite | null> {
-  const { blockId, message } = toRecord(error)
-  if (typeof blockId !== 'string') return null
   if (toRecord(await readSourceJson(dir, SOURCE_BASE_FILE)).workflowId !== workflowId) return null
   const { lock } = parseWorkflowLock(await readPreviousLock(dir))
   const bound = Object.entries(lock?.blocks ?? {}).find(([, entry]) => entry.id === blockId)
@@ -69,14 +73,26 @@ async function runFailureSite(
 
 /**
  * Prints where a failed run failed in `dir` (on stderr, and as a GitHub Actions annotation in a
- * job), or that `dir` cannot say.
+ * job), or that `dir` cannot say. Prints nothing for a failure that names no block (a timeout, an
+ * input refused), and never throws: a directory it cannot read is a note, so the run's own failure
+ * and exit code stand.
  */
 export async function printRunFailureSite(
   dir: string,
   workflowId: string,
   error: unknown
 ): Promise<void> {
-  const site = await runFailureSite(dir, workflowId, error)
+  const { blockId, message } = toRecord(error)
+  if (typeof blockId !== 'string') return
+  let site: RunFailureSite | null
+  try {
+    site = await runFailureSite(dir, workflowId, blockId, message)
+  } catch (readError) {
+    printError(
+      `The failure is not mapped to a source line: ${dir} could not be read (${getErrorMessage(readError)}).`
+    )
+    return
+  }
   if (!site) {
     printError(
       `${dir} does not bind the block that failed (another workflow's source, or a block added since the get), so the failure is not mapped to a source line.`
@@ -85,7 +101,6 @@ export async function printRunFailureSite(
   }
   const where = `${site.file}${site.line === null ? '' : `:${site.line}`}`
   const declared = site.declaredAt ? `, declared at ${site.declaredAt}` : ''
-  const message = toRecord(error).message
   const text = typeof message === 'string' ? message : 'The block failed.'
   printError(`${where}: ${text} (block ${site.block}${declared})`)
   printAnnotations([
