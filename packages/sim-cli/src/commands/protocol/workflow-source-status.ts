@@ -3,7 +3,7 @@
  * source directory since it was read, on either side, without applying anything. Local changes
  * come from the file digests `.sim/written.json` records (for a `workflows/<key>` folder, the
  * workspace directory's record: `readFolderWritten`); the server's from the plan read
- * (`planWorkflowSource`: a dry run on the read budget, never the source-write one), whose
+ * (`planWorkflowSource`: a dry run on the source-plan budget, never the source-write one), whose
  * `E_APPLY_STALE` says the workflow changed since the base.
  */
 import { compareStrings } from '@sim/utils/string'

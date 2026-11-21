@@ -28,18 +28,19 @@ class SourceSlotBusyError extends Error {
 }
 
 /**
- * `useCase`, run in one of its lane's slots: a get, plan or apply (each holds a workflow's or a
- * directory's worth of text, stored state and canonical forms in memory) waits for nothing, and
- * is refused with a `429` (see {@link renderSourceSlotBusy}) when the process already runs
+ * `useCase`, run in one of its lane's slots (`laneOf`, or the lane it picks for the input): a get,
+ * plan or apply (each holds a workflow's or a directory's worth of text, stored state and
+ * canonical forms in memory) waits for nothing, and is refused with a `429` (see {@link renderSourceSlotBusy}) when the process already runs
  * {@link MAX_CONCURRENT_SOURCE_REQUESTS} of them, so a burst cannot run the process out of memory.
  */
 export function withSourceSlot<O extends ApplicationOperation, I, R>(
   useCase: AuthorizingUseCase<O, I, R>,
-  lane: SourceLane
+  laneOf: SourceLane | ((input: I) => SourceLane)
 ): AuthorizingUseCase<O, I, R> {
   return {
     ...useCase,
     async execute(args) {
+      const lane = typeof laneOf === 'function' ? laneOf(args.input) : laneOf
       if (runningSourceRequests[lane] >= MAX_CONCURRENT_SOURCE_REQUESTS[lane]) {
         throw new SourceSlotBusyError(lane)
       }
@@ -51,6 +52,14 @@ export function withSourceSlot<O extends ApplicationOperation, I, R>(
       }
     },
   }
+}
+
+/**
+ * The lane of a source apply route that also serves dry runs: a dry run writes nothing and runs
+ * what a plan runs, so it takes a plan slot and never one a real apply needs.
+ */
+export function applyOrDryRunLane(input: { dryRun?: boolean }): SourceLane {
+  return input.dryRun ? 'plan' : 'apply'
 }
 
 /** A request {@link withSourceSlot} refused, as `429` with `Retry-After`; `null` for any other error. */

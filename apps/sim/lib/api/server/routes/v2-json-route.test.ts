@@ -342,7 +342,7 @@ describe('defineV2JsonRoute', () => {
       contract,
       auth: v2ApiKeyAuth,
       operation,
-      rateLimit: v2RateLimits.sourceWrite,
+      rateLimit: v2RateLimits.sourceApply,
       errorPolicy: v2OrchestrationErrorPolicy,
       mapInput: ({ body }) => body,
       rateLimitCost: (input) => input.value.length,

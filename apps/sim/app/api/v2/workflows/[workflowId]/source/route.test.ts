@@ -466,10 +466,40 @@ describe('source write rate limit', () => {
     expect((await GET(request(), context)).status).toBe(200)
   })
 
-  it('answers 429 with Retry-After to a dry run past the applies this server runs at once', async () => {
+  it('charges a dry run, which writes nothing, to the plan bucket, and a real apply and create to the write bucket', async () => {
+    const charges = () =>
+      v2RouteMocks.operationRate.mock.calls
+        .filter(([key]) => String(key).endsWith(':api-key:key-1'))
+        .map(([key]) => String(key).split(':')[1])
+    const create = (query: string) =>
+      CREATE(
+        new NextRequest(
+          `http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/workflows/source${query}`,
+          {
+            method: 'POST',
+            headers: { 'x-api-key': 'key', 'content-type': 'application/json' },
+            body: JSON.stringify({ files: source.files }),
+          }
+        ),
+        { params: Promise.resolve({ workspaceId: WORKSPACE_ID }) }
+      )
+
+    expect((await POST(applyRequest(applyBody, '?dryRun=true'), context)).status).toBe(200)
+    expect((await create('?dryRun=true')).status).toBe(200)
+    expect(charges()).toEqual(['source.plan', 'source.plan'])
+
+    v2RouteMocks.operationRate.mockClear()
+    expect((await POST(applyRequest(applyBody), context)).status).toBe(200)
+    expect((await create('')).status).toBe(200)
+    expect(charges()).toEqual(['workflows.source.write', 'workflows.source.write'])
+  })
+
+  it('runs dry runs in plan slots, never in an apply’s: past the plans this server runs at once a dry run answers 429 and a real apply still runs', async () => {
     const finish: Array<() => void> = []
-    mocks.apply.mockImplementation(
-      () => new Promise((resolve) => finish.push(() => resolve({ ...applied, dryRun: true })))
+    mocks.apply.mockImplementation(({ input }: { input: { dryRun?: boolean } }) =>
+      input.dryRun
+        ? new Promise((resolve) => finish.push(() => resolve({ ...applied, dryRun: true })))
+        : Promise.resolve(applied)
     )
     const dryRun = () => POST(applyRequest(applyBody, '?dryRun=true'), context)
     const running = Array.from({ length: 4 }, () => dryRun())
@@ -478,6 +508,7 @@ describe('source write rate limit', () => {
     const refused = await dryRun()
     expect(refused.status).toBe(429)
     expect(refused.headers.get('Retry-After')).toBe('5')
+    expect((await POST(applyRequest(applyBody), context)).status).toBe(200)
 
     for (const done of finish) done()
     expect((await Promise.all(running)).map((response) => response.status)).toEqual([
@@ -551,11 +582,13 @@ describe('source plan budget', () => {
   })
 
   it('answers 429 to plans well inside the generic budget, and never spends the write budget', async () => {
+    mocks.apply.mockResolvedValue(applied)
     const limitedAt = await writesUntilLimited(plan)
 
     expect(limitedAt).not.toBeNull()
     expect(limitedAt).toBeLessThan(GENERIC_BUDGET)
-    expect((await POST(applyRequest(applyBody, '?dryRun=true'), context)).status).toBe(200)
+    expect((await POST(applyRequest(applyBody, '?dryRun=true'), context)).status).toBe(429)
+    expect((await POST(applyRequest(applyBody), context)).status).toBe(200)
   })
 
   it('answers 429 with Retry-After to a plan past the plans this server runs at once', async () => {
