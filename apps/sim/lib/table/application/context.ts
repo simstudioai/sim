@@ -1,7 +1,7 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { TableAuthorizationContext } from '@/lib/table/application/authorization'
 import { TABLE_NOT_FOUND_MESSAGE } from '@/lib/table/constants'
-import { TABLE_ID_PREFIX } from '@/lib/table/ids'
+import { isTableIdShaped } from '@/lib/table/ids'
 import { findActiveTablesByExactName, getTableById } from '@/lib/table/service'
 import type { TableDefinition } from '@/lib/table/types'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
@@ -33,7 +33,7 @@ export async function resolveTableWorkspaceContext(
  */
 async function requireTable(tableId: string, workspaceId: string | undefined) {
   let table = await getTableById(tableId)
-  if (!table && workspaceId !== undefined && !tableId.startsWith(TABLE_ID_PREFIX)) {
+  if (!table && workspaceId !== undefined && !isTableIdShaped(tableId)) {
     const named = await findActiveTablesByExactName(workspaceId, tableId)
     if (named.length === 1) table = named[0]
   }

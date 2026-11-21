@@ -1,16 +1,25 @@
 import { generateId } from '@sim/utils/id'
 
-/** What every table id starts with: a reference that does not is no table id. */
-export const TABLE_ID_PREFIX = 'tbl_'
+/** What every table id starts with. */
+const TABLE_ID_PREFIX = 'tbl_'
+
+/** The shape {@link generateTableId} mints: `tbl_` and 32 lowercase hex digits. */
+const TABLE_ID_SHAPE = /^tbl_[0-9a-f]{32}$/
+
+/**
+ * Whether `reference` is shaped like a table id, so it is never read as a table name: a name
+ * that merely starts with `tbl_` (`tbl_sales`) still is one.
+ */
+export function isTableIdShaped(reference: string): boolean {
+  return TABLE_ID_SHAPE.test(reference)
+}
 
 /**
  * Whether `reference`, a table route's `{tableId}`, names `table`: its id, or (when not shaped
  * like an id) its name, which is unique among a workspace's active tables.
  */
 export function referencesTable(reference: string, table: { id: string; name: string }): boolean {
-  return (
-    reference === table.id || (!reference.startsWith(TABLE_ID_PREFIX) && reference === table.name)
-  )
+  return reference === table.id || (!isTableIdShaped(reference) && reference === table.name)
 }
 
 /**

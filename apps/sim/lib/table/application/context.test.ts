@@ -96,9 +96,22 @@ describe('table application context', () => {
 
     // A stale id is never read as a name, so it costs no second query.
     await expect(
-      resolveActiveTableContext({ tableId: 'tbl_gone', assertedWorkspaceId: 'workspace-1' })
+      resolveActiveTableContext({
+        tableId: 'tbl_0123456789abcdef0123456789abcdef',
+        assertedWorkspaceId: 'workspace-1',
+      })
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(findByName).not.toHaveBeenCalled()
+
+    // A name that only starts like an id is still a name.
+    findByName.mockResolvedValueOnce([
+      { id: 'table-2', workspaceId: 'workspace-1', name: 'tbl_sales' },
+    ])
+    await expect(
+      resolveActiveTableContext({ tableId: 'tbl_sales', assertedWorkspaceId: 'workspace-1' })
+    ).resolves.toMatchObject({ tableId: 'table-2' })
+    expect(findByName).toHaveBeenLastCalledWith('workspace-1', 'tbl_sales')
+    findByName.mockClear()
 
     // A name never reaches past the asserted workspace, even if the lookup returned a foreign row.
     findByName.mockResolvedValueOnce([{ id: 'table-1', workspaceId: 'workspace-1', name: 'leads' }])
