@@ -1,0 +1,173 @@
+---
+slug: internal-ai-agent-registry-enterprise-guide
+title: 'How Do Enterprises Build an Internal AI Agent Registry?'
+description: 'Learn how to build an internal AI agent registry with ownership, approval, version, access, cost, review, and retirement controls.'
+seoTitle: 'Internal AI Agent Registry: Enterprise Guide'
+date: 2026-11-21
+updated: 2026-11-21
+authors:
+  - andrew
+readingTime: 8
+tags: [AI Agents, Enterprise, Governance, Sim]
+ogImage: /library/internal-ai-agent-registry-enterprise-guide/cover.jpg
+draft: false
+faq:
+  - q: "What Is the Difference Between an Internal AI Agent Registry and an AI Agent Marketplace?"
+    a: "An internal AI agent registry is a private system of record for ownership, approval, access, versions, and operations, while an AI agent marketplace is primarily a discovery and distribution channel for reusable agents or templates. A registry may link to approved internal templates, but it should also include restricted, pending, suspended, and retired agents that do not belong in a marketplace."
+  - q: "Is an AI Agent Registry the Same as a Model Registry?"
+    a: "An AI agent registry is not the same as a model registry because it catalogs complete agents, including prompts, tools, permissions, data access, versions, owners, and approvals, while a model registry focuses on model artifacts and their lifecycle. An agent record can reference a model-registry entry when the agent uses a governed custom model."
+  - q: "What Is the Minimum Viable AI Agent Registry?"
+    a: "A minimum viable AI agent registry records a stable ID, owner, purpose, lifecycle status, current version, environment, connected tools, data access, permissions, approval decision, and last review date. Those fields establish accountability before an enterprise automates synchronization, usage reporting, cost allocation, or retirement checks."
+  - q: "Who Should Own the Internal AI Agent Registry?"
+    a: "The internal AI agent registry should have one accountable platform or governance owner, while each registered agent should have a separate operational owner and business owner. Central ownership keeps standards consistent, and distributed agent ownership keeps responsibility close to the team that understands the use case."
+  - q: "Should an AI Agent Registry Store API Keys and Credentials?"
+    a: "An AI agent registry should never store raw API keys, tokens, passwords, or private certificates. The registry should store a credential reference, credential owner, scope, rotation status, and secret-manager or platform location so reviewers can verify access without exposing the secret."
+  - q: "How Often Should AI Agents Be Reviewed?"
+    a: "An AI agent registry should assign review frequency according to risk, change rate, data sensitivity, and action scope. High-risk agents need more frequent review, while every agent should also be reassessed after material changes, security incidents, ownership changes, or long periods of inactivity."
+  - q: "Can an AI Agent Registry Support Approvals, Logging, and Rollback?"
+    a: "An AI agent registry can support approvals, logging, and rollback by recording the approved version, approver, decision evidence, links to relevant logs, and the previous deployable version. The registry coordinates those controls, while the execution, audit, and versioning systems perform the underlying logging, deployment, and restoration work."
+  - q: "How Does an AI Agent Registry Work With Access Controls?"
+    a: "An AI agent registry works with access controls by recording who may discover, use, edit, approve, deploy, or administer each agent and linking those permissions to authoritative identity and platform systems. The catalog should expose enough access information for review without becoming a second identity provider."
+  - q: "How Does an AI Agent Registry Differ From AI Agent Observability?"
+    a: "An AI agent registry identifies what an agent is, who owns it, whether it is approved, and where its evidence lives, while AI agent observability measures what the agent did during operation. The registry should link to traces, metrics, evaluations, incidents, and logs rather than duplicating their full contents."
+  - q: "How Should a Registry Handle Agents Built in Sim, n8n, and Other Platforms?"
+    a: "An enterprise AI agent registry should assign vendor-neutral IDs and normalize ownership, status, risk, approval, version, and access fields across Sim, n8n, and other platforms. Platform-specific links and metadata can remain attached to each record without fragmenting the enterprise inventory."
+  - q: "Should Unapproved AI Agents Appear in the Registry?"
+    a: "An internal AI agent registry should include discovered but unapproved agents with a clear pending, rejected, restricted, or suspended status. Excluding them creates a false picture of the environment and makes shadow-agent risk harder to address."
+  - q: "How Can an AI Agent Catalog Encourage Safe Reuse?"
+    a: "An internal AI agent catalog can encourage safe reuse by making approved agents searchable by purpose, owner, department, data class, connected tool, and supported audience. Each result should show approval status, reuse conditions, and an accountable contact so employees can adopt an existing agent instead of creating an unmanaged duplicate."
+---
+
+## TL;DR
+
+An internal AI agent registry is a private, searchable catalog of every known enterprise agent, including its owner, purpose, version, permissions, connected tools, approval status, usage, cost, and review history. Enterprises build one by defining mandatory metadata, routing agents through intake and approval, linking records to deployed versions and logs, and retiring agents through a controlled process.
+
+The registry should cover approved, pending, rejected, experimental, and retired agents. That wider inventory helps IT identify unapproved agents instead of treating the catalog as a directory of approved deployments only.
+
+## What Should an Internal AI Agent Registry Track?
+
+An internal AI agent registry should track enough operational and governance data for employees to find reusable agents and for IT to determine whether each deployment is safe, current, accountable, and approved.
+
+| Registry field | What to record | Why it matters |
+|---|---|---|
+| Agent name and ID | A unique name and stable identifier | Prevents similarly named agents from being confused |
+| Owner | Accountable person, team, and escalation contact | Gives every agent a responsible operator |
+| Purpose | Intended task, users, and prohibited uses | Helps employees find the right agent and avoid misuse |
+| Lifecycle status | Experimental, pending review, approved, restricted, rejected, or retired | Separates prototypes from production-approved agents |
+| Version | Current deployed version and previous approved version | Connects the catalog to change history and rollback decisions |
+| Environment | Development, staging, or production | Prevents test deployments from being mistaken for production services |
+| Connected tools | APIs, applications, databases, and servers that connect agents to external tools and data (MCP servers) | Exposes the systems an agent can affect |
+| Credential reference | Credential group, credential owner, or secret-manager reference, never the secret itself | Makes credential ownership reviewable without copying sensitive values into the registry |
+| Data access | Data sources, classifications, residency constraints, and read/write scope | Supports privacy, security, and compliance review |
+| Permissions | User roles, team access, execution rights, and administrative rights | Shows who can view, edit, deploy, or run the agent |
+| Approval status | Approver, decision, date, conditions, and evidence | Creates an auditable release decision |
+| Usage | Run volume, active users, last-used date, and failure rate | Identifies high-value, inactive, or unreliable agents |
+| Cost | Model, infrastructure, and connected-service costs | Supports allocation, budgeting, and anomaly review |
+| Logs | Links to execution, audit, incident, and evaluation records | Lets reviewers investigate behavior without duplicating logs in the catalog |
+| Risk tier | Low, medium, or high based on data sensitivity and action scope | Determines the depth and frequency of review |
+| Last review date | Most recent owner and control review | Makes stale approvals visible |
+| Next review date | Scheduled recertification deadline | Prevents indefinite approval |
+| Retirement plan | Disablement date, replacement, archive location, and credential-revocation status | Ensures retired agents cannot continue acting unnoticed |
+
+The registry should store references to credentials and logs rather than secret values or complete log payloads. The catalog is the system of record for ownership and status; credential managers, observability systems, and execution platforms remain the systems of record for their underlying data.
+
+## How Should Enterprises Run Intake, Approval, and Retirement for AI Agents?
+
+An enterprise AI agent registry should enforce one lifecycle for requesting, reviewing, approving, changing, and retiring agents, with review depth based on the agent’s risk rather than its visibility or popularity.
+
+### How Should New AI Agents Enter the Registry?
+
+The internal AI agent registry should create a provisional record before an agent receives production credentials or access to sensitive data.
+
+A practical intake process is:
+
+1. Assign the agent a stable ID, owner, purpose, and risk tier.
+2. Record its model, tools, data sources, permissions, and intended users.
+3. Link the exact version submitted for review.
+4. Run security, privacy, reliability, and business-owner checks appropriate to its risk.
+5. Record the approval decision and any operating conditions.
+6. Allow production deployment only after required approvals are complete.
+
+Low-risk agents that summarize public information may use a lighter review. Agents that write to production systems, access regulated data, contact customers, or approve transactions should require stronger technical and business controls.
+
+### Who Should Approve an AI Agent Before Production Use?
+
+The internal AI agent registry should route approval to the agent owner, business owner, security team, and any privacy or compliance reviewer required by the agent’s data and actions.
+
+Approval should attach to a specific version and environment, not merely to an agent name. A material change to tools, prompts, models, permissions, data sources, or autonomous actions should trigger reassessment under a documented change policy.
+
+The registry can use approval states such as draft, pending technical review, pending business approval, approved with conditions, approved, rejected, suspended, and retired. Each state should identify who can move the record forward.
+
+### How Should Enterprises Retire an AI Agent?
+
+The internal AI agent registry should retire an agent by disabling its triggers, revoking its credentials, removing user access, preserving required records, and marking any replacement.
+
+Retirement should also address schedules, webhooks, API clients, service accounts, shared links, and downstream systems that may continue invoking the agent. The final record should retain the owner, last approved version, retirement reason, replacement, and evidence that access was removed.
+
+## Should an Enterprise Build or Buy an Internal AI Agent Registry?
+
+An enterprise should choose between a spreadsheet, internal portal, or platform-native catalog based on agent count, platform diversity, approval complexity, and the need for automated evidence.
+
+| Approach | Fit | Main advantage | Main limitation |
+|---|---|---|---|
+| Governed spreadsheet | Early inventory with few agents and one operating team | Fastest way to establish required fields and ownership | Manual updates become stale and access controls are coarse |
+| Internal portal or service catalog | Large organizations using several agent platforms | Vendor-neutral inventory with custom workflows and integrations | Requires engineering and ongoing maintenance |
+| Platform-native workspace or catalog | Teams building and operating most agents in one platform | Keeps records closer to permissions, deployed artifacts, and operational evidence | May not cover agents built elsewhere without an external index |
+| Hybrid registry | Enterprises with a strategic platform plus legacy or specialist tools | Combines a central inventory with platform-level evidence | Requires stable IDs and synchronization rules |
+
+### When Is a Spreadsheet Enough for an AI Agent Registry?
+
+A governed spreadsheet is enough for an initial AI agent registry when the organization has a small number of agents, named owners, simple approvals, and a team responsible for regular reconciliation.
+
+Use required fields, controlled status values, change history, and restricted editing. Set a deadline for moving beyond the spreadsheet when manual reconciliation, duplicate records, missing owners, or delayed retirements become common.
+
+### When Does an Enterprise Need an Internal Agent Registry Portal?
+
+An enterprise needs an internal agent registry portal when agents span multiple business units or platforms and IT needs automated intake, role-based views, approval routing, search, and integrations with identity, ticketing, deployment, and observability systems.
+
+The portal should not become a second execution platform. It should aggregate authoritative metadata and link to the systems that hold workflow definitions, credentials, logs, evaluations, incidents, and deployment history.
+
+### When Can an AI Agent Platform Serve as the Registry?
+
+An AI agent platform can serve as the operational registry when most agents are built and managed in one shared workspace and the organization can associate each agent with owners, permissions, approved versions, reusable templates, and operational evidence.
+
+The enterprise inventory should still include agents running elsewhere. For example, if teams operate [workflows or agents in n8n](https://docs.n8n.io/build/), those assets should appear in the same enterprise-wide registry even when another platform is the primary workspace. A vendor-neutral ID prevents the catalog from fragmenting by tool.
+
+## How Can Sim Support an Internal AI Agent Registry?
+
+Sim fits teams that need a shared workspace to build, deploy, and manage AI agents while a catalog record captures governance metadata and links to the relevant Sim assets.
+
+Sim is the open-source AI workspace. Teams can use the workflow builder to create agents, designate approved workflows as reusable internal starting points, and associate registry records with the deployed version and operating owner.
+
+[Sim Enterprise](https://docs.sim.ai/platform/enterprise) includes controls such as permission groups, access requests, audit logs, credential groups, workspace forking, session policies, data retention, and data drains. These capabilities are part of separately licensed enterprise code, and production use requires an active subscription under the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). They can provide evidence for catalog fields such as who has access, how credentials are grouped, and what administrative changes occurred.
+
+The registry should distinguish platform evidence from registry metadata. Sim can hold the workflow and supporting operational evidence, while the registry holds fields such as business purpose, risk tier, approval decision, next review date, and retirement status. An enterprise can implement that catalog as an internal service portal or other governed index and link each entry to its Sim asset.
+
+Approvals should also remain explicit. A human approval step inside an agent run is not the same as approving the agent for production. In Sim, the [Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) pauses a run and resumes with form fields; an approve-or-reject field requires a downstream Condition to route the result. Production approval belongs in the registry’s release process.
+
+For deeper versioning guidance, see [AI Agent Version Control and Rollback: Platforms, Process, and Enterprise Checklist](https://www.sim.ai/library/ai-agent-version-control-rollback-platforms). For identity and credential controls, see [AI Agent Identity, Credential Management, and Audit Trails: Enterprise Guide](https://www.sim.ai/library/ai-agent-identity-credentials-audit-trails-enterprise-guide).
+
+## How Do Enterprises Roll Out an AI Agent Registry Without Slowing Teams Down?
+
+An enterprise should roll out an AI agent registry in phases, beginning with discovery and ownership before adding risk-based approvals, automated synchronization, and enforcement.
+
+A practical rollout is:
+
+1. Inventory production agents and identify their owners.
+2. Define mandatory metadata and lifecycle states.
+3. Import existing agents from Sim, [n8n](https://docs.n8n.io/build/manage-workflows), and other execution environments.
+4. Review high-risk agents first.
+5. Connect intake to the normal deployment or service-management process.
+6. Add automated updates for versions, usage, cost, and review dates.
+7. Block production credentials or deployment when required approval is missing.
+8. Measure coverage, stale records, approval time, reuse, incidents, and successful retirements.
+
+The registry should make safe reuse easier than rebuilding. Search results should show an agent’s purpose, owner, approval status, audience, and reuse instructions before exposing implementation detail. This turns governance into a discovery service rather than another disconnected compliance form.
+
+## Where Can Enterprises Learn More About Agent Reuse and Governance?
+
+Sim’s related enterprise guides separate private registry design from version control, operational evidence, and broader workspace governance.
+
+- [Governing AI Agents Built by Different Teams in One Enterprise Workspace](https://www.sim.ai/library/govern-ai-agents-multiple-teams-enterprise-workspace) covers cross-team governance.
+- [What Is AI Agent Observability? Traces, Metrics, and Evals Explained](https://www.sim.ai/library/ai-agent-observability) explains the operational evidence that registry entries should reference.
+- [How Do You Control AI Agent Spend Across Teams?](https://www.sim.ai/library/control-ai-agent-spend-across-teams) covers shared cost controls.
