@@ -19,10 +19,10 @@ import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   CopilotChatFinalizeOutcome,
   CopilotStopOutcome,
-} from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+} from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('CopilotChatStopAPI')
 
@@ -31,7 +31,7 @@ const logger = createLogger('CopilotChatStopAPI')
  * the aborted server stream unwinding, not this handler.
  */
 export const POST = withRouteHandler((req: NextRequest) =>
-  withIncomingGoSpan(req.headers, TraceSpan.CopilotChatStopStream, undefined, async (span) => {
+  withIncomingWorkerSpan(req.headers, TraceSpan.CopilotChatStopStream, undefined, async (span) => {
     try {
       const session = await getSession()
       if (!session?.user?.id) {

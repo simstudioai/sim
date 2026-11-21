@@ -6,9 +6,9 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { abortRun, runControlOperations } from '@/lib/mothership/request/application/controls'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 
 const handler = defineInternalJsonRoute({
   contract: mothershipChatAbortContract,
@@ -24,6 +24,6 @@ const handler = defineInternalJsonRoute({
 })
 
 export const POST = (request: NextRequest, context?: Parameters<typeof handler>[1]) =>
-  withIncomingGoSpan(request.headers, TraceSpan.CopilotChatAbortStream, undefined, () =>
+  withIncomingWorkerSpan(request.headers, TraceSpan.CopilotChatAbortStream, undefined, () =>
     handler(request, context)
   )

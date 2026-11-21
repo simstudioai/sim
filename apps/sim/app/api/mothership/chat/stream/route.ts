@@ -25,11 +25,10 @@ import {
 import {
   CopilotResumeOutcome,
   CopilotTransport,
-} from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+} from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
-import { contextFromRequestHeaders } from '@/lib/mothership/request/go/propagation'
 import { getCopilotTracer, markSpanForError } from '@/lib/mothership/request/otel'
 import {
   createEvent,
@@ -48,6 +47,7 @@ import {
   SSE_RESPONSE_HEADERS,
 } from '@/lib/mothership/request/session'
 import { toReplayEnvelope, toStreamBatchEvent } from '@/lib/mothership/request/session/types'
+import { contextFromRequestHeaders } from '@/lib/mothership/request/worker/propagation'
 
 export const maxDuration = 3600
 
