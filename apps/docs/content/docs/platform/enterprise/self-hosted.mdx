@@ -259,8 +259,6 @@ Each feature is one server variable. Permission groups also turn on organization
 
 A Sandbox entitlement also requires a remote execution provider with credentials and an immutable Function base image. Until the server verifies readiness, the Function block offers no **Shell** language, and **Settings → Sandboxes** shows an upgrade notice instead of a sandbox list.
 
-The Function block's **Sandbox** selector appears once the server confirms both the entitlement and a ready provider. There is no browser variable to set.
-
 JavaScript without `import`, `require`, a selected sandbox, or a sandbox file-path reference runs in local Node child workers in the app container when Sandbox flags are off. Python, Shell, JavaScript with external imports, and selected custom Sandboxes require the remote Function base and fail with a configuration error until it is ready. See [Sandboxes](/platform/self-hosting/sandboxes).
 
 ## Verify the setup

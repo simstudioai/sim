@@ -1,18 +1,18 @@
 import { Body, Container, Font, Head, Html, Img, Preview, Section } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailFooter } from '@/components/emails/components/email-footer'
-import { EMAIL_WORDMARK_SIZE } from '@/lib/branding/wordmark'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 /**
- * Sim's own wordmark: a committed raster export of the brand outlines in
- * `@/lib/branding/wordmark`, since email clients strip inline SVG. Both
- * dimensions are pinned because they do no responsive image selection either.
+ * Display box for `public/brand/color/email/wordmark.png`, a raster export of the
+ * brand outlines since email clients strip inline SVG. Both dimensions are pinned
+ * because email clients do no responsive image selection.
+ *
+ * The PNG's 272x164 canvas is frozen: sent mail refetches that URL forever with
+ * the size it was sent with, so re-export onto the same canvas. This box is safe
+ * to retune on its own; the canvas is 6x it, so the mark stays crisp.
  */
-const WORDMARK_SIZE = {
-  width: String(EMAIL_WORDMARK_SIZE.width),
-  height: String(EMAIL_WORDMARK_SIZE.height),
-} as const
+const WORDMARK_SIZE = { width: '43', height: '26' } as const
 
 interface EmailLayoutProps {
   /** Preview text shown in email client list view */

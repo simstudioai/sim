@@ -4,5 +4,5 @@ interface AuthLegalFooterProps {
   action: string
 }
 export function AuthLegalFooter({ action }: AuthLegalFooterProps) {
-  return <AuthLegal action={action} termsHref='/terms' privacyHref='/privacy' />
+  return <AuthLegal action={action} />
 }

@@ -18,7 +18,7 @@ services:
   simstudio:
     environment:
       # Required in .env rather than hardcoded here, so a run of the base file
-      # alone (the sim CLI's `update`) still points the app at Ollama. Both
+      # alone (`sim-setup update`) still points the app at Ollama. Both
       # Ollama services answer to the network name `ollama`.
       - 'OLLAMA_URL=${OLLAMA_URL:?set OLLAMA_URL=http://ollama:11434 in .env}'
 

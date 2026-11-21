@@ -5,7 +5,6 @@ import {
 } from '@sim/db/testing/test-infrastructure'
 
 const redisUrl = readTestRedisUrl()
-if (!redisUrl) throw new Error('Realtime integration tests require disposable TEST_REDIS_URL')
 
 clearInheritedDatabaseUrls()
 Object.assign(process.env, {

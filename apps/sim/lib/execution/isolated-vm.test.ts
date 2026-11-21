@@ -241,7 +241,6 @@ async function loadExecutionModule(options: {
     IVM_MAX_FETCH_RESPONSE_CHARS: '',
     IVM_MAX_FETCH_URL_LENGTH: '',
     IVM_MAX_FETCH_OPTIONS_JSON_CHARS: '',
-    REDIS_URL: '',
     IVM_REMOTE_WORKER_URL: '',
     IVM_REMOTE_WORKER_TOKEN: '',
     ...(options.envOverrides ?? {}),
@@ -650,11 +649,10 @@ describe('isolated-vm scheduler', () => {
     await holderPromise
   })
 
-  it('enforces distributed owner in-flight lease limit when Redis is configured', async () => {
+  it('enforces distributed owner in-flight lease limit', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
         IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '1',
-        REDIS_URL: 'redis://localhost:6379',
       },
       spawns: [() => createReadyProc('ok')],
       redisEvalImpl: (...args: unknown[]) => {
@@ -682,9 +680,6 @@ describe('isolated-vm scheduler', () => {
 
   it('falls back to local limits when the lease evaluation errors', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
-      envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
-      },
       spawns: [() => createReadyProc('ok')],
       redisEvalImpl: (...args: unknown[]) => {
         const script = String(args[0] ?? '')
@@ -712,7 +707,6 @@ describe('isolated-vm scheduler', () => {
   it('falls back to local limits when the lease round trip exceeds its deadline', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
         IVM_LEASE_REDIS_DEADLINE_MS: '5',
       },
       spawns: [() => createReadyProc('ok')],
@@ -748,7 +742,6 @@ describe('isolated-vm scheduler', () => {
     })
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
         IVM_LEASE_REDIS_DEADLINE_MS: '5',
       },
       spawns: [() => createReadyProc('ok')],
@@ -782,7 +775,6 @@ describe('isolated-vm scheduler', () => {
       envOverrides: {
         IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '1',
         IVM_LEASE_REDIS_DEADLINE_MS: '-1',
-        REDIS_URL: 'redis://localhost:6379',
       },
       spawns: [() => createReadyProc('ok')],
       redisEvalImpl: async (...args: unknown[]) => {
@@ -818,7 +810,6 @@ describe('isolated-vm scheduler', () => {
     })
     const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
       envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
         IVM_LEASE_REDIS_DEADLINE_MS: '5',
       },
       spawns: [() => createReadyProc('unused')],
@@ -870,9 +861,6 @@ describe('isolated-vm scheduler', () => {
       markLeaseRequested = resolve
     })
     const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
-      envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
-      },
       spawns: [() => createReadyProc('unused')],
       redisEvalImpl: (...args: unknown[]) => {
         const script = String(args[0] ?? '')

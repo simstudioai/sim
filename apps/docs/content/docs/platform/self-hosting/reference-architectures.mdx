@@ -95,7 +95,7 @@ Use `helm/sim/examples/values-gcp.yaml` as a starting point. It configures Persi
 | ManagedCertificate | Created before the first deploy — nothing in the chart creates it. The example values reference `simstudio-ssl-cert`; match whatever name your ingress annotation uses |
 | Cloud SQL for PostgreSQL | With `pgvector` |
 | GCS buckets | One per file purpose. Every purpose-specific bucket falls back to the general one |
-| Memorystore | Optional |
+| Memorystore | Recommended for production; Sim requires Redis, and the bundled one is a supported alternative |
 
 <Callout type="warn">
   When using only a ManagedCertificate, keep `ingress.tls.enabled: false` so the chart does not reference a missing Secret. GCE Ingress also supports provisioned TLS Secrets and can retain self-managed certificates while a managed certificate becomes active. If you enable chart TLS, create the referenced Secret. See [Google's certificate setup and migration guide](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/secure-traffic-management).

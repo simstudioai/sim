@@ -32,8 +32,8 @@ async function fetchDesktopActivity(
  * since its first registration can land after the page rendered; a browser tab open across that
  * first registration shows activity once reloaded.
  */
-export function watchesDesktopActivity(desktopExecutor: { registered: boolean }): boolean {
-  return desktopExecutor.registered || isDesktopApp()
+export function watchesDesktopActivity(desktopExecutorRegistered: boolean): boolean {
+  return desktopExecutorRegistered || isDesktopApp()
 }
 
 /**

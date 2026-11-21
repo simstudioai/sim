@@ -18606,7 +18606,7 @@
           },
           "redisAvailable": {
             "type": "boolean",
-            "description": "Whether the distributed cancellation channel was available."
+            "description": "Kept for compatibility. False only when a cancellation that must publish its cancellation event did not."
           },
           "durablyRecorded": {
             "type": "boolean",

@@ -40,7 +40,6 @@ const OCR_CHECKPOINT_EXPIRY = 'knowledge.document.ocr-checkpoint.expire'
 const EMBEDDING_CHECKPOINT_EXPIRY = 'knowledge.document.embedding-checkpoint.expire'
 const DEPLOYMENT_EFFECT = 'workflow.deployment.sync-active-side-effects'
 const redisUrl = readTestRedisUrl()
-if (!redisUrl) throw new Error('TEST_REDIS_URL is required')
 
 describe('completed outbox retention in PostgreSQL', () => {
   const schemaName = `outbox_retention_${generateId().replaceAll('-', '')}`

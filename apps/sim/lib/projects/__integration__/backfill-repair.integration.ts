@@ -22,7 +22,6 @@ let directory: string
 let manifest: string
 let report: string
 const redisUrl = readTestRedisUrl()
-const describeWithRedis = describe.runIf(Boolean(redisUrl))
 let cache: Redis
 let subscriber: Redis
 const mcpServerId = generateId()
@@ -64,9 +63,8 @@ const run = (command: string, artifacts = { manifest, report }) =>
     }
   )
 
-describeWithRedis('Operator archive repair against the full compatible schema', () => {
+describe('Operator archive repair against the full compatible schema', () => {
   beforeAll(async () => {
-    if (!redisUrl) throw new Error('Archive repair integration requires TEST_REDIS_URL')
     directory = await mkdtemp(join(tmpdir(), 'project-repair-test-'))
     manifest = join(directory, 'manifest.json')
     report = join(directory, 'report.json')

@@ -347,14 +347,6 @@ app:
     # Vertex AI defaults
     VERTEX_LOCATION: "us-central1"
 
-    # Feature flags — left EMPTY, not "false", on purpose.
-    # A per-feature flag set to "false" is an explicit override that wins over
-    # ENTERPRISE_ENABLED, so hardcoding "false" here would silently prevent the
-    # master switch from ever enabling these. Empty means "unset", which lets
-    # ENTERPRISE_ENABLED decide. Set "true"/"false" in app.env to override.
-    ACCESS_CONTROL_ENABLED: ""
-    ORGANIZATIONS_ENABLED: ""
-
     # Admission Gate
     ADMISSION_GATE_MAX_INFLIGHT: "500"                    # Max concurrent in-flight execution requests per pod
 

@@ -61,20 +61,17 @@ type ReadEnv = (name: string) => EnvValue
 type RegistrationModeWarning =
   | {
       code: 'invalid-mode'
-      severity: 'error'
       message: string
       /** `value` is the configured text, trimmed but in the operator's own case. */
       details: { value: string; allowed: readonly RegistrationMode[] }
     }
   | {
       code: 'deprecated-variables'
-      severity: 'warn'
       message: string
       details: { variables: readonly string[]; equivalentMode: RegistrationMode }
     }
   | {
       code: 'conflict'
-      severity: 'warn'
       message: string
       details: {
         configured: RegistrationMode
@@ -178,7 +175,6 @@ export function resolveRegistrationMode(read: ReadEnv): RegistrationModeResoluti
       configured = 'closed'
       warnings.push({
         code: 'invalid-mode',
-        severity: 'error',
         message:
           'REGISTRATION_MODE is not a recognized value, so self-serve registration is closed until it is corrected. Existing accounts can still sign in.',
         details: { value: rawMode, allowed: REGISTRATION_MODES },
@@ -205,7 +201,6 @@ export function resolveRegistrationMode(read: ReadEnv): RegistrationModeResoluti
   if (setLegacy.length > 0) {
     warnings.push({
       code: 'deprecated-variables',
-      severity: 'warn',
       message:
         'Deprecated registration variables are set. Replace them with REGISTRATION_MODE; they still apply until removed.',
       details: { variables: setLegacy, equivalentMode: legacyMode },
@@ -218,7 +213,6 @@ export function resolveRegistrationMode(read: ReadEnv): RegistrationModeResoluti
   if (resolved !== configured) {
     warnings.push({
       code: 'conflict',
-      severity: 'warn',
       message:
         'Deprecated registration variables are more restrictive than REGISTRATION_MODE, so the most restrictive combination applies.',
       details: { configured, legacy: legacyMode, resolved },

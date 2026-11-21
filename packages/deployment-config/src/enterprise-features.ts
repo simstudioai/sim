@@ -176,7 +176,8 @@ export const ENTERPRISE_FEATURES = defineEnterpriseFeatures({
   /**
    * The deployment *entitlement* to custom Function sandboxes. A remote provider
    * and immutable Function base are separate operational prerequisites (see
-   * {@link resolveSandboxFeatureAvailability}), so the feature stays opt-in.
+   * `isSandboxesEnabled` in `apps/sim/lib/core/config/env-flags.ts`), so the
+   * feature stays opt-in.
    */
   sandboxes: {
     envVar: 'SANDBOXES_ENABLED',
@@ -254,26 +255,4 @@ export function resolveEnterpriseFeatures({
     }
   }
   return state
-}
-
-interface ResolveSandboxFeatureAvailabilityInput {
-  /** Whether hosted subscription enforcement supplies the deployment entitlement. */
-  billingEnabled: boolean
-  /** The resolved `sandboxes` entitlement. */
-  deploymentEntitled: boolean
-  /** Server-verified remote Function provider readiness. */
-  remoteProviderEnabled: boolean
-}
-
-/**
- * Combines Sandbox entitlement with runtime capability. Neither may substitute
- * for the other: a plan cannot create a provider, and provider credentials
- * cannot grant a workspace feature by themselves.
- */
-export function resolveSandboxFeatureAvailability({
-  billingEnabled,
-  deploymentEntitled,
-  remoteProviderEnabled,
-}: ResolveSandboxFeatureAvailabilityInput): boolean {
-  return remoteProviderEnabled && (billingEnabled || deploymentEntitled)
 }

@@ -51,7 +51,7 @@ export interface UserSession {
  * A socket may occupy multiple rooms, at most one per {@link RoomType}. The
  * shared session key is dropped only when a socket leaves its last room.
  *
- * All state-accessing methods are async to support the Redis implementation.
+ * All state-accessing methods are async: room state lives in Redis.
  */
 export interface IRoomManager {
   readonly io: Server

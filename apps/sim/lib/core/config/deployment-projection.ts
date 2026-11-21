@@ -26,55 +26,43 @@ import {
   type EnterpriseFeatureState,
 } from '@sim/deployment-config/enterprise-features'
 import { isRegistrationMode, type RegistrationMode } from '@sim/deployment-config/registration'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 
 /** The `<html>` attribute holding the server-resolved deployment shape as JSON. */
 export const DEPLOYMENT_SHAPE_ATTRIBUTE = 'data-deployment-shape'
 
-let cachedAttribute: string | null = null
-let cachedProjection: Record<string, unknown> | null = null
-
 /**
  * The projected deployment shape as untrusted JSON, or `null` on the server and
  * on a document without the attribute. Callers validate the fields they read.
- *
- * Memoized against the raw attribute rather than a has-run flag, so it can
- * never serve a value the document no longer carries.
  */
 export function readDeploymentProjection(): Record<string, unknown> | null {
   if (typeof document === 'undefined') return null
 
   const serialized = document.documentElement?.getAttribute(DEPLOYMENT_SHAPE_ATTRIBUTE)
   if (!serialized) return null
-  if (serialized === cachedAttribute) return cachedProjection
 
-  cachedAttribute = serialized
-  cachedProjection = null
   try {
-    const parsed: unknown = JSON.parse(serialized)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      cachedProjection = parsed as Record<string, unknown>
-    }
+    return toRecordOrNull(JSON.parse(serialized))
   } catch {
     /* A malformed attribute must not take the page down; readers fall back. */
+    return null
   }
-  return cachedProjection
 }
 
 /**
  * The projected enterprise feature state, with any feature the projection does
- * not carry as a boolean taken from `fallback`. `null` when there is no
- * projection at all.
+ * not carry as a boolean taken from `fallback`. `fallback` itself when there is
+ * no projection at all.
  */
 export function readProjectedEnterpriseFeatures(
   fallback: EnterpriseFeatureState
-): EnterpriseFeatureState | null {
+): EnterpriseFeatureState {
   const features = readDeploymentProjection()?.features
-  if (!features || typeof features !== 'object' || Array.isArray(features)) return null
+  if (!isRecordLike(features)) return fallback
 
-  const projected = features as Partial<Record<EnterpriseFeature, unknown>>
   const state = {} as Record<EnterpriseFeature, boolean>
   for (const key of ENTERPRISE_FEATURE_KEYS) {
-    const value = projected[key]
+    const value = features[key]
     state[key] = typeof value === 'boolean' ? value : fallback[key]
   }
   return state

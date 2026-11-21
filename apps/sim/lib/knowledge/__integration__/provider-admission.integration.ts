@@ -16,7 +16,6 @@ describe('Redis provider admission', () => {
     let now: Date
 
     beforeAll(async () => {
-      if (!redisUrl) throw new Error('TEST_REDIS_URL is required')
       redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
       await redis.connect()
       first = new RedisTokenBucket(redis)

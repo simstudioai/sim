@@ -37,7 +37,7 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
  * Context for sharing nested navigation state between components.
- * This enables unlimited nesting depth with a single back button.
+ * This enables unlimited nesting depth.
  */
 interface NestedNavigationContextValue {
   /** Stack of nested tags representing current navigation depth */
@@ -382,20 +382,11 @@ interface NestedTagRendererProps {
 }
 
 /**
- * Props for FolderContents with nested navigation state
- */
-interface FolderContentsProps extends NestedTagRendererProps {
-  /** Current nested path stack for navigation within this folder */
-  nestedPath: NestedTag[]
-  /** Callback to navigate into a subfolder */
-  onNavigateIn: (nestedTag: NestedTag) => void
-}
-
-/**
- * Renders the contents of a folder (leaf children + nested subfolder triggers).
+ * Renders the contents of a folder (leaf children + nested subfolder triggers),
+ * at the depth the shared nested navigation state points to.
  * The parent tag is rendered as the first item in the list for selection.
  */
-const FolderContentsInner: React.FC<FolderContentsProps> = ({
+const FolderContents: React.FC<NestedTagRendererProps> = ({
   group,
   flatTagIndexMap,
   selectedIndex,
@@ -404,11 +395,11 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
   itemRefs,
   blocks,
   getMergedSubBlocks,
-  nestedPath,
   nestedTag,
-  onNavigateIn,
 }) => {
   const { isKeyboardNav, setKeyboardNav } = usePopoverContext()
+  const nestedNav = useNestedNavigation()
+  const nestedPath = nestedNav?.nestedPath ?? []
   const currentNestedTag = nestedPath.length > 0 ? nestedPath[nestedPath.length - 1] : nestedTag
 
   const parentTagIndex = currentNestedTag.parentTag
@@ -505,7 +496,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             onMouseDown={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              onNavigateIn(nestedChild)
+              nestedNav?.navigateIn(nestedChild)
             }}
             ref={(el) => {
               if (el && nestedChild.parentTag) {
@@ -520,22 +511,6 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
       })}
     </>
   )
-}
-
-/**
- * Wrapper component that uses shared nested navigation state from context.
- * Supplies the current nested path and the navigate-in callback.
- */
-const FolderContents: React.FC<Omit<NestedTagRendererProps, never>> = (props) => {
-  const nestedNav = useNestedNavigation()
-
-  const nestedPath = nestedNav?.nestedPath ?? []
-
-  const handleNavigateIn = (nestedTag: NestedTag) => {
-    nestedNav?.navigateIn(nestedTag)
-  }
-
-  return <FolderContentsInner {...props} nestedPath={nestedPath} onNavigateIn={handleNavigateIn} />
 }
 
 /**

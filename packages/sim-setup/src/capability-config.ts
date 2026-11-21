@@ -36,8 +36,6 @@ export type SetupCondition =
   | { kind: 'any'; conditions: readonly SetupCondition[] }
   | { kind: 'not'; condition: SetupCondition }
 
-export type SetupPromptCondition = SetupCondition | { kind: 'provider-missing-field'; key: string }
-
 export interface SetupFieldPrompt {
   type: 'field'
   key: string
@@ -47,7 +45,7 @@ export interface SetupFieldPrompt {
   required?: boolean
   defaultValue?: string
   validate?: boolean
-  when?: SetupPromptCondition
+  when?: SetupCondition
 }
 
 export interface SetupConfirmPrompt {
@@ -55,7 +53,7 @@ export interface SetupConfirmPrompt {
   key: string
   message: string
   defaultValue?: boolean
-  when?: SetupPromptCondition
+  when?: SetupCondition
 }
 
 export interface SetupChoiceOption {
@@ -72,7 +70,7 @@ export interface SetupChoicePrompt {
   id: string
   message: string
   options: readonly SetupChoiceOption[]
-  when?: SetupPromptCondition
+  when?: SetupCondition
 }
 
 export type SetupPrompt = SetupFieldPrompt | SetupConfirmPrompt | SetupChoicePrompt
@@ -128,14 +126,9 @@ function promptKeys(prompts: readonly SetupPrompt[] = []): string[] {
   })
 }
 
-function conditionKeys(condition: SetupPromptCondition | undefined): string[] {
+function conditionKeys(condition: SetupCondition | undefined): string[] {
   if (!condition) return []
-  if (
-    condition.kind === 'present' ||
-    condition.kind === 'truthy' ||
-    condition.kind === 'equals' ||
-    condition.kind === 'provider-missing-field'
-  ) {
+  if (condition.kind === 'present' || condition.kind === 'truthy' || condition.kind === 'equals') {
     return [condition.key]
   }
   if (condition.kind === 'all' || condition.kind === 'any') {

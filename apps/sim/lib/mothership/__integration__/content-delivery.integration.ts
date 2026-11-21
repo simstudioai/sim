@@ -15,10 +15,7 @@ import { generateId } from '@sim/utils/id'
 import JSZip from 'jszip'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const fixtureStorage = vi.hoisted(() => {
-  if (process.env.TEST_REDIS_URL) process.env.REDIS_URL = process.env.TEST_REDIS_URL
-  return { root: '' }
-})
+const fixtureStorage = vi.hoisted(() => ({ root: '' }))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   get UPLOAD_DIR_SERVER() {
     return fixtureStorage.root

@@ -31,13 +31,6 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const redisUrl = readTestRedisUrl()
-  if (redisUrl) process.env.REDIS_URL = redisUrl
-  return { redisUrl }
-})
-
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import {
@@ -733,7 +726,7 @@ function completePrivateUpload(
   )
 }
 
-describe.skipIf(!redisUrl)('private Project upload transport', () => {
+describe('private Project upload transport', () => {
   check(
     'private Project upload seals actual streamed source evidence and retains original provenance attribution',
     async () => {

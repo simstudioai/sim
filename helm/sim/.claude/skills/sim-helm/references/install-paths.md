@@ -107,7 +107,7 @@ ESO syncs from your existing secret store (Vault, AWS SM, Azure KV, GCP SM, etc.
 ```yaml
 externalSecrets:
   enabled: true
-  apiVersion: v1beta1     # v1beta1 works on ESO >= 0.7. Bump to v1 only on ESO >= 0.17.
+  apiVersion: v1          # chart default; set v1beta1 only for clusters still running ESO < 0.17.
   refreshInterval: 1h
   secretStoreRef:
     name: my-cluster-secret-store
@@ -137,6 +137,7 @@ The chart will refuse to render if:
 
 - `externalSecrets.enabled=true` and any of `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET` (or `CRON_SECRET` when cronjobs are enabled) is **neither** set in `app.env` **nor** mapped in `remoteRefs.app`. Error message names the missing key.
 - A key is set in `app.env` with a non-empty value but not mapped in `remoteRefs.app` (would be silently dropped from the rendered Secret).
+- `redis.enabled=false` and `REDIS_URL` is neither mapped in `remoteRefs.app` nor supplied by an `extraEnvVars` entry (or an `envDefaults` entry covering each enabled component). Sim refuses to start without Redis, so the chart fails instead of rendering pods that crash.
 
 These checks catch the "renders cleanly, CrashLoopBackOffs at runtime" failure mode that plagued earlier chart versions.
 

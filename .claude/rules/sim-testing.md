@@ -34,7 +34,7 @@ contracts, and demonstrated regressions.
 | Suffix | Needs | Run with | In CI |
 |--------|-------|----------|-------|
 | `*.test.ts(x)` | nothing; global mocks from `vitest.setup.ts` | `bun run --cwd <workspace> test` | `test` jobs |
-| `*.integration.ts` | real PostgreSQL (`TEST_DATABASE_URL`) and Redis (`TEST_REDIS_URL`: required by `apps/sim` and `apps/realtime`; `packages/db` runs without it locally and requires it in CI) | `bun run --cwd <workspace> test --mode integration` | `integration` jobs, by glob (sharded per provisioning path) |
+| `*.integration.ts` | real PostgreSQL (`TEST_DATABASE_URL`) and Redis (`TEST_REDIS_URL`: required by `apps/sim`, `apps/realtime`, and `packages/db`; `apps/sim` needs a non-zero database index) | `bun run --cwd <workspace> test --mode integration` | `integration` jobs, by glob (sharded per provisioning path) |
 | `*.live.test.ts` | provider APIs, hosted sandboxes, local runtimes, or sibling checkouts | `bun run --cwd apps/sim test --mode live <file>` | never |
 | `apps/desktop/e2e/*.spec.ts` | the packaged Electron app | Playwright | desktop E2E workflow |
 | `apps/sim/scripts/test-*-e2e.ts` | a running app over HTTP | its `package.json` script when one exists (`bun run test:scim:e2e`; `test:workflow-version-compare:e2e` adds `--no-env-file`), else `bun scripts/test-<suite>-e2e.ts` from apps/sim | `e2e` jobs (`.github/scripts/http-e2e.sh`) |

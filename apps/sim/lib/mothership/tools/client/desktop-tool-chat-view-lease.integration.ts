@@ -9,15 +9,6 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  const inheritedEnv = { REDIS_URL: process.env.REDIS_URL }
-  /** The real Redis module (rate limits, the confirmation channel) reads this at import. */
-  if (url) process.env.REDIS_URL = url
-  return { redisUrl: url, inheritedEnv }
-})
-
 vi.mock('@/lib/auth', () => authMock)
 
 import { db } from '@sim/db'
@@ -95,13 +86,9 @@ afterAll(async () => {
   channels._toolConfirmationChannel?.dispose()
   channels._toolConfirmationChannel = undefined
   await closeRedisConnection()
-  for (const [key, value] of Object.entries(inheritedEnv)) {
-    if (value === undefined) delete process.env[key]
-    else process.env[key] = value
-  }
 })
 
-describe.runIf(Boolean(redisUrl))('a chat-view import kept alive by its lease', () => {
+describe('a chat-view import kept alive by its lease', () => {
   const userId = generateId()
   const otherUserId = generateId()
   const workspaceId = generateId()

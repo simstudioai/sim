@@ -24,14 +24,6 @@ const PROGRESS_KEY_PREFIX = 'execution:progress:'
 const STARTED_FIELD = 'started'
 const COMPLETED_FIELD = 'completed'
 
-/**
- * Single source of the client used for progress markers. Indirection kept so a
- * future split to a dedicated `LOGS_REDIS_URL` is a one-line change here.
- */
-function getMarkerClient() {
-  return getRedisClient()
-}
-
 function markerKey(executionId: string): string {
   return `${PROGRESS_KEY_PREFIX}${executionId}`
 }
@@ -74,7 +66,7 @@ async function setMarker(
   expiresAt?: number
 ): Promise<boolean> {
   try {
-    const redis = getMarkerClient()
+    const redis = getRedisClient()
     await redis.eval(
       SET_MARKER_SCRIPT,
       1,
@@ -208,7 +200,7 @@ export async function getProgressMarkers(
   executionId: string
 ): Promise<ExecutionProgressMarkers | null> {
   try {
-    const redis = getMarkerClient()
+    const redis = getRedisClient()
     const fields = await redis.hgetall(markerKey(executionId))
     if (!fields || Object.keys(fields).length === 0) return {}
 
@@ -233,7 +225,7 @@ export async function getProgressMarkers(
  */
 export async function clearProgressMarkers(executionId: string): Promise<void> {
   try {
-    const redis = getMarkerClient()
+    const redis = getRedisClient()
     await redis.del(markerKey(executionId))
   } catch (error) {
     logger.error(`Failed to clear progress markers for execution ${executionId}`, {

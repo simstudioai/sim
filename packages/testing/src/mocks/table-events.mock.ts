@@ -3,7 +3,7 @@ import { vi } from 'vitest'
 /**
  * Controllable mock functions for `@/lib/table/events`.
  *
- * Defaults: `appendTableEvent` resolves `null` (the real "Redis unavailable" result),
+ * Defaults: `appendTableEvent` resolves `null` (the real result when the append fails),
  * `getLatestTableEventId` resolves `0`, `readTableEventsSince` resolves `{ status: 'ok', events: [] }`,
  * and every `signal*` function is a no-op.
  *
