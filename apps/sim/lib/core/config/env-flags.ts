@@ -7,7 +7,6 @@ import {
   ENTERPRISE_MASTER_ENV_VAR,
   type EnterpriseFeatureState,
   resolveEnterpriseFeatures,
-  resolveSandboxFeatureAvailability,
 } from '@sim/deployment-config/enterprise-features'
 import {
   hasEnvCapabilityValue,
@@ -242,7 +241,7 @@ function resolveServerRegistrationMode(): RegistrationMode {
         const logger = createLogger('EnvFlags')
         for (const warning of warnings) {
           const details = { ...warning.details, resolvedMode: mode }
-          if (warning.severity === 'error') logger.error(warning.message, details)
+          if (warning.code === 'invalid-mode') logger.error(warning.message, details)
           else logger.warn(warning.message, details)
         }
       })
@@ -347,7 +346,7 @@ function resolveBrowserEnterpriseFeatures(): EnterpriseFeatureState {
     hosted: isHosted,
     masterEnabled: false,
   })
-  return readProjectedEnterpriseFeatures(defaults) ?? defaults
+  return readProjectedEnterpriseFeatures(defaults)
 }
 
 /**
@@ -491,11 +490,7 @@ export const isRemoteSandboxEnabled =
  */
 export const isSandboxesEnabled =
   typeof window === 'undefined'
-    ? resolveSandboxFeatureAvailability({
-        billingEnabled: isBillingEnabled,
-        deploymentEntitled: isSandboxDeploymentEntitled,
-        remoteProviderEnabled: isRemoteSandboxEnabled,
-      })
+    ? isRemoteSandboxEnabled && (isBillingEnabled || isSandboxDeploymentEntitled)
     : enterpriseFeatures.sandboxes
 
 /**

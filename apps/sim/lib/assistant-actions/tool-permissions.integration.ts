@@ -1057,9 +1057,7 @@ describe('Managed account identity across Assistant approvals', () => {
   const originalRedisUrl = env.REDIS_URL
 
   beforeAll(() => {
-    const redisUrl = readTestRedisUrl()
-    if (!redisUrl) throw new Error('Set TEST_REDIS_URL to a disposable local Redis')
-    Object.assign(env, { REDIS_URL: redisUrl })
+    Object.assign(env, { REDIS_URL: readTestRedisUrl() })
   })
 
   afterAll(async () => {

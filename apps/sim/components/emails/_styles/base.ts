@@ -17,8 +17,6 @@ export const colors = {
   textSecondary: '#525252',
   /** Muted text (labels, footer) — platform `--text-muted` */
   textMuted: '#7a7a7a',
-  /** Accent for buttons and links */
-  brandTertiary: '#1a1a1a',
   /** Borders and dividers — platform `--border` */
   border: '#d8d8d8',
   /** Fill for info/code boxes on the white card — platform `--surface-3` */
@@ -166,7 +164,7 @@ export const baseStyles = {
    */
   button: {
     display: 'inline-block',
-    backgroundColor: colors.brandTertiary,
+    backgroundColor: colors.textPrimary,
     color: colors.textInverse,
     fontWeight: fontWeight.normal,
     fontSize: typography.fontSize.sm,
@@ -181,7 +179,7 @@ export const baseStyles = {
 
   /** Link text style - neutral color, so it carries an underline to read as a link */
   link: {
-    color: colors.brandTertiary,
+    color: colors.textPrimary,
     fontWeight: fontWeight.normal,
     textDecoration: 'underline',
   },

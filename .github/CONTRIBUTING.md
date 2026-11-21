@@ -169,6 +169,7 @@ BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 INTERNAL_API_SECRET=$(openssl rand -hex 32)
 CRON_SECRET=$(openssl rand -hex 32)
+POSTGRES_PASSWORD=$(openssl rand -hex 24)
 EOF
 
 # Start Sim
@@ -237,7 +238,7 @@ If you prefer not to use Docker. **All commands run from the repository root unl
    cp packages/db/.env.example packages/db/.env
    ```
 
-   At minimum, each `.env` needs `DATABASE_URL`. `apps/sim/.env` and `apps/realtime/.env` additionally need matching values for `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, and `NEXT_PUBLIC_APP_URL`. `apps/sim/.env` also needs `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY`. Generate any 32-char secrets with `openssl rand -hex 32`.
+   At minimum, each `.env` needs `DATABASE_URL`. `apps/sim/.env` and `apps/realtime/.env` additionally need matching values for `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, `NEXT_PUBLIC_APP_URL`, and `REDIS_URL`: both services refuse to start without Redis (for a local one, run `docker run -d -p 127.0.0.1:6379:6379 redis:7-alpine` and set `REDIS_URL=redis://localhost:6379`). `apps/sim/.env` also needs `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY`. Generate any 32-char secrets with `openssl rand -hex 32`.
 
    The same `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, and `DATABASE_URL` must appear in both `apps/sim/.env` and `apps/realtime/.env` so the two services share auth and DB. After editing `apps/sim/.env`, you can mirror the shared subset into the realtime env in one shot:
 

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { openAICompatibleModelListSchema } from '@/lib/api/contracts/providers'
 import { getOpenAICompatibleApiBaseUrl } from '@/providers/openai-compat/base-url'
 
@@ -50,4 +51,36 @@ export async function listOpenAICompatibleModels({
 
   const data = openAICompatibleModelListSchema.parse(await response.json())
   return data.data.map((model) => `${prefix}${model.id}`)
+}
+
+/**
+ * Lists the models served by the deployment's own vLLM or LiteLLM server, given
+ * its configured base URL and key. Never throws: an unset base URL, an unsupported
+ * URL, a non-2xx answer, or an unreachable server all read as no models. Provider
+ * and model blacklists are the caller's to apply, which keeps this module free of
+ * `@/providers/utils` and the provider graph behind it.
+ */
+export async function listConfiguredSelfHostedModels(
+  providerId: 'vllm' | 'litellm',
+  baseUrl: string | undefined,
+  apiKey: string | undefined
+): Promise<string[]> {
+  const trimmedBaseUrl = baseUrl?.trim()
+  if (!trimmedBaseUrl) return []
+
+  try {
+    const models = await listOpenAICompatibleModels({
+      baseUrl: trimmedBaseUrl,
+      apiKey,
+      prefix: `${providerId}/`,
+      init: { next: { revalidate: 60 } },
+    })
+    return models ?? []
+  } catch (error) {
+    logger.error('Failed to list self-hosted provider models', {
+      providerId,
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    return []
+  }
 }

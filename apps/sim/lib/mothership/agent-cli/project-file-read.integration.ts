@@ -26,13 +26,6 @@ import { and, eq, inArray, or } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const redisUrl = readTestRedisUrl()
-  if (redisUrl) process.env.REDIS_URL = redisUrl
-  return { redisUrl }
-})
-
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
@@ -71,8 +64,8 @@ beforeEach(() => {
   vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
 })
 
-function check(name: string, run: () => Promise<void>, requiresRedis = false) {
-  it.skipIf(requiresRedis && !redisUrl)(name, async () => {
+function check(name: string, run: () => Promise<void>) {
+  it(name, async () => {
     const started = performance.now()
     try {
       await run()
@@ -699,8 +692,7 @@ describe('Project CLI representations against PostgreSQL and stored bytes', () =
       expect(rejected.exitCode, rejected.stderr).toBe(0)
       expect(JSON.parse(rejected.stdout).results[0].text).toContain('Preview withheld')
       expect(rejected.stdout).not.toContain('input-native-secret')
-    },
-    true
+    }
   )
 
   check(

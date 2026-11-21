@@ -10,6 +10,7 @@ import {
   AuthTextLink,
 } from '@sim/auth-ui'
 import { formatDate } from '@sim/utils/formatting'
+import { SIM_SUPPORT_EMAIL } from '@sim/utils/site'
 import { useRouter } from 'next/navigation'
 import type { AwsMarketplaceClaim } from '@/lib/api/contracts/aws-marketplace'
 import { client, useSession } from '@/lib/auth/client'
@@ -18,7 +19,6 @@ import {
   AWS_MARKETPLACE_SETUP_TURNAROUND,
   type AwsMarketplaceOnboardingError,
 } from '@/lib/billing/aws-marketplace/onboarding'
-import { SUPPORT_EMAIL } from '@/lib/branding/contact'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
@@ -77,7 +77,8 @@ function authLink(path: '/login' | '/signup'): string {
 function SupportContact() {
   return (
     <p className='au:text-center au:text-sm'>
-      Questions? Email <AuthTextLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</AuthTextLink>
+      Questions? Email{' '}
+      <AuthTextLink href={`mailto:${SIM_SUPPORT_EMAIL}`}>{SIM_SUPPORT_EMAIL}</AuthTextLink>
     </p>
   )
 }

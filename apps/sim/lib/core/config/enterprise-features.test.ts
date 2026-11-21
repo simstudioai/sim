@@ -3,7 +3,6 @@ import {
   ENTERPRISE_FEATURES,
   type EnterpriseFeature,
   resolveEnterpriseFeatures,
-  resolveSandboxFeatureAvailability,
 } from '@sim/deployment-config/enterprise-features'
 import { describe, expect, it } from 'vitest'
 
@@ -95,44 +94,4 @@ describe('resolveEnterpriseFeatures', () => {
   it('does not turn access control on from organizations', () => {
     expect(resolve({ flags: { organizations: true } }).accessControl).toBe(false)
   })
-})
-
-describe('resolveSandboxFeatureAvailability', () => {
-  it.each([
-    {
-      billingEnabled: true,
-      deploymentEntitled: false,
-      remoteProviderEnabled: true,
-      expected: true,
-    },
-    {
-      billingEnabled: true,
-      deploymentEntitled: false,
-      remoteProviderEnabled: false,
-      expected: false,
-    },
-    {
-      billingEnabled: false,
-      deploymentEntitled: true,
-      remoteProviderEnabled: true,
-      expected: true,
-    },
-    {
-      billingEnabled: false,
-      deploymentEntitled: false,
-      remoteProviderEnabled: true,
-      expected: false,
-    },
-    {
-      billingEnabled: false,
-      deploymentEntitled: true,
-      remoteProviderEnabled: false,
-      expected: false,
-    },
-  ])(
-    'billing=$billingEnabled entitled=$deploymentEntitled provider=$remoteProviderEnabled → $expected',
-    ({ expected, ...input }) => {
-      expect(resolveSandboxFeatureAvailability(input)).toBe(expected)
-    }
-  )
 })

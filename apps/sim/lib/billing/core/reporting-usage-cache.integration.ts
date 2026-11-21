@@ -22,7 +22,6 @@ const { transaction, summedPeriods } = vi.hoisted(() => ({
 }))
 const databaseUrl = readTestDatabaseUrl()
 const redisUrl = readTestRedisUrl()
-if (!redisUrl) throw new Error('TEST_REDIS_URL is required')
 
 vi.mock('@sim/db', () => {
   const db = { transaction }

@@ -2547,7 +2547,9 @@ export const v2CancelWorkflowRunDataSchema = z
      */
     redisAvailable: z
       .boolean()
-      .describe('Whether the distributed cancellation channel was available.'),
+      .describe(
+        'Kept for compatibility. False only when a cancellation that must publish its cancellation event did not.'
+      ),
     durablyRecorded: z
       .boolean()
       .describe(

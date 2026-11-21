@@ -568,8 +568,8 @@ export class LoggingSession {
 
   /**
    * Persist the last-started-block marker. Redis is the primary path; falls back
-   * to the durable jsonb_set UPDATE when Redis is unavailable or the write fails,
-   * so a marker is never dropped.
+   * to the durable jsonb_set UPDATE when the Redis write fails, so a marker is
+   * never dropped.
    */
   private async persistLastStartedBlock(marker: ExecutionLastStartedBlock): Promise<void> {
     const expiresAt = this.executionDeadlineAt
@@ -601,8 +601,8 @@ export class LoggingSession {
 
   /**
    * Persist the last-completed-block marker. Redis is the primary path; falls
-   * back to the durable jsonb_set UPDATE when Redis is unavailable or the write
-   * fails, so a marker is never dropped.
+   * back to the durable jsonb_set UPDATE when the Redis write fails, so a marker
+   * is never dropped.
    */
   private async persistLastCompletedBlock(marker: ExecutionLastCompletedBlock): Promise<void> {
     const expiresAt = this.executionDeadlineAt

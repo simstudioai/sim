@@ -1,15 +1,7 @@
 import { sha256Hex } from '@sim/security/hash'
 import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { afterAll, describe, expect, it, vi } from 'vitest'
-
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const redisUrl = readTestRedisUrl()
-  if (redisUrl) process.env.REDIS_URL = redisUrl
-  return { redisUrl }
-})
-
+import { afterAll, describe, expect, it } from 'vitest'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 
 afterAll(() => closeRedisConnection())
@@ -20,7 +12,7 @@ import {
 } from '@/lib/desktop/application/source-requests'
 
 /** Real Redis proves cross-session ownership and atomic consumption, without provider credentials. */
-describe.skipIf(!redisUrl)('desktop source request transport', () => {
+describe('desktop source request transport', () => {
   it('allows the same user in another session, without letting another user consume the request', async () => {
     const userId = generateId()
     const created = await createDesktopSourceRequest.execute({

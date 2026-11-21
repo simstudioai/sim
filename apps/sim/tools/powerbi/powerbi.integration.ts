@@ -79,7 +79,6 @@ let restoreTransport: (() => void) | undefined
 vi.hoisted(() => {
   process.env.MICROSOFT_CLIENT_ID = 'powerbi-fixture-client'
   process.env.MICROSOFT_CLIENT_SECRET = 'powerbi-fixture-secret'
-  if (process.env.TEST_REDIS_URL) process.env.REDIS_URL = process.env.TEST_REDIS_URL
 })
 
 async function checked(name: string, run: () => Promise<void>) {

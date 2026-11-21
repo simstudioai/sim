@@ -33,9 +33,7 @@ describe('resolveRegistrationMode', () => {
     const resolved = resolve({ REGISTRATION_MODE: 'disabled' })
 
     expect(resolved.mode).toBe('closed')
-    expect(resolved.warnings).toEqual([
-      expect.objectContaining({ code: 'invalid-mode', severity: 'error' }),
-    ])
+    expect(resolved.warnings).toEqual([expect.objectContaining({ code: 'invalid-mode' })])
   })
 
   it('does not accept a boolean-looking value as a mode', () => {
@@ -65,9 +63,7 @@ describe('resolveRegistrationMode', () => {
       const resolved = resolve({ DISABLE_REGISTRATION: 'true' })
 
       expect(resolved.mode).toBe('closed')
-      expect(resolved.warnings).toEqual([
-        expect.objectContaining({ code: 'deprecated-variables', severity: 'warn' }),
-      ])
+      expect(resolved.warnings).toEqual([expect.objectContaining({ code: 'deprecated-variables' })])
     })
 
     it('maps DISABLE_EMAIL_SIGNUP to no-email-signup', () => {

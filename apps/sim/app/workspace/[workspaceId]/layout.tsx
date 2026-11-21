@@ -170,7 +170,7 @@ async function WorkspaceContent({
                       sidebar={
                         <Sidebar
                           organizationHref={organizationHref}
-                          desktopExecutor={{ registered: desktopExecutorRegistered }}
+                          desktopExecutorRegistered={desktopExecutorRegistered}
                         />
                       }
                       initialSidebarCollapsed={initialSidebarCollapsed}

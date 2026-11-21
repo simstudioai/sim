@@ -1,8 +1,8 @@
 import { Link, Section, Text } from '@react-email/components'
+import { SIM_SUPPORT_EMAIL } from '@sim/utils/site'
 import { baseStyles, colors, fontWeight } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { getEmailSubject } from '@/components/emails/subjects'
-import { SUPPORT_EMAIL } from '@/lib/branding/contact'
 
 interface PaymentFailedEmailProps {
   userName?: string
@@ -74,8 +74,8 @@ export function PaymentFailedEmail({
 
       <Text style={baseStyles.footnote}>
         Common issues: expired card, insufficient funds, or incorrect billing info. Need help?{' '}
-        <Link href={`mailto:${SUPPORT_EMAIL}`} style={baseStyles.link}>
-          {SUPPORT_EMAIL}
+        <Link href={`mailto:${SIM_SUPPORT_EMAIL}`} style={baseStyles.link}>
+          {SIM_SUPPORT_EMAIL}
         </Link>
       </Text>
     </EmailLayout>
