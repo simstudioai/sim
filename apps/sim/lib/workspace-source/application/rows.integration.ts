@@ -40,6 +40,20 @@ vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 // The trigger module is mocked so each check sees exactly which row events an apply fires.
 vi.mock('@/lib/table/trigger', () => tableTriggerMock)
+/** A row limit a check sets for the table plan (billing is off here, so it is otherwise unlimited). */
+const planRowLimit = vi.hoisted(() => ({ value: undefined as number | undefined }))
+vi.mock('@/lib/table/constants', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/table/constants')>()
+  return {
+    ...actual,
+    getBillingDisabledTableLimits: () => {
+      const limits = actual.getBillingDisabledTableLimits()
+      return planRowLimit.value === undefined
+        ? limits
+        : { ...limits, maxRowsPerTable: planRowLimit.value }
+    },
+  }
+})
 
 const ownerId = generateId()
 const readerId = generateId()
@@ -1053,6 +1067,41 @@ export default defineTable({
       }
       const refused = await refusal(apply(workspaceId, required, { base: written.base }))
       expect(codes(refused.diagnostics)).toEqual(['E_APPLY_REFUSED'])
+    }
+  )
+
+  check(
+    'refuses a managed write whose rows, with the rows the UI added without a key that it keeps, would cross the row limit',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const optionalKey = MANAGED.replace(
+        'column.string({ required: true, unique: true })',
+        'column.string({ unique: true })'
+      )
+      const created = await apply(workspaceId, {
+        'tables/plans.ts': optionalKey,
+        'tables/plans.rows.jsonl': ROWS,
+      })
+      expect(created.failed).toBeUndefined()
+      await addUiRow(workspaceId, {})
+      await addUiRow(workspaceId, {})
+      const read = await runner.get(workspaceId)
+      const rowsBefore = await storedRows(workspaceId)
+      planRowLimit.value = 4
+      try {
+        const written = await apply(
+          workspaceId,
+          {
+            ...read.files,
+            'tables/plans.rows.jsonl': `${ROWS}{"code":"ent","seats":50,"tier":"pro"}\n`,
+          },
+          { base: read.base }
+        )
+        expect(written.failed?.message).toContain('row limit (4 rows)')
+      } finally {
+        planRowLimit.value = undefined
+      }
+      expect(await storedRows(workspaceId)).toEqual(rowsBefore)
     }
   )
 

@@ -272,7 +272,8 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
     })
     const requestId = generateRequestId()
     // Checked before the transaction opens (it reads the billing pool), for the rows the table
-    // holds once they are written.
+    // holds once they are written; a managed write, which keeps stored rows with no key value,
+    // checks again under the lock once it has read them.
     const rowLimit = input.rows
       ? await assertRowCapacity({
           workspaceId,
@@ -331,6 +332,7 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
           columnIds: rows.columns.flatMap((name) => idByName.get(name) ?? []),
           rows: stored,
           allowDelete: rows.allowDelete,
+          rowLimit: rowLimit ?? -1,
         },
         actor,
         requestId
