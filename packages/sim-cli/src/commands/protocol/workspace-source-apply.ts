@@ -80,6 +80,7 @@ import {
   ONLY_KINDS_HELP,
   parseKinds,
   readWorkspaceDir,
+  toolOfCodeFile,
   type WorkspaceSubmission,
 } from './workspace-source-dir'
 
@@ -354,8 +355,9 @@ async function deletedRecordedPaths(
 /**
  * The text files the directory sent for a resource the apply reprinted that the reprint no longer
  * holds, such as a tool whose code the server keeps as `stored()` (a credential in it), reprinted
- * without `tools/<key>.js`. Workflow folders keep files no lock named, so their function files are
- * pruned by lock instead ({@link orphanedWorkflowFiles}); blobs are never reprinted.
+ * without `tools/<key>.js` ({@link saveApplied} keeps that one on disk). Workflow folders keep
+ * files no lock named, so their function files are pruned by lock instead
+ * ({@link orphanedWorkflowFiles}); blobs are never reprinted.
  */
 function droppedResourceFiles(
   sent: Readonly<Record<string, string>>,
@@ -397,15 +399,18 @@ async function saveApplied(
   records: ReadonlyArray<readonly [string, string]>
 ): Promise<void> {
   assertWorkspacePaths(Object.keys(data.files))
-  const dropped = droppedResourceFiles(submission.files, data.files)
-  const toolCode = dropped.filter((path) => kindOfPath(path) === 'custom-tool')
-  const orphaned = [
-    ...(await orphanedWorkflowFiles(dir, data.files, written.digests)),
-    ...dropped.filter((path) => kindOfPath(path) !== 'custom-tool'),
-  ]
+  const toolCode: Array<{ path: string; declaration: string }> = []
+  const orphaned = await orphanedWorkflowFiles(dir, data.files, written.digests)
+  for (const path of droppedResourceFiles(submission.files, data.files)) {
+    const tool = toolOfCodeFile(path)
+    if (tool) toolCode.push({ path, declaration: tool.declaration })
+    else orphaned.push(path)
+  }
   const kept = { ...written.digests, ...appliedBlobDigests(submission, data.base) }
   const deleted = await deletedRecordedPaths(dir, written.digests, submission.kinds, data.base)
-  for (const path of [...orphaned, ...deleted, ...toolCode]) delete kept[path]
+  for (const path of [...orphaned, ...deleted, ...toolCode.map(({ path }) => path)]) {
+    delete kept[path]
+  }
   const record = writtenRecord(
     data.files,
     kept,
@@ -420,9 +425,9 @@ async function saveApplied(
     ],
     remove: [...orphaned, ...removedWorkflowRecords(deleted)],
   })
-  for (const path of toolCode) {
+  for (const { path, declaration } of toolCode) {
     printError(
-      `warning: ${path} is no longer named by ${path.replace(/\.js$/, '.ts')} (its code is now kept as stored() or printed inline), so it was left on disk as written and no apply sends it: delete it, or name it again with codeFile(). Never commit one that holds a credential.`
+      `warning: ${path} is no longer named by ${declaration} (its code is now kept as stored() or printed inline), so it was left on disk as written and no apply sends it: delete it, or name it again with codeFile(). Never commit one that holds a credential.`
     )
   }
 }

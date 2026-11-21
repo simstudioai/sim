@@ -566,20 +566,26 @@ export interface WorkspaceSubmission {
   hashed: ReadonlyMap<string, StatDigest>
 }
 
+/** The tool a code file (`tools/<key>.js`) belongs to and its declaration path; `null` for any other path. */
+export function toolOfCodeFile(path: string): { key: string; declaration: string } | null {
+  if (kindOfPath(path) !== 'custom-tool') return null
+  const [key] = toolCodec.group([path]).groups.keys()
+  if (key === undefined) return null
+  const declaration = toolDeclarationPath(key)
+  return path === declaration ? null : { key, declaration }
+}
+
 /**
- * Whether `path` is a tool's code file (`tools/<key>.js`) that the tool's declaration does not
- * name: the declaration reads whole without it (its code is `stored()` or inline), so the server
- * would only refuse it as unused (`E_TOOL_CODE`). One with no declaration is still sent, so the
- * server names what is missing.
+ * Whether `path` is a tool's code file that the tool's declaration does not name: the declaration
+ * reads whole without it (its code is `stored()` or inline), so the server would only refuse it as
+ * unused (`E_TOOL_CODE`). One with no declaration is still sent, so the server names what is
+ * missing.
  */
 function isUnnamedToolCode(files: Readonly<Record<string, string>>, path: string): boolean {
-  if (kindOfPath(path) !== 'custom-tool') return false
-  const [key] = KIND_LAYOUTS['custom-tool'].group([path]).groups.keys()
-  if (key === undefined) return false
-  const declaration = toolDeclarationPath(key)
-  const text = files[declaration]
-  if (path === declaration || text === undefined) return false
-  return toolCodec.parse(key, { [declaration]: text }).decl !== undefined
+  const tool = toolOfCodeFile(path)
+  const text = tool ? files[tool.declaration] : undefined
+  if (!tool || text === undefined) return false
+  return toolCodec.parse(tool.key, { [tool.declaration]: text }, []).decl !== undefined
 }
 
 /**

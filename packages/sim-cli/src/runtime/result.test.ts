@@ -53,7 +53,7 @@ describe('a record keyed by data rather than by field names', () => {
   const outline = { blocks: { [blockId]: { type: 'agent', name: 'Agent 1', enabled: true } } }
 
   it('labels each entry with its key exactly as the API sent it', () => {
-    renderResult('getWorkflowOutline', 'text', outline, {})
+    renderResult('getWorkflowOutline', 'text', outline, CLI_CONTRACT.getWorkflowOutline ?? {})
     expect(logged[0].split('\t')[0]).toBe(blockId)
   })
 })

@@ -83,8 +83,16 @@ async function watchedPackages(): Promise<Set<string>> {
   return new Set(paths.flatMap((entry) => WATCHED_PACKAGE.exec(String(entry))?.[1] ?? []))
 }
 
-function sorted(values: Iterable<string>): string[] {
-  return [...values].sort(compareStrings)
+/** One message per name in `names` that `known` lacks, in name order. */
+function missingFrom(
+  names: ReadonlySet<string>,
+  known: ReadonlySet<string>,
+  message: (name: string) => string
+): string[] {
+  return [...names]
+    .filter((name) => !known.has(name))
+    .sort(compareStrings)
+    .map(message)
 }
 
 async function main(): Promise<void> {
@@ -95,30 +103,30 @@ async function main(): Promise<void> {
       input.includes('node_modules/') ? [] : (WORKSPACE_PACKAGE.exec(input)?.[1] ?? [])
     )
   )
-  const noticed = await noticedPackages()
-  const watched = await watchedPackages()
+  const [noticed, watched] = await Promise.all([noticedPackages(), watchedPackages()])
 
   const problems = [
-    ...sorted(npmPackages)
-      .filter((name) => !noticed.has(name))
-      .map((name) => `${name} is bundled but has no notice in ${LICENSES_FILE}.`),
-    ...sorted(noticed)
-      .filter((name) => !npmPackages.has(name))
-      .map(
-        (name) => `${LICENSES_FILE} has a notice for ${name}, which the bundle no longer holds.`
-      ),
-    ...sorted(workspacePackages)
-      .filter((name) => !watched.has(name))
-      .map(
-        (name) =>
-          `packages/${name} is bundled but ${PUBLISH_WORKFLOW} does not watch 'packages/${name}/**', so a change there never republishes the CLI.`
-      ),
-    ...sorted(watched)
-      .filter((name) => !workspacePackages.has(name))
-      .map(
-        (name) =>
-          `${PUBLISH_WORKFLOW} watches 'packages/${name}/**', which the bundle does not hold.`
-      ),
+    ...missingFrom(
+      npmPackages,
+      noticed,
+      (name) => `${name} is bundled but has no notice in ${LICENSES_FILE}.`
+    ),
+    ...missingFrom(
+      noticed,
+      npmPackages,
+      (name) => `${LICENSES_FILE} has a notice for ${name}, which the bundle no longer holds.`
+    ),
+    ...missingFrom(
+      workspacePackages,
+      watched,
+      (name) =>
+        `packages/${name} is bundled but ${PUBLISH_WORKFLOW} does not watch 'packages/${name}/**', so a change there never republishes the CLI.`
+    ),
+    ...missingFrom(
+      watched,
+      workspacePackages,
+      (name) => `${PUBLISH_WORKFLOW} watches 'packages/${name}/**', which the bundle does not hold.`
+    ),
   ]
 
   if (problems.length > 0) {

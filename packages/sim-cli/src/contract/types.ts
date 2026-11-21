@@ -349,6 +349,11 @@ export interface CommandSpec {
    */
   expand?: string
   /**
+   * The record's keys are data, not field names, as in `workflows outline`'s blocks keyed by block
+   * id: the display formats print each key as sent rather than humanized, so it can be copied back.
+   */
+  dataKeys?: true
+  /**
    * The response IS a document, not a record to look at.
    *
    * `workflows export` exists to be redirected into a file and fed back to
