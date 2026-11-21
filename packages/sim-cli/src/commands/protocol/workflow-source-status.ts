@@ -87,13 +87,16 @@ async function readLocalWorkflow(dir: string): Promise<LocalWorkflow> {
   const current = Object.fromEntries(
     Object.entries(texts).map(([path, text]) => [path, digest(text)])
   )
+  const unnamed = listed.filter((path) => !sent.has(path))
+  // A recorded file still on disk that nothing names is left out on both sides, not deleted.
+  const ignored = new Set(unnamed)
   return {
     base,
     workflowId,
     written,
     texts,
-    changed: changedFiles(current, written.digests, () => true),
-    unnamed: listed.filter((path) => !sent.has(path)),
+    changed: changedFiles(current, written.digests, (path) => !ignored.has(path)),
+    unnamed,
   }
 }
 

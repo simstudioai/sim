@@ -116,9 +116,11 @@ async function readLocalWorkspace(
   const current: Record<string, string> = {}
   for (const [path, text] of Object.entries(submission.files)) current[path] = digest(text)
   for (const blob of submission.blobs) current[blob.path] = blob.sha256
+  // A recorded function file still on disk that no codeFile() names is left out, not deleted.
+  const unnamed = new Set(submission.unnamed)
   const changed = changedFiles(current, written.digests, (path) => {
     const kind = kindOfPath(path)
-    return kind !== null && (!only || only.includes(kind))
+    return kind !== null && (!only || only.includes(kind)) && !unnamed.has(path)
   })
   return { submission, written, changed, readFrom }
 }

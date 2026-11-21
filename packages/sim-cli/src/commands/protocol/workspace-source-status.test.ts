@@ -405,6 +405,30 @@ describe('workspaces source status', () => {
     expect(process.exitCode ?? 0).toBe(0)
   })
 
+  it('does not report a recorded function file as deleted once no codeFile() names it but it is still on disk', async () => {
+    write(
+      '.sim/written.json',
+      JSON.stringify({
+        version: 1,
+        files: {
+          ...Object.fromEntries(Object.entries(GOT).map(([path, text]) => [path, digest(text)])),
+          'workflows/ingest/functions/scratch.js': digest('return 1\n'),
+        },
+      })
+    )
+    write('workflows/ingest/functions/scratch.js', 'return 1\n')
+    mockRequest.mockResolvedValue(dryRun())
+
+    await run('status')
+
+    expect(printed()).toMatchObject({
+      state: 'clean',
+      local: [],
+      unnamed: ['workflows/ingest/functions/scratch.js'],
+    })
+    expect(process.exitCode ?? 0).toBe(0)
+  })
+
   it('still counts a new function file the lock names as a local change', async () => {
     write(
       'workflows/ingest/.sim/lock.json',

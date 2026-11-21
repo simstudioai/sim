@@ -264,6 +264,30 @@ describe('workflows source status', () => {
     expect(printed()).toMatchObject({ files: [] })
   })
 
+  it('does not report a recorded function file as deleted once no codeFile() names it but it is still on disk', async () => {
+    write(
+      root,
+      'workflow.ts',
+      ENTRY.replace("  fn('Score', { code: codeFile('./functions/score.js') })\n", '')
+    )
+    write(root, '.sim/lock.json', JSON.stringify({ ...LOCK, blocks: {} }))
+    mockRequest.mockResolvedValue(dryRun([], 1))
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({
+      local: [
+        {
+          kind: 'workflow',
+          key: WORKFLOW_ID,
+          change: 'edited',
+          files: [{ path: 'workflow.ts', change: 'edited' }],
+        },
+      ],
+      unnamed: ['functions/score.js'],
+    })
+  })
+
   it('reports drift when the workflow changed on the server and nothing here, exit 12', async () => {
     mockRequest.mockResolvedValue(dryRun([STALE]))
 
