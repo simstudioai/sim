@@ -3250,6 +3250,34 @@ describe('workflow variables in source', () => {
     }
   )
 
+  check(
+    'two variables renamed in one apply are refused with a hint to rename them one apply at a time',
+    async () => {
+      const seeded = await seedWorkflow()
+      const first = await getSource(seeded.workflowId)
+      const added = await apply(
+        first,
+        withVariables(
+          first.files,
+          "{ threshold: { type: 'number', value: 3 }, limit: { type: 'string', value: 'x' } }"
+        )
+      )
+      expect(added.applied).toBe(true)
+      const source = await getSource(seeded.workflowId)
+      const entry = source.files['workflow.ts']
+      const renamed = entry.replace('threshold:', 'ceiling:').replace('limit:', 'cap:')
+      expect(renamed, 'the source declares both variables').not.toBe(entry)
+
+      const error = await expectRejected(
+        apply(source, { ...source.files, 'workflow.ts': renamed }),
+        'E_APPLY_VARIABLE_DELETE'
+      )
+      expect(error.diagnostics.find((d) => d.code === 'E_APPLY_VARIABLE_DELETE')?.hint).toMatch(
+        /rename them one apply at a time/
+      )
+    }
+  )
+
   check('deleting a variable is refused without allowDelete, like deleting a block', async () => {
     const seeded = await seedWorkflow()
     const source = await getSource(seeded.workflowId)
