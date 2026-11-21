@@ -335,7 +335,26 @@ sim workflows operations apply <workflowId> [options]
 
 </CommandTable>
 
-Edges: connections maps a source handle to its targets: &#123;"source":"&lt;id&gt;"&#125;, &#123;"source":["&lt;a&gt;","&lt;b&gt;"]&#125;, or &#123;"source":&#123;"block":"&lt;id&gt;","handle":"&lt;target handle&gt;"&#125;&#125;; "success" is an alias of "source". An add's connections create the new block's edges. An edit's connections REPLACE every outgoing edge of that block, on every handle: list again each edge to keep. To remove one edge, edit its source block with &#123;"removeEdges":[&#123;"targetBlockId":"&lt;id&gt;","sourceHandle":"source"&#125;]&#125; (sourceHandle defaults to "source"). Source handles: source               the normal path error                a failure (a block that has an error output) if, else-if-0, else  a condition's branches, in order (else-if-1, … for more) route-0, route-1, …  a router's routes, in order loop-start-source    a loop into its body; loop-end-source after the loop parallel-start-source, parallel-end-source  the same for a parallel Renames: An edit's &#123;"name":"New name"&#125; also rewrites every &lt;old key.field&gt; reference to the block, in other blocks' inputs and in a loop's or parallel's collection and condition.
+```text
+Edges:
+  connections maps a source handle to its targets: {"source":"<id>"}, {"source":["<a>","<b>"]},
+  or {"source":{"block":"<id>","handle":"<target handle>"}}; "success" is an alias of "source".
+  An add's connections create the new block's edges. An edit's connections REPLACE every
+  outgoing edge of that block, on every handle: list again each edge to keep.
+  To remove one edge, edit its source block with
+  {"removeEdges":[{"targetBlockId":"<id>","sourceHandle":"source"}]} (sourceHandle defaults to
+  "source").
+Source handles:
+  source               the normal path
+  error                a failure (a block that has an error output)
+  if, else-if-0, else  a condition's branches, in order (else-if-1, … for more)
+  route-0, route-1, …  a router's routes, in order
+  loop-start-source    a loop into its body; loop-end-source after the loop
+  parallel-start-source, parallel-end-source  the same for a parallel
+Renames:
+  An edit's {"name":"New name"} also rewrites every <old key.field> reference to the block, in
+  other blocks' inputs and in a loop's or parallel's collection and condition.
+```
 
 API request and response schemas: [applyWorkflowOperations](/api-reference/workflows/applyWorkflowOperations).
 
@@ -776,7 +795,7 @@ sim workflows run <workflowId> [options]
 | `--from-block <block>` | No | Run manually from this saved workflow block: its id, display name or key. |
 | `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
 | `--stop-after <block>` | No | Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). |
-| `--dir <dir>` | No | This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json. |
+| `--dir <dir>` | No | This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json. Not with --async or --follow, and not for a run --wait-timeout leaves running. |
 | `--wait-timeout <seconds>` | No | Wait at most this many seconds for a synchronous run (0 waits until it settles). A run still going then continues in the background under async limits: the command prints its run record and exits 4, and `sim workflows runs wait` keeps waiting. Not with --async or --follow. |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
 | `--include-thinking` | No | Show model reasoning while following (requires --follow). |
