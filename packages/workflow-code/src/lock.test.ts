@@ -192,8 +192,8 @@ describe('parseWorkflowLock', () => {
   })
 
   it('checks a long parent chain in linear time', () => {
-    // 64 to 512 blocks: a chain at the cap outgrows the CPU cache, which pushes linear growth
-    // toward the bound while a quadratic walk's shrinks (11x against 42x there, 9x against 57x here).
+    // 64 to 512 blocks, not the cap: a chain at the cap outgrows the CPU cache, which narrows the
+    // gap between linear and quadratic growth.
     expectLinearGrowth((n) => {
       const blocks: Record<string, unknown> = {}
       for (let i = 0; i < n; i += 1) {
