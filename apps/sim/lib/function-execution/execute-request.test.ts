@@ -11,6 +11,7 @@ import {
   workflowsUtilsMock,
 } from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { isolatedVmMock, isolatedVmMockFns } from '@sim/testing/mocks/isolated-vm.mock'
 import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
@@ -42,7 +43,6 @@ import {
 import { SandboxExecutionTimeoutError } from '@/lib/execution/remote-sandbox/timeout'
 
 const {
-  mockExecuteInIsolatedVM,
   mockValidateWorkspaceFileWriteTarget,
   mockWriteWorkspaceFileByPath,
   mockUploadExecutionFile,
@@ -50,7 +50,6 @@ const {
   mockUnprovenancedMountCount,
   mockRenderedMountContributors,
 } = vi.hoisted(() => ({
-  mockExecuteInIsolatedVM: vi.fn(),
   mockValidateWorkspaceFileWriteTarget: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
   mockUploadExecutionFile: vi.fn(),
@@ -61,9 +60,9 @@ const {
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/lib/execution/isolated-vm', () => ({
-  executeInIsolatedVM: mockExecuteInIsolatedVM,
-}))
+const mockExecuteInIsolatedVM = isolatedVmMockFns.mockExecuteInIsolatedVM
+
+vi.mock('@/lib/execution/isolated-vm', () => isolatedVmMock)
 
 vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 
