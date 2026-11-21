@@ -8,6 +8,7 @@ import type { Json } from '@sim/workflow-code'
 import type { BaseRows } from '@sim/workspace-code'
 import {
   hasRowKey,
+  printedRowBytes,
   type TableRowCells,
   type TableRowsDecl,
   tableRowsFingerprint,
@@ -55,12 +56,14 @@ function sourceCell(column: ColumnDefinition, value: unknown): Json {
 /**
  * Reads every row of `table`: the cells of each column `keyById` names (column id → column key).
  * The version is read first, so rows written while the listing pages read as a server change on
- * the next apply.
+ * the next apply. The rows a rows file prints (those holding `rowKey`) are counted as they page
+ * in, and the read stops once they pass `maxRowsBytes`, which no directory could hold.
  */
 export async function readStoredRows(
   ctx: SourceContext,
   table: TableDefinition,
-  keyById: ReadonlyMap<string, string>
+  keyById: ReadonlyMap<string, string>,
+  rowKey: string
 ): Promise<StoredRows> {
   if (table.rowCount > WORKSPACE_SOURCE_LIMITS.maxTableRows) {
     throw new OrchestrationError(
@@ -72,6 +75,7 @@ export async function readStoredRows(
   const columnsById = new Map(table.schema.columns.map((column) => [getColumnId(column), column]))
   const data: TableRowCells[] = []
   const byColumnId: RowData[] = []
+  let printedBytes = 0
   let cursor: string | undefined
   do {
     const page = await listTableRows.execute({
@@ -92,6 +96,13 @@ export async function readStoredRows(
       }
       data.push(cells)
       byColumnId.push(row.data)
+      if (hasRowKey(cells, rowKey)) printedBytes += printedRowBytes(cells)
+    }
+    if (printedBytes > WORKSPACE_SOURCE_LIMITS.maxRowsBytes) {
+      throw new OrchestrationError(
+        'payload_too_large',
+        `The rows of table "${table.name}" pass the ${WORKSPACE_SOURCE_LIMITS.maxRowsBytes}-byte limit a directory's rows files hold.`
+      )
     }
     cursor = page.nextCursor ?? undefined
   } while (cursor)

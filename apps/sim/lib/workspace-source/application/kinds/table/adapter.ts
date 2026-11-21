@@ -409,7 +409,7 @@ async function planRows(
     return outcome
   }
   const rowKey = rows.key ?? ''
-  const stored = await readStoredRows(ctx, state.table, keyById)
+  const stored = await readStoredRows(ctx, state.table, keyById, rowKey)
   const kept = unkeyedRows(stored, rowKey)
   if (kept.length > 0) {
     outcome.diagnostics.push(unkeyedFinding(key, state.table.name, rowKey, kept.length))
@@ -774,7 +774,9 @@ async function rowsToPrint(
 ) {
   const { decl: storedDecl, keyById } = tableAsDecl(state, bindings)
   const rowKey = storedDecl.rows?.key
-  if (rowKey !== undefined) return { ...(await readStoredRows(ctx, state.table, keyById)), rowKey }
+  if (rowKey !== undefined) {
+    return { ...(await readStoredRows(ctx, state.table, keyById, rowKey)), rowKey }
+  }
   return decl?.rows?.mode === 'seed' ? { seed: decl.rows } : undefined
 }
 
