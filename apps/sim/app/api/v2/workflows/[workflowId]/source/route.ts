@@ -47,11 +47,11 @@ export const GET = defineV2JsonRoute({
  * all-or-nothing write. Error diagnostics (and a `base` read from another workflow) answer 400, a
  * stale fingerprint 409, a locked workflow 423; a dry run answers 200 with its diagnostics in the
  * body. Answers 403 while the `workflow-code` flag is off. Analytics are recorded by the use case.
- * Each compiles and diffs a body of up to `SOURCE_REQUEST_MAX_BYTES`, so neither draws on the
- * generic budget: a real apply spends the source-write budget and takes an apply slot, and a dry
- * run, which writes nothing, the source-plan budget and a plan slot, as the plan route does
- * (`v2RateLimits.sourceApply`). A server already running as many as it allows answers 429 with
- * `Retry-After`.
+ * Applies and dry runs each compile and diff a body of up to `SOURCE_REQUEST_MAX_BYTES`, so neither
+ * draws on the generic budget: a real apply spends the source-write budget and takes an apply slot,
+ * and a dry run, which writes nothing, the source-plan budget and a plan slot, as the plan route
+ * does (`v2RateLimits.sourceApply`). A server already running as many as it allows answers 429
+ * with `Retry-After`.
  */
 export const POST = defineV2JsonRoute({
   contract: v2ApplyWorkflowSourceContract,

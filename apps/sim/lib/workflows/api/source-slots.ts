@@ -33,8 +33,8 @@ class SourceSlotBusyError extends Error {
  * `useCase`, run in one of its lane's slots (`laneOf`, or the lane it picks for the input): a get,
  * plan or apply (each holds a workflow's or a directory's worth of text, stored state and
  * canonical forms in memory) waits for nothing, and is refused with a `429` (see
- * {@link renderSourceSlotBusy}) when the process already runs
- * {@link MAX_CONCURRENT_SOURCE_REQUESTS} of them, so a burst cannot run the process out of memory.
+ * {@link renderSourceSlotBusy}) when the process already runs {@link MAX_CONCURRENT_SOURCE_REQUESTS}
+ * of them, so a burst cannot run the process out of memory.
  */
 export function withSourceSlot<O extends ApplicationOperation, I, R>(
   useCase: AuthorizingUseCase<O, I, R>,

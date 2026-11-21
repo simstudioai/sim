@@ -72,10 +72,9 @@ export interface StageSourceBlobsResult {
 
 /**
  * Stages a batch of blobs: refuses one over `maxBlobBytes`, a batch over the request caps (a single
- * blob may fill its request alone), and any
- * blob whose bytes do not hash to the SHA-256 it was named by (nothing of the batch is staged),
- * then stores the rest within the scope's caps and the payer's storage quota. Staging a blob already
- * staged only renews it.
+ * blob may fill its request alone), and any blob whose bytes do not hash to the SHA-256 it was
+ * named by (nothing of the batch is staged), then stores the rest within the scope's caps and the
+ * payer's storage quota. Staging a blob already staged only renews it.
  */
 export const stageSourceBlobs = defineAuthorizedWorkspaceUseCase({
   operation: workspaceSourceOperations.stageBlobs,

@@ -213,8 +213,8 @@ function inCreationOrder<T extends object>(
  * difference is written for blocks and subflows: rows whose stored columns already match are
  * untouched (keeping their timestamps), changed rows are rewritten, and missing or extra rows are
  * inserted or deleted, so an edit costs its size rather than the graph's. Edges, which nothing
- * references, are left alone when unchanged and in order, and otherwise rewritten whole in the
- * state's order. Rows inserted together are stamped in the state's order (see `creationOrder`).
+ * references, are left alone when unchanged and in order, and otherwise rewritten whole. Rows
+ * inserted together are stamped in the state's order (see `creationOrder`).
  *
  * The stored rows are read `FOR UPDATE`, the rows a delete-all would lock. Writes run in
  * foreign-key order: an edge is retargeted before the block it left is deleted, so that block's
