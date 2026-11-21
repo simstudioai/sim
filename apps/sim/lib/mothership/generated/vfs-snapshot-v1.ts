@@ -1,139 +1,141 @@
-// AUTO-GENERATED FILE. DO NOT EDIT.
-//
+// GENERATED — do not edit. Source of truth: mothership worker packages/contracts/src/vfs-snapshot-v1.ts
+// Regenerate with `bun run contracts:sync` in the worker.
+
+// The structured workspace inventory snapshot Sim sends with each chat request.
 
 /**
- * Structured workspace inventory snapshot Sim sends to Go; Go diffs successive snapshots into baseline+delta messages.
+ * Structured workspace inventory snapshot Sim sends to the worker, which diffs successive snapshots into baseline+delta messages.
  */
 export interface VfsSnapshotV1 {
-  customBlocks?: VfsSnapshotV1CustomBlock[]
-  customTools?: VfsSnapshotV1NamedResource[]
-  envVars?: string[]
-  files?: VfsSnapshotV1File[]
-  integrations?: VfsSnapshotV1Integration[]
-  knowledgeBases?: VfsSnapshotV1KnowledgeBase[]
-  mcpServers?: VfsSnapshotV1McpServer[]
-  members?: VfsSnapshotV1Member[]
-  sandboxes?: VfsSnapshotV1Sandbox[]
-  skills?: VfsSnapshotV1Skill[]
-  tables?: VfsSnapshotV1Table[]
-  workflows?: VfsSnapshotV1Workflow[]
-  workspace?: VfsSnapshotV1Workspace
+  customBlocks?: VfsSnapshotV1CustomBlock[];
+  customTools?: VfsSnapshotV1NamedResource[];
+  envVars?: string[];
+  files?: VfsSnapshotV1File[];
+  integrations?: VfsSnapshotV1Integration[];
+  knowledgeBases?: VfsSnapshotV1KnowledgeBase[];
+  mcpServers?: VfsSnapshotV1McpServer[];
+  members?: VfsSnapshotV1Member[];
+  sandboxes?: VfsSnapshotV1Sandbox[];
+  skills?: VfsSnapshotV1Skill[];
+  tables?: VfsSnapshotV1Table[];
+  workflows?: VfsSnapshotV1Workflow[];
+  workspace?: VfsSnapshotV1Workspace;
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1CustomBlock".
  */
 export interface VfsSnapshotV1CustomBlock {
-  description?: string
-  name: string
-  type: string
+  description?: string;
+  name: string;
+  type: string;
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1NamedResource".
  */
 export interface VfsSnapshotV1NamedResource {
-  id: string
-  name: string
+  id: string;
+  name: string;
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1File".
  */
 export interface VfsSnapshotV1File {
-  folderPath?: string
-  id: string
-  name: string
-  path: string
-  size?: number
-  type?: string
+  folderPath?: string;
+  id: string;
+  name: string;
+  path: string;
+  size?: number;
+  type?: string;
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1Integration".
  */
 export interface VfsSnapshotV1Integration {
-  displayName?: string
-  id: string
-  providerId: string
-  role?: string
+  displayName?: string;
+  id: string;
+  providerId: string;
+  role?: string;
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1KnowledgeBase".
  */
 export interface VfsSnapshotV1KnowledgeBase {
-  connectorTypes?: string[]
-  description?: string
-  id: string
-  name: string
+  connectorTypes?: string[];
+  description?: string;
+  id: string;
+  name: string;
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1McpServer".
  */
 export interface VfsSnapshotV1McpServer {
-  enabled?: boolean
-  id: string
-  name: string
-  url?: string
+  enabled?: boolean;
+  id: string;
+  name: string;
+  url?: string;
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1Member".
  */
 export interface VfsSnapshotV1Member {
-  email: string
-  name?: string
-  permissionType?: string
+  email: string;
+  name?: string;
+  permissionType?: string;
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1Sandbox".
  */
 export interface VfsSnapshotV1Sandbox {
-  cliTools?: string[]
-  dependencies?: string[]
-  id: string
-  language: string
-  name: string
-  systemPackages?: string[]
+  cliTools?: string[];
+  dependencies?: string[];
+  id: string;
+  language: string;
+  name: string;
+  systemPackages?: string[];
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1Skill".
  */
 export interface VfsSnapshotV1Skill {
-  description?: string
-  id: string
-  name: string
+  description?: string;
+  id: string;
+  name: string;
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1Table".
  */
 export interface VfsSnapshotV1Table {
-  description?: string
-  id: string
-  name: string
+  description?: string;
+  id: string;
+  name: string;
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1Workflow".
  */
 export interface VfsSnapshotV1Workflow {
-  folderPath?: string
-  id: string
-  isDeployed?: boolean
-  name: string
-  path: string
+  folderPath?: string;
+  id: string;
+  isDeployed?: boolean;
+  name: string;
+  path: string;
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
  * via the `definition` "VfsSnapshotV1Workspace".
  */
 export interface VfsSnapshotV1Workspace {
-  id: string
-  name: string
-  ownerId?: string
+  id: string;
+  name: string;
+  ownerId?: string;
 }
