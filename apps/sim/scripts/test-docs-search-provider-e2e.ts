@@ -288,7 +288,11 @@ try {
         '@/lib/mothership/docs/corpus'
       )
       const { db } = await import('@sim/db')
-      closePlatform = () => db.$client.end({ timeout: 1 })
+      const { closeRedisConnection } = await import('@/lib/core/config/redis')
+      closePlatform = async () => {
+        await db.$client.end({ timeout: 1 })
+        await closeRedisConnection()
+      }
       let hit: { path: string; url: string; content: string }
       if (live) {
         const result = await searchDocs(
