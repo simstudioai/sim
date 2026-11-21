@@ -19,6 +19,7 @@ import {
   v2KnowledgeErrorPolicies,
 } from '@/lib/knowledge/api/route-policies'
 import { internalTableErrorPolicies, v2TableErrorPolicies } from '@/lib/table/api/route-policies'
+import { TABLE_NOT_FOUND_MESSAGE } from '@/lib/table/constants'
 import {
   createInternalWorkflowErrorPolicy,
   internalWorkflowErrorPolicies,
@@ -50,7 +51,7 @@ const policies: Array<{
   {
     domain: 'table',
     policy: v2TableErrorPolicies.concealTableAuthorization,
-    notFoundMessage: 'Table not found',
+    notFoundMessage: TABLE_NOT_FOUND_MESSAGE,
   },
   {
     domain: 'table import',
@@ -217,12 +218,12 @@ const internalPolicies: Array<{
   {
     route: 'POST /api/table/imports, POST /api/table/[tableId]/exports',
     policy: internalTableErrorPolicies.concealTableAuthorization,
-    notFoundMessage: 'Table not found',
+    notFoundMessage: TABLE_NOT_FOUND_MESSAGE,
   },
   {
     route: 'POST/PATCH/DELETE /api/table/[tableId]/groups',
     policy: internalTableErrorPolicies.concealTableGroupAuthorization,
-    notFoundMessage: 'Table not found',
+    notFoundMessage: TABLE_NOT_FOUND_MESSAGE,
   },
   {
     route: 'GET/DELETE /api/table/imports/[importId]',
