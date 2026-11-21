@@ -54,8 +54,9 @@ have the CLI confirm the directory holds that workflow.
    `.sim/starter.json`, and creates nothing; the create that follows targets that workspace, and
    one into another workspace is refused unless `--workspace` names it.
 
-`apply` and `create` ask for confirmation on a terminal; elsewhere pass `--yes` (without it they
-refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
+`apply` and `create` ask for confirmation on a terminal. With no terminal to ask and no `--yes`,
+they print the plan, write nothing and exit `14` (or `1` when the plan has errors): run the same
+command with `--yes` to write it. `--dry-run` never asks.
 
 ## Where the types live
 

@@ -168,12 +168,12 @@ The CLI resends a request the API answers `429` only when sending it twice is sa
 | Code | `sim workflows source apply` or `create` |
 | --- | --- |
 | `0` | Applied or created, or a dry run with no errors |
-| `1` | The source has errors (each printed as `file:line:column` with its frame and hint), or command/request failure |
+| `1` | The source has errors (each printed as `file:line:column` with its frame and hint), `create`'s workflow name is taken (`SOURCE_NAME_TAKEN`: pass `--name`), or command/request failure |
 | `5` | The workflow changed since the directory was read (`409 SOURCE_STALE`): get it again, reapply the edit, and retry |
 | `6` | The workflow or its folder is locked (`423`, `E_APPLY_LOCKED`); a locked block exits `1` (`E_APPLY_LOCKED_BLOCK`) |
 | `7` | The source is over the size limits (`413`) |
 | `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
-| `10` | `--dir` is a workflow folder of a workspace directory another `sim` command is using (`SOURCE_DIR_BUSY`); nothing was written: run it again once the other finished |
+| `10` | Busy, retry: another `sim` command is using `--dir`, or the workspace directory it is a workflow folder of (`SOURCE_DIR_BUSY`); nothing was read or written: run it again once the other finished |
 | `13` | `AUTH_REQUIRED`: not logged in, or the server refused the credential; nothing was sent |
 | `14` | Run without `--yes` and with no terminal to ask: the plan was printed with no errors and nothing was written; run the same command with `--yes` |
 | `130` | Interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check |
@@ -183,6 +183,7 @@ The CLI resends a request the API answers `429` only when sending it twice is sa
 | `0` | Clean: nothing to apply, and the server changed nothing since the directory was read |
 | `1` | Command/request failure |
 | `7` | The source is too large for the server to read in one dry run |
+| `10` | `sim workspaces source status` only: another `sim workspaces source` command is using the directory (`SOURCE_DIR_BUSY`); nothing was read: run it again once the other finished |
 | `11` | Local changes only: applying writes them |
 | `12` | The server changed since the directory was read (drift, or a conflict with local changes) |
 | `13` | `AUTH_REQUIRED`: not logged in, or the server refused the credential; the local changes are still shown |
@@ -191,13 +192,17 @@ The CLI resends a request the API answers `429` only when sending it twice is sa
 | --- | --- |
 | `0` | No errors (warnings may still print) |
 | `1` | The source has errors, or a warning that fails the check on a block the edit added (see `--strict`), or no block catalog is cached: run the get once |
+| `10` | `sim workspaces source check` only: another `sim workspaces source` command is using the directory (`SOURCE_DIR_BUSY`); nothing was read: run it again once the other finished |
 
 | Code | `sim workflows source get --dir` or `sim workspaces source get` |
 | --- | --- |
 | `0` | Written |
-| `1` | The directory holds edits no apply has saved (`SOURCE_LOCAL_EDITS`) or another workflow's source (`SOURCE_WORKFLOW_MISMATCH`): apply them, get into another directory, or pass `--force`; or command/request failure |
+| `1` | The directory holds edits no apply has saved (`SOURCE_LOCAL_EDITS`) or another workflow's source (`SOURCE_WORKFLOW_MISMATCH`): apply them, get into another directory, or pass `--force`; it is the other kind of source directory (`SOURCE_DIR_KIND_MISMATCH`, even with `--force`); for a workspace, `--workspace` names another workspace than the one the directory was read from (`SOURCE_OTHER_WORKSPACE`) or a downloaded binary file does not match its listing (`SOURCE_BLOB_MISMATCH`); or command/request failure |
 | `7` | The workflow, or a kind of resource, is too large for one directory |
 | `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
+| `10` | Busy, retry: another `sim` command is using the directory (or, for a workflow folder, its workspace directory) (`SOURCE_DIR_BUSY`); nothing was read or written: run it again once the other finished |
+| `13` | `AUTH_REQUIRED`: not logged in, the login expired, or the server refused the credential; nothing was read or written: run `sim login` and the get again |
+| `130` | Interrupted (Ctrl-C): run the get again |
 
 | Code | `sim workspaces source apply` |
 | --- | --- |
