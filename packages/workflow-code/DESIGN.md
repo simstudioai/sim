@@ -532,6 +532,7 @@ can always be applied back unchanged:
 
 - 2,000 blocks (the v2 graph cap, `MAX_WORKFLOW_GRAPH_BLOCKS`);
 - 10,000 edges (the v2 graph cap, `MAX_WORKFLOW_GRAPH_EDGES`);
+- 2,000 variables, so a lock holds at most that many variable entries;
 - 2,001 files: `workflow.ts` plus one code file per block, so files mode never overflows into inline
   code;
 - 4,000,000 UTF-8 bytes across every file together, the entry included. No cap applies to a single
