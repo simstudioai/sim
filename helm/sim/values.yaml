@@ -192,9 +192,7 @@ app:
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
 
     # Registration Control
-    DISABLE_REGISTRATION: ""                              # Set to "true" to disable new user signups
-    EMAIL_PASSWORD_SIGNUP_ENABLED: ""                     # Set to "false" to disable email/password login (SSO-only mode, server-side enforcement)
-    NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: ""         # Set to "false" to hide email/password login form (UI-side)
+    REGISTRATION_MODE: ""                                 # open (default) | no-email-signup | closed | no-email | closed-no-email; no-email* also disables email/password login. Replaces DISABLE_REGISTRATION, DISABLE_EMAIL_SIGNUP, EMAIL_PASSWORD_SIGNUP_ENABLED
 
     # Bot Protection (Cloudflare Turnstile)
     TURNSTILE_SECRET_KEY: ""                              # Cloudflare Turnstile secret key (leave empty to disable captcha)
@@ -207,11 +205,11 @@ app:
     # Admin API Configuration
     ADMIN_API_KEY: ""                                    # Admin API key for organization/user management (generate with: openssl rand -hex 32)
 
-    # Enterprise feature set (defaults to "false" via envDefaults — set "true" here to enable)
-    # ENTERPRISE_ENABLED turns on every enterprise feature; the per-feature flags
-    # below override it either way. See docs: /platform/enterprise/self-hosted
+    # Enterprise feature set. ENTERPRISE_ENABLED turns on every enterprise feature; the
+    # per-feature flags below override it either way. Each feature is one server variable:
+    # the browser reads the server-resolved state, so there are no NEXT_PUBLIC_ twins.
+    # See docs: /platform/enterprise/self-hosted
     ENTERPRISE_ENABLED: ""                               # Enable all enterprise features ("true" to enable)
-    NEXT_PUBLIC_ENTERPRISE_ENABLED: ""                   # Show all enterprise UI ("true" to enable)
 
     # Instance-tier organization — every user auto-joins this one org at signup
     INSTANCE_ORG_NAME: ""                                # Organization name; setting it turns instance-org mode on
@@ -219,10 +217,8 @@ app:
     INSTANCE_ORG_OWNER_EMAIL: ""                         # Optional owner email (defaults to the first user to sign up)
 
     # Organizations & Permission Groups (per-feature overrides)
-    ACCESS_CONTROL_ENABLED: ""                           # Enable permission groups feature ("true" to enable)
+    ACCESS_CONTROL_ENABLED: ""                           # Enable permission groups feature ("true" to enable; implies organizations)
     ORGANIZATIONS_ENABLED: ""                            # Enable organizations feature ("true" to enable)
-    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: ""               # Show permission groups UI ("true" to enable)
-    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: ""                # Show organizations UI ("true" to enable)
 
     # LLM Provider/Model Restrictions (leave empty if not restricting)
     BLACKLISTED_PROVIDERS: ""                            # Comma-separated provider IDs to hide from UI (e.g., "openai,anthropic,google")
@@ -243,7 +239,7 @@ app:
     # SSO Configuration (Enterprise Single Sign-On)
     # Set to "true" AFTER running the SSO registration script
     SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)
-    NEXT_PUBLIC_SSO_ENABLED: ""                           # Show SSO login button in UI ("true" to enable)
+    SCIM_ENABLED: ""                                      # Enable SCIM directory provisioning; needs SSO ("true" to enable)
     # Self-hosted only: trust every organization owner/admin to verify domains without DNS proof.
     # Requires a compatible app image; see https://docs.sim.ai/platform/enterprise/verified-domains#skip-dns-verification
     SSO_SKIP_DOMAIN_VERIFICATION: ""                      # Opt in with "true"; unset/"false" requires DNS
@@ -252,15 +248,18 @@ app:
     # assert email_verified (trustEmailVerified already handles those that do). Resolved at startup — restart after editing.
     SSO_TRUSTED_PROVIDER_IDS: ""
 
-    # Enterprise Feature Overrides (self-hosted)
-    INBOX_ENABLED: ""                                     # Enable Sim Mailer on self-hosted ("true" to enable)
-    NEXT_PUBLIC_INBOX_ENABLED: ""                         # Show Sim Mailer settings page ("true" to enable)
+    # Enterprise Feature Overrides (self-hosted). Empty means unset, which lets
+    # ENTERPRISE_ENABLED (or the feature's default) decide; "false" switches one off.
+    INBOX_ENABLED: ""                                     # Sim Mailer; on by default without billing ("false" to disable)
+    SESSION_POLICIES_ENABLED: ""                          # Org session policies; on by default without billing ("false" to disable)
     AUDIT_LOGS_ENABLED: ""                                # Enable audit logs on self-hosted ("true" to enable)
-    NEXT_PUBLIC_AUDIT_LOGS_ENABLED: ""                    # Show audit logs settings page ("true" to enable)
     CUSTOM_BLOCKS_ENABLED: ""                             # Enable custom blocks on self-hosted ("true" to enable)
-    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: ""                 # Show custom blocks settings page ("true" to enable)
     DATA_DRAINS_ENABLED: ""                               # Enable data drains on self-hosted ("true" to enable)
-    NEXT_PUBLIC_DATA_DRAINS_ENABLED: ""                   # Show data drains settings page ("true" to enable)
+    DATA_RETENTION_ENABLED: ""                            # Run retention deletion on self-hosted ("true" to enable)
+    USAGE_MONITORING_ENABLED: ""                          # Enable org usage monitoring on self-hosted ("true" to enable)
+    FORKING_ENABLED: ""                                   # Enable workspace forks on self-hosted ("true" to enable)
+    CREDENTIAL_GROUPS: ""                                 # Enable Credential Groups on self-hosted ("true" to enable)
+    SANDBOXES_ENABLED: ""                                 # Entitle custom sandboxes; also needs a remote sandbox provider ("true" to enable)
 
     # AWS Bedrock Credential Mode
     # Set to "true" when the deployment uses AWS default credential chain (IAM roles, instance
@@ -355,8 +354,6 @@ app:
     # ENTERPRISE_ENABLED decide. Set "true"/"false" in app.env to override.
     ACCESS_CONTROL_ENABLED: ""
     ORGANIZATIONS_ENABLED: ""
-    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: ""
-    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: ""
 
     # Admission Gate
     ADMISSION_GATE_MAX_INFLIGHT: "500"                    # Max concurrent in-flight execution requests per pod

@@ -436,11 +436,17 @@ function anyEnvSet(spec: string): boolean {
 }
 
 /**
- * Check if a subblock is gated by a feature flag.
+ * Check if a subblock is gated by a public env var or a deployment feature.
  */
 export function isSubBlockFeatureEnabled(
-  subBlock: Pick<SubBlockConfig, 'showWhenEnvSet'>
+  subBlock: Pick<SubBlockConfig, 'showWhenEnvSet' | 'showWhenFeature'>
 ): boolean {
+  if (
+    subBlock.showWhenFeature &&
+    getDeploymentShape().features[subBlock.showWhenFeature] !== true
+  ) {
+    return false
+  }
   if (!subBlock.showWhenEnvSet) return true
   return anyEnvSet(subBlock.showWhenEnvSet)
 }

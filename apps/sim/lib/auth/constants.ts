@@ -55,7 +55,8 @@ interface RegistrationGate {
 }
 
 /**
- * Stamps DISABLE_REGISTRATION onto every social provider config.
+ * Stamps a closed `REGISTRATION_MODE` (`closed`, `closed-no-email`) onto every
+ * social provider config.
  *
  * The `/sign-up*` gate cannot see OAuth account creation, which happens on
  * `/sign-in/social` and its callback — without this, a registration-disabled

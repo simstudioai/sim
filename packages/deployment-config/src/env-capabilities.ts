@@ -1098,10 +1098,7 @@ export const SANDBOX_CAPABILITY = defineCapability({
           },
         })
       ),
-      optionalFields: [
-        envField('NEXT_PUBLIC_E2B_ENABLED'),
-        envField('NEXT_PUBLIC_SANDBOXES_ENABLED'),
-      ],
+      optionalFields: [envField('NEXT_PUBLIC_E2B_ENABLED')],
     },
     {
       id: 'daytona',
@@ -1119,10 +1116,7 @@ export const SANDBOX_CAPABILITY = defineCapability({
           },
         })
       ),
-      optionalFields: [
-        envField('NEXT_PUBLIC_E2B_ENABLED'),
-        envField('NEXT_PUBLIC_SANDBOXES_ENABLED'),
-      ],
+      optionalFields: [envField('NEXT_PUBLIC_E2B_ENABLED')],
     },
   ],
 } as const)
@@ -1566,7 +1560,6 @@ export const DEPLOYMENT_CONFIGURATION_KEYS: readonly string[] = [
     'EMAIL_VERIFICATION_ENABLED',
     'NEXT_PUBLIC_CHAT_DISABLED',
     'NEXT_PUBLIC_E2B_ENABLED',
-    'NEXT_PUBLIC_SANDBOXES_ENABLED',
     'SIM_AGENT_API_URL',
     ...Object.values(LLM_KEY_POOLS).flatMap((pool) => [
       ...pool.keys,

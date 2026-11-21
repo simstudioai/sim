@@ -19,4 +19,6 @@ Production deployment requires an active Enterprise subscription.
 
 Enterprise features are imported directly throughout the codebase. The `ee/` directory
 is required at build time. Feature visibility is controlled at runtime via environment
-variables (e.g., `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED`, `NEXT_PUBLIC_SCIM_ENABLED`), or all at once with `ENTERPRISE_ENABLED`.
+variables, one server variable per feature (e.g., `ACCESS_CONTROL_ENABLED`, `SSO_ENABLED`, `SCIM_ENABLED`), or all at once with `ENTERPRISE_ENABLED`.
+The registry in `packages/deployment-config/src/enterprise-features.ts` declares every feature and its default; the browser
+receives the server-resolved state, so there are no `NEXT_PUBLIC_*` twins to set.

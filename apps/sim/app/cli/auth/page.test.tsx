@@ -34,7 +34,7 @@ describe('CliAuthPage signed-out bounce', () => {
   })
 
   afterEach(() => {
-    envFlagsMock.isRegistrationDisabled = false
+    envFlagsMock.isSelfServeRegistrationClosed = false
   })
 
   it('sends a signed-out visitor to signup, carrying the handoff as callbackUrl', async () => {

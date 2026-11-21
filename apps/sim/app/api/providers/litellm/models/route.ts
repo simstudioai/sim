@@ -1,12 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import {
-  providerModelsResponseSchema,
-  vllmUpstreamResponseSchema,
-} from '@/lib/api/contracts/providers'
+import { providerModelsResponseSchema } from '@/lib/api/contracts/providers'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { listOpenAICompatibleModels } from '@/providers/openai-compat/model-list'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('LiteLLMModelsAPI')
@@ -17,7 +15,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
     return NextResponse.json({ models: [] })
   }
 
-  const baseUrl = (env.LITELLM_BASE_URL || '').replace(/\/$/, '')
+  const baseUrl = env.LITELLM_BASE_URL?.trim()
 
   if (!baseUrl) {
     logger.info('LITELLM_BASE_URL not configured')
@@ -27,29 +25,15 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
   try {
     logger.info('Fetching LiteLLM models', { baseUrl })
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-
-    if (env.LITELLM_API_KEY) {
-      headers.Authorization = `Bearer ${env.LITELLM_API_KEY}`
-    }
-
-    const response = await fetch(`${baseUrl}/v1/models`, {
-      headers,
-      next: { revalidate: 60 },
+    const allModels = await listOpenAICompatibleModels({
+      baseUrl,
+      apiKey: env.LITELLM_API_KEY,
+      prefix: 'litellm/',
+      init: { next: { revalidate: 60 } },
     })
 
-    if (!response.ok) {
-      logger.warn('LiteLLM service is not available', {
-        status: response.status,
-        statusText: response.statusText,
-      })
-      return NextResponse.json({ models: [] })
-    }
+    if (!allModels) return NextResponse.json({ models: [] })
 
-    const data = vllmUpstreamResponseSchema.parse(await response.json())
-    const allModels = data.data.map((model) => `litellm/${model.id}`)
     const models = filterBlacklistedModels(allModels)
 
     logger.info('Successfully fetched LiteLLM models', {

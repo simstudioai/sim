@@ -25,6 +25,7 @@ import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
 import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
 import {
+  deploymentShapeHtmlAttributes,
   PublicEnvScript,
   publicEnvHtmlAttributes,
   RuntimePublicEnvScript,
@@ -177,7 +178,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   )
 
   return (
-    <html lang='en' suppressHydrationWarning {...publicEnvHtmlAttributes()}>
+    <html
+      lang='en'
+      suppressHydrationWarning
+      {...publicEnvHtmlAttributes()}
+      {...deploymentShapeHtmlAttributes()}
+    >
       <head>
         {isReactScanEnabled && (
           <Script

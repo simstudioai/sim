@@ -1,4 +1,5 @@
 import type { ComponentType, JSX, SVGProps } from 'react'
+import type { EnterpriseFeature } from '@sim/deployment-config/enterprise-features'
 import type {
   OutputCondition,
   OutputFieldDefinition,
@@ -411,6 +412,12 @@ export interface SubBlockConfig {
   hideFromCopilot?: boolean
   hideDividerBefore?: boolean // Visually group this field with the preceding visible subblock
   showWhenEnvSet?: string // Show this subblock only when a named NEXT_PUBLIC_ env var is truthy; comma-separated means any of them
+  /**
+   * Show this subblock only when the deployment shape turns on this enterprise feature.
+   * Read through `getDeploymentShape()`, so it follows the server-resolved shape in the
+   * browser and the deployment's own configuration on the server.
+   */
+  showWhenFeature?: EnterpriseFeature
   hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
   hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy
   description?: string

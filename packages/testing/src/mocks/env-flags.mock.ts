@@ -1,11 +1,14 @@
+import type { RegistrationMode } from '@sim/deployment-config/registration'
 import { vi } from 'vitest'
 
 /**
  * Mutable value-export state for the shared `@/lib/core/config/env-flags` mock.
  * Defaults mirror the real module evaluated under the vitest environment
- * (NODE_ENV=test, no feature env vars set): only `isTest`,
- * `isEmailPasswordEnabled`, and `isChatEnabled` are true — the last because it
- * is an opt-out flag, on unless `NEXT_PUBLIC_CHAT_DISABLED` is set.
+ * (NODE_ENV=test, no feature env vars set): `registrationMode` is `open`, and
+ * only `isTest`, `isEmailSignupAllowed`, `isEmailPasswordAuthEnabled`, and
+ * `isChatEnabled` are true — the last because it is an opt-out flag, on unless
+ * `NEXT_PUBLIC_CHAT_DISABLED` is set. Keep the registration booleans consistent
+ * with `registrationMode` when overriding them.
  */
 interface EnvFlagsMockState {
   isProd: boolean
@@ -21,8 +24,10 @@ interface EnvFlagsMockState {
   isAuthDisabled: boolean
   egressAllowedHosts: string | undefined
   egressAllowedIpRanges: string | undefined
-  isRegistrationDisabled: boolean
-  isEmailPasswordEnabled: boolean
+  registrationMode: RegistrationMode
+  isSelfServeRegistrationClosed: boolean
+  isEmailSignupAllowed: boolean
+  isEmailPasswordAuthEnabled: boolean
   isSignupMxValidationEnabled: boolean
   isAppConfigEnabled: boolean
   isSlackExtendedScopesEnabled: boolean
@@ -53,7 +58,6 @@ interface EnvFlagsMockState {
   isGoogleAuthDisabled: boolean
   isGithubAuthDisabled: boolean
   isMicrosoftAuthDisabled: boolean
-  isEmailSignupDisabled: boolean
   isReactGrabEnabled: boolean
   isReactScanEnabled: boolean
 }
@@ -72,21 +76,20 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isAuthDisabled: false,
   egressAllowedHosts: undefined,
   egressAllowedIpRanges: undefined,
-  isRegistrationDisabled: false,
-  isEmailPasswordEnabled: true,
+  registrationMode: 'open',
+  isSelfServeRegistrationClosed: false,
+  isEmailSignupAllowed: true,
+  isEmailPasswordAuthEnabled: true,
   isSignupMxValidationEnabled: false,
   isAppConfigEnabled: false,
   isSlackExtendedScopesEnabled: false,
   isTriggerDevEnabled: false,
   isSsoEnabled: false,
-  /** OAuth-aware route behavior is available unless a suite overrides it. */
   isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
-  /** Live Search is the default Sim Search backend; indexed search is dormant. */
-  // True with billing off and no flags set — these carry a legacy default of
-  // `true` so upgrades do not remove a feature. See
-  // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
+  // True with billing off and no flags set: their `selfHostedDefault` is `true`
+  // in ENTERPRISE_FEATURES (`@sim/deployment-config/enterprise-features`).
   isInboxEnabled: true,
   isSandboxDeploymentEntitled: false,
   isSandboxesEnabled: false,
@@ -109,7 +112,6 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isGoogleAuthDisabled: false,
   isGithubAuthDisabled: false,
   isMicrosoftAuthDisabled: false,
-  isEmailSignupDisabled: false,
   isReactGrabEnabled: false,
   isReactScanEnabled: false,
 }
@@ -142,6 +144,7 @@ export const envFlagsMockFns = {
   getBlacklistedProvidersFromEnv: vi.fn<() => string[]>(() => []),
   getAllowedMcpDomainsFromEnv: vi.fn<() => string[] | null>(() => null),
   getCostMultiplier: vi.fn<() => number>(() => 1),
+  getRegistrationMode: vi.fn<() => RegistrationMode>(() => envFlagsState.registrationMode),
 }
 
 /**
@@ -171,6 +174,9 @@ export function resetEnvFlagsMock(): void {
   envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReset().mockImplementation(() => [])
   envFlagsMockFns.getAllowedMcpDomainsFromEnv.mockReset().mockImplementation(() => null)
   envFlagsMockFns.getCostMultiplier.mockReset().mockImplementation(() => 1)
+  envFlagsMockFns.getRegistrationMode
+    .mockReset()
+    .mockImplementation(() => envFlagsState.registrationMode)
   envFlagsMockFns.getEgressAllowedHosts
     .mockReset()
     .mockImplementation(() =>

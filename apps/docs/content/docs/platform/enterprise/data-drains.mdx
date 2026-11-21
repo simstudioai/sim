@@ -248,10 +248,9 @@ Enable the feature through enterprise configuration or explicitly set:
 
 ```bash
 DATA_DRAINS_ENABLED=true
-NEXT_PUBLIC_DATA_DRAINS_ENABLED=true
 ```
 
-An explicit feature value takes precedence over `ENTERPRISE_ENABLED`. When disabled, the page is hidden, mutating drain requests return `404`, and the dispatcher does no work. Billing-enabled deployments retain the Enterprise gate. Keep server and public feature configuration aligned; `bunx sim-setup doctor` checks the pair. See [self-hosted enterprise setup](/platform/enterprise/self-hosted).
+An explicit feature value takes precedence over `ENTERPRISE_ENABLED`. When disabled, the page is hidden, mutating drain requests return `404`, and the dispatcher does no work. Billing-enabled deployments retain the Enterprise gate. See [self-hosted enterprise setup](/platform/enterprise/self-hosted).
 
 The dispatcher requires scheduled calls to `GET /api/cron/run-data-drains`. Set the same `CRON_SECRET` on the app and its caller; the endpoint returns `401` when it is unset. Generate a secret if needed, then install it in both configurations:
 

@@ -1,4 +1,6 @@
 import { connection } from 'next/server'
+import { DEPLOYMENT_SHAPE_ATTRIBUTE } from '@/lib/core/config/deployment-projection'
+import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { PUBLIC_ENV_ATTRIBUTE } from '@/lib/core/config/env'
 
 /**
@@ -40,6 +42,21 @@ const HOSTED_PUBLIC_ENV = readPublicEnv()
  */
 export function publicEnvHtmlAttributes(): Record<string, string> {
   return { [PUBLIC_ENV_ATTRIBUTE]: JSON.stringify(readPublicEnv()) }
+}
+
+/**
+ * Props to spread onto the `<html>` element carrying the server-resolved deployment
+ * shape, which the browser reads instead of rebuilding deployment configuration from
+ * `NEXT_PUBLIC_*` twins. Rides on `<html>` for the same ordering reason as
+ * {@link publicEnvHtmlAttributes}; see `@/lib/core/config/deployment-projection`.
+ *
+ * Every field is visible to any visitor, signed in or not, so the shape must never
+ * carry a secret, URL, or identifier (`deployment-shape.test.ts` guards this). It
+ * relies on the same dynamic-root guarantee as {@link PUBLIC_ENV_ATTRIBUTE}: a
+ * prerendered page would carry build-time values instead of the running config.
+ */
+export function deploymentShapeHtmlAttributes(): Record<string, string> {
+  return { [DEPLOYMENT_SHAPE_ATTRIBUTE]: JSON.stringify(resolveDeploymentShape()) }
 }
 
 /**
