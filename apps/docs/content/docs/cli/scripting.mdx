@@ -215,8 +215,11 @@ The CLI resends a request the API answers `429` only when sending it twice is sa
 | `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
 | `10` | Busy, retry: another apply is writing the workspace (`409 SOURCE_BUSY`), or another `sim workspaces source` command is using the same directory (`SOURCE_DIR_BUSY`); nothing was written: run the command again once the other finished |
 | `13` | `AUTH_REQUIRED`: not logged in, or the server refused the credential; nothing was sent |
+| `14` | Run without `--yes` and with no terminal to ask: the plan was printed with no errors and nothing was written; run the same command with `--yes` |
 | `15` | Written in part: changes that use a declared secret with no value, or a credential key nothing binds to, were held back and the rest was applied and saved; set the secret or connect the credential, then apply again (a promotion with `--to` too) |
 | `130` | Interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check |
+
+Earlier CLI releases exited `1` when an apply held changes back, whether or not it wrote the rest. A script that reads `1` as "held back" should test for `15` too.
 
 Both waits default to 3600 seconds; `--wait-timeout 0` waits indefinitely. `SIM_TIMEOUT_SECONDS` independently bounds one API request. A timeout does not cancel the underlying run or operation.
 
@@ -411,7 +414,7 @@ jobs:
       - run: sim workspaces source apply --dir workspace --dry-run
       - if: github.event_name == 'push'
         run: sim workspaces source apply --dir workspace --yes
-      - if: github.event_name == 'push'
+      - if: ${{ !cancelled() && github.event_name == 'push' }}
         run: |
           git add -A workspace
           if ! git diff --cached --quiet; then
@@ -421,7 +424,7 @@ jobs:
           fi
 ```
 
-`check` runs first because it is offline and fast, and it regenerates `.sim/sdk/workspace.d.ts`, so the `tsc` step after it types resources the pull request adds. A workspace API key can apply tables, rows, knowledge bases, files, custom tools, MCP servers and credential bindings. Workflows, skills, secrets and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory (each `.sim/base.json`, ids it allocated, values the server normalized), and the next apply compares with them, so the last step commits them back to the branch; `[skip ci]` keeps that commit from running the job again. Where the branch is protected, run `sim workspaces source get --dir workspace` on a new branch instead and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
+`check` runs first because it is offline and fast, and it regenerates `.sim/sdk/workspace.d.ts`, so the `tsc` step after it types resources the pull request adds. A workspace API key can apply tables, rows, knowledge bases, files, custom tools, MCP servers and credential bindings. Workflows, skills, secrets and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory (each `.sim/base.json`, ids it allocated, values the server normalized), and the next apply compares with them, so the last step commits them back to the branch; `[skip ci]` keeps that commit from running the job again. That step runs even when the apply failed (`!cancelled()`), because an apply can fail having written part of its plan: exit `15` means it held back changes that use a secret with no value or a credential nothing binds to and applied the rest, and exit `8` means it stopped part-way. Either way the directory records what was written, so committing it keeps the next run from being refused as stale (exit `5`) for resources this run wrote; the job still fails, so set the secret, connect the credential or fix the failure, and push again. Where the branch is protected, run `sim workspaces source get --dir workspace` on a new branch instead and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
 
 To promote the same directory to a second workspace, add a step with `--to` before the step that commits the files back:
 
