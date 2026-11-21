@@ -172,6 +172,8 @@ export interface CatalogProvider {
   providerCapabilityTags: string[]
   modelCount: number
   models: CatalogModel[]
+  /** The models that still accept requests; every recommendation reads these, never `models`. */
+  currentModels: CatalogModel[]
   featuredModels: CatalogModel[]
   searchText: string
 }
@@ -438,8 +440,11 @@ function buildBestForLine(model: {
   pricing: PricingInfo
   capabilities: ModelCapabilities
   contextWindow: number | null
+  retired: boolean
 }): string | null {
-  const { pricing, capabilities, contextWindow } = model
+  const { pricing, capabilities, contextWindow, retired } = model
+
+  if (retired) return null
 
   if (capabilities.reasoningEffort || capabilities.thinking) {
     return 'Best for reasoning-heavy tasks that need more deliberate model control.'
@@ -512,6 +517,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
       pricing: model.pricing,
       capabilities: mergedCapabilities,
       contextWindow: model.contextWindow ?? null,
+      retired,
     })
     const displayName = formatModelDisplayName(provider.id, model.id)
     const modelSlug = slugify(shortId)
@@ -563,7 +569,8 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
     models.find((model) => model.id === provider.defaultModel)?.displayName ||
     (provider.defaultModel ? formatModelDisplayName(provider.id, provider.defaultModel) : 'Dynamic')
 
-  const featuredModels = [...models].sort(compareModelsByRelevance).slice(0, 6)
+  const currentModels = models.filter((model) => !model.retired)
+  const featuredModels = [...currentModels].sort(compareModelsByRelevance).slice(0, 6)
   const naming = PROVIDER_MODEL_FAMILIES[provider.id]
   const modelFamily = naming?.family ?? providerDisplayName
 
@@ -588,6 +595,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
     providerCapabilityTags,
     modelCount: models.length,
     models,
+    currentModels,
     featuredModels,
     searchText: [
       provider.name,
@@ -697,7 +705,7 @@ export function getRelatedModels(targetModel: CatalogModel, limit = 6): CatalogM
 
   const targetTokens = new Set(tokenizeModelName(stripTechnicalSuffixes(targetModel.shortId)))
 
-  const scored = provider.models.reduce<Array<{ model: CatalogModel; score: number }>>(
+  const scored = provider.currentModels.reduce<Array<{ model: CatalogModel; score: number }>>(
     (acc, model) => {
       if (model.id === targetModel.id) {
         return acc
@@ -728,19 +736,19 @@ export function buildProviderFaqs(provider: CatalogProvider): CatalogFaq[] {
   const cheapestModel = getCheapestProviderModel(provider)
   const largestContextModel = getLargestContextProviderModel(provider)
 
-  const toolUseModels = provider.models.filter(
+  const toolUseModels = provider.currentModels.filter(
     (m) =>
       m.capabilities.toolUsageControl !== undefined ||
       provider.providerCapabilityTags.includes('Tool Use')
   )
+  const namedModels = provider.currentModels.slice(0, 6)
 
   const faqs: CatalogFaq[] = [
     {
       question: `What ${provider.name} models are available in Sim?`,
-      answer: `Sim currently tracks ${provider.modelCount} ${provider.name} model${provider.modelCount === 1 ? '' : 's'} including ${provider.models
-        .slice(0, 6)
+      answer: `Sim currently tracks ${provider.modelCount} ${provider.name} model${provider.modelCount === 1 ? '' : 's'} including ${namedModels
         .map((model) => model.displayName)
-        .join(', ')}${provider.modelCount > 6 ? ', and more' : ''}.`,
+        .join(', ')}${provider.modelCount > namedModels.length ? ', and more' : ''}.`,
     },
     {
       question: `What is the default ${provider.name} model in Sim?`,
@@ -770,7 +778,7 @@ export function buildProviderFaqs(provider: CatalogProvider): CatalogFaq[] {
     faqs.push({
       question: `Which ${provider.name} models support tool use and function calling in Sim?`,
       answer:
-        toolUseModels.length === provider.modelCount
+        toolUseModels.length === provider.currentModels.length
           ? `All ${provider.name} models in Sim support tool use and function calling, allowing agents to invoke external APIs, query databases, and run custom actions.`
           : `${toolUseModels
               .slice(0, 5)
@@ -880,9 +888,10 @@ export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[]
   ]
 }
 
+/** The provider's current model with the lowest input price. */
 export function getCheapestProviderModel(provider: CatalogProvider): CatalogModel | null {
-  if (provider.models.length === 0) return null
-  return provider.models.reduce((min, m) => (m.pricing.input < min.pricing.input ? m : min))
+  if (provider.currentModels.length === 0) return null
+  return provider.currentModels.reduce((min, m) => (m.pricing.input < min.pricing.input ? m : min))
 }
 
 /**
@@ -899,12 +908,12 @@ export function compareByContextWindow(a: CatalogModel, b: CatalogModel): number
 }
 
 /**
- * The provider's largest-context model that is not retired. Ties go to the first model in catalog
+ * The provider's largest-context current model. Ties go to the first model in catalog
  * order, so the answer names the provider's headline model rather than a smaller sibling with the
  * same window.
  */
 export function getLargestContextProviderModel(provider: CatalogProvider): CatalogModel | null {
-  const candidates = provider.models.filter((model) => !model.retired && model.contextWindow)
+  const candidates = provider.currentModels.filter((model) => model.contextWindow)
   if (candidates.length === 0) return null
   return candidates.reduce((max, model) =>
     (model.contextWindow ?? 0) > (max.contextWindow ?? 0) ? model : max
