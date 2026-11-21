@@ -62,12 +62,12 @@ import {
   supportsSimToolExecution,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/mothership/constants'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import {
   traceMothershipQuery,
   traceMothershipTransaction,
 } from '@/lib/mothership/observability/database'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import {
   isDurableStreamRun,
   parseRecordedSecretAuthority,

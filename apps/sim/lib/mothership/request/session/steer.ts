@@ -1,5 +1,5 @@
 import type { Context } from '@opentelemetry/api'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'

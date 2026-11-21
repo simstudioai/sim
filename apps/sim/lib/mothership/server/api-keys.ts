@@ -1,5 +1,5 @@
 import { env } from '@/lib/core/config/env'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 

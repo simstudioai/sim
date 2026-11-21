@@ -4,10 +4,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { toRecordOrNull } from '@sim/utils/object'
 import { WORKER_STREAM_IDLE_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
-import { CopilotSseCloseReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { CopilotSseCloseReason } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceEvent } from '@/lib/mothership/observability/trace-events'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import {
   applyStreamEvent,
   prePersistClientExecutableToolCall,

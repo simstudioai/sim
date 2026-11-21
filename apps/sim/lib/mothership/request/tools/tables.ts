@@ -7,10 +7,10 @@ import { Read as ReadTool, RunFunction } from '@/lib/mothership/generated/tool-c
 import {
   CopilotTableOutcome,
   CopilotTableSourceFormat,
-} from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+} from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceEvent } from '@/lib/mothership/observability/trace-events'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { getOutputFileReceipts, outputWriteFailure } from '@/lib/mothership/request/tools/files'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/mothership/request/tools/permissions'

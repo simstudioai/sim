@@ -16,7 +16,7 @@ import {
   MothershipStreamV1ToolPhase,
   type MothershipStreamV1ToolResultPayload,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotDegradedReason } from '@/lib/mothership/observability/trace-attribute-values'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'

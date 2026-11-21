@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type {
+  MothershipStreamV1Envelope,
   MothershipStreamV1EventEnvelope,
   MothershipStreamV1StreamRef,
   MothershipStreamV1StreamScope,
@@ -29,15 +30,11 @@ const FILE_PREVIEW_PHASE = {
   complete: 'file_preview_complete',
 } as const
 
-type EnvelopeToStreamEvent<T> = T extends {
-  type: infer TType
-  payload: infer TPayload
-  scope?: infer TScope
-}
+type EnvelopeToStreamEvent<T> = T extends MothershipStreamV1Envelope<infer TType, infer TPayload>
   ? {
       type: TType
       payload: TPayload
-      scope?: Exclude<TScope, undefined>
+      scope?: MothershipStreamV1StreamScope
       /** Wire ordering key, carried off the envelope; absent on synthetic events. */
       seq?: number
     }
@@ -103,16 +100,10 @@ export type SyntheticFilePreviewPayload =
   | SyntheticFilePreviewContentPayload
   | SyntheticFilePreviewCompletePayload
 
-export interface SyntheticFilePreviewEventEnvelope {
-  payload: SyntheticFilePreviewPayload
-  scope?: MothershipStreamV1StreamScope
-  seq: number
-  stream: MothershipStreamV1StreamRef
-  trace?: MothershipStreamV1Trace
-  ts: string
-  type: 'tool'
-  v: 1
-}
+export type SyntheticFilePreviewEventEnvelope = MothershipStreamV1Envelope<
+  'tool',
+  SyntheticFilePreviewPayload
+>
 
 export type PersistedStreamEventEnvelope =
   | MothershipStreamV1EventEnvelope
@@ -438,7 +429,6 @@ export function isSubagentSpanStreamEvent(
   return event.type === 'span' && isRecordLike(event.payload) && event.payload.kind === 'subagent'
 }
 
-/** What a subagent span's `data` carries: the lane `name` on start, its `error` on a failed end. */
 /** Reads a subagent span's untrusted `data`, keeping only non-empty string fields. */
 export function subagentSpanData(data: unknown): MothershipStreamV1SubagentSpanData {
   if (!isRecordLike(data)) return {}

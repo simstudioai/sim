@@ -11,6 +11,7 @@
 /apps/sim/lib/mothership/async-runs/ @simstudioai/mothership
 /apps/sim/lib/mothership/request/ @simstudioai/mothership
 /apps/sim/lib/mothership/generated/ @simstudioai/mothership
+/apps/sim/lib/mothership/observability/ @simstudioai/mothership
 /apps/sim/lib/mothership/constants.ts @simstudioai/mothership
 /apps/sim/lib/core/utils/sse.ts @simstudioai/mothership
 

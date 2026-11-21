@@ -1,6 +1,6 @@
 import { generateId } from '@sim/utils/id'
 import type { ChatRequest } from '@/lib/mothership/generated/protocol'
-import { CopilotTransport } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotTransport } from '@/lib/mothership/observability/trace-attribute-values'
 import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { withCopilotOtelContext } from '@/lib/mothership/request/otel'

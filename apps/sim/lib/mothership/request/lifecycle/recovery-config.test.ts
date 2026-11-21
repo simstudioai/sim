@@ -2,6 +2,7 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { describe, expect, it, vi } from 'vitest'
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import {
+  persistedStreamRecoveryConfig,
   StreamRecoveryConfigSchema,
   streamRecoveryConfig,
 } from '@/lib/mothership/request/lifecycle/recovery-config'
@@ -83,6 +84,15 @@ describe('durable recovery admission contract', () => {
   ])('rejects conflicting durable mode or owner declarations', (input) => {
     expect(StreamRecoveryConfigSchema.safeParse(input).success).toBe(false)
   })
+})
+
+it('reads the stored goRoute as workerRoute and writes workerRoute back as goRoute', () => {
+  const read = StreamRecoveryConfigSchema.parse(config(workspaceRequest))
+  expect(read.workerRoute).toBe('/api/mothership')
+  expect(read).not.toHaveProperty('goRoute')
+  const stored = persistedStreamRecoveryConfig(read)
+  expect(stored.goRoute).toBe('/api/mothership')
+  expect(stored).not.toHaveProperty('workerRoute')
 })
 
 it('preserves the explicit Plan wire mode on recovery', () => {

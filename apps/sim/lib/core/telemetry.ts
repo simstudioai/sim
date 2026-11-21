@@ -20,7 +20,7 @@ import { context, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import type { TraceSpan } from '@/lib/logs/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 
 /**
  * GenAI Semantic Convention Attributes

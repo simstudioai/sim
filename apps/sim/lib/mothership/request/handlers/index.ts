@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { StreamActivityReceipt } from '@/lib/mothership/generated/protocol'
 import { isSubagentSpanStreamEvent } from '@/lib/mothership/request/session/contract'
 import type {
   ExecutionContext,
@@ -60,13 +61,13 @@ export async function applyStreamEvent(
   }
   await sseHandlers[event.type]?.(event, context, execContext, options)
   /** Only a handled leg boundary acknowledges its preceding activity. */
-  const boundary =
-    event.type === 'complete'
-      ? event.payload
-      : event.type === 'run' && event.payload.kind === 'checkpoint_pause'
-        ? event.payload
-        : undefined
-  if (boundary?.activityReceipt) context.receivedActivity = boundary.activityReceipt
+  let receipt: StreamActivityReceipt | undefined
+  if (event.type === 'complete') {
+    receipt = event.payload.activityReceipt
+  } else if (event.type === 'run' && event.payload.kind === 'checkpoint_pause') {
+    receipt = event.payload.activityReceipt
+  }
+  if (receipt) context.receivedActivity = receipt
 }
 
 export function handleSubagentRouting(event: StreamEvent, _context: StreamingContext): boolean {

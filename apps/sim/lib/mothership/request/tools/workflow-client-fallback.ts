@@ -15,7 +15,7 @@ import {
   getAsyncToolCall,
   getClaimedWorkflowExecutionId,
 } from '@/lib/mothership/async-runs/repository'
-import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotDegradedReason } from '@/lib/mothership/observability/trace-attribute-values'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/client'
 import { settleClientToolCall } from '@/lib/mothership/request/tools/client-settlement.server'

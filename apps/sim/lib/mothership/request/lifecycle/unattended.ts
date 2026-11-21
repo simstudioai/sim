@@ -22,7 +22,7 @@ import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
 import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
 import {
   durableResourceAuthoringVersion,
-  StreamRecoveryConfigSchema,
+  type StreamRecoveryConfigInput,
 } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream } from '@/lib/mothership/request/lifecycle/start'
 import {
@@ -96,14 +96,14 @@ export async function startUnattendedTurn(
       userId,
       invocation: { kind: 'chat', chatId },
     })
-    const recovery = StreamRecoveryConfigSchema.parse({
+    const recovery: StreamRecoveryConfigInput = {
       kind: 'unattended_stream',
       request,
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       clientToolPickupExpected: false,
       requestMode: 'agent',
       resourceAuthoringVersion: durableResourceAuthoringVersion(true),
-    })
+    }
     const executionId = messageId
     const requestId = messageId
     const admission = await admitUnattendedTurn.execute({

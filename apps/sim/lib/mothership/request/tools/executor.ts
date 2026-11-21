@@ -57,8 +57,8 @@ import {
   RunWorkflow,
   RunWorkflowUntilBlock,
 } from '@/lib/mothership/generated/tool-catalog-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import {
   publishToolConfirmation,
   waitForToolConfirmation,

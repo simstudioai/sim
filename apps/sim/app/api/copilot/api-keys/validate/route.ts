@@ -58,9 +58,9 @@ import {
   COPILOT_VALIDATION_PURPOSE,
   type CopilotBillingProtocol,
 } from '@/lib/mothership/generated/billing-protocol-v1'
-import { CopilotValidateOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { CopilotValidateOutcome } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { checkInternalApiKey } from '@/lib/mothership/request/http'
 import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 

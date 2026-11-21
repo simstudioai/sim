@@ -27,9 +27,9 @@ import {
   CopilotRequestCancelReason,
   type CopilotRequestCancelReasonValue,
   CopilotTransport,
-} from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
+} from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceEvent } from '@/lib/mothership/observability/trace-events'
 import { resolveEnterpriseByokKey } from '@/lib/mothership/request/enterprise-byok'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'

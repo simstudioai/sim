@@ -13,8 +13,8 @@ import type {
   SpanProcessor,
 } from '@opentelemetry/sdk-trace'
 import { createLogger } from '@sim/logger'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { env } from './lib/core/config/env'
 import {
   ANONYMOUS_TELEMETRY_ENDPOINT,

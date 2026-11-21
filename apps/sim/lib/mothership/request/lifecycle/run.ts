@@ -42,7 +42,7 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { ResumeRequest, StreamResponseReceipt } from '@/lib/mothership/generated/protocol'
-import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotDegradedReason } from '@/lib/mothership/observability/trace-attribute-values'
 import { getAutoAllowedTools } from '@/lib/mothership/persistence/tool-permission/auto-allow'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import { buildToolCallSummaries } from '@/lib/mothership/request/context/result'

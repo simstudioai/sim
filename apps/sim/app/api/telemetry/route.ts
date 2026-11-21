@@ -8,7 +8,7 @@ import { isProd } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isTelemetryDisabled, normalizeOtlpTracesUrl } from '@/lib/monitoring/otlp'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 import telemetryConfig from '@/telemetry.config'
 
 const logger = createLogger('TelemetryAPI')

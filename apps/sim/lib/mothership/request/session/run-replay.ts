@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { WORKER_STREAM_IDLE_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { type StreamReplayEnd, StreamReplayRequest } from '@/lib/mothership/generated/protocol'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import {
   isTerminalStreamStatus,

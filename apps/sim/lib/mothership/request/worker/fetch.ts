@@ -1,6 +1,6 @@
 import { type Context, context, SpanStatusCode, trace } from '@opentelemetry/api'
-import { CopilotLeg } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { CopilotLeg } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 import { isActionableErrorStatus, markSpanForError } from '@/lib/mothership/request/otel'
 import { traceHeaders } from '@/lib/mothership/request/worker/propagation'
 

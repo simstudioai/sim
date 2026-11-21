@@ -66,10 +66,10 @@ import {
   ModelSelectionSchema,
   PROTOCOL_VERSION,
 } from '@/lib/mothership/generated/protocol'
-import { CopilotTransport } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
+import { CopilotTransport } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/mothership/request/http'
 import { durableResourceAuthoringVersion } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/lifecycle/start'
@@ -1296,7 +1296,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               kind: 'interactive_stream',
               resourceAuthoringVersion,
               request: { ...requestPayload, messageId: userMessageId, chatId: actualChatId },
-              goRoute: branch.workerRoute,
+              workerRoute: branch.workerRoute,
               clientToolPickupExpected,
               userTimezone: executionContext.userTimezone,
               requestMode: body.mode,

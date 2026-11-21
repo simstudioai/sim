@@ -1,19 +1,19 @@
 // Sim server-side copilot metrics. Sim's MeterProvider is wired in
-// instrumentation-node.ts (OTLP → Mimir, 60s). Metric names come from the
-// worker's metrics-v1 contract; label keys and histogram buckets are Sim's,
+// instrumentation-node.ts (OTLP → Mimir, 60s). Metric names come from
+// observability/metric-names.ts; label keys and histogram buckets are Sim's,
 // e.g. `copilot.tool.duration` split by `tool.executor`.
 //
 // Bounded cardinality only: tool.name and gen_ai.agent.name are capped to the
 // shared catalogs (else "other"). NEVER a user/chat/request id (those explode
 // Prometheus series).
 import { type Counter, type Histogram, metrics } from '@opentelemetry/api'
-import { Metric } from '@/lib/mothership/generated/metrics-v1'
 import { TOOL_CATALOG } from '@/lib/mothership/generated/tool-catalog-v1'
+import { Metric } from '@/lib/mothership/observability/metric-names'
 import {
   type CopilotDegradedReasonValue,
   ToolExecutor,
-} from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+} from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 
 // Changing these boundaries splits `histogram_quantile(sum by (le) …)` queries
 // across the old and new series until the old ones age out.

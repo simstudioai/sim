@@ -7,7 +7,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import {
   runControlOperations,
   SteeringNotQueuedError,

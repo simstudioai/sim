@@ -6,7 +6,7 @@ import {
 } from '@/lib/mothership/chat/persisted-message'
 import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
-import { CopilotChatFinalizeOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotChatFinalizeOutcome } from '@/lib/mothership/observability/trace-attribute-values'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 

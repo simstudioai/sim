@@ -6,9 +6,9 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import { CopilotFinalizeOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { CopilotFinalizeOutcome } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import type { StreamWriter } from '@/lib/mothership/request/session'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
 import { RequestTraceOutcome } from '@/lib/mothership/request/trace'
