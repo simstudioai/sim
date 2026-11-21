@@ -662,8 +662,10 @@ export interface SourceHints {
 /**
  * Lock keys the source renamed, old → new: a source block under a key `isStored` rejects whose
  * ident is that of exactly one lock entry, a stored block's, whose key is gone from the source.
- * This is materialize's `lock-ident` identity rule, so a compile that pairs source blocks with
- * stored ones by key agrees with materialize on which stored block a renamed one continues.
+ * This is materialize's `lock-ident` identity rule for a dropped key, so a compile that pairs
+ * source blocks with stored ones by key agrees with materialize on which stored block a renamed
+ * one continues. A swap where both keys survive, which materialize also binds by ident (DESIGN.md
+ * rule 2), is left out: the compile reads it by key.
  */
 export function lockIdentRenames(
   hints: SourceHints,

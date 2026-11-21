@@ -592,22 +592,6 @@ describe('materialize: identity', () => {
     expect(result.entries.filter((entry) => entry.status !== 'matched')).toEqual([])
   })
 
-  it('keeps each id by key when two blocks swap their consts and both keys survive', () => {
-    const prev = base()
-    const lock = lockFor(prev)
-    const result = run(canonical(prev, lock).workflow, lock, {
-      prev,
-      compiledIdents: {
-        ...Object.fromEntries(Object.entries(lock.blocks).map(([key, b]) => [key, b.ident])),
-        fetch: lock.blocks.report.ident,
-        report: lock.blocks.fetch.ident,
-      },
-    })
-    expect(result.identity.blocks.fetch.id).toBe(lock.blocks.fetch.id)
-    expect(result.identity.blocks.report.id).toBe(lock.blocks.report.id)
-    expect(result.entries.filter((entry) => entry.status !== 'matched')).toEqual([])
-  })
-
   it('infers a lockless rename from type, parent and agreeing neighbours, flagged', () => {
     const prev = base()
     const result = run(renameFetch(canonical(prev).workflow), null, { prev })
@@ -1345,38 +1329,42 @@ describe('materialize: preserved UI state comes from prev', () => {
     expect(subBlockValue(result.state, 's1', 'text')).toBe('saw <load.result>')
   })
 
-  it('rewrites a restored inactive value through a chain of renames at once', () => {
-    const state = workflowState([
-      blockState('a1', 'function', 'Fetch', { code: 'return 1' }),
-      blockState('a2', 'function', 'Report', { code: 'return 2' }),
-      blockState('s1', 'slack', 'Post', {
-        operation: 'read',
-        channel: 'C1',
-        text: 'saw <fetch.result> and <report.result>',
-      }),
-    ])
-    const lock = lockFor(state)
-    const renamed: Record<string, string> = { fetch: 'report', report: 'summary' }
-    const target = edit(canonical(state, lock).workflow, (draft) => {
-      const blocks = { ...draft.blocks }
-      draft.blocks = omit(draft.blocks, ['fetch', 'report'])
-      for (const [from, to] of Object.entries(renamed)) {
-        draft.blocks[to] = { ...blocks[from], key: to, name: to[0].toUpperCase() + to.slice(1) }
-      }
-      draft.blocks.post.params = omit(draft.blocks.post.params, ['text'])
-    })
-    const result = run(target, lock, {
-      prev: state,
-      compiledIdents: Object.fromEntries(
-        Object.entries(renamed).map(([from, to]) => [to, lock.blocks[from].ident])
-      ),
-    })
-    expect(result.identity.blocks[renamed.fetch].id).toBe('a1')
-    expect(result.identity.blocks[renamed.report].id).toBe('a2')
-    expect(subBlockValue(result.state, 's1', 'text')).toBe(
-      'saw <report.result> and <summary.result>'
-    )
-  })
+  it.each([
+    ['a chain', { fetch: 'report', report: 'summary' }, 'saw <report.result> and <summary.result>'],
+    ['a swap', { fetch: 'report', report: 'fetch' }, 'saw <report.result> and <fetch.result>'],
+  ])(
+    'rewrites a restored inactive value through %s of renames at once',
+    (_label, moves, expected) => {
+      const state = workflowState([
+        blockState('a1', 'function', 'Fetch', { code: 'return 1' }),
+        blockState('a2', 'function', 'Report', { code: 'return 2' }),
+        blockState('s1', 'slack', 'Post', {
+          operation: 'read',
+          channel: 'C1',
+          text: 'saw <fetch.result> and <report.result>',
+        }),
+      ])
+      const lock = lockFor(state)
+      const renamed: Record<string, string> = moves
+      const target = edit(canonical(state, lock).workflow, (draft) => {
+        const blocks = { ...draft.blocks }
+        draft.blocks = omit(draft.blocks, ['fetch', 'report'])
+        for (const [from, to] of Object.entries(renamed)) {
+          draft.blocks[to] = { ...blocks[from], key: to, name: to[0].toUpperCase() + to.slice(1) }
+        }
+        draft.blocks.post.params = omit(draft.blocks.post.params, ['text'])
+      })
+      const result = run(target, lock, {
+        prev: state,
+        compiledIdents: Object.fromEntries(
+          Object.entries(renamed).map(([from, to]) => [to, lock.blocks[from].ident])
+        ),
+      })
+      expect(result.identity.blocks[renamed.fetch].id).toBe('a1')
+      expect(result.identity.blocks[renamed.report].id).toBe('a2')
+      expect(subBlockValue(result.state, 's1', 'text')).toBe(expected)
+    }
+  )
 
   it('clears a standalone advanced field that source emptied instead of restoring it', () => {
     const state = workflowState([

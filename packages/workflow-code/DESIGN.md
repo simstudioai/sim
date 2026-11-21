@@ -195,7 +195,12 @@ key-keyed lock; `mergeSourceMetaFromLock` stores a write's hints back by id.
 
 1. `lock-key`: the lock entry under the same key, when its id is in prev;
 2. `lock-ident`: a lock entry whose key the file dropped but whose ident it still uses
-   (`MaterializeOptions.compiledIdents`), so editing only the display string keeps the id;
+   (`MaterializeOptions.compiledIdents`), so editing only the display string keeps the id. A key
+   whose ident now belongs to another lock entry binds that entry too, even when both keys
+   survive: two blocks that swap display names (equivalently, two consts that swap names) are two
+   renames, and each block keeps the id, webhook and schedules of its const. The plan lists both;
+   `lockIdentRenames`, the compile-side mirror, covers only dropped keys and so reads such a
+   swap by key;
 3. `db-name`: the prev block with the same key (the lockless and stale-lock path);
 4. `inferred`: exactly one unmatched prev block and one unmatched compiled block with the same
    type and parent and agreeing edge neighbourhoods, so renaming the variable and the display
