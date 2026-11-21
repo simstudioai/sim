@@ -674,6 +674,19 @@ describe('a falsy loop or parallel count', () => {
   })
 })
 
+describe('a block rename', () => {
+  it('writes a new name holding `$` replacement patterns into references literally', () => {
+    const workflow = makeLoopWorkflow()
+    workflow.blocks['agent-1'].subBlocks.systemPrompt.value = 'Use <condition1.result>'
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'condition-1', params: { name: "Cond$&$'" } },
+    ])
+
+    expect(state.blocks['agent-1'].subBlocks.systemPrompt.value).toBe("Use <cond$&$'.result>")
+  })
+})
+
 describe('handleEditOperation nestedNodes merge', () => {
   it('preserves existing child block IDs when editing a loop with nestedNodes', () => {
     const workflow = makeLoopWorkflow()

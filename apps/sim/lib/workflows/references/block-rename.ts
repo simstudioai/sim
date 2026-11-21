@@ -28,7 +28,8 @@ export function rewriteBlockNameReferences(
        * backtracking pattern that pins the event loop on a sub-kilobyte input.
        */
       const regex = new RegExp(`<${escapeRegExp(oldName)}\\.`, 'g')
-      updatedValue = updatedValue.replace(regex, `<${newName}.`)
+      // A callback, so `$&` or `$'` in a new name is written literally, not as a pattern.
+      updatedValue = updatedValue.replace(regex, () => `<${newName}.`)
     })
     return updatedValue
   }
