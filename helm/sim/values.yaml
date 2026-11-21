@@ -570,9 +570,11 @@ realtime:
 # and the idempotency/progress stores; the app refuses to start without it.
 # Bundled by default so a chart install matches the Docker Compose stack. For
 # production prefer a managed instance (ElastiCache, Memorystore, Azure Cache) —
-# set enabled: false and supply its connection string as app.env.REDIS_URL, in a
-# pre-created app Secret, or via externalSecrets.remoteRefs.app.REDIS_URL. The
-# chart fails to render when enabled: false and none of those is configured.
+# set enabled: false and supply its connection string as app.env.REDIS_URL (or
+# realtime.env.REDIS_URL), a REDIS_URL entry in extraEnvVars, a pre-created app
+# Secret, or externalSecrets.remoteRefs.app.REDIS_URL. app.envDefaults and
+# realtime.envDefaults each reach only their own pod. The chart fails to render
+# when enabled: false and no source reaches every enabled app/realtime pod.
 redis:
   enabled: true
 

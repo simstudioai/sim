@@ -71,6 +71,9 @@ export interface Backing {
   failedReadTimes: number[]
   /** Reads that returned (the idle steady state) — the event that ends a failure streak. */
   idleReads: number
+  /** Reads currently awaiting a reply, and the most ever in flight at once: one per reader loop. */
+  inFlightReads: number
+  maxInFlightReads: number
   /** `connect()` calls, so a test can prove a closed reader is re-opened rather than abandoned. */
   connects: number
   /** Largest stream range response requested, proving replay is paginated. */
@@ -171,7 +174,13 @@ export function makeClient(): TestRedisClient {
         b().idleReads++
         return res
       }
-      await sleep(5)
+      b().inFlightReads++
+      b().maxInFlightReads = Math.max(b().maxInFlightReads, b().inFlightReads)
+      try {
+        await sleep(5)
+      } finally {
+        b().inFlightReads--
+      }
       b().idleReads++
       return null
     },
@@ -335,6 +344,8 @@ export function createBacking(): Backing {
     reads: 0,
     failedReadTimes: [],
     idleReads: 0,
+    inFlightReads: 0,
+    maxInFlightReads: 0,
     connects: 0,
     maxRangeCount: 0,
     rangeCalls: 0,

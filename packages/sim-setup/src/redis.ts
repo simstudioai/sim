@@ -33,8 +33,9 @@ async function startManagedRedis(detection: Detection): Promise<string> {
   const hostPort = detection.redisPortOpen ? 6380 : 6379
   const url = `redis://${LOOPBACK_HOST}:${hostPort}`
   // A prior sim-redis (unhealthy, or bound to a stale port) would collide on the
-  // name. Unlike Postgres this container has no data volume, so removing it
-  // loses nothing — no prompt needed. `rm -f` is a no-op when none exists.
+  // name. It has no data volume and holds no durable data, so it is replaced
+  // without a prompt; only short-lived state (live OTPs, OAuth state, rate-limit
+  // buckets) is dropped. `rm -f` is a no-op when none exists.
   spawnSync('docker', ['rm', '-f', REDIS_CONTAINER], { stdio: 'ignore' })
   docker([
     'run',
@@ -145,7 +146,7 @@ export async function resolveRedis(detection: Detection, existing?: string): Pro
       return managedUrl
     }
     p.log.warn(
-      `${REDIS_CONTAINER} exists but is not answering — starting a fresh one will replace it (it holds no data).`
+      `${REDIS_CONTAINER} exists but is not answering — starting a fresh one will replace it. It holds no durable data, but live OTPs, OAuth state, and rate-limit buckets are dropped.`
     )
   }
 

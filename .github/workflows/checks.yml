@@ -122,7 +122,7 @@ jobs:
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
-      TEST_REDIS_URL: redis://127.0.0.1:6379
+      TEST_REDIS_URL: redis://127.0.0.1:6379/15
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
       BETTER_AUTH_SECRET: oauth-postgres-ci-secret-at-least-32-characters
       NEXT_PUBLIC_APP_URL: https://test.sim.ai

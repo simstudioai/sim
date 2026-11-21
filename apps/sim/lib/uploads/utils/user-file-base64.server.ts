@@ -201,14 +201,13 @@ function logSkippedCacheWrite(
 }
 
 function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Base64Cache {
-  const redis = getRedisClient()
   const { executionId } = options
 
   return {
     async get(file: UserFile) {
       try {
         const key = getFullCacheKey(executionId, file)
-        return await redis.get(key)
+        return await getRedisClient().get(key)
       } catch (error) {
         logger.warn('Redis get failed, skipping cache', error, { requestId: options.requestId })
         return null
@@ -218,6 +217,7 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
       const key = getFullCacheKey(executionId, file)
       const valueBytes = Buffer.byteLength(value, 'utf8')
       try {
+        const redis = getRedisClient()
         if (!executionId) {
           await redis.set(key, value, 'EX', ttlSeconds)
           return
@@ -629,10 +629,10 @@ export function containsUserFileWithMetadata(value: unknown): boolean {
  * Should be called at the end of workflow execution.
  */
 export async function cleanupExecutionBase64Cache(executionId: string): Promise<void> {
-  const redis = getRedisClient()
   const logger = createLogger('UserFileBase64')
 
   try {
+    const redis = getRedisClient()
     const budgetEntries = await redis.hgetall(getBudgetIndexKey(executionId))
     let deletedCount = 0
     for (const [fileKey, rawEntry] of Object.entries(budgetEntries ?? {})) {

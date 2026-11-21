@@ -174974,13 +174974,18 @@
       "bytes": 6715,
       "frontmatter": {
         "title": "Redis",
-        "description": "When Redis is optional, when it is required, and how to configure it"
+        "description": "Why Sim requires Redis, what it backs, and how to configure it"
       },
       "headings": [
         {
           "title": "What it backs",
           "url": "#what-it-backs",
           "depth": 2
+        },
+        {
+          "title": "Eviction policy",
+          "url": "#eviction-policy",
+          "depth": 3
         },
         {
           "title": "Configuration",
@@ -175072,28 +175077,28 @@
           "meta": null,
           "sha256": "eb73d81bd9564fdbb8cd1a57ac1eb1bdd906e057d04d5a6414ddbd7b67ff2cc3",
           "bytes": 103,
-          "line": 27
+          "line": 52
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "59ac0be78ca58845392d8e9d91445a890fad94ebf9659d1ac2a1c0183e04e0c3",
           "bytes": 97,
-          "line": 49
+          "line": 84
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "75128b92e81c8670e89b93d25c8a6f695fc5ba9bf9e84c21b3a7a8dd45357014",
           "bytes": 116,
-          "line": 87
+          "line": 122
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "f81661b02c93f78580f48d5e525a71d31d59cedd7974bcdcfc00588cf2f070aa",
           "bytes": 312,
-          "line": 96
+          "line": 131
         }
       ],
       "links": [

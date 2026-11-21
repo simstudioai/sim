@@ -106,14 +106,23 @@ interface WaitState {
  * across all users within the same workspace.
  */
 export class HostedKeyRateLimiter {
-  private storage: RateLimitStorageAdapter
+  private readonly injectedStorage: RateLimitStorageAdapter | undefined
   private queue: HostedKeyQueue
   /** Round-robin counter per provider for even key distribution */
   private roundRobinCounters = new Map<string, number>()
 
   constructor(storage?: RateLimitStorageAdapter, queue?: HostedKeyQueue) {
-    this.storage = storage ?? createStorageAdapter()
+    this.injectedStorage = storage
     this.queue = queue ?? getHostedKeyQueue()
+  }
+
+  /**
+   * Resolved on each use so constructing the limiter never touches Redis
+   * (`next build` evaluates module-scope instances without REDIS_URL) and the
+   * factory's cached adapter follows Redis reconnects.
+   */
+  private get storage(): RateLimitStorageAdapter {
+    return this.injectedStorage ?? createStorageAdapter()
   }
 
   private buildActorStorageKey(provider: string, billingActorId: string): string {

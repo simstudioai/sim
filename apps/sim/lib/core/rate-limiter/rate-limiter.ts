@@ -33,10 +33,19 @@ export interface RateLimitStatus {
 }
 
 export class RateLimiter {
-  private storage: RateLimitStorageAdapter
+  private readonly injectedStorage: RateLimitStorageAdapter | undefined
 
   constructor(storage?: RateLimitStorageAdapter) {
-    this.storage = storage ?? createStorageAdapter()
+    this.injectedStorage = storage
+  }
+
+  /**
+   * Resolved on each use, never in the constructor: route modules build a
+   * limiter at module scope, which `next build` evaluates without REDIS_URL,
+   * and the factory's cached adapter follows Redis reconnects.
+   */
+  private get storage(): RateLimitStorageAdapter {
+    return this.injectedStorage ?? createStorageAdapter()
   }
 
   private getRateLimitKey(userId: string, subscription: SubscriptionInfo | null): string {

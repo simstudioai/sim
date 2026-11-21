@@ -57,10 +57,18 @@ Object.assign(process.env, {
 })
 
 /**
- * Every file starts from an empty Redis, so keys one file leaves behind never decide another's
- * outcome. Files run one at a time (`fileParallelism: false`), and `readTestRedisUrl` only accepts
- * a credential-free loopback URL, which is the disposable instance the harness provisions.
+ * Every file starts from an empty Redis database, so keys one file leaves behind never decide
+ * another's outcome. Files run one at a time (`fileParallelism: false`). `readTestRedisUrl` only
+ * accepts a credential-free loopback URL, and the flush additionally requires the URL to select a
+ * non-zero database (`redis://127.0.0.1:6379/15`): a local Redis left on its default database 0 is
+ * someone's dev data, and pointing TEST_REDIS_URL at it must fail here rather than wipe it.
  */
+const redisDatabase = Number(new URL(redisUrl).pathname.slice(1) || '0')
+if (!Number.isInteger(redisDatabase) || redisDatabase <= 0) {
+  throw new Error(
+    'TEST_REDIS_URL must select a non-zero database (e.g. redis://127.0.0.1:6379/15): every integration file flushes it'
+  )
+}
 const redisReset = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 1 })
 try {
   await redisReset.connect()

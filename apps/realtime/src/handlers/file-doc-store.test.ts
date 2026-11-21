@@ -179,6 +179,34 @@ describe('FileDocStore', () => {
     }
   })
 
+  it('opens one pair of connections when init is called concurrently', async () => {
+    const store = new FileDocStore(REDIS_URL)
+    stores.push(store)
+    await Promise.all([store.init(), store.init(), store.init()])
+    expect(fakeRedis.backing!.connects).toBe(2)
+  })
+
+  /**
+   * A restart that lands while the previous reader loop is between reads must retire that loop:
+   * otherwise it resumes on the new connection and two loops tail the same rooms forever.
+   */
+  it('runs a single reader loop after a shutdown and restart', async () => {
+    vi.useFakeTimers()
+    const doc = new Y.Doc()
+    try {
+      const store = await newStore()
+      await store.shutdown()
+      await store.init()
+      await store.attachRoom(NAME, doc)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(fakeRedis.backing!.idleReads).toBeGreaterThan(0)
+      expect(fakeRedis.backing!.maxInFlightReads).toBe(1)
+    } finally {
+      doc.destroy()
+      vi.useRealTimers()
+    }
+  })
+
   it('elects exactly one seeder across tasks (no split-brain seed)', async () => {
     const a = await newStore()
     const b = await newStore()

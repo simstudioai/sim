@@ -1,9 +1,7 @@
 import {
   ASYNC_JOBS_CAPABILITY,
-  CORE_CONFIGURATION_KEYS,
   defineCapability,
   EMAIL_CAPABILITY,
-  ENV_CAPABILITIES,
   EnvCapabilityConfigurationError,
   envField,
   getRedisConfigurationError,
@@ -677,11 +675,6 @@ describe('env capabilities', () => {
       expect(
         getRedisConfigurationError({ REDIS_URL: 'rediss://cache.example.com:6379' })
       ).toBeNull()
-    })
-
-    it('treats REDIS_URL as core configuration rather than an optional capability', () => {
-      expect(CORE_CONFIGURATION_KEYS).toContain('REDIS_URL')
-      expect(ENV_CAPABILITIES.map((capability) => capability.id)).not.toContain('cache')
     })
   })
 

@@ -362,6 +362,13 @@ export class FileDocStore {
   private read: RedisClientType | null = null
   private readonly rooms = new Map<string, StoreRoom>()
   private running = false
+  /**
+   * Bumped on every start, so a reader loop left over from before a restart exits instead of
+   * running alongside the new one.
+   */
+  private generation = 0
+  /** The in-flight start, shared by concurrent {@link init} calls so they open one pair of connections. */
+  private starting: Promise<void> | null = null
   private heartbeat: ReturnType<typeof setInterval> | null = null
 
   constructor(private readonly redisUrl: string) {}
@@ -369,6 +376,13 @@ export class FileDocStore {
   /** Connect the two Redis clients and start the multiplexed reader + TTL heartbeat. Idempotent. */
   async init(): Promise<void> {
     if (this.running) return
+    this.starting ??= this.start().finally(() => {
+      this.starting = null
+    })
+    return this.starting
+  }
+
+  private async start(): Promise<void> {
     const options = {
       url: this.redisUrl,
       socket: {
@@ -394,7 +408,7 @@ export class FileDocStore {
     this.read.on('error', (err) => logger.error('FileDocStore read client error:', err))
     await Promise.all([this.write.connect(), this.read.connect()])
     this.running = true
-    void this.runReader()
+    void this.runReader(++this.generation)
     this.heartbeat = setInterval(() => void this.refreshTtls(), HEARTBEAT_MS)
     logger.info('FileDocStore ready — shared Yjs backend over Redis Streams enabled')
   }
@@ -1089,10 +1103,10 @@ export class FileDocStore {
    * The single multiplexed tail loop: block-read every locally-open room's stream from its last id and
    * apply new entries. One blocking connection for the whole process regardless of open-file count.
    */
-  private async runReader(): Promise<void> {
+  private async runReader(generation: number): Promise<void> {
     let failures = 0
     let blockingBatchIndex = 0
-    while (this.running && this.read) {
+    while (this.running && this.read && generation === this.generation) {
       const snapshot = new Map(this.rooms)
       if (snapshot.size === 0) {
         await sleep(IDLE_POLL_MS)
@@ -1134,7 +1148,7 @@ export class FileDocStore {
         }
         failures = 0
       } catch (error) {
-        if (!this.running) break
+        if (!this.running || generation !== this.generation) break
         await this.recoverReader(++failures, error)
       }
     }

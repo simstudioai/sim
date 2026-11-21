@@ -149,8 +149,8 @@ export async function appendEvent<E extends EventLogEntry>(
   streamId: string,
   serializer: EntrySerializer<E>
 ): Promise<E | null> {
-  const redis = getRedisClient()
   try {
+    const redis = getRedisClient()
     const result = await redis.eval(
       APPEND_EVENT_SCRIPT,
       3,

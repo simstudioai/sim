@@ -37,8 +37,8 @@ const KEY_VERSION = 'v1'
 
 async function readStored(keys: string[]): Promise<(string | null)[]> {
   if (keys.length === 0) return []
-  const redis = getRedisClient()
   try {
+    const redis = getRedisClient()
     return await redis.mget(...keys)
   } catch (error) {
     logger.warn('Usage segment cache read failed; reading the ledger', {
@@ -67,12 +67,16 @@ function parseStored<T>(key: string, value: string | null | undefined): T | unde
 function writeStored(entries: { key: string; value: string; ttlMs: number }[]): void {
   if (entries.length === 0) return
   const jittered = (ttlMs: number) => ttlMs + randomInt(0, Math.floor(ttlMs * TTL_JITTER_RATIO))
-  const redis = getRedisClient()
-  const pipeline = redis.pipeline()
-  for (const { key, value, ttlMs } of entries) pipeline.set(key, value, 'PX', jittered(ttlMs))
-  pipeline.exec().catch((error: unknown) => {
+  const logWriteFailure = (error: unknown) => {
     logger.warn('Usage segment cache write failed', { error: getErrorMessage(error) })
-  })
+  }
+  try {
+    const pipeline = getRedisClient().pipeline()
+    for (const { key, value, ttlMs } of entries) pipeline.set(key, value, 'PX', jittered(ttlMs))
+    pipeline.exec().catch(logWriteFailure)
+  } catch (error) {
+    logWriteFailure(error)
+  }
 }
 
 interface ReadThroughSegmentsArgs<T> {

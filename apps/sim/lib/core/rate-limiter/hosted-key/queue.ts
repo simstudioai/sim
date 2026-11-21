@@ -86,12 +86,11 @@ export class HostedKeyQueue {
     billingActorId: string,
     ticketId: string
   ): Promise<EnqueueResult> {
-    const redis = getRedisClient()
-
     const listKey = queueListKey(provider, billingActorId)
     const hbKey = heartbeatKey(provider, billingActorId, ticketId)
 
     try {
+      const redis = getRedisClient()
       const pipeline = redis.multi()
       pipeline.rpush(listKey, ticketId)
       pipeline.expire(listKey, QUEUE_LIST_TTL_SECONDS)
@@ -123,12 +122,11 @@ export class HostedKeyQueue {
     billingActorId: string,
     ticketId: string
   ): Promise<'head' | 'waiting' | 'missing'> {
-    const redis = getRedisClient()
-
     const listKey = queueListKey(provider, billingActorId)
     const hbPrefix = `hosted-queue-tkt:${provider}:${billingActorId}:`
 
     try {
+      const redis = getRedisClient()
       const result = (await redis.eval(CHECK_HEAD_SCRIPT, 1, listKey, hbPrefix, ticketId)) as
         | 'head'
         | 'waiting'
@@ -151,11 +149,10 @@ export class HostedKeyQueue {
     billingActorId: string,
     ticketId: string
   ): Promise<void> {
-    const redis = getRedisClient()
-
     const listKey = queueListKey(provider, billingActorId)
     const hbKey = heartbeatKey(provider, billingActorId, ticketId)
     try {
+      const redis = getRedisClient()
       const pipeline = redis.multi()
       pipeline.set(hbKey, '1', 'EX', TICKET_HEARTBEAT_TTL_SECONDS)
       pipeline.expire(listKey, QUEUE_LIST_TTL_SECONDS)
@@ -172,11 +169,10 @@ export class HostedKeyQueue {
    * call multiple times. LREM count=1 removes at most one matching entry.
    */
   async dequeue(provider: string, billingActorId: string, ticketId: string): Promise<void> {
-    const redis = getRedisClient()
-
     const listKey = queueListKey(provider, billingActorId)
     const hbKey = heartbeatKey(provider, billingActorId, ticketId)
     try {
+      const redis = getRedisClient()
       const pipeline = redis.multi()
       pipeline.lrem(listKey, 1, ticketId)
       pipeline.del(hbKey)

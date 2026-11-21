@@ -19,8 +19,8 @@ function presenceKey(deviceId: string): string {
  * unclaimed call fails, so a Redis error must not fail the request that proves the device is awake.
  */
 export async function markDesktopPresent(deviceId: string): Promise<void> {
-  const redis = getRedisClient()
   try {
+    const redis = getRedisClient()
     await redis.set(presenceKey(deviceId), '1', 'EX', DESKTOP_PRESENCE_TTL_SECONDS)
   } catch (error) {
     logger.warn('Could not record desktop presence', { deviceId, error: toError(error).message })

@@ -43,7 +43,10 @@ contracts, and demonstrated regressions.
   `vi.mock` in the file.
 - `TEST_DATABASE_URL` must be loopback and its database name must contain a `test` segment
   (`sim_test`); `TEST_REDIS_URL` must be loopback. `packages/db/testing/test-infrastructure.ts` owns
-  those checks. Isolate with a unique schema or generated IDs, and clean up in `afterAll`.
+  those checks. `apps/sim` integration setup runs `FLUSHDB` before every file, so its
+  `TEST_REDIS_URL` must also select a non-zero database (`redis://127.0.0.1:6379/15`); never
+  point it at a Redis holding data you want to keep. Isolate with a unique schema or generated
+  IDs, and clean up in `afterAll`.
 - Integration files run one at a time against one shared database. A new `*.integration.ts` is
   picked up by CI with no workflow change, and the run writes the JSON report configured in
   `vitest.shared.ts`, which CI uploads. Never exclude a failing suite from the run in

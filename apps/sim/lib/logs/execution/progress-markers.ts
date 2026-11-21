@@ -73,8 +73,8 @@ async function setMarker(
   marker: ExecutionLastStartedBlock | ExecutionLastCompletedBlock,
   expiresAt?: number
 ): Promise<boolean> {
-  const redis = getMarkerClient()
   try {
+    const redis = getMarkerClient()
     await redis.eval(
       SET_MARKER_SCRIPT,
       1,
@@ -207,8 +207,8 @@ function parseCompletedMarker(raw: string | undefined): ExecutionLastCompletedBl
 export async function getProgressMarkers(
   executionId: string
 ): Promise<ExecutionProgressMarkers | null> {
-  const redis = getMarkerClient()
   try {
+    const redis = getMarkerClient()
     const fields = await redis.hgetall(markerKey(executionId))
     if (!fields || Object.keys(fields).length === 0) return {}
 
@@ -232,8 +232,8 @@ export async function getProgressMarkers(
  * live indefinitely) hold no Redis keys. Fire-and-forget: a failed delete is logged.
  */
 export async function clearProgressMarkers(executionId: string): Promise<void> {
-  const redis = getMarkerClient()
   try {
+    const redis = getMarkerClient()
     await redis.del(markerKey(executionId))
   } catch (error) {
     logger.error(`Failed to clear progress markers for execution ${executionId}`, {

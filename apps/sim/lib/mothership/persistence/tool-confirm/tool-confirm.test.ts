@@ -5,6 +5,8 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const channelHandlers = new Set<(event: any) => void>()
+/** When this process's subscription lands; publishes before then reach no handler. */
+let subscriptionReady: Promise<void> = Promise.resolve()
 
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
@@ -18,6 +20,9 @@ vi.mock('@/lib/events/pubsub', () => ({
       return () => {
         channelHandlers.delete(handler)
       }
+    },
+    ready() {
+      return subscriptionReady
     },
     dispose() {},
   }),
@@ -44,6 +49,7 @@ describe('copilot orchestrator persistence', () => {
 
   beforeEach(() => {
     channelHandlers.clear()
+    subscriptionReady = Promise.resolve()
     revokeExpiredSimToolExecutions.mockResolvedValue([])
     row = null
     getAsyncToolCalls.mockImplementation(async () => (row ? [row] : []))
@@ -182,6 +188,45 @@ describe('copilot orchestrator persistence', () => {
       status: 'background',
       timestamp: '2026-01-01T00:00:01.000Z',
     })
+  })
+
+  it('reads the durable row only once its subscription lands, so a detach in between is not missed', async () => {
+    vi.useFakeTimers()
+    try {
+      let landSubscription: () => void = () => {}
+      subscriptionReady = new Promise((resolve) => {
+        landSubscription = resolve
+      })
+      row = {
+        status: 'pending',
+        error: null,
+        result: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      }
+      let result: unknown
+      const waitPromise = waitForToolConfirmation('tool-1', 20_000, undefined, {
+        acceptStatus: (status) => status === 'background',
+      }).then((value) => {
+        result = value
+      })
+      await vi.advanceTimersByTimeAsync(0)
+
+      // Another pod detaches the call while this one's SUBSCRIBE is still in flight: the row
+      // commits and the publish reaches no handler here.
+      row = {
+        status: 'delivered',
+        error: null,
+        result: null,
+        updatedAt: new Date('2026-01-01T00:00:01.000Z'),
+      }
+      landSubscription()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(result).toEqual({ status: 'background', timestamp: '2026-01-01T00:00:01.000Z' })
+      await waitPromise
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps a no-deadline human wait alive until confirmation arrives', async () => {

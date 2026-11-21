@@ -37,10 +37,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ preview: null })
   }
 
-  const redis = getRedisClient()
   const cacheKey = `${CACHE_KEY_PREFIX}${createHash('sha256').update(url).digest('hex')}`
   try {
-    const cached = await redis.get(cacheKey)
+    const cached = await getRedisClient().get(cacheKey)
     if (cached !== null) {
       return NextResponse.json({ preview: JSON.parse(cached) })
     }
@@ -66,7 +65,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       ? CACHE_TTL_SECONDS
       : NEGATIVE_CACHE_TTL_SECONDS
   try {
-    await redis.set(cacheKey, JSON.stringify(preview), 'EX', ttl)
+    await getRedisClient().set(cacheKey, JSON.stringify(preview), 'EX', ttl)
   } catch (error) {
     logger.warn('Link preview cache write failed', { error })
   }

@@ -610,7 +610,15 @@ kubectl --namespace sim logs deploy/sim-app -c migrations
 
 * **Redis is required.** The application no longer falls back to PostgreSQL or in-memory state for rate limiting, OTPs, pub/sub, or realtime coordination, and refuses to start without `REDIS_URL`. Installs that keep the bundled Redis (`redis.enabled: true`, the default) or already supply `REDIS_URL` need no action.
 
-  With `redis.enabled: false`, the chart now fails to render unless `REDIS_URL` comes from `app.env.REDIS_URL`, a pre-created `app.secrets.existingSecret` (which the chart trusts, since it cannot read it), or `externalSecrets.remoteRefs.app.REDIS_URL` when External Secrets is enabled. If you previously ran with Redis disabled, either re-enable the bundled Redis or point `REDIS_URL` at a managed instance before upgrading.
+  With `redis.enabled: false`, the chart now fails to render unless `REDIS_URL` reaches every enabled app and realtime pod. Accepted sources:
+
+  * `app.env.REDIS_URL` or `realtime.env.REDIS_URL`, written into the app Secret both pods load.
+  * A top-level `extraEnvVars` entry named `REDIS_URL` (for example with `valueFrom.secretKeyRef`), set inline on both pods.
+  * A pre-created `app.secrets.existingSecret`, which the chart trusts since it cannot read it.
+  * `externalSecrets.remoteRefs.app.REDIS_URL` when External Secrets is enabled, now also checked for a realtime-only release.
+  * `app.envDefaults.REDIS_URL` covers only the app pod and `realtime.envDefaults.REDIS_URL` only the realtime pod, so set both when both components are enabled.
+
+  The app Secret (chart-managed or External Secrets) now also renders for a realtime-only release (`app.enabled: false`), since the realtime pod loads it. If you previously ran with Redis disabled, either re-enable the bundled Redis or point `REDIS_URL` at a managed instance before upgrading.
 
 ## Upgrading to 1.6.4
 

@@ -22,13 +22,30 @@ There are no PostgreSQL or in-memory fallbacks: each of these runs only on Redis
 | Execution progress markers | Event buffers and progress for running executions |
 | Distributed execution limits | Per-deployment concurrency and provider admission limits |
 | CLI pairing-code approval store | API-key login through pairing; OAuth login uses a separate path |
+| OAuth flow state | Short-lived state for in-progress OAuth, MCP OAuth, and Slack OAuth connections |
+| Pending webhook verifications | Challenge state while a provider verifies a newly registered webhook |
+| Distributed locks | Leases that keep a job, schedule, or stream on one replica at a time |
 | Collaborative document store (realtime) | Shared state for collaboratively edited documents |
 
 <Callout type="error">
   The app checks `REDIS_URL` when it starts and refuses to boot when it is missing or is not a `redis://` or `rediss://` URL. `next build` does not need Redis, so an image builds without it; the running server does not.
 </Callout>
 
-Everything Sim keeps in Redis is cache, coordination state, or an in-flight event — never committed data, which lives in PostgreSQL and object storage. Persistence is therefore not required. Losing or restarting the instance is not free, though: cancellation markers and the cross-pod half of execution streaming live here, so active runs stop streaming and a cancellation issued across the gap may not land. Completed work is unaffected.
+Everything Sim keeps in Redis is cache, coordination state, or an in-flight event — never committed data, which lives in PostgreSQL and object storage. Persistence is therefore not required. Losing or restarting the instance is not free, though:
+
+- Active runs stop streaming, and a cancellation issued across the gap may not land, because cancellation markers and the cross-pod half of execution streaming live here.
+- Pending email OTPs stop working and must be requested again.
+- OAuth, MCP OAuth, and Slack OAuth connections in progress fail and must be started again.
+- Pending webhook verifications are lost.
+- Rate-limit buckets reset.
+
+Completed work is unaffected.
+
+### Eviction policy
+
+Use `maxmemory-policy noeviction`, as the bundled Helm Redis does, and size the instance so it never fills. Alert on memory use well before the limit: with `noeviction`, a full Redis rejects writes instead of silently dropping keys.
+
+Most managed services default to an evicting policy such as `volatile-lru` or `allkeys-lru`. Under memory pressure, `volatile-*` policies evict only keys with a TTL and `allkeys-*` policies evict any key. Either way, the short-lived keys Sim depends on are at risk: OTPs, OAuth state, locks, and rate-limit buckets. An evicted key looks like an expired code, a failed OAuth connection, a duplicated job, or a reset limit. Change the policy in the service's parameter group or configuration.
 
 ## Configuration
 
@@ -45,6 +62,8 @@ Both the app and the realtime service need it and must point at the same instanc
 
 `docker-compose.prod.yml` already includes a `redis:7-alpine` service and wires `REDIS_URL=redis://redis:6379` into both the app and realtime containers. No additional Redis URL is needed for that bundled instance.
 
+That service sets no `maxmemory`, so Redis can grow until the host runs out of memory. Watch its memory use on a long-running host.
+
 The port is deliberately not published to the host, so a Redis already running locally will not collide. Override `REDIS_URL` in `.env` to point at an external instance instead.
 
   </Tab>
@@ -52,7 +71,15 @@ The port is deliberately not published to the host, so a Redis already running l
 
 The chart deploys Redis by default, matching the Compose stack. No additional Redis URL is needed for that bundled instance.
 
-For production, prefer a managed instance — disable the bundled one and supply a URL. With `redis.enabled: false`, the chart refuses to render unless `REDIS_URL` comes from `app.env`, a pre-created `app.secrets.existingSecret`, or `externalSecrets.remoteRefs.app.REDIS_URL`:
+For production, prefer a managed instance — disable the bundled one and supply a URL. With `redis.enabled: false`, the chart refuses to render unless `REDIS_URL` reaches every enabled app and realtime pod. Accepted sources:
+
+- `app.env.REDIS_URL` or `realtime.env.REDIS_URL`, written into the app Secret that both pods load
+- A top-level `extraEnvVars` entry named `REDIS_URL`, such as one with `valueFrom.secretKeyRef`, which is set on both pods
+- A pre-created `app.secrets.existingSecret`, which the chart trusts because it cannot read it
+- `externalSecrets.remoteRefs.app.REDIS_URL` when External Secrets is enabled
+- `app.envDefaults.REDIS_URL` covers only the app pod, and `realtime.envDefaults.REDIS_URL` only the realtime pod, so set both when both are enabled
+
+The simplest form:
 
 ```yaml
 redis:
