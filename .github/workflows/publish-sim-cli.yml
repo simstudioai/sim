@@ -6,8 +6,14 @@ on:
     paths:
       - 'packages/sim-cli/**'
       # The build bundles its workspace dependencies, so a change there
-      # changes what ships.
+      # changes what ships. `bun run check:sim-cli-bundle` fails when this
+      # list and the bundle's workspace packages disagree.
+      - 'packages/table-cells/**'
       - 'packages/utils/**'
+      - 'packages/workflow-code/**'
+      - 'packages/workflow-sdk/**'
+      - 'packages/workflow-types/**'
+      - 'packages/workspace-code/**'
       # A change to how the package is built or published has to republish it.
       - '.github/workflows/publish-sim-cli.yml'
 

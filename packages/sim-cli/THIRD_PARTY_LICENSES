@@ -1,5 +1,11 @@
 The Sim CLI bundle includes the following third-party software.
 
+@babel/parser
+Copyright (C) 2012-2014 by various contributors (see AUTHORS)
+
+@noble/hashes
+Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+
 chalk
 Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
 
@@ -21,6 +27,9 @@ Copyright (c) 2018 Made With MOXY Lda <hello@moxy.studio>
 retry
 Copyright (c) 2011 Tim Koschützki (tim@debuggable.com)
 Copyright (c) 2011 Felix Geisendörfer (felix@debuggable.com)
+
+zod
+Copyright (c) 2025 Colin McDonnell
 
 Each dependency above is licensed under the MIT License:
 
