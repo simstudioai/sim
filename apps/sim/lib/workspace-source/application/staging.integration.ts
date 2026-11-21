@@ -81,6 +81,9 @@ const payer = createSessionPrincipal({ userId: payerId, sessionId: generateId() 
 /** A second payer of its own, whose stored bytes an apply changes. */
 const applierId = generateId()
 const applier = createSessionPrincipal({ userId: applierId, sessionId: generateId() })
+/** A third payer of its own, near its quota. */
+const renewerId = generateId()
+const renewer = createSessionPrincipal({ userId: renewerId, sessionId: generateId() })
 const { check, writeReport } = sourceChecks(
   'WORKSPACE_SOURCE_STAGING_REPORT_PATH',
   'workspace-source-staging.json'
@@ -171,7 +174,7 @@ beforeAll(async () => {
   )
   const now = new Date()
   await db.insert(user).values(
-    [ownerId, writerId, readerId, payerId, applierId].map((id) => ({
+    [ownerId, writerId, readerId, payerId, applierId, renewerId].map((id) => ({
       id,
       name: 'Workspace source staging fixture',
       email: `${id}@workspace-source.invalid`,
@@ -186,7 +189,9 @@ afterAll(async () => {
   await writeReport()
   resetUploadsSetupMock()
   await workspaces.cleanup()
-  await db.delete(user).where(inArray(user.id, [ownerId, writerId, readerId, payerId, applierId]))
+  await db
+    .delete(user)
+    .where(inArray(user.id, [ownerId, writerId, readerId, payerId, applierId, renewerId]))
   await rm(storageRoot, { recursive: true, force: true })
 })
 
@@ -295,6 +300,38 @@ describe('workspace source staging', () => {
         ])
         const refused = await failure(stage(applier, workspaceId, [blob('1')]))
         expect(refused).toMatchObject({ name: 'SourceStagingFullError' })
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    }
+  )
+
+  check(
+    'a batch whose new blobs the quota refuses still renews the staged blobs it re-sent',
+    async () => {
+      const quota = 1024 ** 3
+      await db
+        .insert(userStats)
+        .values({ id: generateId(), userId: renewerId, storageUsedBytes: quota - 10 })
+      const workspaceId = await workspaces.create({ name: 'Staging renewal', ownerId: renewerId })
+      const kept = blob('five5')
+      vi.stubEnv('FREE_STORAGE_LIMIT_GB', '1')
+      try {
+        await stage(renewer, workspaceId, [kept])
+        const soon = new Date(Date.now() + 30 * 60 * 1000)
+        await db
+          .update(workspaceSourceStagedBlob)
+          .set({ expiresAt: soon })
+          .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
+
+        const refused = await failure(stage(renewer, workspaceId, [kept, blob('six b4')]))
+        expect(refused).toMatchObject({ name: 'SourceStagingFullError' })
+
+        const [row] = await db
+          .select({ expiresAt: workspaceSourceStagedBlob.expiresAt })
+          .from(workspaceSourceStagedBlob)
+          .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
+        expect(row.expiresAt.getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000)
       } finally {
         vi.unstubAllEnvs()
       }

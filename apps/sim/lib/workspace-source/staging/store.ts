@@ -230,6 +230,20 @@ export async function stageBlobs(
     fresh.length > 0 && isStorageEnforcementEnabled()
       ? await resolveStorageBillingContext(target.workspaceId)
       : null
+  // Renewing adds no bytes, so it needs no quota check and commits on its own: a batch whose new
+  // blobs are refused still keeps the ones it re-sent.
+  if (known.size > 0) {
+    await db
+      .update(workspaceSourceStagedBlob)
+      .set({ expiresAt: expiry(), consumedAt: null })
+      .where(
+        and(
+          inScope(target),
+          inArray(workspaceSourceStagedBlob.sha256, [...known.keys()]),
+          gt(workspaceSourceStagedBlob.expiresAt, new Date())
+        )
+      )
+  }
   try {
     for (const blob of fresh) {
       const key = newStorageKey(target, blob.sha256)
@@ -250,18 +264,6 @@ export async function stageBlobs(
         'workspace_source_staging',
         `workspace-source-staging:${target.workspaceId}:${target.scope}`
       )
-      if (known.size > 0) {
-        await tx
-          .update(workspaceSourceStagedBlob)
-          .set({ expiresAt: expiry(), consumedAt: null })
-          .where(
-            and(
-              inScope(target),
-              inArray(workspaceSourceStagedBlob.sha256, [...known.keys()]),
-              gt(workspaceSourceStagedBlob.expiresAt, new Date())
-            )
-          )
-      }
       if (fresh.length === 0) return new Map<string, StagedBlob>()
       const adding = {
         count: fresh.length,
