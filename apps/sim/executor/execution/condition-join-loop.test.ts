@@ -12,6 +12,15 @@ import type { SerializedWorkflow } from '@/serializer/types'
 
 vi.mock('@/tools', () => toolsMock)
 
+/** A For loop's continuation check is `return Boolean(<index> < <count>)`; nothing here needs a real isolate. */
+vi.mock('@/lib/execution/isolated-vm', () => ({
+  executeInIsolatedVM: vi.fn(async ({ code }: { code: string }) => {
+    const indexCheck = /^return Boolean\((\d+) < (\d+)\)$/.exec(code)
+    if (!indexCheck) throw new Error(`Unexpected isolated-vm code in test: ${code}`)
+    return { result: Number(indexCheck[1]) < Number(indexCheck[2]) }
+  }),
+}))
+
 /** Real condition handler; every other block answers with its own name. */
 vi.mock('@/executor/handlers/registry', () => ({
   createBlockHandlers: () => [
