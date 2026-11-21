@@ -89,16 +89,4 @@ export const handleSpanEvent: StreamHandler = (event, context) => {
     }
     return
   }
-
-  if (
-    kind === MothershipStreamV1SpanPayloadKind.structured_result ||
-    kind === MothershipStreamV1SpanPayloadKind.subagent_result
-  ) {
-    const span = context.trace.startSpan(`${kind}:${payload.agent ?? 'main'}`, `go.${kind}`, {
-      agent: payload.agent,
-      hasData: payload.data !== undefined,
-    })
-    context.trace.endSpan(span, 'ok')
-    return
-  }
 }

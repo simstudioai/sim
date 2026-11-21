@@ -33,7 +33,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 import { sealClientToolSettlement } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import {
   type ClientToolSettlementGuard,
@@ -165,7 +165,7 @@ async function updateToolCallStatus(
 export const POST = withRouteHandler((req: NextRequest) => {
   const tracker = createRequestTracker()
 
-  return withIncomingGoSpan(
+  return withIncomingWorkerSpan(
     req.headers,
     TraceSpan.CopilotConfirmToolResult,
     { [TraceAttr.RequestId]: tracker.requestId },

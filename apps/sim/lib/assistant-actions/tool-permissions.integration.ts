@@ -79,7 +79,6 @@ import {
 } from '@/lib/mothership/async-runs/repository'
 import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
-import { runStreamLoop } from '@/lib/mothership/request/go/stream'
 import { createEvent } from '@/lib/mothership/request/session/event'
 import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
 import type {
@@ -88,6 +87,7 @@ import type {
   StreamEvent,
   ToolCallState,
 } from '@/lib/mothership/request/types'
+import { runStreamLoop } from '@/lib/mothership/request/worker/stream'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool } from '@/tools'

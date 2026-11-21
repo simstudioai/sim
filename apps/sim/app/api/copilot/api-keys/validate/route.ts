@@ -62,7 +62,7 @@ import { CopilotValidateOutcome } from '@/lib/mothership/generated/trace-attribu
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/mothership/request/http'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('CopilotApiKeysValidate')
 
@@ -92,7 +92,7 @@ type AdmissionBillingDecision =
     }
 
 /**
- * Resolves new-turn admission against the versioned Go callback protocol.
+ * Resolves new-turn admission against the versioned worker callback protocol.
  *
  * Markerless self-hosted admission is legacy-v0. A locally resolvable
  * workspace selects its current payer; an absent or opaque workspace preserves
@@ -313,13 +313,13 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
 }
 
 /**
- * Incoming-from-Go: extracts traceparent so this handler's work shows up as
- * a child of the Go-side `sim.validate_api_key` span in the same trace. If
+ * Incoming from the worker: extracts traceparent so this handler's work shows
+ * up as a child of the worker's span in the same trace. If
  * there's no traceparent (manual curl / browser), the helper falls back to a
  * new root span.
  */
 export const POST = withRouteHandler((req: NextRequest) =>
-  withIncomingGoSpan(
+  withIncomingWorkerSpan(
     req.headers,
     TraceSpan.CopilotAuthValidateApiKey,
     {

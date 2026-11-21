@@ -99,7 +99,7 @@ export async function startUnattendedTurn(
     const recovery = StreamRecoveryConfigSchema.parse({
       kind: 'unattended_stream',
       request,
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       clientToolPickupExpected: false,
       requestMode: 'agent',
       resourceAuthoringVersion: durableResourceAuthoringVersion(true),
@@ -143,7 +143,7 @@ export async function startUnattendedTurn(
         chatId,
         executionId,
         runId: admission.run.id,
-        goRoute: '/api/mothership',
+        workerRoute: '/api/mothership',
         copilotResourceAdmission,
         billingAttribution: input.billingAttribution,
         ...(userPermission ? { userPermission } : {}),

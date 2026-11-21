@@ -140,10 +140,6 @@ import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import { restoreStreamingContext } from '@/lib/mothership/request/context/restore'
-import {
-  createFilePreviewAdapterState,
-  processFilePreviewStreamEvent,
-} from '@/lib/mothership/request/go/file-preview-adapter'
 import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'
 import { createSSEStream } from '@/lib/mothership/request/lifecycle/start'
 import { acquirePendingChatStream } from '@/lib/mothership/request/session/abort'
@@ -162,6 +158,10 @@ import { STREAM_STRING_PREVIEW_UNITS } from '@/lib/mothership/request/session/re
 import type { StreamEvent } from '@/lib/mothership/request/session/types'
 import { StreamWriter } from '@/lib/mothership/request/session/writer'
 import type { StreamingContext } from '@/lib/mothership/request/types'
+import {
+  createFilePreviewAdapterState,
+  processFilePreviewStreamEvent,
+} from '@/lib/mothership/request/worker/file-preview-adapter'
 import { readCallActivity } from '@/lib/mothership/tools/activity'
 import {
   type PendingFileIntent,
@@ -548,7 +548,7 @@ describe('a turn whose stream exhausts its replay budget', () => {
           recovery: {
             kind: 'interactive_stream',
             request,
-            goRoute: '/api/mothership',
+            workerRoute: '/api/mothership',
             clientToolPickupExpected: false,
           },
         },
@@ -911,7 +911,7 @@ describe('a turn whose stream exhausts its replay budget', () => {
         recovery: {
           kind: 'interactive_stream',
           request,
-          goRoute: '/api/mothership',
+          workerRoute: '/api/mothership',
           clientToolPickupExpected: false,
         },
       },

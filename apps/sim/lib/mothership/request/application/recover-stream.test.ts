@@ -89,7 +89,7 @@ const run = {
         chatId: '22222222-2222-4222-8222-222222222222',
         workspaceId: '33333333-3333-4333-8333-333333333333',
       },
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       clientToolPickupExpected: false,
       userTimezone: 'Asia/Kolkata',
       requestMode: 'agent',
@@ -194,7 +194,7 @@ describe('authorized chat stream recovery', () => {
     const params = mocks.start.mock.calls[0][0]
     expect(params.requestPayload).toMatchObject(run.requestContext.recovery.request)
     expect(params.orchestrateOptions).toMatchObject({
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       userPermission: 'read',
       interactive: true,
       clientToolPickupExpected: false,

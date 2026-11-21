@@ -426,7 +426,7 @@ describe('POST /api/v2/chat', () => {
       userId: 'user-1',
       workspaceId: 'workspace-1',
       chatId: SERVER_ISSUED_CHAT_ID,
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       autoExecuteTools: true,
       interactive: false,
       // Hosted execution refuses to run without attribution, so the resolved

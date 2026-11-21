@@ -9,39 +9,6 @@ export const AbortBackend = {
   Redis: "redis",
 } as const;
 
-export type AbortBackendKey = keyof typeof AbortBackend;
-export type AbortBackendValue = (typeof AbortBackend)[AbortBackendKey];
-
-export const AbortRedisResult = {
-  Error: "error",
-  Miss: "miss",
-  Ok: "ok",
-  Slow: "slow",
-} as const;
-
-export type AbortRedisResultKey = keyof typeof AbortRedisResult;
-export type AbortRedisResultValue = (typeof AbortRedisResult)[AbortRedisResultKey];
-
-export const AuthKeyMatch = {
-  None: "none",
-  User: "user",
-} as const;
-
-export type AuthKeyMatchKey = keyof typeof AuthKeyMatch;
-export type AuthKeyMatchValue = (typeof AuthKeyMatch)[AuthKeyMatchKey];
-
-export const BillingFlushOutcome = {
-  CheckpointAlreadyClaimed: "checkpoint_already_claimed",
-  CheckpointLoadFailed: "checkpoint_load_failed",
-  Flushed: "flushed",
-  NoCheckpoint: "no_checkpoint",
-  NoSnapshot: "no_snapshot",
-  SkippedUnconfigured: "skipped_unconfigured",
-} as const;
-
-export type BillingFlushOutcomeKey = keyof typeof BillingFlushOutcome;
-export type BillingFlushOutcomeValue = (typeof BillingFlushOutcome)[BillingFlushOutcomeKey];
-
 export const BillingRouteOutcome = {
   AuthFailed: "auth_failed",
   Billed: "billed",
@@ -52,40 +19,11 @@ export const BillingRouteOutcome = {
   ReconciliationRequired: "reconciliation_required",
 } as const;
 
-export type BillingRouteOutcomeKey = keyof typeof BillingRouteOutcome;
-export type BillingRouteOutcomeValue = (typeof BillingRouteOutcome)[BillingRouteOutcomeKey];
-
-export const ContextBudgetSource = {
-  Model: "model",
-  PricingBoundary: "pricing_boundary",
-} as const;
-
-export type ContextBudgetSourceKey = keyof typeof ContextBudgetSource;
-export type ContextBudgetSourceValue = (typeof ContextBudgetSource)[ContextBudgetSourceKey];
-
-export const CopilotAbortOutcome = {
-  BadRequest: "bad_request",
-  FallbackPersistFailed: "fallback_persist_failed",
-  ForceReleased: "force_released",
-  MissingMessageId: "missing_message_id",
-  MissingStreamId: "missing_stream_id",
-  NoChatId: "no_chat_id",
-  Ok: "ok",
-  SettleTimeout: "settle_timeout",
-  Settled: "settled",
-  Unauthorized: "unauthorized",
-} as const;
-
-export type CopilotAbortOutcomeKey = keyof typeof CopilotAbortOutcome;
-export type CopilotAbortOutcomeValue = (typeof CopilotAbortOutcome)[CopilotAbortOutcomeKey];
-
 export const CopilotBranchKind = {
+  Organization: "organization",
   Workflow: "workflow",
   Workspace: "workspace",
 } as const;
-
-export type CopilotBranchKindKey = keyof typeof CopilotBranchKind;
-export type CopilotBranchKindValue = (typeof CopilotBranchKind)[CopilotBranchKindKey];
 
 export const CopilotChatFinalizeOutcome = {
   AppendedAssistant: "appended_assistant",
@@ -93,18 +31,6 @@ export const CopilotChatFinalizeOutcome = {
   ClearedStreamMarkerOnly: "cleared_stream_marker_only",
   StaleUserMessage: "stale_user_message",
 } as const;
-
-export type CopilotChatFinalizeOutcomeKey = keyof typeof CopilotChatFinalizeOutcome;
-export type CopilotChatFinalizeOutcomeValue =
-  (typeof CopilotChatFinalizeOutcome)[CopilotChatFinalizeOutcomeKey];
-
-export const CopilotChatPersistOutcome = {
-  Appended: "appended",
-  ChatNotFound: "chat_not_found",
-} as const;
-
-export type CopilotChatPersistOutcomeKey = keyof typeof CopilotChatPersistOutcome;
-export type CopilotChatPersistOutcomeValue = (typeof CopilotChatPersistOutcome)[CopilotChatPersistOutcomeKey];
 
 export const CopilotConfirmOutcome = {
   Delivered: "delivered",
@@ -117,9 +43,6 @@ export const CopilotConfirmOutcome = {
   ValidationError: "validation_error",
 } as const;
 
-export type CopilotConfirmOutcomeKey = keyof typeof CopilotConfirmOutcome;
-export type CopilotConfirmOutcomeValue = (typeof CopilotConfirmOutcome)[CopilotConfirmOutcomeKey];
-
 export const CopilotDegradedReason = {
   BindingRejected: "binding_rejected",
   ClientPickupTimeout: "client_pickup_timeout",
@@ -127,8 +50,7 @@ export const CopilotDegradedReason = {
   StreamDeadBeforeDispatch: "stream_dead_before_dispatch",
 } as const;
 
-export type CopilotDegradedReasonKey = keyof typeof CopilotDegradedReason;
-export type CopilotDegradedReasonValue = (typeof CopilotDegradedReason)[CopilotDegradedReasonKey];
+export type CopilotDegradedReasonValue = (typeof CopilotDegradedReason)[keyof typeof CopilotDegradedReason];
 
 export const CopilotFinalizeOutcome = {
   Aborted: "aborted",
@@ -136,51 +58,33 @@ export const CopilotFinalizeOutcome = {
   Success: "success",
 } as const;
 
-export type CopilotFinalizeOutcomeKey = keyof typeof CopilotFinalizeOutcome;
-export type CopilotFinalizeOutcomeValue = (typeof CopilotFinalizeOutcome)[CopilotFinalizeOutcomeKey];
-
 export const CopilotLeg = {
-  SimToGo: "sim_to_go",
+  SimToWorker: "sim_to_worker",
 } as const;
-
-export type CopilotLegKey = keyof typeof CopilotLeg;
-export type CopilotLegValue = (typeof CopilotLeg)[CopilotLegKey];
 
 export const CopilotOutputFileOutcome = {
   Failed: "failed",
   Uploaded: "uploaded",
 } as const;
 
-export type CopilotOutputFileOutcomeKey = keyof typeof CopilotOutputFileOutcome;
-export type CopilotOutputFileOutcomeValue = (typeof CopilotOutputFileOutcome)[CopilotOutputFileOutcomeKey];
-
 export const CopilotRecoveryOutcome = {
   GapDetected: "gap_detected",
   InRange: "in_range",
 } as const;
 
-export type CopilotRecoveryOutcomeKey = keyof typeof CopilotRecoveryOutcome;
-export type CopilotRecoveryOutcomeValue = (typeof CopilotRecoveryOutcome)[CopilotRecoveryOutcomeKey];
-
 export const CopilotRequestCancelReason = {
-  ClientDisconnect: "client_disconnect",
   ExplicitStop: "explicit_stop",
-  Timeout: "timeout",
   Unknown: "unknown",
 } as const;
 
-export type CopilotRequestCancelReasonKey = keyof typeof CopilotRequestCancelReason;
 export type CopilotRequestCancelReasonValue =
-  (typeof CopilotRequestCancelReason)[CopilotRequestCancelReasonKey];
+  (typeof CopilotRequestCancelReason)[keyof typeof CopilotRequestCancelReason];
 
 export const CopilotResourcesOp = {
   Delete: "delete",
   None: "none",
   Upsert: "upsert",
 } as const;
-
-export type CopilotResourcesOpKey = keyof typeof CopilotResourcesOp;
-export type CopilotResourcesOpValue = (typeof CopilotResourcesOp)[CopilotResourcesOpKey];
 
 export const CopilotResumeOutcome = {
   BatchDelivered: "batch_delivered",
@@ -189,9 +93,6 @@ export const CopilotResumeOutcome = {
   StreamNotFound: "stream_not_found",
   TerminalDelivered: "terminal_delivered",
 } as const;
-
-export type CopilotResumeOutcomeKey = keyof typeof CopilotResumeOutcome;
-export type CopilotResumeOutcomeValue = (typeof CopilotResumeOutcome)[CopilotResumeOutcomeKey];
 
 export const CopilotSseCloseReason = {
   Aborted: "aborted",
@@ -203,21 +104,6 @@ export const CopilotSseCloseReason = {
   Timeout: "timeout",
 } as const;
 
-export type CopilotSseCloseReasonKey = keyof typeof CopilotSseCloseReason;
-export type CopilotSseCloseReasonValue = (typeof CopilotSseCloseReason)[CopilotSseCloseReasonKey];
-
-export const CopilotSteerOutcome = {
-  BadRequest: "bad_request",
-  MissingContent: "missing_content",
-  MissingMessageId: "missing_message_id",
-  NoActiveTurn: "no_active_turn",
-  QueueFull: "queue_full",
-  Queued: "queued",
-} as const;
-
-export type CopilotSteerOutcomeKey = keyof typeof CopilotSteerOutcome;
-export type CopilotSteerOutcomeValue = (typeof CopilotSteerOutcome)[CopilotSteerOutcomeKey];
-
 export const CopilotStopOutcome = {
   ChatNotFound: "chat_not_found",
   InternalError: "internal_error",
@@ -227,16 +113,10 @@ export const CopilotStopOutcome = {
   ValidationError: "validation_error",
 } as const;
 
-export type CopilotStopOutcomeKey = keyof typeof CopilotStopOutcome;
-export type CopilotStopOutcomeValue = (typeof CopilotStopOutcome)[CopilotStopOutcomeKey];
-
 export const CopilotSurface = {
   Copilot: "copilot",
   Mothership: "mothership",
 } as const;
-
-export type CopilotSurfaceKey = keyof typeof CopilotSurface;
-export type CopilotSurfaceValue = (typeof CopilotSurface)[CopilotSurfaceKey];
 
 export const CopilotTableOutcome = {
   EmptyContent: "empty_content",
@@ -246,29 +126,19 @@ export const CopilotTableOutcome = {
   InvalidJsonShape: "invalid_json_shape",
   InvalidShape: "invalid_shape",
   RowLimitExceeded: "row_limit_exceeded",
-  TableNotFound: "table_not_found",
   Wrote: "wrote",
 } as const;
-
-export type CopilotTableOutcomeKey = keyof typeof CopilotTableOutcome;
-export type CopilotTableOutcomeValue = (typeof CopilotTableOutcome)[CopilotTableOutcomeKey];
 
 export const CopilotTableSourceFormat = {
   Csv: "csv",
   Json: "json",
 } as const;
 
-export type CopilotTableSourceFormatKey = keyof typeof CopilotTableSourceFormat;
-export type CopilotTableSourceFormatValue = (typeof CopilotTableSourceFormat)[CopilotTableSourceFormatKey];
-
 export const CopilotTransport = {
   Batch: "batch",
   Headless: "headless",
   Stream: "stream",
 } as const;
-
-export type CopilotTransportKey = keyof typeof CopilotTransport;
-export type CopilotTransportValue = (typeof CopilotTransport)[CopilotTransportKey];
 
 export const CopilotValidateOutcome = {
   InternalAuthFailed: "internal_auth_failed",
@@ -279,169 +149,6 @@ export const CopilotValidateOutcome = {
   UserNotFound: "user_not_found",
 } as const;
 
-export type CopilotValidateOutcomeKey = keyof typeof CopilotValidateOutcome;
-export type CopilotValidateOutcomeValue = (typeof CopilotValidateOutcome)[CopilotValidateOutcomeKey];
-
-export const CopilotVfsOutcome = {
-  PassthroughFitsBudget: "passthrough_fits_budget",
-  PassthroughNoMetadata: "passthrough_no_metadata",
-  PassthroughNoSharp: "passthrough_no_sharp",
-  RejectedNoMetadata: "rejected_no_metadata",
-  RejectedNoSharp: "rejected_no_sharp",
-  RejectedTooLargeAfterResize: "rejected_too_large_after_resize",
-  Resized: "resized",
-} as const;
-
-export type CopilotVfsOutcomeKey = keyof typeof CopilotVfsOutcome;
-export type CopilotVfsOutcomeValue = (typeof CopilotVfsOutcome)[CopilotVfsOutcomeKey];
-
-export const CopilotVfsReadOutcome = {
-  BinaryPlaceholder: "binary_placeholder",
-  DocumentParsed: "document_parsed",
-  DocumentTooLarge: "document_too_large",
-  ImagePrepared: "image_prepared",
-  ImageTooLarge: "image_too_large",
-  ParseFailed: "parse_failed",
-  ReadFailed: "read_failed",
-  TextRead: "text_read",
-  TextTooLarge: "text_too_large",
-} as const;
-
-export type CopilotVfsReadOutcomeKey = keyof typeof CopilotVfsReadOutcome;
-export type CopilotVfsReadOutcomeValue = (typeof CopilotVfsReadOutcome)[CopilotVfsReadOutcomeKey];
-
-export const CopilotVfsReadPath = {
-  Binary: "binary",
-  Image: "image",
-  ParseableDocument: "parseable_document",
-  Text: "text",
-} as const;
-
-export type CopilotVfsReadPathKey = keyof typeof CopilotVfsReadPath;
-export type CopilotVfsReadPathValue = (typeof CopilotVfsReadPath)[CopilotVfsReadPathKey];
-
-export const LlmErrorStage = {
-  BuildRequest: "build_request",
-  Decode: "decode",
-  HttpBuild: "http_build",
-  HttpStatus: "http_status",
-  Invoke: "invoke",
-  MarshalRequest: "marshal_request",
-  StreamClose: "stream_close",
-} as const;
-
-export type LlmErrorStageKey = keyof typeof LlmErrorStage;
-export type LlmErrorStageValue = (typeof LlmErrorStage)[LlmErrorStageKey];
-
-export const PromptComponent = {
-  ActiveSkills: "active_skills",
-  AgentGuidance: "agent_guidance",
-  Capabilities: "capabilities",
-  Credentials: "credentials",
-  DesktopContext: "desktop_context",
-  ExternalTools: "external_tools",
-  Files: "files",
-  History: "history",
-  Override: "override",
-  PermissionsContext: "permissions_context",
-  Persona: "persona",
-  Policies: "policies",
-  RuntimeTail: "runtime_tail",
-  SessionContext: "session_context",
-  SkillsIndex: "skills_index",
-  SpawnContext: "spawn_context",
-  Steering: "steering",
-  SubagentDocs: "subagent_docs",
-  SubagentRegistry: "subagent_registry",
-  TaggedResources: "tagged_resources",
-  TimeContext: "time_context",
-  ToolDocs: "tool_docs",
-  ToolResults: "tool_results",
-  ToolsWire: "tools_wire",
-  Vfs: "vfs",
-  WorkflowContext: "workflow_context",
-  WorkspaceGuide: "workspace_guide",
-  WorkspaceInventory: "workspace_inventory",
-} as const;
-
-export type PromptComponentKey = keyof typeof PromptComponent;
-export type PromptComponentValue = (typeof PromptComponent)[PromptComponentKey];
-
-export const RateLimitOutcome = {
-  Allowed: "allowed",
-  IncrError: "incr_error",
-  Limited: "limited",
-} as const;
-
-export type RateLimitOutcomeKey = keyof typeof RateLimitOutcome;
-export type RateLimitOutcomeValue = (typeof RateLimitOutcome)[RateLimitOutcomeKey];
-
-export const SubagentExecutionPhase = {
-  Continuation: "continuation",
-  Initial: "initial",
-} as const;
-
-export type SubagentExecutionPhaseKey = keyof typeof SubagentExecutionPhase;
-export type SubagentExecutionPhaseValue = (typeof SubagentExecutionPhase)[SubagentExecutionPhaseKey];
-
-export const SubagentSessionOperation = {
-  Ephemeral: "ephemeral",
-  New: "new",
-  Resume: "resume",
-} as const;
-
-export type SubagentSessionOperationKey = keyof typeof SubagentSessionOperation;
-export type SubagentSessionOperationValue = (typeof SubagentSessionOperation)[SubagentSessionOperationKey];
-
-export const SubagentSessionPersistenceOutcome = {
-  Deferred: "deferred",
-  Failed: "failed",
-  NotApplicable: "not_applicable",
-  NotAttempted: "not_attempted",
-  Succeeded: "succeeded",
-} as const;
-
-export type SubagentSessionPersistenceOutcomeKey = keyof typeof SubagentSessionPersistenceOutcome;
-export type SubagentSessionPersistenceOutcomeValue =
-  (typeof SubagentSessionPersistenceOutcome)[SubagentSessionPersistenceOutcomeKey];
-
-export const ToolAsyncWaiterResolution = {
-  ContextCancelled: "context_cancelled",
-  Poll: "poll",
-  Pubsub: "pubsub",
-  StoredAfterClose: "stored_after_close",
-  StoredBeforeSubscribe: "stored_before_subscribe",
-  StoredPostSubscribe: "stored_post_subscribe",
-  SubscriptionClosed: "subscription_closed",
-  Unknown: "unknown",
-} as const;
-
-export type ToolAsyncWaiterResolutionKey = keyof typeof ToolAsyncWaiterResolution;
-export type ToolAsyncWaiterResolutionValue = (typeof ToolAsyncWaiterResolution)[ToolAsyncWaiterResolutionKey];
-
-export const ToolErrorKind = {
-  Dispatch: "dispatch",
-  NotFound: "not_found",
-} as const;
-
-export type ToolErrorKindKey = keyof typeof ToolErrorKind;
-export type ToolErrorKindValue = (typeof ToolErrorKind)[ToolErrorKindKey];
-
 export const ToolExecutor = {
-  Client: "client",
-  Go: "go",
   Sim: "sim",
 } as const;
-
-export type ToolExecutorKey = keyof typeof ToolExecutor;
-export type ToolExecutorValue = (typeof ToolExecutor)[ToolExecutorKey];
-
-export const ToolStoreStatus = {
-  Cancelled: "cancelled",
-  Completed: "completed",
-  Failed: "failed",
-  Pending: "pending",
-} as const;
-
-export type ToolStoreStatusKey = keyof typeof ToolStoreStatus;
-export type ToolStoreStatusValue = (typeof ToolStoreStatus)[ToolStoreStatusKey];

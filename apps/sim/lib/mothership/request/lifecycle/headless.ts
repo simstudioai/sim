@@ -1,15 +1,14 @@
 import { generateId } from '@sim/utils/id'
 import type { ChatRequest } from '@/lib/mothership/generated/protocol'
-import type { RequestTraceV1Outcome as RequestTraceOutcome } from '@/lib/mothership/generated/request-trace-v1'
-import {
-  RequestTraceV1Outcome,
-  RequestTraceV1SpanStatus,
-} from '@/lib/mothership/generated/request-trace-v1'
 import { CopilotTransport } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { withCopilotOtelContext } from '@/lib/mothership/request/otel'
-import { TraceCollector } from '@/lib/mothership/request/trace'
+import {
+  RequestTraceOutcome,
+  RequestTraceSpanStatus,
+  TraceCollector,
+} from '@/lib/mothership/request/trace'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
 export async function runHeadlessCopilotLifecycle(
@@ -24,19 +23,19 @@ export async function runHeadlessCopilotLifecycle(
         : generateId()
   const trace = new TraceCollector()
   const requestSpan = trace.startSpan('Headless Sim Agent Request', 'request', {
-    route: options.goRoute,
+    route: options.workerRoute,
     workflowId: options.workflowId,
     workspaceId: options.workspaceId,
     chatId: options.chatId,
   })
 
   let result: OrchestratorResult | undefined
-  let outcome: RequestTraceOutcome = RequestTraceV1Outcome.error
+  let outcome: RequestTraceOutcome = RequestTraceOutcome.error
 
   return withCopilotOtelContext(
     {
       requestId: simRequestId,
-      route: options.goRoute,
+      route: options.workerRoute,
       chatId: options.chatId,
       workflowId: options.workflowId,
       executionId: options.executionId,
@@ -56,24 +55,24 @@ export async function runHeadlessCopilotLifecycle(
           }
         )
         outcome = result.success
-          ? RequestTraceV1Outcome.success
+          ? RequestTraceOutcome.success
           : options.abortSignal?.aborted || result.cancelled
-            ? RequestTraceV1Outcome.cancelled
-            : RequestTraceV1Outcome.error
+            ? RequestTraceOutcome.cancelled
+            : RequestTraceOutcome.error
         return result
       } catch (error) {
         outcome = options.abortSignal?.aborted
-          ? RequestTraceV1Outcome.cancelled
-          : RequestTraceV1Outcome.error
+          ? RequestTraceOutcome.cancelled
+          : RequestTraceOutcome.error
         throw error
       } finally {
         trace.endSpan(
           requestSpan,
-          outcome === RequestTraceV1Outcome.success
-            ? RequestTraceV1SpanStatus.ok
-            : outcome === RequestTraceV1Outcome.cancelled
-              ? RequestTraceV1SpanStatus.cancelled
-              : RequestTraceV1SpanStatus.error
+          outcome === RequestTraceOutcome.success
+            ? RequestTraceSpanStatus.ok
+            : outcome === RequestTraceOutcome.cancelled
+              ? RequestTraceSpanStatus.cancelled
+              : RequestTraceSpanStatus.error
         )
       }
     }

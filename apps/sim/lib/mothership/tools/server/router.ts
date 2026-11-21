@@ -134,7 +134,7 @@ export async function routeExecution(
     `User stop signal aborted ${toolName} before payload normalization`
   )
 
-  // Go injects chatId/workspaceId and may wrap the model's args inside a
+  // The worker injects chatId/workspaceId and may wrap the model's args inside a
   // nested "args" object. Unwrap that before validation so the generated
   // JSON Schema sees the flat tool contract shape.
   let normalizedPayload = payload ?? {}
@@ -166,7 +166,7 @@ export async function routeExecution(
   const result = await tool.execute(args, context)
 
   // Validate output if tool declares a schema; otherwise fall back to the
-  // generated JSON schema contract emitted from Go.
+  // generated JSON schema contract.
   return tool.outputSchema
     ? tool.outputSchema.parse(result)
     : validateGeneratedToolPayload(toolName, 'resultSchema', result)

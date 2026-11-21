@@ -28,7 +28,7 @@ export function buildOnComplete(params: {
    * assistant message + invoked tool calls are recorded as
    * `gen_ai.output.messages` on it before persistence runs. Keeps
    * the Honeycomb Gen AI view complete across both the Sim root
-   * span and the Go-side `llm.stream` spans.
+   * span and the worker's model-call spans.
    */
   otelRoot?: {
     setOutputMessages: (output: {

@@ -9,7 +9,6 @@ import {
   type MothershipStreamV1ErrorPayload,
   MothershipStreamV1EventType,
   MothershipStreamV1RunKind,
-  MothershipStreamV1SessionKind,
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
   MothershipStreamV1TextChannel,
@@ -281,18 +280,8 @@ export function buildLiveAssistantMessage(params: {
         : 'main'
 
     switch (parsed.type) {
-      case MothershipStreamV1EventType.session: {
-        if (parsed.payload.kind === MothershipStreamV1SessionKind.chat) {
-          continue
-        }
-        if (parsed.payload.kind === MothershipStreamV1SessionKind.start) {
-          continue
-        }
-        if (parsed.payload.kind === MothershipStreamV1SessionKind.trace) {
-          requestId = parsed.payload.requestId
-        }
+      case MothershipStreamV1EventType.session:
         continue
-      }
       case MothershipStreamV1EventType.text: {
         const chunk = parsed.payload.text
         if (!chunk) {

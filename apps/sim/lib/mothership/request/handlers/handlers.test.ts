@@ -510,8 +510,8 @@ describe('sse-handlers tool lifecycle', () => {
     })
   })
 
-  it('clears a Go-stamped approval frame when the gate is off', async () => {
-    // Go stamps integration calls regardless of Sim's feature flag. Forwarding
+  it('clears a worker-stamped approval frame when the gate is off', async () => {
+    // The worker stamps integration calls regardless of Sim's feature flag. Forwarding
     // that stamp with nothing gating behind it would draw a card whose buttons
     // answer into a disabled endpoint.
     toolRequiresApproval.mockReturnValue(false)
@@ -541,7 +541,7 @@ describe('sse-handlers tool lifecycle', () => {
     expect(upsertAsyncToolCall).not.toHaveBeenCalled()
   })
 
-  it('clears a Go-stamped approval frame on a partial call, which is never held', async () => {
+  it('clears a worker-stamped approval frame on a partial call, which is never held', async () => {
     toolRequiresApproval.mockReturnValue(true)
     context.runId = 'run-1'
     context.toolPermissions = {
@@ -614,7 +614,7 @@ describe('sse-handlers tool lifecycle', () => {
     }
   )
 
-  it('clears a Go-stamped approval frame on an internal tool', async () => {
+  it('clears a worker-stamped approval frame on an internal tool', async () => {
     toolRequiresApproval.mockReturnValue(true)
     context.runId = 'run-1'
     context.toolPermissions = {
@@ -1069,7 +1069,7 @@ describe('sse-handlers tool lifecycle', () => {
   )
 
   it('registers but never dispatches an inband-owned sim tool call', async () => {
-    // Go executes inband-owned calls itself via /api/copilot/tools/execute;
+    // The worker executes inband-owned calls itself via /api/copilot/tools/execute;
     // dispatching here too ran the tool twice, racing on mutations.
     await sseHandlers.tool(
       {
@@ -2334,8 +2334,6 @@ describe('sse-handlers tool lifecycle', () => {
             toolCallId: 'gateway-gmail',
             toolName: 'call_integration_tool',
             argumentsDelta,
-            executor: MothershipStreamV1ToolExecutor.go,
-            mode: MothershipStreamV1ToolMode.sync,
             phase: MothershipStreamV1ToolPhase.args_delta,
           },
         } satisfies StreamEvent,
@@ -2584,31 +2582,6 @@ describe('sse-handlers tool lifecycle', () => {
       expect(context.toolCalls.get('gateway-work-item')?.activity).toEqual(grouping)
     }
   )
-
-  it('clears pending continuation state when a run resumes', async () => {
-    context.awaitingAsyncContinuation = {
-      checkpointId: 'cp-1',
-      executionId: 'exec-1',
-      runId: 'run-1',
-      pendingToolCallIds: ['tool-1'],
-    }
-    context.streamComplete = true
-
-    await sseHandlers.run(
-      {
-        type: MothershipStreamV1EventType.run,
-        payload: {
-          kind: MothershipStreamV1RunKind.resumed,
-        },
-      } satisfies StreamEvent,
-      context,
-      execContext,
-      { interactive: false, timeout: 1000 }
-    )
-
-    expect(context.awaitingAsyncContinuation).toBeUndefined()
-    expect(context.streamComplete).toBe(false)
-  })
 
   it('records the terminal completion status so a finished turn can outrank an in-band failure', async () => {
     context.errors.push('subagent build failed')

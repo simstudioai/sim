@@ -5,6 +5,7 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { CopilotResourcesOp } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
@@ -216,10 +217,10 @@ export async function handleResourceSideEffects(
 
       span.setAttributes({
         [TraceAttr.CopilotResourcesOp]: isDeleteOp
-          ? 'delete'
+          ? CopilotResourcesOp.Delete
           : upsertedCount > 0
-            ? 'upsert'
-            : 'none',
+            ? CopilotResourcesOp.Upsert
+            : CopilotResourcesOp.None,
         [TraceAttr.CopilotResourcesRemovedCount]: removedCount,
         [TraceAttr.CopilotResourcesUpsertedCount]: upsertedCount,
         [TraceAttr.CopilotResourcesAborted]: isAborted(),

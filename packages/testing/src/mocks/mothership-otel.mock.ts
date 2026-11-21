@@ -64,7 +64,7 @@ type SpanCallback = (span: MockOtelSpan) => unknown
  * Controllable mock functions for `@/lib/mothership/request/otel`.
  *
  * Defaults:
- * - `mockWithCopilotSpan`, `mockWithIncomingGoSpan`, `mockWithCopilotToolSpan` invoke their callback
+ * - `mockWithCopilotSpan`, `mockWithIncomingWorkerSpan`, `mockWithCopilotToolSpan` invoke their callback
  *   with a fresh {@link createMockOtelSpan} span and return its result (no span status bookkeeping).
  * - `mockWithCopilotOtelContext` invokes its callback with an inert context.
  * - `mockStartCopilotOtelRoot` returns `{ span, context, requestId, finish, setUserMessagePreview,
@@ -108,7 +108,7 @@ export const mothershipOtelMockFns = {
       (rest[rest.length - 1] as SpanCallback)(createMockOtelSpan())
     ),
   })),
-  mockWithIncomingGoSpan: vi.fn(
+  mockWithIncomingWorkerSpan: vi.fn(
     async (_headers: unknown, _spanName: string, _attributes: unknown, fn: SpanCallback) =>
       fn(createMockOtelSpan())
   ),
@@ -148,7 +148,7 @@ export const mothershipOtelMock = {
   isActionableErrorStatus: mothershipOtelMockFns.mockIsActionableErrorStatus,
   markSpanForError: mothershipOtelMockFns.mockMarkSpanForError,
   getCopilotTracer: mothershipOtelMockFns.mockGetCopilotTracer,
-  withIncomingGoSpan: mothershipOtelMockFns.mockWithIncomingGoSpan,
+  withIncomingWorkerSpan: mothershipOtelMockFns.mockWithIncomingWorkerSpan,
   withCopilotSpan: mothershipOtelMockFns.mockWithCopilotSpan,
   withCopilotToolSpan: mothershipOtelMockFns.mockWithCopilotToolSpan,
   startCopilotOtelRoot: mothershipOtelMockFns.mockStartCopilotOtelRoot,

@@ -158,7 +158,7 @@ export type ValidateCopilotApiKeyError = z.output<typeof validateCopilotApiKeyEr
 export const validateCopilotApiKeyBodySchema = z
   .object({
     userId: z.string().min(1, 'userId is required'),
-    /** Selected by authenticated Go lifecycle handlers, never by public callers. */
+    /** Selected by the authenticated worker, never by public callers. */
     purpose: z.enum(COPILOT_VALIDATION_PURPOSE_VALUES).default(COPILOT_VALIDATION_PURPOSE.newTurn),
     /**
      * Originating execution workspace. Hosted attribution-v1 binds it to Sim's
@@ -327,9 +327,9 @@ export const validateCopilotByokBodySchema = z.object({
 export type ValidateCopilotByokBody = z.input<typeof validateCopilotByokBodySchema>
 
 /**
- * Server-to-server entitlement gate called by the mothership (Go) before it
+ * Server-to-server entitlement gate called by the mothership worker before it
  * uses a workspace's own provider key. Empty 200/401/403 responses signal the
- * outcome; the Go caller fails closed to hosted keys on anything but a 200.
+ * outcome; the caller fails closed to hosted keys on anything but a 200.
  */
 export const validateCopilotByokContract = defineRouteContract({
   method: 'POST',
@@ -400,6 +400,6 @@ export const copilotChatSteerContract = defineRouteContract({
   body: copilotChatSteerBodySchema,
   response: {
     mode: 'json',
-    schema: z.object({ ok: z.boolean(), queued: z.boolean(), goStatus: z.number().optional() }),
+    schema: z.object({ ok: z.boolean(), queued: z.boolean(), workerStatus: z.number().optional() }),
   },
 })

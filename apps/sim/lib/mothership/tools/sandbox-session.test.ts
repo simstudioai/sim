@@ -5,9 +5,9 @@ import {
   mothershipAgentUrlMockFns,
 } from '@sim/testing/mocks/mothership-agent-url.mock'
 import {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from '@sim/testing/mocks/mothership-go-fetch.mock'
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +22,7 @@ const { read, mint, connection, endpoint, workspaceFileCopy, entitlements } = vi
 vi.mock('@/lib/mothership/transport/connection', () => ({ getSimConnection: connection }))
 vi.mock('node:fs/promises', () => ({ readFile: read }))
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mint }))
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 vi.mock('@/lib/mothership/request/headers', () => ({
   mothershipRequestHeaders: () => ({ 'x-api-key': 'worker-test-key' }),
 }))
@@ -32,7 +32,7 @@ vi.mock('@/lib/mothership/entitlements', () => ({ computeEntitlements: entitleme
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
 
-const fetchBootstrap = mothershipGoFetchMockFns.mockFetchGo
+const fetchBootstrap = mothershipWorkerFetchMockFns.mockFetchWorker
 const baseURL = mothershipAgentUrlMockFns.mockGetMothershipBaseURL
 
 urlsMockFns.mockGetBaseUrl.mockReturnValue('https://unused.test')

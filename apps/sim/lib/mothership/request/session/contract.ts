@@ -15,13 +15,6 @@ import {
   MothershipStreamV1TextChannel,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type {
-  StreamActivityCheckpoint,
-  StreamTextCompletion,
-  StreamTextPosition,
-  StreamToolDeadline,
-  StreamToolReplay,
-} from '@/lib/mothership/generated/protocol'
 import { ResourcePayload } from '@/lib/mothership/generated/resources'
 import type { FilePreviewTargetKind } from './file-preview-session-contract'
 
@@ -42,17 +35,7 @@ type EnvelopeToStreamEvent<T> = T extends {
 }
   ? {
       type: TType
-      payload: TType extends 'text'
-        ? TPayload & StreamTextPosition
-        : TType extends 'complete'
-          ? TPayload & StreamTextCompletion & StreamActivityCheckpoint
-          : TType extends 'tool'
-            ? TPayload & StreamToolReplay & StreamToolDeadline
-            : TType extends 'resource'
-              ? ResourcePayload
-              : TType extends 'run'
-                ? TPayload & StreamActivityCheckpoint
-                : TPayload
+      payload: TPayload
       scope?: Exclude<TScope, undefined>
       /** Wire ordering key, carried off the envelope; absent on synthetic events. */
       seq?: number
@@ -130,22 +113,11 @@ export interface SyntheticFilePreviewEventEnvelope {
   v: 1
 }
 
-type ResourceEnvelope = Extract<MothershipStreamV1EventEnvelope, { type: 'resource' }>
-type ToolEnvelope = Extract<MothershipStreamV1EventEnvelope, { type: 'tool' }>
-type ToolReplayEnvelope<T extends ToolEnvelope = ToolEnvelope> = T extends ToolEnvelope
-  ? Omit<T, 'payload'> & { payload: T['payload'] & StreamToolReplay & StreamToolDeadline }
-  : never
+export type PersistedStreamEventEnvelope =
+  | MothershipStreamV1EventEnvelope
+  | SyntheticFilePreviewEventEnvelope
 
-type ContractEventEnvelope =
-  | Exclude<MothershipStreamV1EventEnvelope, { type: 'resource' | 'tool' }>
-  | ToolReplayEnvelope
-  | (Omit<ResourceEnvelope, 'payload'> & {
-      payload: ResourcePayload
-    })
-
-export type PersistedStreamEventEnvelope = ContractEventEnvelope | SyntheticFilePreviewEventEnvelope
-
-export type ContractStreamEvent = EnvelopeToStreamEvent<ContractEventEnvelope>
+export type ContractStreamEvent = EnvelopeToStreamEvent<MothershipStreamV1EventEnvelope>
 export type SyntheticStreamEvent = EnvelopeToStreamEvent<SyntheticFilePreviewEventEnvelope>
 export type SessionStreamEvent = ContractStreamEvent | SyntheticStreamEvent
 export type StreamEvent = SessionStreamEvent
@@ -204,10 +176,7 @@ function isStreamRef(value: unknown): value is MothershipStreamV1StreamRef {
 
 function isTrace(value: unknown): value is MothershipStreamV1Trace {
   return (
-    isRecordLike(value) &&
-    typeof value.requestId === 'string' &&
-    isOptionalString(value.goTraceId) &&
-    isOptionalString(value.spanId)
+    isRecordLike(value) && typeof value.requestId === 'string' && isOptionalString(value.spanId)
   )
 }
 
@@ -260,8 +229,6 @@ function isValidSessionPayload(payload: JsonRecord): boolean {
       return typeof payload.chatId === 'string'
     case MothershipStreamV1SessionKind.title:
       return typeof payload.title === 'string'
-    case MothershipStreamV1SessionKind.trace:
-      return typeof payload.requestId === 'string'
     default:
       return false
   }
@@ -292,12 +259,7 @@ function isValidToolPayload(payload: JsonRecord): boolean {
 }
 
 function isValidSpanPayload(payload: JsonRecord): boolean {
-  const kind = payload.kind
-  return (
-    kind === MothershipStreamV1SpanPayloadKind.subagent ||
-    kind === MothershipStreamV1SpanPayloadKind.structured_result ||
-    kind === MothershipStreamV1SpanPayloadKind.subagent_result
-  )
+  return payload.kind === MothershipStreamV1SpanPayloadKind.subagent
 }
 
 function isValidResourcePayload(payload: JsonRecord): boolean {
@@ -340,7 +302,7 @@ function isValidCompletePayload(payload: JsonRecord): boolean {
   return typeof payload.status === 'string' && isValidActivityCheckpoint(payload)
 }
 
-function isContractEnvelope(value: unknown): value is ContractEventEnvelope {
+function isContractEnvelope(value: unknown): value is MothershipStreamV1EventEnvelope {
   if (!isValidEnvelopeShell(value)) return false
   const payload = value.payload as JsonRecord
   switch (value.type) {
@@ -477,7 +439,9 @@ export function isSubagentSpanStreamEvent(
 
 // Public contract validators & parsers
 
-export function isContractStreamEventEnvelope(value: unknown): value is ContractEventEnvelope {
+export function isContractStreamEventEnvelope(
+  value: unknown
+): value is MothershipStreamV1EventEnvelope {
   return isContractEnvelope(value)
 }
 

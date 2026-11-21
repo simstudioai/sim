@@ -179,7 +179,7 @@ export const abortRun = defineAuthorizedChatUseCase({
 })
 
 export class SteeringNotQueuedError extends Error {
-  constructor(readonly goStatus: number) {
+  constructor(readonly workerStatus: number) {
     super('Steering was not queued')
   }
 }
@@ -199,15 +199,15 @@ export const steerRun = defineAuthorizedChatUseCase({
     const { streamId, steeringId, content } = input
     const { userId, chatId } = context
     let queued = false
-    let goStatus = 0
+    let workerStatus = 0
     try {
       const result = await requestStreamSteering({ streamId, userId, chatId, steeringId, content })
       queued = result.queued
-      goStatus = result.status
+      workerStatus = result.status
     } catch (error) {
       logger.warn('Steering could not reach worker', { streamId, error: getErrorMessage(error) })
     }
-    if (!queued) throw new SteeringNotQueuedError(goStatus)
+    if (!queued) throw new SteeringNotQueuedError(workerStatus)
     try {
       await appendCopilotChatMessages(
         chatId,

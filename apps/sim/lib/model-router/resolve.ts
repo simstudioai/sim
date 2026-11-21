@@ -8,7 +8,7 @@ import type {
   ModelRouterResponse,
   ModelRouterUsage,
 } from '@/lib/mothership/generated/model-router'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import type { ExecutionContext } from '@/executor/types'
@@ -211,7 +211,7 @@ async function callModelRouter(
 ): Promise<Partial<ModelRouterResponse> | null> {
   const baseURL = await getMothershipBaseURL({ userId: ctx.userId ?? '' })
 
-  const res = await fetchGo(`${baseURL}/api/model-router`, {
+  const res = await fetchWorker(`${baseURL}/api/model-router`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -235,7 +235,7 @@ async function callModelRouter(
       executionId: ctx.executionId,
     } satisfies ModelRouterRequest),
     signal: AbortSignal.timeout(MODEL_ROUTER_TIMEOUT_MS),
-    spanName: 'sim → go /api/model-router',
+    spanName: 'sim → worker /api/model-router',
     operation: 'model_router',
   })
 

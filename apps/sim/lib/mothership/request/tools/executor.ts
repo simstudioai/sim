@@ -713,8 +713,7 @@ export async function executeToolAndReport(
             String(completion.message).slice(0, 500)
           )
         }
-        // Durable Grafana signal for "which Sim tool is slowest" (executor=sim);
-        // pairs with the Go executor-boundary metric (U15) as one series set.
+        // Durable Grafana signal for "which Sim tool is slowest" (executor=sim).
         recordSimToolMetric(
           toolCall.name,
           toolCall.agentId ?? 'main',

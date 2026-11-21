@@ -14,8 +14,8 @@ import {
   SimControlRequestHeader,
   type SimControlResult,
 } from '@/lib/mothership/generated/sim-transport'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import { getSimConnection } from '@/lib/mothership/transport/connection'
 import { executeSimControl } from '@/lib/mothership/transport/control'
@@ -86,7 +86,7 @@ export async function receiveSimControls(
   while (!signal.aborted) {
     let phase: 'poll' | 'parse' | 'reply' = 'poll'
     try {
-      const response = await fetchGo(`${baseURL}/api/sim-transport/poll`, {
+      const response = await fetchWorker(`${baseURL}/api/sim-transport/poll`, {
         method: 'POST',
         headers: mothershipRequestHeaders(),
         body: JSON.stringify({ channelId, accepts: SIM_CONTROL_KINDS }),
@@ -110,7 +110,7 @@ export async function receiveSimControls(
         controls.map(async (control) => {
           signal.throwIfAborted()
           const result = await control.answer()
-          const reply = await fetchGo(`${baseURL}/api/sim-transport/reply`, {
+          const reply = await fetchWorker(`${baseURL}/api/sim-transport/reply`, {
             method: 'POST',
             headers: mothershipRequestHeaders(),
             body: JSON.stringify({ channelId, id: control.id, result }),

@@ -5,7 +5,7 @@ import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 /**
  * Copilot-side resolver for the viewer's block-visibility projection.
  *
- * A single mothership turn fans out into many Go→Sim tool callbacks; resolving
+ * A single mothership turn fans out into many worker → Sim tool callbacks; resolving
  * visibility per callback would repeat the workspace→org lookup (and, for
  * admin-gated rules, a replica read) N times. This memoizes the resolved state
  * per (userId, workspaceId) for a short TTL matching the AppConfig cache

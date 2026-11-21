@@ -1379,7 +1379,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         message: { id: streamId, content: 'Preserve the original instruction and attachments' },
         recovery: {
           kind: 'interactive_stream' as const,
-          goRoute: '/api/mothership' as const,
+          workerRoute: '/api/mothership' as const,
           clientToolPickupExpected: false,
           request: {
             messageId: streamId,
@@ -1523,7 +1523,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           executionId: generateId(),
           runId: generateId(),
           interactive: true,
-          goRoute: '/api/mothership',
+          workerRoute: '/api/mothership',
           onComplete,
           recovery: {
             streamId,
@@ -3266,12 +3266,13 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                 workflowId,
                 chatId,
                 ...(resume ? { runId: resume.id, executionId: resume.executionId } : {}),
-                goRoute: initialRoute,
+                workerRoute: initialRoute,
                 interactive: false,
                 clientToolPickupExpected: false,
                 flushAfterEvent: false,
                 onEvent: (event) => {
-                  if (event.type === 'tool' && event.payload.replay) replayedToolFrames++
+                  if (event.type === 'tool' && 'replay' in event.payload && event.payload.replay)
+                    replayedToolFrames++
                   if (resume && isToolCallStreamEvent(event) && !event.payload.replay)
                     secondSawCall.resolve()
                 },
@@ -3850,7 +3851,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               workspaceId,
               workflowId: draftId,
               chatId,
-              goRoute: '/api/mothership',
+              workerRoute: '/api/mothership',
               interactive: false,
               clientToolPickupExpected: false,
               flushAfterEvent: false,

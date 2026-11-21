@@ -156,7 +156,7 @@ const INTENT_WAIT_INTERVAL_MS = 300
 
 /**
  * Bounded wait for the paired prepare_file_edit to stage its intent. The model
- * may batch prepare_file_edit and apply_file_edit into one round, and the Go
+ * may batch prepare_file_edit and apply_file_edit into one round, and the worker's
  * loop executes same-round tools concurrently — so apply_file_edit can reach
  * this executor before its prepare has run. Failing instantly turns that
  * ordinary race into a model-visible error, a wasted retry round, and a

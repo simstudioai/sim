@@ -225,8 +225,7 @@ describe('buildEffectiveChatTranscript', () => {
             stream: { streamId: 'stream-1' },
             trace: { requestId: 'req-1' },
             payload: {
-              kind: MothershipStreamV1SessionKind.trace,
-              requestId: 'req-1',
+              kind: MothershipStreamV1SessionKind.start,
             },
           }),
           toBatchEvent(2, {
@@ -417,10 +416,7 @@ describe('buildEffectiveChatTranscript', () => {
             type: MothershipStreamV1EventType.run,
             stream,
             scope,
-            payload: {
-              kind: MothershipStreamV1RunKind.compaction_done,
-              data: { summary_chars: 42 },
-            },
+            payload: { kind: MothershipStreamV1RunKind.compaction_done },
           }),
         ],
         previewSessions: [],

@@ -2,8 +2,8 @@
  * Client-side execution of `terminal_*` copilot tools.
  *
  * Mirrors the other client-executed tool flows (browser, run-tool, local
- * filesystem): the Go orchestrator emits a client-executed tool call and blocks
- * on Redis; this module performs the action through the desktop app's terminal
+ * filesystem): the worker emits a client-executed tool call and waits for its
+ * result; this module performs the action through the desktop app's terminal
  * and reports the outcome via the confirm endpoint, which wakes the
  * server-side waiter.
  */

@@ -121,11 +121,11 @@ import {
   RUN_TAKEOVER_AUDIENCE,
   takeOverStreamRun,
 } from '@/lib/mothership/request/application/recover-stream'
+import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
 import {
   createProviderToolCallIdentity,
   scopeProviderToolCallId,
-} from '@/lib/mothership/request/go/tool-call-identity'
-import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
+} from '@/lib/mothership/request/worker/tool-call-identity'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { GET as streamGET } from '@/app/api/mothership/chat/stream/route'
 
@@ -193,7 +193,7 @@ async function runAbandonedMidTool(
       recovery: {
         kind: 'interactive_stream',
         request,
-        goRoute: '/api/mothership',
+        workerRoute: '/api/mothership',
         clientToolPickupExpected: false,
       },
     },
@@ -845,7 +845,7 @@ describe('taking over a run whose controller died', () => {
           recovery: {
             kind: 'interactive_stream',
             request,
-            goRoute: '/api/mothership',
+            workerRoute: '/api/mothership',
             clientToolPickupExpected: false,
           },
         },

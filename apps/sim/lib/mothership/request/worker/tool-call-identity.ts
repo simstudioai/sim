@@ -44,7 +44,7 @@ export function scopeProviderToolCallId(
   return toolCallId
 }
 
-/** Only runs that opted into namespacing decode IDs on the return trip to Go. */
+/** Only runs that opted into namespacing decode IDs on the return trip to the worker. */
 export function restoreProviderToolCallId(
   toolCallId: string,
   identity?: ProviderToolCallIdentity
@@ -83,15 +83,6 @@ export function scopeProviderToolCallEvent(
       payload: {
         ...scoped.payload,
         pendingToolCallIds: scoped.payload.pendingToolCallIds.map(scopeId),
-        ...(scoped.payload.frames
-          ? {
-              frames: scoped.payload.frames.map((frame) => ({
-                ...frame,
-                parentToolCallId: scopeId(frame.parentToolCallId),
-                pendingToolIds: frame.pendingToolIds.map(scopeId),
-              })),
-            }
-          : {}),
       },
     }
   }

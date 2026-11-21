@@ -38,18 +38,32 @@ export function durableResourceAuthoringVersion(
   return admitted ? RESOURCE_AUTHORING_VERSION : undefined
 }
 
-export const StreamRecoveryConfigSchema = z
-  .object({
-    kind: z.enum(DURABLE_STREAM_KINDS),
-    resourceAuthoringVersion: z.literal(RESOURCE_AUTHORING_VERSION).optional(),
-    billingAdmission: BillingAdmissionSchema.optional(),
-    request: DurableChatRequestSchema,
-    goRoute: z.enum(['/api/mothership', '/api/copilot']),
-    clientToolPickupExpected: z.boolean(),
-    userTimezone: z.string().optional(),
-    requestMode: z.enum(COPILOT_REQUEST_MODES).optional(),
-  })
+const WorkerRouteSchema = z.enum(['/api/mothership', '/api/copilot'])
+
+const recoveryConfigFields = {
+  kind: z.enum(DURABLE_STREAM_KINDS),
+  resourceAuthoringVersion: z.literal(RESOURCE_AUTHORING_VERSION).optional(),
+  billingAdmission: BillingAdmissionSchema.optional(),
+  request: DurableChatRequestSchema,
+  clientToolPickupExpected: z.boolean(),
+  userTimezone: z.string().optional(),
+  requestMode: z.enum(COPILOT_REQUEST_MODES).optional(),
+}
+
+/**
+ * Older releases stored the worker route as `goRoute`. Recovery still reads those rows and hands
+ * back `workerRoute`, the only key writers store.
+ */
+const LegacyStreamRecoveryConfigSchema = z
+  .object({ ...recoveryConfigFields, goRoute: WorkerRouteSchema })
   .strict()
+  .transform(({ goRoute, ...config }) => ({ ...config, workerRoute: goRoute }))
+
+export const StreamRecoveryConfigSchema = z
+  .union([
+    z.object({ ...recoveryConfigFields, workerRoute: WorkerRouteSchema }).strict(),
+    LegacyStreamRecoveryConfigSchema,
+  ])
   .refine(
     (config) =>
       !config.requestMode ||
@@ -84,7 +98,7 @@ export async function streamRecoveryConfig(
   return StreamRecoveryConfigSchema.parse({
     kind,
     request,
-    goRoute: options.goRoute ?? '/api/copilot',
+    workerRoute: options.workerRoute ?? '/api/copilot',
     clientToolPickupExpected: options.clientToolPickupExpected ?? true,
     userTimezone: options.executionContext?.userTimezone,
     requestMode: options.executionContext?.requestMode,

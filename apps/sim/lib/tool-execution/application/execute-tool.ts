@@ -493,7 +493,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
  *
  * `@/tools` computes the cost and hands it back on `output.cost.total`, but it
  * writes no ledger row: a workflow run bills through the execution ledger and
- * Copilot bills through Go's `_serviceCost`, and this surface is neither. Its
+ * Copilot bills through the worker's update-cost callback, and this surface is neither. Its
  * own doc comment says so — "any new caller of executeTool that is not Copilot
  * must arrange its own metering" — and this is that arrangement.
  *

@@ -26,7 +26,7 @@ function config(request: object, requestMode?: string) {
     kind: 'interactive_stream',
     request,
     requestMode,
-    goRoute: '/api/mothership',
+    workerRoute: '/api/mothership',
     clientToolPickupExpected: false,
   }
 }
@@ -85,6 +85,29 @@ describe('durable recovery admission contract', () => {
   })
 })
 
+describe('worker route key', () => {
+  it('reads a run recorded under the legacy goRoute key as workerRoute', () => {
+    const parsed = StreamRecoveryConfigSchema.parse({
+      kind: 'interactive_stream',
+      request: workspaceRequest,
+      requestMode: 'agent',
+      goRoute: '/api/copilot',
+      clientToolPickupExpected: false,
+    })
+    expect(parsed.workerRoute).toBe('/api/copilot')
+    expect(parsed).not.toHaveProperty('goRoute')
+  })
+
+  it('rejects a record that names both route keys', () => {
+    expect(
+      StreamRecoveryConfigSchema.safeParse({
+        ...config(workspaceRequest, 'agent'),
+        goRoute: '/api/copilot',
+      }).success
+    ).toBe(false)
+  })
+})
+
 it('preserves the explicit Plan wire mode on recovery', () => {
   expect(
     StreamRecoveryConfigSchema.parse(config({ ...workspaceRequest, mode: 'plan' }, 'plan')).request
@@ -97,7 +120,7 @@ describe('recovery marker written by an admitted turn', () => {
     interactive: true,
     userId: identity.userId,
     chatId: identity.chatId,
-    goRoute: '/api/mothership',
+    workerRoute: '/api/mothership',
     copilotResourceAdmission: createCopilotResourceAdmission({
       userId: identity.userId,
       invocation: { kind: 'chat', chatId: identity.chatId },
@@ -114,6 +137,12 @@ describe('recovery marker written by an admitted turn', () => {
       expect(recovery?.resourceAuthoringVersion).toBe(1)
     }
   )
+
+  it('stores the route under workerRoute', async () => {
+    const recovery = await streamRecoveryConfig(options, workspaceRequest)
+    expect(recovery?.workerRoute).toBe('/api/mothership')
+    expect(recovery).not.toHaveProperty('goRoute')
+  })
 
   it('stays off a turn that was never admitted', async () => {
     const recovery = await streamRecoveryConfig(

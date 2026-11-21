@@ -46,7 +46,7 @@ function interactiveContext(mode?: string) {
     recovery: {
       kind: 'interactive_stream',
       request: { message: 'hi', userId, chatId, ...(mode ? { mode } : {}) },
-      goRoute: '/api/copilot',
+      workerRoute: '/api/copilot',
       clientToolPickupExpected: true,
     },
   }

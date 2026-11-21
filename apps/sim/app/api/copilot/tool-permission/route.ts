@@ -30,7 +30,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 
 const logger = createLogger('CopilotToolPermissionAPI')
@@ -150,7 +150,7 @@ async function applyDecision(
 export const POST = withRouteHandler((req: NextRequest) => {
   const tracker = createRequestTracker()
 
-  return withIncomingGoSpan(
+  return withIncomingWorkerSpan(
     req.headers,
     TraceSpan.CopilotToolPermissionDecide,
     { [TraceAttr.RequestId]: tracker.requestId },

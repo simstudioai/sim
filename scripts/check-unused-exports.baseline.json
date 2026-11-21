@@ -4659,8 +4659,6 @@
   "apps/sim/lib/mothership/request/http.ts#NotificationStatus",
   "apps/sim/lib/mothership/request/http.ts#createRequestId",
   "apps/sim/lib/mothership/request/lifecycle/recovery-config.ts#DurableChatRequestSchema",
-  "apps/sim/lib/mothership/request/metrics.ts#recordFileRead",
-  "apps/sim/lib/mothership/request/metrics.ts#recordVfsMaterialize",
   "apps/sim/lib/mothership/request/otel.ts#isExplicitUserStopError",
   "apps/sim/lib/mothership/request/session/abort-reason.ts#AbortReasonValue",
   "apps/sim/lib/mothership/request/session/abort.ts#AbortReasonValue",

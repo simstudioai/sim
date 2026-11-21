@@ -16,8 +16,8 @@ import {
   MemoryCleanupResult,
 } from '@/lib/mothership/generated/memory-notes-access'
 import { MEMORY_CLEANUP_EVENT } from '@/lib/mothership/memories/cleanup-event'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import {
   getMothershipSourceEnvHeaders,
   MOTHERSHIP_SOURCE_ENV_HEADER,
@@ -106,7 +106,7 @@ export const memoryCleanupOutboxHandlers = {
         baseUrl: payload.baseUrl,
       })
     const sourceEnv = payload.sourceHeaders[MOTHERSHIP_SOURCE_ENV_HEADER]
-    const response = await fetchGo(`${payload.baseUrl}/api/memories/cleanup`, {
+    const response = await fetchWorker(`${payload.baseUrl}/api/memories/cleanup`, {
       method: 'POST',
       headers: {
         ...omit(mothershipRequestHeaders(), [MOTHERSHIP_SOURCE_ENV_HEADER]),
