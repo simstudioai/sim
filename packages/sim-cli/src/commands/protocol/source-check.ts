@@ -560,13 +560,9 @@ export async function checkWorkflowDir(
     if (finding.code !== 'W_UNKNOWN_OPTION' || blockKey === undefined || param === undefined) {
       return false
     }
-    return optionsVaryOn(blockKey, (id) => id === param)
-  }
-  /** Whether a field of block `blockKey` that `matches` takes options varying by deployment. */
-  const optionsVaryOn = (blockKey: string, matches: (subBlockId: string) => boolean) => {
     const type = compiled.workflow ? getOwn(compiled.workflow.blocks, blockKey)?.type : undefined
     const block = type === undefined ? undefined : catalogBlock(compiledDir.catalog, type)
-    return block?.subBlocks.some((sub) => matches(sub.id) && sub.optionsVary === true) === true
+    return block?.subBlocks.some((sub) => sub.id === param && sub.optionsVary === true) === true
   }
   const exempt = (finding: (typeof compiled.diagnostics)[number]) =>
     mayBeRenamed(finding) || variesByDeployment(finding)
