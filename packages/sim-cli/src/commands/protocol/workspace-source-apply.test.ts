@@ -1671,6 +1671,81 @@ describe('workspaces source apply', () => {
     })
   })
 
+  it('names the webhook URLs of a deployment-only apply by the lock the directory holds', async () => {
+    const hookUrl = 'https://sim.example/api/webhooks/trigger/abc'
+    const lock = {
+      version: 1,
+      blocks: { leadin: { id: 'b-hook', parent: null, ident: 'hook', order: 0 } },
+      variables: {},
+    }
+    mkdirSync(join(dir, 'workflows/ingest/.sim'), { recursive: true })
+    writeFileSync(join(dir, 'workflows/ingest/.sim/lock.json'), JSON.stringify(lock))
+    request.mockImplementation(async (path: string) =>
+      path === '/api/v2/workflows/wf_1/deployment'
+        ? {
+            data: {
+              id: 'wf_1',
+              isDeployed: true,
+              webhooks: [{ blockId: 'b-hook', provider: 'generic', url: hookUrl }],
+            },
+          }
+        : answer({
+            plan: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+            applied: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+            files: {},
+            base: { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } },
+          })
+    )
+
+    await apply('--yes')
+
+    const printed = vi
+      .mocked(console.log)
+      .mock.calls.map(([line]) => String(line))
+      .join('\n')
+    expect(JSON.parse(printed)).toMatchObject({
+      urls: [{ workflow: 'ingest', block: 'leadin (hook)', url: hookUrl }],
+    })
+  })
+
+  it('reports webhook URLs it could not read without the terminal escapes the failure carried', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path === '/api/v2/workflows/wf_1/deployment') {
+        throw new SimApiError('gateway \u001b[2Jcleared', 502)
+      }
+      return answer({
+        plan: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+        applied: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+        base: { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } },
+      })
+    })
+
+    await apply('--yes')
+
+    const warned = vi
+      .mocked(console.error)
+      .mock.calls.map(([line]) => String(line))
+      .join('\n')
+    expect(warned).toContain('its webhook URLs could not be read (gateway cleared)')
+    expect(warned).not.toContain('\u001b')
+  })
+
+  it('fails, rather than reports success, when its webhook URL read is cancelled', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path === '/api/v2/workflows/wf_1/deployment') {
+        throw new SimApiError('Request cancelled.', 0, 'REQUEST_CANCELLED')
+      }
+      return answer({
+        plan: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+        applied: [{ kind: 'deployment', key: 'ingest', action: 'update' }],
+        base: { ...BASE, resources: { 'workflow:ingest': { id: 'wf_1' } } },
+      })
+    })
+
+    await expect(apply('--yes')).rejects.toMatchObject({ code: 'REQUEST_CANCELLED' })
+    expect(vi.mocked(console.log)).not.toHaveBeenCalled()
+  })
+
   it('appends the plan and its errors to the GitHub Actions step summary', async () => {
     const summary = join(dir, 'step-summary.md')
     vi.stubEnv('GITHUB_ACTIONS', 'true')
