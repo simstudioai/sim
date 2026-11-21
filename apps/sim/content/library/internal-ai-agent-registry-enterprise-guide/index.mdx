@@ -56,7 +56,7 @@ An internal AI agent registry should track enough operational and governance dat
 | Lifecycle status | Experimental, pending review, approved, restricted, rejected, or retired | Separates prototypes from production-approved agents |
 | Version | Current deployed version and previous approved version | Connects the catalog to change history and rollback decisions |
 | Environment | Development, staging, or production | Prevents test deployments from being mistaken for production services |
-| Connected tools | APIs, applications, databases, and MCP servers the agent can use | Exposes the systems an agent can affect |
+| Connected tools | APIs, applications, databases, and servers that connect agents to external tools and data (MCP servers) | Exposes the systems an agent can affect |
 | Credential reference | Credential group, credential owner, or secret-manager reference, never the secret itself | Makes credential ownership reviewable without copying sensitive values into the registry |
 | Data access | Data sources, classifications, residency constraints, and read/write scope | Supports privacy, security, and compliance review |
 | Permissions | User roles, team access, execution rights, and administrative rights | Shows who can view, edit, deploy, or run the agent |
