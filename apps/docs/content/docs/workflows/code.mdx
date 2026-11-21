@@ -13,7 +13,7 @@ Workflows as code is in preview. When it is [enabled on your Sim deployment](/pl
 
 ## For coding agents [#for-coding-agents]
 
-Claude Code, Cursor, Codex and other coding agents work from a directory that `get` writes. `get` prints a short primer (the edit loop, how block identity and references work, deletes, deploy, exit codes, and the params of each builder the workflow already uses; in JSON output, its `primer` field), and the same primer opens `.sim/AGENTS.md`, the full guide. The loop:
+Claude Code, Cursor, Codex and other coding agents work from a directory that `get` writes. `get` prints a short primer (the edit loop, how block identity, references and renames work, failures and retries, test runs, deletes, deploy, exit codes, and the params of each builder the workflow already uses; in JSON output, its `primer` field), and the same primer opens `.sim/AGENTS.md`, the full guide. The loop:
 
 1. `sim workflows source get <workflowId> --dir <dir>` writes the workflow and the guide.
 2. Edit `workflow.ts`.
