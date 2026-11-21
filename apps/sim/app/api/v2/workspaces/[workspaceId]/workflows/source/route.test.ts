@@ -159,6 +159,32 @@ describe('POST /api/v2/workspaces/{workspaceId}/workflows/source', () => {
     expect(mocks.create).not.toHaveBeenCalled()
   })
 
+  it('answers 429 with Retry-After once the plans this server runs at once are taken, and still creates for real', async () => {
+    const finish: Array<() => void> = []
+    mocks.create.mockImplementation(({ input }: { input: { dryRun?: boolean } }) =>
+      input.dryRun
+        ? new Promise((resolve) =>
+            finish.push(() => resolve({ ...created, dryRun: true, applied: false }))
+          )
+        : Promise.resolve(created)
+    )
+    const running = Array.from({ length: 4 }, () =>
+      POST(createRequest({ files }, '?dryRun=true'), context)
+    )
+    await vi.waitFor(() => expect(finish).toHaveLength(4))
+
+    const refused = await POST(createRequest({ files }, '?dryRun=true'), context)
+    expect(refused.status).toBe(429)
+    expect(refused.headers.get('Retry-After')).toBe('5')
+    expect((await refused.json()).error.code).toBe('RATE_LIMITED')
+    expect((await POST(createRequest({ files }), context)).status).toBe(200)
+
+    for (const done of finish) done()
+    expect((await Promise.all(running)).map((response) => response.status)).toEqual([
+      200, 200, 200, 200,
+    ])
+  })
+
   it('passes dryRun through', async () => {
     mocks.create.mockResolvedValue({ ...created, dryRun: true, applied: false })
 

@@ -135,11 +135,14 @@ export const v2WorkflowErrorPolicies = {
    * Creating a workflow from source: an unreachable workspace is concealed as absent, refused
    * source answers `400` (`413` for a size limit) with its line-pinned diagnostics, as an apply
    * does, and a name already taken in the folder answers `409` with `details.code`
-   * `SOURCE_NAME_TAKEN`, which a client tells apart from a stale apply's `SOURCE_STALE`.
+   * `SOURCE_NAME_TAKEN`, which a client tells apart from a stale apply's `SOURCE_STALE`. A create
+   * or dry run refused for want of a slot answers `429` with `Retry-After`, as an apply does.
    */
   concealWorkspaceSourceCreate: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workspace not found',
     render(error) {
+      const busy = renderSourceSlotBusy(error)
+      if (busy) return busy
       if (error instanceof WorkflowSourceRejectedError) {
         return v2ErrorForOrchestration(error.code, error.message, {
           code: 'SOURCE_REJECTED',
