@@ -1,15 +1,8 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
-import {
-  createSerializedBlock,
-  createSerializedWorkflow,
-} from '@sim/testing/factories/serialized-block.factory'
 import { isolatedVmMock, isolatedVmMockFns } from '@sim/testing/mocks/isolated-vm.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { BlockType, DEFAULTS } from '@/executor/constants'
-import { DAGExecutor } from '@/executor/execution/executor'
-import type { ExecutionResult } from '@/executor/types'
-import { hasExecutionResult } from '@/executor/utils/errors'
-import type { SerializedLoop, SerializedWorkflow } from '@/serializer/types'
+import { DEFAULTS } from '@/executor/constants'
+import { loopWorkflow, runLoopWorkflow } from '@/executor/execution/loop-workflow.test-helpers'
+import type { SerializedWorkflow } from '@/serializer/types'
 
 const { bodyRuns, conditionResult, runaway } = vi.hoisted(() => ({
   bodyRuns: { count: 0 },
@@ -33,41 +26,11 @@ vi.mock('@/executor/handlers/registry', () => ({
   ],
 }))
 
-const PRINCIPAL: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
 const CEILING = DEFAULTS.MAX_CONDITION_LOOP_ITERATIONS
 
-function loopWorkflow(loop: Partial<Omit<SerializedLoop, 'id' | 'nodes'>>): SerializedWorkflow {
-  const blocks = [
-    createSerializedBlock({ id: 'start', name: 'start', type: BlockType.STARTER }),
-    createSerializedBlock({ id: 'loop', name: 'loop', type: BlockType.LOOP }),
-    createSerializedBlock({ id: 'tick', name: 'tick', type: BlockType.FUNCTION }),
-  ]
-  return {
-    ...createSerializedWorkflow(blocks, [
-      { source: 'start', target: 'loop' },
-      { source: 'loop', target: 'tick', sourceHandle: 'loop-start-source' },
-    ]),
-    loops: { loop: { id: 'loop', nodes: ['tick'], iterations: 0, ...loop } },
-  }
-}
-
-/** Runs the workflow and returns its result, including the one a failed run attaches to its throw. */
-async function run(workflow: SerializedWorkflow): Promise<ExecutionResult> {
-  try {
-    return await new DAGExecutor({
-      workflow,
-      contextExtensions: {
-        workspaceId: 'ws',
-        executionId: 'exec-1',
-        principal: PRINCIPAL,
-        abortSignal: runaway.controller.signal,
-      },
-    }).execute('wf')
-  } catch (error) {
-    if (hasExecutionResult(error)) return error.executionResult
-    throw error
-  }
-}
+/** Runs under the runaway guard, so a loop the ceiling fails to stop is cancelled instead of hanging. */
+const run = (workflow: SerializedWorkflow) =>
+  runLoopWorkflow(workflow, { abortSignal: runaway.controller.signal })
 
 describe('condition-driven loop iteration ceiling', () => {
   beforeEach(() => {

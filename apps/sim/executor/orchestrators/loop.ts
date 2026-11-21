@@ -52,6 +52,25 @@ async function replaceLoopConditionReferences(
   return result + condition.slice(cursor)
 }
 
+/**
+ * Projects a loop failure message through the run's resolved-secret registry. `persistedMessage`
+ * is safe for block logs and the thrown error: it falls back to `fallback` whenever projection
+ * cannot prove the message free of resolved secrets.
+ */
+function projectLoopErrorMessage(
+  message: string,
+  fallback: string,
+  registry: ExecutionContext['resolvedSecretTraceRegistry'],
+  loopId: string
+): { diagnostic: Record<string, unknown>; persistedMessage: string } {
+  const diagnostic = projectResolvedSecretDiagnosticError(new Error(message), registry, { loopId })
+  if (!registry) return { diagnostic, persistedMessage: message }
+  return {
+    diagnostic,
+    persistedMessage: typeof diagnostic.error === 'string' ? diagnostic.error : fallback,
+  }
+}
+
 /** While loops, and Do While loops given a condition, stop only when their condition does. */
 function isConditionDriven(scope: LoopScope): boolean {
   return (
@@ -155,17 +174,13 @@ export class LoopOrchestrator {
             buildLoopSentinelStartId(loopId)
           )
         } catch (error) {
-          const errorMessage = `ForEach loop resolution failed: ${toError(error).message}`
-          const errorDiagnostic = projectResolvedSecretDiagnosticError(
-            new Error(errorMessage),
-            resolutionCtx.resolvedSecretTraceRegistry,
-            { loopId }
-          )
-          const persistedErrorMessage = resolutionCtx.resolvedSecretTraceRegistry
-            ? typeof errorDiagnostic.error === 'string'
-              ? errorDiagnostic.error
-              : 'ForEach loop resolution failed'
-            : errorMessage
+          const { diagnostic: errorDiagnostic, persistedMessage: persistedErrorMessage } =
+            projectLoopErrorMessage(
+              `ForEach loop resolution failed: ${toError(error).message}`,
+              'ForEach loop resolution failed',
+              resolutionCtx.resolvedSecretTraceRegistry,
+              loopId
+            )
           logger.error('ForEach loop resolution failed', errorDiagnostic)
           await this.addLoopErrorLog(resolutionCtx, loopId, loopType, persistedErrorMessage, {
             inputType: Array.isArray(loopConfig.forEachItems)
@@ -305,10 +320,6 @@ export class LoopOrchestrator {
 
     scope.currentIterationOutputs.clear()
 
-    if (this.hasReachedConfiguredIterationLimit(scope, scope.iteration + 1)) {
-      return await this.createExitResult(ctx, loopId, scope)
-    }
-
     if (!(await this.evaluateCondition(ctx, loopId, scope, scope.iteration + 1))) {
       return await this.createExitResult(ctx, loopId, scope)
     }
@@ -328,13 +339,6 @@ export class LoopOrchestrator {
       shouldExit: false,
       selectedRoute: EDGE.LOOP_CONTINUE,
     }
-  }
-
-  private hasReachedConfiguredIterationLimit(scope: LoopScope, nextIteration: number): boolean {
-    if (scope.loopType !== 'doWhile' || scope.maxIterations === undefined) {
-      return false
-    }
-    return nextIteration >= scope.maxIterations
   }
 
   /**
@@ -770,10 +774,6 @@ export class LoopOrchestrator {
     condition: string,
     scope: LoopScope
   ): Promise<boolean> {
-    if (!condition) {
-      return false
-    }
-
     logger.info('Evaluating loop condition', {
       conditionLength: condition.length,
       iteration: scope.iteration,
@@ -849,20 +849,13 @@ export class LoopOrchestrator {
   ): Promise<never> {
     const loopType = scope.loopType === 'doWhile' ? 'doWhile' : 'while'
     const label = loopType === 'doWhile' ? 'Do While' : 'While'
-    const errorMessage = `${label} loop condition could not be evaluated: ${toError(cause).message}`
-    const registry = ctx.resolvedSecretTraceRegistry
-    const errorDiagnostic = projectResolvedSecretDiagnosticError(
-      new Error(errorMessage),
-      registry,
-      {
-        loopId,
-      }
-    )
-    const persistedErrorMessage = registry
-      ? typeof errorDiagnostic.error === 'string'
-        ? errorDiagnostic.error
-        : `${label} loop condition could not be evaluated`
-      : errorMessage
+    const { diagnostic: errorDiagnostic, persistedMessage: persistedErrorMessage } =
+      projectLoopErrorMessage(
+        `${label} loop condition could not be evaluated: ${toError(cause).message}`,
+        `${label} loop condition could not be evaluated`,
+        ctx.resolvedSecretTraceRegistry,
+        loopId
+      )
     const isUserFailure = classifyFailure(cause) === 'user'
     const logFn = isUserFailure ? logger.warn.bind(logger) : logger.error.bind(logger)
     logFn('Failed to evaluate loop condition', { ...errorDiagnostic, isUserFailure })

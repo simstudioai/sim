@@ -1,25 +1,22 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import {
-  createSerializedBlock,
-  createSerializedWorkflow,
-} from '@sim/testing/factories/serialized-block.factory'
-import { isolatedVmMock, isolatedVmMockFns } from '@sim/testing/mocks/isolated-vm.mock'
+  isolatedVmMock,
+  isolatedVmMockFns,
+  resetIsolatedVmMock,
+} from '@sim/testing/mocks/isolated-vm.mock'
 import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { classifyFailure } from '@/lib/core/errors/failure-log'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
-import { BlockType, EDGE } from '@/executor/constants'
+import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
-import { DAGExecutor } from '@/executor/execution/executor'
+import { loopWorkflow, runLoopWorkflow } from '@/executor/execution/loop-workflow.test-helpers'
 import type { BlockStateController } from '@/executor/execution/types'
 import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
-import { hasExecutionResult } from '@/executor/utils/errors'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import type { SerializedLoop, SerializedWorkflow } from '@/serializer/types'
 
 const mockUploadFile = storageServiceMockFns.mockUploadFile
 
@@ -357,8 +354,6 @@ describe('LoopOrchestrator', () => {
   })
 })
 
-const PRINCIPAL: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
-
 const SANDBOX_AT_CAPACITY = {
   result: null,
   stdout: '',
@@ -375,55 +370,43 @@ const CONDITION_SYNTAX_ERROR = {
   error: { message: "Unexpected token ')'", name: 'SyntaxError' },
 }
 
-function loopWorkflow(loop: Partial<Omit<SerializedLoop, 'id' | 'nodes'>>): SerializedWorkflow {
-  const blocks = [
-    createSerializedBlock({ id: 'start', name: 'start', type: BlockType.STARTER }),
-    createSerializedBlock({ id: 'loop', name: 'loop', type: BlockType.LOOP }),
-    createSerializedBlock({ id: 'tick', name: 'tick', type: BlockType.FUNCTION }),
-  ]
-  return {
-    ...createSerializedWorkflow(blocks, [
-      { source: 'start', target: 'loop' },
-      { source: 'loop', target: 'tick', sourceHandle: 'loop-start-source' },
-    ]),
-    loops: { loop: { id: 'loop', nodes: ['tick'], iterations: 0, ...loop } },
-  }
-}
-
-/** Runs the workflow and returns its result, including the one a failed run attaches to its throw. */
-async function runWorkflow(workflow: SerializedWorkflow): Promise<ExecutionResult> {
-  try {
-    return await new DAGExecutor({
-      workflow,
-      contextExtensions: { workspaceId: 'ws', executionId: 'exec-1', principal: PRINCIPAL },
-    }).execute('wf')
-  } catch (error) {
-    if (hasExecutionResult(error)) return error.executionResult
-    throw error
-  }
-}
-
 function loopLog(result: ExecutionResult) {
   return result.logs?.find((log) => log.blockId === 'loop')
 }
 
+const sandboxAtCapacity = () => mockExecuteInIsolatedVM.mockResolvedValue(SANDBOX_AT_CAPACITY)
+const sandboxRejects = () =>
+  mockExecuteInIsolatedVM.mockRejectedValue(new Error('REDIS_URL is required'))
+
 describe('loop continuation when the sandbox cannot evaluate', () => {
   beforeEach(() => {
     bodyRuns.count = 0
+    resetIsolatedVmMock()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
   })
 
   it.each([
-    ['For', { loopType: 'for', iterations: 5 }],
-    ['ForEach', { loopType: 'forEach', forEachItems: ['a', 'b', 'c', 'd', 'e'] }],
-    ['count-driven Do While', { loopType: 'doWhile', iterations: 5 }],
+    ['For', 'is at capacity', { loopType: 'for', iterations: 5 }, sandboxAtCapacity],
+    ['For', 'rejects', { loopType: 'for', iterations: 5 }, sandboxRejects],
+    [
+      'ForEach',
+      'is at capacity',
+      { loopType: 'forEach', forEachItems: ['a', 'b', 'c', 'd', 'e'] },
+      sandboxAtCapacity,
+    ],
+    [
+      'count-driven Do While',
+      'is at capacity',
+      { loopType: 'doWhile', iterations: 5 },
+      sandboxAtCapacity,
+    ],
   ] as const)(
-    'runs every iteration of a %s loop while the sandbox is at capacity',
-    async (_label, loop) => {
-      mockExecuteInIsolatedVM.mockResolvedValue(SANDBOX_AT_CAPACITY)
+    'runs every iteration of a %s loop when the sandbox %s',
+    async (_label, _mode, loop, failSandbox) => {
+      failSandbox()
 
-      const result = await runWorkflow(loopWorkflow(loop))
+      const result = await runLoopWorkflow(loopWorkflow(loop))
 
       expect(result.success).toBe(true)
       expect(bodyRuns.count).toBe(5)
@@ -431,19 +414,10 @@ describe('loop continuation when the sandbox cannot evaluate', () => {
     }
   )
 
-  it('runs every iteration of a For loop when the sandbox call rejects', async () => {
-    mockExecuteInIsolatedVM.mockRejectedValue(new Error('REDIS_URL is required'))
-
-    const result = await runWorkflow(loopWorkflow({ loopType: 'for', iterations: 5 }))
-
-    expect(result.success).toBe(true)
-    expect(bodyRuns.count).toBe(5)
-  })
-
   it('fails a While loop whose condition has a syntax error instead of skipping its body', async () => {
     mockExecuteInIsolatedVM.mockResolvedValue(CONDITION_SYNTAX_ERROR)
 
-    const result = await runWorkflow(
+    const result = await runLoopWorkflow(
       loopWorkflow({ loopType: 'while', whileCondition: '<loop.index> < 3)' })
     )
 
@@ -459,16 +433,8 @@ describe('loop continuation when the sandbox cannot evaluate', () => {
   })
 
   it.each([
-    [
-      'answers with a system error',
-      () => mockExecuteInIsolatedVM.mockResolvedValue(SANDBOX_AT_CAPACITY),
-      /at capacity/,
-    ],
-    [
-      'rejects',
-      () => mockExecuteInIsolatedVM.mockRejectedValue(new Error('REDIS_URL is required')),
-      /REDIS_URL is required/,
-    ],
+    ['answers with a system error', sandboxAtCapacity, /at capacity/],
+    ['rejects', sandboxRejects, /REDIS_URL is required/],
   ] as const)(
     'fails a Do While loop mid-run when the sandbox %s instead of ending it early',
     async (_label, failSandbox, message) => {
@@ -476,7 +442,7 @@ describe('loop continuation when the sandbox cannot evaluate', () => {
       mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: true })
       failSandbox()
 
-      const result = await runWorkflow(
+      const result = await runLoopWorkflow(
         loopWorkflow({ loopType: 'doWhile', doWhileCondition: '<loop.index> < 10' })
       )
 
