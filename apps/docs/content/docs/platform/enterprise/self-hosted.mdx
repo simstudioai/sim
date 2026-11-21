@@ -13,22 +13,19 @@ This guide covers the standard billing-disabled configuration. If billing is ena
 
 ## Enable the feature set
 
-Set both the server flag and its browser twin, then restart the application:
+Set the server flag, then restart the application:
 
 ```bash
 ENTERPRISE_ENABLED=true
-NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 ```
 
-The server flag controls access and the server-resolved workspace settings. The browser twin also enables controls that read browser configuration directly, including SSO on the login page and the Function block's **Sandbox** selector. On a Compose install or source checkout, `bunx sim-setup doctor` reports mismatched twins. See [Verify your install](/platform/self-hosting/verify).
+The server flag controls access and everything the browser shows, including SSO on the login page and the Function block's **Sandbox** selector: the browser reads the server's resolved settings, so there is no `NEXT_PUBLIC_` variable to set. Browser variables left over from older releases do nothing; on a Compose install or source checkout, `bunx sim-setup doctor` reports them. See [Verify your install](/platform/self-hosting/verify).
 
 Individual flags override the master switch. For example, to enable the suite with data drains disabled:
 
 ```bash
 ENTERPRISE_ENABLED=true
-NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 DATA_DRAINS_ENABLED=false
-NEXT_PUBLIC_DATA_DRAINS_ENABLED=false
 ```
 
 You can also leave the master switch unset and enable individual features. The [feature flag reference](#feature-flag-reference) lists them all.
@@ -238,29 +235,31 @@ OAuth token cleanup removes expired and revoked credentials independently of sig
 
 Explicit individual flags override the master switch, including when set to `false`. With billing disabled and no enterprise flags set, session policies and the Sim Mailer inbox remain enabled by default. Other features require opt-in.
 
-| Feature | Server variable | Browser variable |
-| --- | --- | --- |
-| Enterprise suite | `ENTERPRISE_ENABLED` | `NEXT_PUBLIC_ENTERPRISE_ENABLED` |
-| Organizations | `ORGANIZATIONS_ENABLED` | `NEXT_PUBLIC_ORGANIZATIONS_ENABLED` |
-| Permission groups | `ACCESS_CONTROL_ENABLED` | `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` |
-| SAML and OIDC sign-in | `SSO_ENABLED` | `NEXT_PUBLIC_SSO_ENABLED` |
-| Directory provisioning | `SCIM_ENABLED` | `NEXT_PUBLIC_SCIM_ENABLED` |
-| Audit logs | `AUDIT_LOGS_ENABLED` | `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` |
-| Insights | `USAGE_MONITORING_ENABLED` | `NEXT_PUBLIC_USAGE_MONITORING_ENABLED` |
-| Custom blocks | `CUSTOM_BLOCKS_ENABLED` | `NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED` |
-| Session policies — enabled by default | `SESSION_POLICIES_ENABLED` | `NEXT_PUBLIC_SESSION_POLICIES_ENABLED` |
-| Retention deletion | `DATA_RETENTION_ENABLED` | `NEXT_PUBLIC_DATA_RETENTION_ENABLED` |
-| Data drains | `DATA_DRAINS_ENABLED` | `NEXT_PUBLIC_DATA_DRAINS_ENABLED` |
-| Credential groups | `CREDENTIAL_GROUPS` | — |
-| Workspace forks | `FORKING_ENABLED` | `NEXT_PUBLIC_FORKING_ENABLED` |
-| Sim Mailer inbox — enabled by default | `INBOX_ENABLED` | `NEXT_PUBLIC_INBOX_ENABLED` |
-| Sandboxes | `SANDBOXES_ENABLED` | `NEXT_PUBLIC_SANDBOXES_ENABLED` |
+Each feature is one server variable. Permission groups also turn on organizations, and organizations are always on when billing is enabled.
+
+| Feature | Variable |
+| --- | --- |
+| Enterprise suite | `ENTERPRISE_ENABLED` |
+| Organizations | `ORGANIZATIONS_ENABLED` |
+| Permission groups | `ACCESS_CONTROL_ENABLED` |
+| SAML and OIDC sign-in | `SSO_ENABLED` |
+| Directory provisioning | `SCIM_ENABLED` |
+| Audit logs | `AUDIT_LOGS_ENABLED` |
+| Insights | `USAGE_MONITORING_ENABLED` |
+| Custom blocks | `CUSTOM_BLOCKS_ENABLED` |
+| Session policies — enabled by default | `SESSION_POLICIES_ENABLED` |
+| Retention deletion | `DATA_RETENTION_ENABLED` |
+| Data drains | `DATA_DRAINS_ENABLED` |
+| Credential groups | `CREDENTIAL_GROUPS` |
+| Workspace forks | `FORKING_ENABLED` |
+| Sim Mailer inbox — enabled by default | `INBOX_ENABLED` |
+| Sandboxes | `SANDBOXES_ENABLED` |
 
 ### Sandbox readiness
 
 A Sandbox entitlement also requires a remote execution provider with credentials and an immutable Function base image. Until the server verifies readiness, the Function block offers no **Shell** language, and **Settings → Sandboxes** shows an upgrade notice instead of a sandbox list.
 
-`NEXT_PUBLIC_SANDBOXES_ENABLED` exposes the Function block's **Sandbox** selector; it asserts readiness rather than checking it. Set it only after configuring the selected provider and Function base. `bunx sim-setup doctor` compares it with provider readiness.
+The Function block's **Sandbox** selector appears once the server confirms both the entitlement and a ready provider. `NEXT_PUBLIC_SANDBOXES_ENABLED` is only a readiness marker that `bunx sim-setup doctor` compares with the provider; the app does not read it.
 
 JavaScript without `import`, `require`, a selected sandbox, or a sandbox file-path reference runs in local Node child workers in the app container when Sandbox flags are off. Python, Shell, JavaScript with external imports, and selected custom Sandboxes require the remote Function base and fail with a configuration error until it is ready. See [Sandboxes](/platform/self-hosting/sandboxes).
 
@@ -269,7 +268,7 @@ JavaScript without `import`, `require`, a selected sandbox, or a sandbox file-pa
 | Symptom | Check |
 | --- | --- |
 | A settings section is missing | Check its server flag and restart the app after changing environment variables. These values load at boot; a rebuild is not needed. |
-| The login page has no SSO option, or Function has no Sandbox selector | Set the matching `NEXT_PUBLIC_` flag. Run `bunx sim-setup doctor` to check twins and Sandbox readiness. |
+| The login page has no SSO option, or Function has no Sandbox selector | Check `SSO_ENABLED` (or `ENTERPRISE_ENABLED`) and Sandbox readiness, then restart the app. Run `bunx sim-setup doctor` to check Sandbox readiness. |
 | **Settings → Sandboxes** shows an upgrade notice | Check Sandbox entitlement, provider credentials, and the immutable Function base. |
 | An enabled feature has no effect in a workspace | Confirm that the workspace belongs to an organization. Use the backfill or workspace move procedure if needed. |
 | Retention deletes nothing | Check `DATA_RETENTION_ENABLED`, explicit windows, scheduler requests, and `CRON_SECRET`. |

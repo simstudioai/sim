@@ -3,8 +3,8 @@
  * @vitest-environment-options {"url":"https://www.sim.ai"}
  *
  * A document that never ran the root layout: no `window.__ENV`, no
- * `data-public-env` attribute, so every `NEXT_PUBLIC_*` read is unset and the env
- * fallback resolves to self-hosted. That is the state a tab keeps after recovering
+ * `data-public-env` or `data-deployment-shape` attribute, so every `NEXT_PUBLIC_*`
+ * read is unset and the env fallback resolves to self-hosted. That is the state a tab keeps after recovering
  * in place from Next's bare 404 shell or `global-error`.
  */
 
@@ -28,6 +28,7 @@ vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
+import { DEPLOYMENT_SHAPE_ATTRIBUTE } from '@/lib/core/config/deployment-projection'
 import {
   getDeploymentShape,
   resetDeploymentShape,
@@ -79,6 +80,7 @@ afterEach(() => {
   act(() => root.unmount())
   host.remove()
   document.documentElement.removeAttribute(PUBLIC_ENV_ATTRIBUTE)
+  document.documentElement.removeAttribute(DEPLOYMENT_SHAPE_ATTRIBUTE)
   Reflect.deleteProperty(window, '__ENV')
 })
 
@@ -92,6 +94,40 @@ describe('env fallback on a document without the root layout', () => {
     for (const model of HOSTED_MODELS) {
       expect(apiKeyFieldShown(model)).toBe(true)
     }
+  })
+})
+
+describe('projected server shape on an unseeded document', () => {
+  it('wins over the env fallback for readers outside React', () => {
+    document.documentElement.setAttribute(DEPLOYMENT_SHAPE_ATTRIBUTE, JSON.stringify(HOSTED))
+
+    expect(getDeploymentShape()).toEqual(HOSTED)
+    for (const model of HOSTED_MODELS) {
+      expect(apiKeyFieldShown(model)).toBe(false)
+    }
+  })
+
+  it('falls back to the env fallback when the attribute is malformed', () => {
+    document.documentElement.setAttribute(DEPLOYMENT_SHAPE_ATTRIBUTE, '{not json')
+
+    expect(getDeploymentShape().hosted).toBe(false)
+  })
+
+  it('falls back to the env fallback when the attribute does not match the shape', () => {
+    document.documentElement.setAttribute(
+      DEPLOYMENT_SHAPE_ATTRIBUTE,
+      JSON.stringify({ hosted: true })
+    )
+
+    expect(getDeploymentShape().hosted).toBe(false)
+  })
+
+  it('yields to a seeded surface shape', () => {
+    document.documentElement.setAttribute(DEPLOYMENT_SHAPE_ATTRIBUTE, JSON.stringify(HOSTED))
+    const selfHosted = { ...HOSTED, hosted: false, billingEnabled: false }
+    seedDeploymentShape(selfHosted)
+
+    expect(getDeploymentShape()).toBe(selfHosted)
   })
 })
 

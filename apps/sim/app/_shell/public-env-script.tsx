@@ -1,4 +1,6 @@
 import { connection } from 'next/server'
+import { DEPLOYMENT_SHAPE_ATTRIBUTE } from '@/lib/core/config/deployment-projection'
+import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { PUBLIC_ENV_ATTRIBUTE } from '@/lib/core/config/env'
 
 /**
@@ -40,6 +42,16 @@ const HOSTED_PUBLIC_ENV = readPublicEnv()
  */
 export function publicEnvHtmlAttributes(): Record<string, string> {
   return { [PUBLIC_ENV_ATTRIBUTE]: JSON.stringify(readPublicEnv()) }
+}
+
+/**
+ * Props to spread onto the `<html>` element carrying the server-resolved deployment
+ * shape, which the browser reads instead of rebuilding deployment configuration from
+ * `NEXT_PUBLIC_*` twins. Rides on `<html>` for the same ordering reason as
+ * {@link publicEnvHtmlAttributes}; see `@/lib/core/config/deployment-projection`.
+ */
+export function deploymentShapeHtmlAttributes(): Record<string, string> {
+  return { [DEPLOYMENT_SHAPE_ATTRIBUTE]: JSON.stringify(resolveDeploymentShape()) }
 }
 
 /**

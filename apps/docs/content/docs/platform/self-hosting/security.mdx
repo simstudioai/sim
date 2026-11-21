@@ -197,11 +197,11 @@ continues to run in the local isolate when no remote provider is configured.
   Without valid provider credentials and the required Function image, code that needs a remote sandbox fails with a configuration error. Verify readiness before enabling its browser controls.
 </Callout>
 
-Two browser-side variables assert readiness in the UI; neither is derived automatically:
+Two browser-side variables relate to sandbox readiness; neither is derived automatically:
 
 | Variable | Effect when unset |
 |---|---|
-| `NEXT_PUBLIC_SANDBOXES_ENABLED` | The Function block's Sandbox selector stays hidden, even with a working provider. Shell and **Settings → Sandboxes** are unaffected — Shell appears, and the settings page swaps its upgrade notice for the sandbox list, from the server's own readiness check. Python stays selectable; whether it runs depends on the server-side provider and Function image, not on this flag |
+| `NEXT_PUBLIC_SANDBOXES_ENABLED` | Nothing in the app: the Function block's Sandbox selector, Shell, and **Settings → Sandboxes** all follow the server's own readiness check. `sim-setup doctor` reports it as a mismatch against provider readiness. Python stays selectable; whether it runs depends on the server-side provider and Function image |
 | `NEXT_PUBLIC_E2B_ENABLED` | The E2B-backed Pi block modes stay hidden; `sim-setup doctor` reports it as a mismatch against `E2B_ENABLED`. Revealing them is not enough to make them run — Pi executes on its own image, pinned with `E2B_PI_TEMPLATE_ID` or `DAYTONA_PI_SNAPSHOT_ID`, and fails closed without it |
 
 Set the public values only **after** the server-side configuration above is complete — they are assertions about readiness, not switches, and the server-side check has its own conditions beyond them. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and promotion procedure. `bunx sim-setup doctor` reports a mismatch in either direction.

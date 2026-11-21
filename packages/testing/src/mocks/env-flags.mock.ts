@@ -79,14 +79,11 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isSlackExtendedScopesEnabled: false,
   isTriggerDevEnabled: false,
   isSsoEnabled: false,
-  /** OAuth-aware route behavior is available unless a suite overrides it. */
   isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
-  /** Live Search is the default Sim Search backend; indexed search is dormant. */
-  // True with billing off and no flags set — these carry a legacy default of
-  // `true` so upgrades do not remove a feature. See
-  // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
+  // True with billing off and no flags set: their `selfHostedDefault` is `true`
+  // in ENTERPRISE_FEATURES (`@sim/deployment-config/enterprise-features`).
   isInboxEnabled: true,
   isSandboxDeploymentEntitled: false,
   isSandboxesEnabled: false,

@@ -1,13 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import {
-  providerModelsResponseSchema,
-  vllmUpstreamResponseSchema,
-} from '@/lib/api/contracts/providers'
+import { providerModelsResponseSchema } from '@/lib/api/contracts/providers'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getOpenAICompatibleApiBaseUrl } from '@/providers/openai-compat/base-url'
+import { listOpenAICompatibleModels } from '@/providers/openai-compat/model-list'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('VLLMModelsAPI')
@@ -29,34 +26,20 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
   }
 
   try {
-    const apiBaseUrl = getOpenAICompatibleApiBaseUrl(baseUrl)
-    logger.info('Fetching vLLM models', {
+    logger.info('Fetching vLLM models', { baseUrl })
+
+    const allModels = await listOpenAICompatibleModels({
       baseUrl,
+      apiKey: env.VLLM_API_KEY,
+      prefix: 'vllm/',
+      init: { next: { revalidate: 60 } },
     })
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-
-    if (env.VLLM_API_KEY) {
-      headers.Authorization = `Bearer ${env.VLLM_API_KEY}`
-    }
-
-    const response = await fetch(`${apiBaseUrl}/models`, {
-      headers,
-      next: { revalidate: 60 },
-    })
-
-    if (!response.ok) {
-      logger.warn('vLLM service is not available', {
-        status: response.status,
-        statusText: response.statusText,
-      })
+    if (!allModels) {
+      logger.warn('vLLM service is not available')
       return NextResponse.json({ models: [] })
     }
 
-    const data = vllmUpstreamResponseSchema.parse(await response.json())
-    const allModels = data.data.map((model) => `vllm/${model.id}`)
     const models = filterBlacklistedModels(allModels)
 
     logger.info('Successfully fetched vLLM models', {

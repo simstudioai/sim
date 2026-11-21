@@ -753,28 +753,15 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_KEY:               z.string().optional(),                  // PostHog project API key
 
     NEXT_PUBLIC_E2B_ENABLED:               z.string().optional(),
-    NEXT_PUBLIC_SANDBOXES_ENABLED:         z.string().optional(),              // Client twin of isRemoteSandboxEnabled — true under either sandbox provider
+    NEXT_PUBLIC_SANDBOXES_ENABLED:         z.string().optional(),              // Setup-tool readiness marker for the remote Function provider (sim-setup writes and checks it); the app reads Sandbox availability from the server-projected deployment shape
     NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: z.string().optional(),              // Hide Bedrock credential fields when deployment uses AWS default credential chain (IAM roles, instance profiles, ECS task roles, IRSA)
     NEXT_PUBLIC_AZURE_CONFIGURED:          z.string().optional(),              // Hide Azure credential fields when endpoint/key/version are pre-configured server-side
     NEXT_PUBLIC_COHERE_CONFIGURED:         z.string().optional(),              // Hide Cohere API key field on Knowledge block when COHERE_API_KEY is pre-configured server-side
 
     // Feature Flags
-    NEXT_PUBLIC_ENTERPRISE_ENABLED:        z.boolean().optional(),                   // Client twin of ENTERPRISE_ENABLED — set both together
-    NEXT_PUBLIC_SSO_ENABLED:               z.boolean().optional(),                   // Enable SSO login UI components
-    NEXT_PUBLIC_SCIM_ENABLED:              z.boolean().optional(),                   // Enable SCIM settings UI
-    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED:    z.boolean().optional(),                   // Enable access control (permission groups) on self-hosted
     NEXT_PUBLIC_SLACK_EXTENDED_SCOPES:     z.boolean().optional(),                   // Client twin of SLACK_EXTENDED_SCOPES — set both together
-    NEXT_PUBLIC_AUDIT_LOGS_ENABLED:        z.boolean().optional(),                   // Enable audit logs on self-hosted (bypasses hosted requirements)
-    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED:     z.boolean().optional(),                   // Enable custom blocks on self-hosted (bypasses hosted requirements)
-    NEXT_PUBLIC_USAGE_MONITORING_ENABLED:  z.boolean().optional(),                   // Enable organization usage monitoring on self-hosted (bypasses hosted requirements)
-    NEXT_PUBLIC_DATA_RETENTION_ENABLED:   z.boolean().optional(),                   // Enable data retention settings on self-hosted (bypasses hosted requirements)
-    NEXT_PUBLIC_DATA_DRAINS_ENABLED:      z.boolean().optional(),                   // Enable data drains on self-hosted (bypasses hosted requirements)
-    NEXT_PUBLIC_SESSION_POLICIES_ENABLED: z.boolean().optional(),                   // Enable org session policies on self-hosted (bypasses hosted requirements)
-    NEXT_PUBLIC_FORKING_ENABLED:          z.boolean().optional(),                   // Enable workspace forking on self-hosted (bypasses hosted requirements)
-    NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
     NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
     NEXT_PUBLIC_DISABLE_PUBLIC_API:        z.boolean().optional(),                   // Disable public API access UI toggle globally
-    NEXT_PUBLIC_INBOX_ENABLED:             z.boolean().optional(),                   // Enable inbox (Sim Mailer) on self-hosted
     NEXT_PUBLIC_CHAT_DISABLED:             z.boolean().optional(),                   // Hide the Chat module (Chat is shown when unset)
     NEXT_PUBLIC_STATUS_NOTICE_PREVIEW:     z.boolean().optional(),                   // Force the sidebar service-status notice into its critical preview state
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: z.boolean().optional().default(true), // Control visibility of email/password login forms
@@ -791,22 +778,9 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_BILLING_ENABLED: process.env.NEXT_PUBLIC_BILLING_ENABLED,
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,
-    NEXT_PUBLIC_SSO_ENABLED: process.env.NEXT_PUBLIC_SSO_ENABLED,
-    NEXT_PUBLIC_SCIM_ENABLED: process.env.NEXT_PUBLIC_SCIM_ENABLED,
-    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: process.env.NEXT_PUBLIC_ACCESS_CONTROL_ENABLED,
     NEXT_PUBLIC_SLACK_EXTENDED_SCOPES: process.env.NEXT_PUBLIC_SLACK_EXTENDED_SCOPES,
-    NEXT_PUBLIC_AUDIT_LOGS_ENABLED: process.env.NEXT_PUBLIC_AUDIT_LOGS_ENABLED,
-    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: process.env.NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED,
-    NEXT_PUBLIC_USAGE_MONITORING_ENABLED: process.env.NEXT_PUBLIC_USAGE_MONITORING_ENABLED,
-    NEXT_PUBLIC_DATA_RETENTION_ENABLED: process.env.NEXT_PUBLIC_DATA_RETENTION_ENABLED,
-    NEXT_PUBLIC_DATA_DRAINS_ENABLED: process.env.NEXT_PUBLIC_DATA_DRAINS_ENABLED,
-    NEXT_PUBLIC_SESSION_POLICIES_ENABLED: process.env.NEXT_PUBLIC_SESSION_POLICIES_ENABLED,
-    NEXT_PUBLIC_FORKING_ENABLED: process.env.NEXT_PUBLIC_FORKING_ENABLED,
-    NEXT_PUBLIC_ENTERPRISE_ENABLED: process.env.NEXT_PUBLIC_ENTERPRISE_ENABLED,
-    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,
-    NEXT_PUBLIC_INBOX_ENABLED: process.env.NEXT_PUBLIC_INBOX_ENABLED,
     NEXT_PUBLIC_CHAT_DISABLED: process.env.NEXT_PUBLIC_CHAT_DISABLED,
     NEXT_PUBLIC_STATUS_NOTICE_PREVIEW: process.env.NEXT_PUBLIC_STATUS_NOTICE_PREVIEW,
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: process.env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED,

@@ -187,10 +187,10 @@ case "$group" in
   scim)
     export NEXT_PUBLIC_FORCE_HOSTED=true
     export BILLING_ENABLED=true NEXT_PUBLIC_BILLING_ENABLED=true
-    export ENTERPRISE_ENABLED=true NEXT_PUBLIC_ENTERPRISE_ENABLED=true
-    export SCIM_ENABLED=true NEXT_PUBLIC_SCIM_ENABLED=true
-    export SSO_ENABLED=true NEXT_PUBLIC_SSO_ENABLED=true
-    export ORGANIZATIONS_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
+    export ENTERPRISE_ENABLED=true
+    export SCIM_ENABLED=true
+    export SSO_ENABLED=true
+    export ORGANIZATIONS_ENABLED=true
     export INTERNAL_API_SECRET=scim-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw
     export NEXT_PUBLIC_CHAT_DISABLED=true
@@ -282,7 +282,6 @@ case "$group" in
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export COPILOT_TOOL_PERMISSIONS_ENABLED=true
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
-    export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
     case "$group" in assistant-actions|organization-search) needs_browser=true ;; *) needs_browser=false ;; esac
     if [ "$needs_browser" = true ]; then start_browser_install "$group" --only-shell chromium; fi
     export INTERNAL_API_SECRET=desktop-inbox-http-ci-local-secret-at-least-32-characters
@@ -335,7 +334,6 @@ case "$group" in
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
     export SIM_LINKS=true
-    export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
     export API_ENCRYPTION_KEY="$ENCRYPTION_KEY"
     start_browser_install "$group" --no-shell chromium
     extension_identity=$(bun - <<'JS'

@@ -362,9 +362,8 @@ async function main(): Promise<void> {
 
   if (!isOrganizationsEnabled) {
     console.log(
-      'WARNING: organizations are not enabled for this process. Set ORGANIZATIONS_ENABLED=true and\n' +
-        '         NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true on the app, or the org UI stays hidden even\n' +
-        '         though the data written here is correct.\n'
+      'WARNING: organizations are not enabled for this process. Set ORGANIZATIONS_ENABLED=true on\n' +
+        '         the app, or the org UI stays hidden even though the data written here is correct.\n'
     )
   }
 

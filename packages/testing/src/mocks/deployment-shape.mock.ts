@@ -1,3 +1,4 @@
+import type { EnterpriseFeatureState } from '@sim/deployment-config/enterprise-features'
 import { vi } from 'vitest'
 
 /** Shape of `DeploymentShape` from `@/lib/api/contracts/workspaces`. */
@@ -7,25 +8,12 @@ export interface MockDeploymentShape {
   chatEnabled: boolean
   azureConfigured: boolean
   cohereConfigured: boolean
-  features: {
-    accessControl: boolean
-    auditLogs: boolean
-    customBlocks: boolean
-    dataDrains: boolean
-    dataRetention: boolean
-    inbox: boolean
-    sandboxes: boolean
-    scim: boolean
-    sessionPolicies: boolean
-    sso: boolean
-    usageMonitoring: boolean
-  }
+  features: EnterpriseFeatureState
 }
 
 /**
  * Builds a deployment shape from the `env-flags` mock defaults (self-hosted, billing off, Chat on,
- * Live Search, inbox/session policies on, everything else off), with shallow
- * `features` overrides.
+ * inbox/session policies on, everything else off), with shallow `features` overrides.
  */
 export function createMockDeploymentShape(
   overrides: Partial<Omit<MockDeploymentShape, 'features'>> & {
@@ -43,10 +31,13 @@ export function createMockDeploymentShape(
     features: {
       accessControl: false,
       auditLogs: false,
+      credentialGroups: false,
       customBlocks: false,
       dataDrains: false,
       dataRetention: false,
+      forking: false,
       inbox: true,
+      organizations: false,
       sandboxes: false,
       scim: false,
       sessionPolicies: true,

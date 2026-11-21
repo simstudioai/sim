@@ -325,7 +325,12 @@ function resolveVisibility(
 
   /* Whether these show turns on the deployment, not on the block, so nothing
      here can prove a card will have them. */
-  if (subBlock.showWhenEnvSet || subBlock.hideWhenHosted || subBlock.hideWhenEnvSet) {
+  if (
+    subBlock.showWhenEnvSet ||
+    subBlock.showWhenFeature ||
+    subBlock.hideWhenHosted ||
+    subBlock.hideWhenEnvSet
+  ) {
     return { kind: 'unknown' }
   }
 

@@ -80,6 +80,45 @@ describe('setup coherence checks', () => {
       fix: 'set SLACK_SIGNING_SECRET or remove SLACK_EXTENDED_SCOPES and NEXT_PUBLIC_SLACK_EXTENDED_SCOPES',
     })
   })
+
+  it('accepts an enterprise feature set on the server alone', async () => {
+    const findings = await runChecks(
+      rootContext({ ENTERPRISE_ENABLED: 'true', CUSTOM_BLOCKS_ENABLED: 'false' }),
+      ['coherence']
+    )
+
+    expect(findings.filter((finding) => /ENTERPRISE|CUSTOM_BLOCKS/.test(finding.message))).toEqual(
+      []
+    )
+  })
+
+  it('points a leftover enterprise browser twin at the server variable it never set', async () => {
+    const findings = await runChecks(rootContext({ NEXT_PUBLIC_SSO_ENABLED: 'true' }), [
+      'coherence',
+    ])
+
+    expect(findings).toContainEqual({
+      group: 'coherence',
+      status: 'warn',
+      message:
+        'NEXT_PUBLIC_SSO_ENABLED is set but no longer does anything — the browser reads enterprise features from the server',
+      fix: 'set SSO_ENABLED=true and remove NEXT_PUBLIC_SSO_ENABLED',
+    })
+  })
+
+  it('asks only for removal when the server variable is already set', async () => {
+    const findings = await runChecks(
+      rootContext({ ENTERPRISE_ENABLED: 'true', NEXT_PUBLIC_ENTERPRISE_ENABLED: 'true' }),
+      ['coherence']
+    )
+
+    expect(findings).toContainEqual(
+      expect.objectContaining({
+        status: 'warn',
+        fix: 'remove NEXT_PUBLIC_ENTERPRISE_ENABLED',
+      })
+    )
+  })
 })
 
 describe('doctor --fix on env files', () => {

@@ -29,7 +29,7 @@ import {
   writeEnvValues,
 } from './env-files'
 import { httpHealth, pgProbe, redisPing } from './probes'
-import { FLAG_TWINS, LOGIN_PROVIDERS } from './twins'
+import { FLAG_TWINS, INERT_ENTERPRISE_BROWSER_FLAGS, LOGIN_PROVIDERS } from './twins'
 
 /**
  * Whether `key` is written with an unescaped `$`, a reference Next, Bun, and
@@ -421,10 +421,23 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     })
   }
 
+  for (const { server, client } of INERT_ENTERPRISE_BROWSER_FLAGS) {
+    const clientValue = sim.vars.get(client)
+    if (clientValue === undefined) continue
+    const needsServer = isTruthy(clientValue) && sim.vars.get(server) === undefined
+    findings.push({
+      group: 'coherence',
+      status: 'warn',
+      message: `${client} is set but no longer does anything — the browser reads enterprise features from the server`,
+      fix: needsServer ? `set ${server}=${clientValue} and remove ${client}` : `remove ${client}`,
+    })
+  }
+
   /**
-   * Function sandbox visibility is not a 1:1 server/client twin. The selected
-   * provider is ready only when its credential and immutable Function base are
-   * valid, while the browser separately reads the public visibility flag.
+   * `NEXT_PUBLIC_SANDBOXES_ENABLED` is a setup-side readiness marker, not a
+   * twin: the app verifies the selected provider's credential and immutable
+   * Function base itself and projects the result to the browser. A stale marker
+   * misleads whoever reads the env file, so it is reported, not failed.
    */
   const sandboxInspection = inspectCapability(SANDBOX_CAPABILITY, sim.vars)
   const sandboxProvider = sandboxInspection.providerId
@@ -437,18 +450,18 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   if (remoteSandboxAvailable && !publicSandboxEnabled) {
     findings.push({
       group: 'coherence',
-      status: 'fail',
+      status: 'warn',
       message:
-        'remote sandboxes are configured but NEXT_PUBLIC_SANDBOXES_ENABLED is unset — the Function block will hide its language and sandbox controls',
+        'remote sandboxes are configured but the NEXT_PUBLIC_SANDBOXES_ENABLED readiness marker is unset',
       fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOXES_ENABLED=true',
       autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOXES_ENABLED: 'true' }),
     })
   } else if (!remoteSandboxAvailable && publicSandboxEnabled) {
     findings.push({
       group: 'coherence',
-      status: 'fail',
+      status: 'warn',
       message:
-        'NEXT_PUBLIC_SANDBOXES_ENABLED is on but the selected provider lacks credentials or a valid immutable Function base — the UI exposes a runtime that will reject execution',
+        'NEXT_PUBLIC_SANDBOXES_ENABLED is on but the selected provider lacks credentials or a valid immutable Function base — sandboxes stay unavailable until provider setup is finished',
       fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOXES_ENABLED=false; finish provider setup before enabling it',
       autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOXES_ENABLED: 'false' }),
     })

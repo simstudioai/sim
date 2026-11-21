@@ -187,7 +187,8 @@ Who may sign up and sign in — the allowlists, blocklists, `DISABLE_REGISTRATIO
 | `E2B_FUNCTION_TEMPLATE_GENERATION` | Monotonic release generation printed by the same build. Required for E2B |
 | `DAYTONA_FUNCTION_SNAPSHOT_ID` | Immutable snapshot **ID** (not a name) for the Function base image. Required for Daytona |
 | `E2B_PI_TEMPLATE_ID` / `DAYTONA_PI_SNAPSHOT_ID` | The image Pi runs on. Separate from the Function base — configuring the provider and Function image alone leaves Pi failing closed |
-| `SANDBOXES_ENABLED` / `NEXT_PUBLIC_SANDBOXES_ENABLED` | Enable custom sandbox entitlement through deployment configuration where supported; see the [enterprise guide](/platform/enterprise/self-hosted) for billing-mode requirements. Neither is sufficient on its own — a provider key **and** an immutable Function base must also be configured. Set the `NEXT_PUBLIC_` twin only after the server side works; it enables nothing by itself — it reveals the Function block's Sandbox selector, and on a Compose install or source checkout `bunx sim-setup doctor` confirms it agrees with the selected provider's readiness |
+| `SANDBOXES_ENABLED` | Enable custom sandbox entitlement through deployment configuration where supported; see the [enterprise guide](/platform/enterprise/self-hosted) for billing-mode requirements. Not sufficient on its own — a provider key **and** an immutable Function base must also be configured. The Function block's Sandbox selector appears once the server confirms both |
+| `NEXT_PUBLIC_SANDBOXES_ENABLED` | Readiness marker only; the app does not read it. On a Compose install or source checkout `bunx sim-setup doctor` compares it with the selected provider's readiness |
 | `IVM_MAX_EXECUTIONS_PER_WORKER` | Executions before an isolated-vm worker is recycled |
 | `IVM_MAX_BROKERS_PER_EXECUTION` | Host-call brokers per execution |
 | `IVM_MAX_BROKER_ARGS_JSON_CHARS` | Max argument payload size |
@@ -216,10 +217,10 @@ On standard billing-disabled self-hosted deployments, configuration enables ente
 
 | Variable | Description |
 |----------|-------------|
-| `ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ENTERPRISE_ENABLED` | Enable the whole enterprise feature set |
-| `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Enable SAML and OIDC single sign-on on its own. See [Authentication](/platform/self-hosting/authentication#sso-saml-and-oidc) |
+| `ENTERPRISE_ENABLED` | Enable the whole enterprise feature set. Each feature is one server variable; the browser reads the server's settings, so no `NEXT_PUBLIC_` counterpart is needed |
+| `SSO_ENABLED` | Enable SAML and OIDC single sign-on on its own. See [Authentication](/platform/self-hosting/authentication#sso-saml-and-oidc) |
 | `SSO_SKIP_DOMAIN_VERIFICATION` | Skip the DNS challenge when an administrator clicks Verify on a domain. Off by default; self-hosted only. Trusts administrator claims for SSO and SCIM across the instance. See [Verified domains](/platform/enterprise/verified-domains#skip-dns-verification) |
-| `SCIM_ENABLED`, `NEXT_PUBLIC_SCIM_ENABLED` | Enable directory provisioning on its own. Needs SSO. See [Directory provisioning](/platform/enterprise/scim) |
+| `SCIM_ENABLED` | Enable directory provisioning on its own. Needs SSO. See [Directory provisioning](/platform/enterprise/scim) |
 | `INSTANCE_ORG_NAME` | Name of the organization every user joins automatically at signup |
 | `INSTANCE_ORG_SLUG` | Slug for that organization (derived from the name when omitted) |
 | `INSTANCE_ORG_OWNER_EMAIL` | Owner of that organization (defaults to the first user to sign up) |

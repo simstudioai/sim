@@ -4,6 +4,12 @@
  */
 
 import {
+  ENTERPRISE_MASTER_ENV_VAR,
+  type EnterpriseFeatureState,
+  resolveEnterpriseFeatures,
+  resolveSandboxFeatureAvailability,
+} from '@sim/deployment-config/enterprise-features'
+import {
   hasEnvCapabilityValue,
   inspectCapability,
   SANDBOX_CAPABILITY,
@@ -14,12 +20,7 @@ import {
   isValidSandboxReleaseGeneration,
 } from '@sim/utils/sandbox-references'
 import { resolveCostMultiplier } from './cost-multiplier'
-import {
-  ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
-  type EnterpriseFeature,
-  resolveEnterpriseEntitlement,
-  resolveSandboxFeatureAvailability,
-} from './enterprise-entitlements'
+import { readProjectedEnterpriseFeatures } from './deployment-projection'
 import { env, envBoolean, envNumber, getEnv, isFalsy, isTruthy } from './env'
 
 /**
@@ -260,64 +261,45 @@ export const isSlackExtendedScopesEnabled =
 export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
 
 /**
- * Turns on the whole enterprise suite for a deployment that does not run
- * billing. Individual feature flags below still win where they are set, so an
- * operator can enable everything and then switch one feature back off.
+ * Every enterprise feature, resolved once for this runtime.
  *
- * Server code reads `ENTERPRISE_ENABLED`; the browser reads the
- * `NEXT_PUBLIC_ENTERPRISE_ENABLED` twin (see {@link isBillingEnabled}).
- * Deployments must set both together.
+ * The server resolves the registry in `@sim/deployment-config/enterprise-features`
+ * against its own environment: each feature is one server variable, plus the
+ * `ENTERPRISE_ENABLED` master switch. With billing on, plans decide entitlement and
+ * an unset flag stays off; with billing off, an unset flag falls through the master
+ * switch to the feature's documented self-hosted default.
+ *
+ * The browser never reads those variables. It takes the server's answer from the
+ * deployment-shape projection on `<html>` (`./deployment-projection`), present from
+ * the first byte the browser parses, so module-scope reads such as the better-auth
+ * client's plugin list agree with the server. A document without the projection (a
+ * bare 404 or `global-error` shell) falls back to the registry's defaults with
+ * nothing configured.
  */
-const isEnterpriseEnabled =
+const enterpriseFeatures: EnterpriseFeatureState =
   typeof window === 'undefined'
-    ? isTruthy(env.ENTERPRISE_ENABLED)
-    : isTruthy(getEnv('NEXT_PUBLIC_ENTERPRISE_ENABLED'))
+    ? resolveEnterpriseFeatures({
+        readFlag: (envVar) => envBoolean(getEnv(envVar)),
+        billingEnabled: isBillingEnabled,
+        hosted: isHosted,
+        masterEnabled: isTruthy(getEnv(ENTERPRISE_MASTER_ENV_VAR)),
+      })
+    : resolveBrowserEnterpriseFeatures()
 
-/**
- * Reads a feature's own flag as a tri-state, picking the server var or its
- * browser twin for the current runtime. `undefined` means the operator left it
- * unset, which is what lets the master switch and legacy default apply. A
- * server-only feature passes a `null` twin.
- */
-function explicitEnterpriseFlag(
-  serverValue: boolean | string | undefined,
-  clientKey: string | null
-): boolean | undefined {
-  if (typeof window === 'undefined') return envBoolean(serverValue)
-  return clientKey ? envBoolean(getEnv(clientKey)) : undefined
-}
-
-/**
- * Resolves one enterprise feature for this deployment.
- *
- * When billing runs, subscription plans decide entitlement and these flags are
- * only explicit overrides — so an unset flag stays `false` and never widens
- * access on Sim Cloud. When billing is off there is no plan to consult, so
- * resolution falls through the master switch to the feature's legacy default
- * (see {@link ENTERPRISE_FEATURE_LEGACY_DEFAULTS}).
- */
-function enterpriseFeatureEnabled(
-  feature: EnterpriseFeature,
-  serverValue: boolean | string | undefined,
-  clientKey: string | null
-): boolean {
-  const explicit = explicitEnterpriseFlag(serverValue, clientKey)
-  if (isBillingEnabled) return explicit ?? false
-  return resolveEnterpriseEntitlement({
-    explicit,
-    masterEnabled: isEnterpriseEnabled,
-    legacyDefault: ENTERPRISE_FEATURE_LEGACY_DEFAULTS[feature],
+function resolveBrowserEnterpriseFeatures(): EnterpriseFeatureState {
+  const defaults = resolveEnterpriseFeatures({
+    readFlag: () => undefined,
+    billingEnabled: isBillingEnabled,
+    hosted: isHosted,
+    masterEnabled: false,
   })
+  return readProjectedEnterpriseFeatures(defaults) ?? defaults
 }
 
 /**
  * Is SSO enabled for enterprise authentication
  */
-export const isSsoEnabled = enterpriseFeatureEnabled(
-  'sso',
-  env.SSO_ENABLED,
-  'NEXT_PUBLIC_SSO_ENABLED'
-)
+export const isSsoEnabled = enterpriseFeatures.sso
 
 /**
  * Is SCIM directory provisioning enabled.
@@ -327,9 +309,7 @@ export const isSsoEnabled = enterpriseFeatureEnabled(
  * alike. A connection whose organization loses the entitlement stops
  * authenticating rather than continuing to accept directory writes.
  */
-export const isScimEnabled = isHosted
-  ? (explicitEnterpriseFlag(env.SCIM_ENABLED, 'NEXT_PUBLIC_SCIM_ENABLED') ?? true)
-  : enterpriseFeatureEnabled('scim', env.SCIM_ENABLED, 'NEXT_PUBLIC_SCIM_ENABLED')
+export const isScimEnabled = enterpriseFeatures.scim
 
 /**
  * Is organization usage monitoring enabled.
@@ -338,63 +318,37 @@ export const isScimEnabled = isHosted
  * answer the same question — a section visible but rejected (or reachable but
  * hidden) is exactly what this pairing exists to prevent.
  */
-export const isUsageMonitoringEnabled = enterpriseFeatureEnabled(
-  'usageMonitoring',
-  env.USAGE_MONITORING_ENABLED,
-  'NEXT_PUBLIC_USAGE_MONITORING_ENABLED'
-)
+export const isUsageMonitoringEnabled = enterpriseFeatures.usageMonitoring
 
 /**
  * Is access control (permission groups) enabled.
  * Required for permission-group enforcement to run at all off-hosted.
  */
-export const isAccessControlEnabled = enterpriseFeatureEnabled(
-  'accessControl',
-  env.ACCESS_CONTROL_ENABLED,
-  'NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'
-)
+export const isAccessControlEnabled = enterpriseFeatures.accessControl
 
 /**
- * Is organizations enabled.
- * True if billing is enabled (orgs come with billing), OR resolved on for this
- * deployment, OR if access control is enabled (access control requires
+ * Is organizations enabled: always with billing (orgs come with billing), when
+ * configured on, and whenever access control is on (access control requires
  * organizations).
- *
- * Each term resolves through its `NEXT_PUBLIC_*` twin in the browser (see
- * {@link isBillingEnabled}), so client code — e.g. the better-auth
- * `organizationClient` plugin registration — sees the same value as the server.
  */
-export const isOrganizationsEnabled =
-  isBillingEnabled ||
-  enterpriseFeatureEnabled(
-    'organizations',
-    env.ORGANIZATIONS_ENABLED,
-    'NEXT_PUBLIC_ORGANIZATIONS_ENABLED'
-  ) ||
-  isAccessControlEnabled
+export const isOrganizationsEnabled = enterpriseFeatures.organizations
 
 /**
- * Is inbox (Sim Mailer) enabled
+ * Is inbox (Sim Mailer) enabled. On by default without billing; usable only with
+ * `COPILOT_API_KEY`, which the inbox gates check separately.
  */
-export const isInboxEnabled = enterpriseFeatureEnabled(
-  'inbox',
-  env.INBOX_ENABLED,
-  'NEXT_PUBLIC_INBOX_ENABLED'
-)
+export const isInboxEnabled = enterpriseFeatures.inbox
 
 /**
  * Whether deployment configuration entitles custom Function sandboxes.
  *
  * With billing enabled this is an explicit plan-gate override. Without billing,
- * either the Enterprise master switch or the Sandbox-specific server/client pair
- * enables the feature. Provider readiness is applied separately by
- * {@link isSandboxesEnabled} so entitlement can never advertise a missing runtime.
+ * either the Enterprise master switch or `SANDBOXES_ENABLED` enables it. Provider
+ * readiness is applied separately by {@link isSandboxesEnabled} so entitlement can
+ * never advertise a missing runtime. Server-only in meaning: the browser's
+ * projection carries the combined availability, not the entitlement alone.
  */
-export const isSandboxDeploymentEntitled = enterpriseFeatureEnabled(
-  'sandboxes',
-  env.SANDBOXES_ENABLED,
-  'NEXT_PUBLIC_SANDBOXES_ENABLED'
-)
+export const isSandboxDeploymentEntitled = enterpriseFeatures.sandboxes
 
 /**
  * Is audit log reading enabled.
@@ -402,68 +356,39 @@ export const isSandboxDeploymentEntitled = enterpriseFeatureEnabled(
  * Off-hosted this replaces the enterprise-subscription check that audit access
  * used to require, which no billing-free deployment could ever satisfy.
  */
-export const isAuditLogsEnabled = enterpriseFeatureEnabled(
-  'auditLogs',
-  env.AUDIT_LOGS_ENABLED,
-  'NEXT_PUBLIC_AUDIT_LOGS_ENABLED'
-)
+export const isAuditLogsEnabled = enterpriseFeatures.auditLogs
 
-export const isCustomBlocksEnabled = enterpriseFeatureEnabled(
-  'customBlocks',
-  env.CUSTOM_BLOCKS_ENABLED,
-  'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'
-)
+export const isCustomBlocksEnabled = enterpriseFeatures.customBlocks
 
 /**
  * Is retention *deletion* enabled.
  *
  * Configuring retention has always been possible with billing off; this flag
  * governs whether the cleanup pass actually expires data. Opt-in on purpose —
- * see the note on `dataRetention` in {@link ENTERPRISE_FEATURE_LEGACY_DEFAULTS}.
+ * see the note on `dataRetention` in the enterprise feature registry.
  */
-export const isDataRetentionEnabled = enterpriseFeatureEnabled(
-  'dataRetention',
-  env.DATA_RETENTION_ENABLED,
-  'NEXT_PUBLIC_DATA_RETENTION_ENABLED'
-)
+export const isDataRetentionEnabled = enterpriseFeatures.dataRetention
 
 /**
  * Is data drains enabled
  */
-export const isDataDrainsEnabled = enterpriseFeatureEnabled(
-  'dataDrains',
-  env.DATA_DRAINS_ENABLED,
-  'NEXT_PUBLIC_DATA_DRAINS_ENABLED'
-)
+export const isDataDrainsEnabled = enterpriseFeatures.dataDrains
 
 /**
  * Are organization session policies enabled
  */
-export const isSessionPoliciesEnabled = enterpriseFeatureEnabled(
-  'sessionPolicies',
-  env.SESSION_POLICIES_ENABLED,
-  'NEXT_PUBLIC_SESSION_POLICIES_ENABLED'
-)
+export const isSessionPoliciesEnabled = enterpriseFeatures.sessionPolicies
 
 /**
  * Are Credential Groups (managed connected accounts) enabled on a deployment
- * without billing. Server-only: the browser learns availability from the
- * credential-groups routes, so there is no `NEXT_PUBLIC_` twin.
+ * without billing.
  */
-export const isCredentialGroupsEnabled = enterpriseFeatureEnabled(
-  'credentialGroups',
-  env.CREDENTIAL_GROUPS,
-  null
-)
+export const isCredentialGroupsEnabled = enterpriseFeatures.credentialGroups
 
 /**
  * Is workspace forking enabled
  */
-export const isForkingEnabled = enterpriseFeatureEnabled(
-  'forking',
-  env.FORKING_ENABLED,
-  'NEXT_PUBLIC_FORKING_ENABLED'
-)
+export const isForkingEnabled = enterpriseFeatures.forking
 
 /**
  * The selected remote sandbox provider (`SANDBOX_PROVIDER`), defaulting to E2B.
@@ -474,16 +399,13 @@ const sandboxProvider = inspectCapability(SANDBOX_CAPABILITY, env).providerId
 
 /**
  * Whether remote code/shell execution is available with the selected provider.
+ * Server-only: the browser cannot inspect provider credentials, and reads the
+ * combined Sandbox availability from the deployment-shape projection instead.
  *
  * Both providers require their credential and dedicated Function base. The old
  * Mothership shell template/snapshot names are intentionally not fallbacks: a
  * deployment must build and configure the Function-owned image before exposing
  * the runtime.
- *
- * The browser cannot inspect provider credentials, so
- * `NEXT_PUBLIC_SANDBOXES_ENABLED` is its readiness projection. Set the public
- * value only after this server-side check succeeds; `npx sim-setup doctor`
- * reports mismatches in either direction.
  */
 export const isRemoteSandboxEnabled =
   sandboxProvider === 'daytona'
@@ -508,19 +430,19 @@ export const isRemoteSandboxEnabled =
  * Whether the complete custom-Sandbox feature is available on this deployment.
  *
  * Billing supplies hosted entitlement, while billing-free deployments require
- * the Enterprise pair or the Sandbox-specific pair. Both modes additionally
- * require a configured remote Function provider. The public flag projects that
- * provider readiness into the browser; the server always verifies credentials
- * and the immutable Function base directly.
+ * `ENTERPRISE_ENABLED` or `SANDBOXES_ENABLED`. Both modes additionally require a
+ * configured remote Function provider. The server verifies credentials and the
+ * immutable Function base directly; the browser reads the server's combined
+ * answer, which is the deployment shape's `sandboxes` feature.
  */
-export const isSandboxesEnabled = resolveSandboxFeatureAvailability({
-  billingEnabled: isBillingEnabled,
-  deploymentEntitled: isSandboxDeploymentEntitled,
-  remoteProviderEnabled:
-    typeof window === 'undefined'
-      ? isRemoteSandboxEnabled
-      : isTruthy(getEnv('NEXT_PUBLIC_SANDBOXES_ENABLED')),
-})
+export const isSandboxesEnabled =
+  typeof window === 'undefined'
+    ? resolveSandboxFeatureAvailability({
+        billingEnabled: isBillingEnabled,
+        deploymentEntitled: isSandboxDeploymentEntitled,
+        remoteProviderEnabled: isRemoteSandboxEnabled,
+      })
+    : enterpriseFeatures.sandboxes
 
 /**
  * Whether the selected provider can serve Mothership's own code image.
@@ -708,5 +630,3 @@ export function getAllowedMcpDomainsFromEnv(): string[] | null {
 export function getCostMultiplier(): number {
   return resolveCostMultiplier(env.COST_MULTIPLIER, isProd)
 }
-
-/** Backend selector. Kept independent of enterprise entitlement overrides. */

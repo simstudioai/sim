@@ -83,7 +83,6 @@ For example, an installation using SSO while allowing existing company email acc
 ALLOWED_LOGIN_DOMAINS=acme.com
 DISABLE_EMAIL_SIGNUP=true
 SSO_ENABLED=true
-NEXT_PUBLIC_SSO_ENABLED=true
 ```
 
 This does not restrict enabled social providers to `acme.com`. Configure or disable those login methods separately.
@@ -94,17 +93,15 @@ For a standard billing-disabled self-hosted deployment, enable the enterprise su
 
 ```bash
 ENTERPRISE_ENABLED=true
-NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 ```
 
 Or enable SSO alone:
 
 ```bash
 SSO_ENABLED=true
-NEXT_PUBLIC_SSO_ENABLED=true
 ```
 
-Set both the server flag and its UI counterpart. Register providers under **Settings → Organization → Single sign-on**. A provider can belong to an organization or be registered without one.
+Each is a server variable; the login page and settings read the server's setting, so there is no browser counterpart. Register providers under **Settings → Organization → Single sign-on**. A provider can belong to an organization or be registered without one.
 
 Most other enterprise features read settings from the organization that owns a workspace. Set `INSTANCE_ORG_NAME` to place new members in one organization, or provision organizations through the Admin API. See [SSO](/platform/enterprise/sso) and [Self-hosted enterprise features](/platform/enterprise/self-hosted) for provider setup, organization patterns, and billing-enabled behavior.
 

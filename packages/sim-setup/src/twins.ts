@@ -1,56 +1,52 @@
+import {
+  ENTERPRISE_FEATURE_KEYS,
+  ENTERPRISE_FEATURES,
+  ENTERPRISE_MASTER_ENV_VAR,
+  type EnterpriseFeatureDefinition,
+} from '@sim/deployment-config/enterprise-features'
 import { EMAIL_CAPABILITY, inspectCapability } from '@sim/deployment-config/env-capabilities'
 
 /**
  * Server/client feature-flag pairs that must be set together — server code
  * reads the bare var, the browser bundle reads the NEXT_PUBLIC_ twin
  * (apps/sim/lib/core/config/env-flags.ts documents each).
+ *
+ * Enterprise features have no twins: the browser receives the server-resolved
+ * state through the deployment-shape projection. See
+ * {@link INERT_ENTERPRISE_BROWSER_FLAGS}.
  */
 export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
   { server: 'BILLING_ENABLED', client: 'NEXT_PUBLIC_BILLING_ENABLED' },
-  { server: 'ENTERPRISE_ENABLED', client: 'NEXT_PUBLIC_ENTERPRISE_ENABLED' },
-  { server: 'ACCESS_CONTROL_ENABLED', client: 'NEXT_PUBLIC_ACCESS_CONTROL_ENABLED' },
-  { server: 'ORGANIZATIONS_ENABLED', client: 'NEXT_PUBLIC_ORGANIZATIONS_ENABLED' },
-  { server: 'AUDIT_LOGS_ENABLED', client: 'NEXT_PUBLIC_AUDIT_LOGS_ENABLED' },
-  { server: 'CUSTOM_BLOCKS_ENABLED', client: 'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED' },
-  { server: 'DATA_RETENTION_ENABLED', client: 'NEXT_PUBLIC_DATA_RETENTION_ENABLED' },
-  { server: 'SESSION_POLICIES_ENABLED', client: 'NEXT_PUBLIC_SESSION_POLICIES_ENABLED' },
-  { server: 'DATA_DRAINS_ENABLED', client: 'NEXT_PUBLIC_DATA_DRAINS_ENABLED' },
-  { server: 'FORKING_ENABLED', client: 'NEXT_PUBLIC_FORKING_ENABLED' },
-  { server: 'INBOX_ENABLED', client: 'NEXT_PUBLIC_INBOX_ENABLED' },
   { server: 'DISABLE_INVITATIONS', client: 'NEXT_PUBLIC_DISABLE_INVITATIONS' },
   { server: 'DISABLE_PUBLIC_API', client: 'NEXT_PUBLIC_DISABLE_PUBLIC_API' },
-  { server: 'SSO_ENABLED', client: 'NEXT_PUBLIC_SSO_ENABLED' },
-  { server: 'USAGE_MONITORING_ENABLED', client: 'NEXT_PUBLIC_USAGE_MONITORING_ENABLED' },
   { server: 'EMAIL_PASSWORD_SIGNUP_ENABLED', client: 'NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED' },
   { server: 'E2B_ENABLED', client: 'NEXT_PUBLIC_E2B_ENABLED' },
   { server: 'SLACK_EXTENDED_SCOPES', client: 'NEXT_PUBLIC_SLACK_EXTENDED_SCOPES' },
 ]
 
+/**
+ * The `NEXT_PUBLIC_*` twins enterprise features used to need, which the app no
+ * longer reads. `doctor` flags any still set so an operator does not expect one
+ * to do anything.
+ */
+export const INERT_ENTERPRISE_BROWSER_FLAGS: ReadonlyArray<{ client: string; server: string }> = [
+  ENTERPRISE_MASTER_ENV_VAR,
+  ...ENTERPRISE_FEATURE_KEYS.filter((key) => key !== 'sandboxes').map(
+    (key) => ENTERPRISE_FEATURES[key].envVar
+  ),
+].map((server) => ({ server, client: `NEXT_PUBLIC_${server}` }))
+
 /** Self-host feature unlocks offered by the wizard's Custom flow. */
 export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; hint: string }> = [
   {
-    server: 'ENTERPRISE_ENABLED',
+    server: ENTERPRISE_MASTER_ENV_VAR,
     label: 'All enterprise features',
     hint: 'enables everything below',
   },
-  {
-    server: 'ACCESS_CONTROL_ENABLED',
-    label: 'Access control',
-    hint: 'permission groups (implies organizations)',
-  },
-  { server: 'ORGANIZATIONS_ENABLED', label: 'Organizations', hint: 'multi-workspace orgs' },
-  { server: 'AUDIT_LOGS_ENABLED', label: 'Audit logs', hint: '' },
-  { server: 'CUSTOM_BLOCKS_ENABLED', label: 'Custom blocks', hint: 'reusable org-wide blocks' },
-  { server: 'DATA_RETENTION_ENABLED', label: 'Data retention', hint: 'deletes expired data' },
-  { server: 'SESSION_POLICIES_ENABLED', label: 'Session policies', hint: 'session lifetime caps' },
-  { server: 'DATA_DRAINS_ENABLED', label: 'Data drains', hint: 'export streams' },
-  { server: 'FORKING_ENABLED', label: 'Workflow forking', hint: '' },
-  { server: 'INBOX_ENABLED', label: 'Inbox', hint: '' },
-  {
-    server: 'USAGE_MONITORING_ENABLED',
-    label: 'Usage monitoring',
-    hint: 'org-wide credit usage',
-  },
+  ...ENTERPRISE_FEATURE_KEYS.filter((key) => ENTERPRISE_FEATURES[key].setupUnlock).map((key) => {
+    const feature: EnterpriseFeatureDefinition = ENTERPRISE_FEATURES[key]
+    return { server: feature.envVar, label: feature.label, hint: feature.hint ?? '' }
+  }),
 ]
 
 export function getConfiguredMailProvider(vars: Map<string, string>): string {

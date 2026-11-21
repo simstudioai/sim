@@ -832,6 +832,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@sim/auth": "workspace:*",
+        "@sim/deployment-config": "workspace:*",
         "@sim/utils": "workspace:*",
       },
       "devDependencies": {
