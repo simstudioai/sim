@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { describeOption, GUIDE_PAGES, helpParagraph, OUTPUT_DIR } from './generate-cli-docs'
+import { describeOption, GUIDE_PAGES, OUTPUT_DIR } from './generate-cli-docs'
 
 /** `describeOption` reads only these two fields; the rest of the Option is irrelevant. */
 function option(fields: { description?: string; defaultValue?: unknown }) {
@@ -32,13 +32,13 @@ describe('an option default rendered into the reference table', () => {
 
 describe('a command help paragraph rendered into its page', () => {
   it('keeps a table laid out in columns as it reads in the terminal, and reflows prose', () => {
-    const table =
-      'Source handles:\n  source               the normal path\n  error                a failure'
-    expect(helpParagraph(table)).toEqual(['```text', table, '```', ''])
-    expect(helpParagraph('Fails the check on\n  W_REQUIRED_MISSING,\n  W_VALUE_KIND.')).toEqual([
-      'Fails the check on W_REQUIRED_MISSING, W_VALUE_KIND.',
-      '',
-    ])
+    const page = guide('workflows')
+    expect(page).toMatch(
+      /```text\n[\s\S]*?Source handles:\n {2}source {15}the normal path\n[\s\S]*?```/
+    )
+    expect(page).toContain(
+      'These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind'
+    )
   })
 })
 

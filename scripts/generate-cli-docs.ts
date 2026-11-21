@@ -892,7 +892,7 @@ function orderedCommands(entries: DocumentedCommand[]): DocumentedCommand[] {
  * in columns (an indented line with a gap of two or more spaces inside it, as a table of handles
  * is) keeps its layout in a fence.
  */
-export function helpParagraph(paragraph: string): string[] {
+function helpParagraph(paragraph: string): string[] {
   if (/^ {2,}\S.*\S {2,}\S/m.test(paragraph)) return ['```text', paragraph.trimEnd(), '```', '']
   return [escapeProse(paragraph.replace(/\s*\n\s*/g, ' ').trim()), '']
 }

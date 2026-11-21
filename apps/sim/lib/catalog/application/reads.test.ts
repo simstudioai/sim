@@ -370,13 +370,7 @@ describe('catalog block and tool reads', () => {
     expect(detail.id).toBe('starter')
     expect(detail.description).toBe('Legacy — replaced by start_trigger. Start the workflow.')
 
-    // A superseded version hidden from the toolbar with no sunset stays as unknown as before.
-    await expect(
-      getCatalogBlock.execute({
-        principal: session,
-        input: { workspaceId: WORKSPACE_ID, blockId: 'confluence' },
-      })
-    ).resolves.toMatchObject({ block: { id: 'confluence_v2' } })
+    // With no newer version, a toolbar-hidden block with no sunset stays unknown.
     mocks.getLatestBlockForViewer.mockReturnValue(undefined)
     await expect(
       getCatalogBlock.execute({

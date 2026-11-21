@@ -135,9 +135,6 @@ describe('table export application use cases', () => {
   })
 
   it('cancels an export under its table named by its name, and conceals one under another table', async () => {
-    mocks.getTable.mockImplementation(async (id: string) =>
-      id === table.id ? table : { ...table, id, name: `Table ${id}` }
-    )
     const cancel = (tableId: string) =>
       cancelTableExportUseCase.execute({
         principal: { kind: 'session' as const, userId: 'user-1' },

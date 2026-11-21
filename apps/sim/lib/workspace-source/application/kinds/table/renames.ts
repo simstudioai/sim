@@ -127,8 +127,6 @@ export async function checkColumnRenamesInUse(
       .filter((workflow) => !deleted.has(workflow.id))
       .map((workflow) => ({ table, columns, workflow }))
   })
-  // Each check loads a workflow's draft, source or live version: independent reads, run a few at
-  // once, their findings kept in check order.
   const found = await mapWithConcurrency(checks, READ_CONCURRENCY, async (check) => {
     const { table, columns, workflow } = check
     const findings: WorkspaceSourceDiagnostic[] = []
