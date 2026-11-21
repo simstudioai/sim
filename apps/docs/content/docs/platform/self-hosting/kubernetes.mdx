@@ -18,7 +18,7 @@ The examples pin published chart `1.11.8`, whose published app version is `v0.9.
 - `metrics-server` if you enable autoscaling.
 - External Secrets Operator and a configured SecretStore/ClusterSecretStore if you choose that secret strategy.
 
-Redis is bundled by default. A non-empty `app.env.REDIS_URL` overrides its URL and suppresses the bundled Redis Deployment. `redis.enabled=false` is the explicit opt-out; supply an external URL if you need cross-replica events. See [Redis](/platform/self-hosting/redis).
+Sim requires Redis, and the chart bundles it by default. A non-empty `app.env.REDIS_URL` overrides its URL and suppresses the bundled Redis Deployment. With `redis.enabled=false` you must supply `REDIS_URL` for a managed instance (through `app.env`, `app.secrets.existingSecret`, or `externalSecrets.remoteRefs.app.REDIS_URL`); the chart fails to render otherwise. See [Redis](/platform/self-hosting/redis).
 
 ## Installation
 

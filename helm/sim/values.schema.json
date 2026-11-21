@@ -477,11 +477,11 @@
     },
     "redis": {
       "type": "object",
-      "description": "In-cluster Redis for pub/sub, the Socket.IO adapter, and the idempotency/progress stores. Disable and set app.env.REDIS_URL to use a managed instance.",
+      "description": "In-cluster Redis. Sim requires Redis (rate limiting, pub/sub, the Socket.IO adapter, and the idempotency/progress stores). Disable only when you supply REDIS_URL for a managed instance via app.env, a pre-created app Secret, or externalSecrets.remoteRefs.app.",
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Deploy the bundled Redis. Skipped automatically when app.env.REDIS_URL is set or a secret-manager mode is active."
+          "description": "Deploy the bundled Redis. Skipped automatically when app.env.REDIS_URL is set. Setting false requires REDIS_URL from app.env, app.secrets.existingSecret, or externalSecrets.remoteRefs.app; the chart fails to render otherwise."
         },
         "image": {
           "type": "object",

@@ -123,7 +123,7 @@ app:
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate with: openssl rand -hex 32 (produces the required 64-hex-char / 32-byte value).
     API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest; if unset, keys are stored in plain text
-    REDIS_URL: ""           # OPTIONAL - external Redis connection string. Overrides the bundled Redis (see the `redis:` section) and suppresses its Deployment. A REDIS_URL from a pre-created Secret or External Secrets also wins, without needing to be repeated here.
+    REDIS_URL: ""           # REQUIRED when redis.enabled=false - external Redis connection string (redis:// or rediss://). Sim requires Redis; leave empty to use the bundled one (see the `redis:` section). When set, it overrides the bundled Redis and suppresses its Deployment. A REDIS_URL from a pre-created Secret or External Secrets also wins, without needing to be repeated here.
 
     # Email & Communication
     # Configure one provider — the mailer auto-detects in priority order:
@@ -566,12 +566,15 @@ realtime:
   extraVolumes: []
   extraVolumeMounts: []
 
-# Redis — pub/sub, the Socket.IO adapter, and the idempotency/progress stores.
-# Bundled by default so a chart install matches the Docker Compose stack.
-# REQUIRED once app.replicaCount or realtime.replicaCount exceeds 1: without it
-# cross-pod events are silently dropped. For production prefer a managed
-# instance (ElastiCache, Memorystore, Azure Cache) — set enabled: false and put
-# its connection string in app.env.REDIS_URL, which then takes over.
+# Redis — REQUIRED. Backs rate limiting, pub/sub, the Socket.IO adapter, OTPs,
+# and the idempotency/progress stores; the app refuses to start without it.
+# Bundled by default so a chart install matches the Docker Compose stack. For
+# production prefer a managed instance (ElastiCache, Memorystore, Azure Cache) —
+# set enabled: false and supply its connection string as app.env.REDIS_URL (or
+# realtime.env.REDIS_URL), a REDIS_URL entry in extraEnvVars, a pre-created app
+# Secret, or externalSecrets.remoteRefs.app.REDIS_URL. app.envDefaults and
+# realtime.envDefaults each reach only their own pod. The chart fails to render
+# when enabled: false and no source reaches every enabled app/realtime pod.
 redis:
   enabled: true
 
@@ -1099,12 +1102,10 @@ serviceAccount:
 # if you use customMetrics) installed in the cluster.
 autoscaling:
   enabled: false
-  # Also scale the realtime Deployment with the same HPA settings. Multi-replica
-  # realtime REQUIRES Redis past one replica (Socket.IO adapter) — without it,
-  # cross-pod collaboration events are silently dropped. The chart bundles Redis
-  # by default, so this is satisfied unless you set redis.enabled=false without
-  # supplying app.env.REDIS_URL. Set false to
-  # keep realtime pinned at realtime.replicaCount while the app still scales.
+  # Also scale the realtime Deployment with the same HPA settings. Realtime
+  # bridges cross-pod collaboration events through Redis (always present: the
+  # chart bundles it or you supply REDIS_URL). Set false to keep realtime pinned
+  # at realtime.replicaCount while the app still scales.
   realtime:
     enabled: true
   minReplicas: 1
@@ -1955,7 +1956,7 @@ externalSecrets:
       ENCRYPT_ACCOUNT_TOKENS: ""
       # Path to MSHIP_SYSPROMPT_OVERRIDE in external store (optional)
       MSHIP_SYSPROMPT_OVERRIDE: ""
-      # Path to REDIS_URL in external store (optional)
+      # Path to REDIS_URL in external store (required when redis.enabled=false; overrides the bundled Redis)
       REDIS_URL: ""
 
     # PostgreSQL password (for internal PostgreSQL)

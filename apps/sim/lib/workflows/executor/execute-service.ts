@@ -123,7 +123,7 @@ export interface ExecuteWorkflowServiceParams {
    * The caller may stop waiting before the run settles, leaving it running in this
    * process. Such a run is admitted like an async one (async rate bucket, reservation,
    * and timeout), never ends with its caller (so it takes no `abortSignal`), and
-   * registers an in-process aborter so a run cancel reaches it without Redis. Its
+   * registers an in-process aborter so a run cancel reaches it directly in this process. Its
    * execution is otherwise the sync run's own, so a pause resumes as a sync run's does.
    * Requires `sync-result-stream`, whose pending result the caller stops awaiting.
    */

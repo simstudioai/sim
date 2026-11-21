@@ -12,11 +12,8 @@ describe('runJobLane', () => {
     resetDbChainMock()
   })
 
-  it.each([
-    { COPILOT_API_KEY: undefined, REDIS_URL: 'redis://localhost:6379' },
-    { COPILOT_API_KEY: 'key', REDIS_URL: undefined },
-  ])('touches nothing where turns cannot be durable (%o)', async (env) => {
-    setEnv(env)
+  it('touches nothing where the worker is not configured', async () => {
+    setEnv({ COPILOT_API_KEY: undefined })
 
     expect(await runJobLane()).toEqual({ claimed: 0 })
     expect(dbChainMockFns.execute).not.toHaveBeenCalled()

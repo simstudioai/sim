@@ -8,10 +8,7 @@ import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
-import {
-  hasDesktopBackgroundExecutor,
-  isDesktopBackgroundExecutorAvailable,
-} from '@/lib/desktop/executor/availability'
+import { hasDesktopBackgroundExecutor } from '@/lib/desktop/executor/availability'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
@@ -173,10 +170,7 @@ async function WorkspaceContent({
                       sidebar={
                         <Sidebar
                           organizationHref={organizationHref}
-                          desktopExecutor={{
-                            available: isDesktopBackgroundExecutorAvailable(),
-                            registered: desktopExecutorRegistered,
-                          }}
+                          desktopExecutor={{ registered: desktopExecutorRegistered }}
                         />
                       }
                       initialSidebarCollapsed={initialSidebarCollapsed}

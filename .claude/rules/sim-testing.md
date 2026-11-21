@@ -34,7 +34,7 @@ contracts, and demonstrated regressions.
 | Suffix | Needs | Run with | In CI |
 |--------|-------|----------|-------|
 | `*.test.ts(x)` | nothing; global mocks from `vitest.setup.ts` | `bun run --cwd <workspace> test` | `test` jobs |
-| `*.integration.ts` | real PostgreSQL (`TEST_DATABASE_URL`), Redis (`TEST_REDIS_URL`; optional locally, required in CI) | `bun run --cwd <workspace> test --mode integration` | `integration` jobs, by glob (sharded per provisioning path) |
+| `*.integration.ts` | real PostgreSQL (`TEST_DATABASE_URL`) and Redis (`TEST_REDIS_URL`: required by `apps/sim` and `apps/realtime`; `packages/db` runs without it locally and requires it in CI) | `bun run --cwd <workspace> test --mode integration` | `integration` jobs, by glob (sharded per provisioning path) |
 | `*.live.test.ts` | provider APIs, hosted sandboxes, local runtimes, or sibling checkouts | `bun run --cwd apps/sim test --mode live <file>` | never |
 | `apps/desktop/e2e/*.spec.ts` | the packaged Electron app | Playwright | desktop E2E workflow |
 | `apps/sim/scripts/test-*-e2e.ts` | a running app over HTTP | its `package.json` script when one exists (`bun run test:scim:e2e`; `test:workflow-version-compare:e2e` adds `--no-env-file`), else `bun scripts/test-<suite>-e2e.ts` from apps/sim | `e2e` jobs (`.github/scripts/http-e2e.sh`) |
@@ -46,7 +46,10 @@ contracts, and demonstrated regressions.
   `vi.mock` in the file.
 - `TEST_DATABASE_URL` must be loopback and its database name must contain a `test` segment
   (`sim_test`); `TEST_REDIS_URL` must be loopback. `packages/db/testing/test-infrastructure.ts` owns
-  those checks. Isolate with a unique schema or generated IDs, and clean up in `afterAll`.
+  those checks. `apps/sim` integration setup runs `FLUSHDB` before every file, so its
+  `TEST_REDIS_URL` must also select a non-zero database (`redis://127.0.0.1:6379/15`); never
+  point it at a Redis holding data you want to keep. Isolate with a unique schema or generated
+  IDs, and clean up in `afterAll`.
 - Integration files run one at a time against one shared database. A new `*.integration.ts` is
   picked up by CI with no workflow change, and the run writes the JSON report configured in
   `vitest.shared.ts`, which CI uploads. Never exclude a failing suite from the run in

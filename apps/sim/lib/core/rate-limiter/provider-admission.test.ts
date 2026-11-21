@@ -1,5 +1,4 @@
-import type { rateLimitBucket } from '@sim/db/schema'
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { resetDbChainMock } from '@sim/testing'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,7 +16,6 @@ vi.mock('@/lib/core/rate-limiter/storage/factory', () => ({
 }))
 
 import { waitForProviderAdmission } from '@/lib/core/rate-limiter/provider-admission'
-import { DbTokenBucket } from '@/lib/core/rate-limiter/storage/db-token-bucket'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 
 const INPUT = {
@@ -159,48 +157,6 @@ describe('provider admission', () => {
     })
   })
 
-  it('sustains 600 hosted reranks per minute through the real bucket refill calculation', async () => {
-    const input = {
-      ...INPUT,
-      operation: 'rerank' as const,
-      providerId: 'cohere',
-      isHostedCredential: true,
-      maxWaitMs: 1,
-    }
-    let stored: { key: string; tokens: string; lastRefillAt: Date } | undefined
-    dbChainMockFns.values.mockImplementation((row) => {
-      stored ??= { ...(row as typeof rateLimitBucket.$inferSelect) }
-      return { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }
-    })
-    dbChainMockFns.limit.mockImplementation(async () => [stored])
-    dbChainMockFns.set.mockImplementation((values) => {
-      Object.assign(stored!, values)
-      return { where: vi.fn().mockResolvedValue(undefined) }
-    })
-    const bucket = new DbTokenBucket()
-    /** The single-dimension refill arithmetic the atomic statement mirrors in SQL. */
-    consumeTokens.mockImplementation(async ([reservation]) => {
-      const result = await bucket.consumeTokens(
-        reservation.key,
-        reservation.cost,
-        reservation.config
-      )
-      return { allowed: result.allowed, retryAfterMs: result.retryAfterMs ?? 0 }
-    })
-
-    for (let request = 0; request < 16; request++) await waitForProviderAdmission(input)
-    await expect(waitForProviderAdmission(input)).rejects.toMatchObject({ retryAfterMs: 1000 })
-    for (let second = 0; second < 60; second++) {
-      await vi.advanceTimersByTimeAsync(1000)
-      for (let request = 0; request < 10; request++) await waitForProviderAdmission(input)
-      await expect(waitForProviderAdmission(input)).rejects.toMatchObject({ retryAfterMs: 1000 })
-    }
-    expect(stored?.tokens).toBe('0')
-    expect(new Set(consumeTokens.mock.calls.map(([reservations]) => reservations[0].key))).toEqual(
-      new Set(['provider:rerank:cohere:hashed-credential:requests'])
-    )
-  })
-
   it('stops waiting immediately when the caller aborts', async () => {
     consumeTokens.mockResolvedValue({ allowed: false, retryAfterMs: 5000 })
     const controller = new AbortController()
@@ -303,8 +259,8 @@ describe('provider admission', () => {
     })
     expect(consumeTokens).not.toHaveBeenCalled()
   })
-  it('does not interpret a failed rate_limit_bucket query as a reason to retry provider work', async () => {
-    consumeTokens.mockRejectedValue(new Error('rate_limit_bucket database unavailable'))
+  it('does not interpret a failed rate-limit storage call as a reason to retry provider work', async () => {
+    consumeTokens.mockRejectedValue(new Error('rate-limit storage unavailable'))
     const operation = vi.fn(() => waitForProviderAdmission(INPUT))
     await expect(retryWithExponentialBackoff(operation, { maxRetries: 3 })).rejects.toMatchObject({
       retryable: false,

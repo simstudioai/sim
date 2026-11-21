@@ -222,7 +222,6 @@ async function adoptSharedSnapshot(
     if (!isInsideTriggerRun()) return false
     const { getRedisClient } = await import('@/lib/core/config/redis')
     const redis = getRedisClient()
-    if (!redis) return false
     const stored = await redis.get(sharedSnapshotKey(context.ids))
     if (!stored) return false
     const snapshot = toRecordOrNull(JSON.parse(stored))
@@ -256,7 +255,6 @@ function publishSharedSnapshot(ids: AppConfigProfileIdentifiers, entry: CacheEnt
     if (isInsideTriggerRun()) return
     const { getRedisClient } = await import('@/lib/core/config/redis')
     const redis = getRedisClient()
-    if (!redis) return
     await redis.eval(
       PUBLISH_SNAPSHOT_SCRIPT,
       1,

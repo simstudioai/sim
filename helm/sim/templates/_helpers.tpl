@@ -321,8 +321,77 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- fail "externalDatabase.password must only contain alphanumeric characters, hyphens, underscores, or periods to ensure DATABASE_URL compatibility." }}
 {{- end }}
 {{- end }}
+{{- include "sim.validateRedis" . }}
 {{- /* ESO coverage validation - every key set in app.env / realtime.env must be mapped in externalSecrets.remoteRefs.app */ -}}
 {{- include "sim.validateExternalSecretCoverage" . }}
+{{- end }}
+
+{{/*
+Sim requires Redis. With redis.enabled=false every enabled component (app,
+realtime) must get REDIS_URL from a source that reaches its pod:
+
+  - both pods: a top-level extraEnvVars entry named REDIS_URL (inlined on app
+    and realtime), or app.env.REDIS_URL / realtime.env.REDIS_URL (written into
+    the app Secret both pods envFrom)
+  - app only: app.envDefaults.REDIS_URL (inlined on the app container)
+  - realtime only: realtime.envDefaults.REDIS_URL (inlined on realtime)
+
+A pre-created app Secret cannot be read, so it is trusted. Under External
+Secrets the same check runs in sim.validateExternalSecretCoverage, where a
+remoteRefs.app.REDIS_URL mapping stands in for the app Secret.
+*/}}
+{{- define "sim.validateRedis" -}}
+{{- $useExistingAppSecret := and .Values.app.secrets .Values.app.secrets.existingSecret .Values.app.secrets.existingSecret.enabled }}
+{{- $useExternalSecrets := and .Values.externalSecrets .Values.externalSecrets.enabled }}
+{{- if not (or $useExistingAppSecret $useExternalSecrets) }}
+{{- $inSecret := or (include "sim.nonEmptyEnv" (list .Values.app.env "REDIS_URL")) (include "sim.nonEmptyEnv" (list .Values.realtime.env "REDIS_URL")) }}
+{{- $uncovered := include "sim.redisUncoveredComponents" (dict "root" . "shared" $inSecret) }}
+{{- if $uncovered }}
+{{- fail (printf "Sim requires Redis: redis.enabled=false but no REDIS_URL reaches the %s pod. Set app.env.REDIS_URL to your Redis (redis:// or rediss://), add a REDIS_URL entry to extraEnvVars (e.g. valueFrom.secretKeyRef), supply it via app.secrets.existingSecret or externalSecrets.remoteRefs.app.REDIS_URL, or set redis.enabled=true to deploy the bundled Redis." $uncovered) }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+"true" when the env map (first arg) holds a non-empty value for the key (second arg).
+*/}}
+{{- define "sim.nonEmptyEnv" -}}
+{{- $value := index (index . 0 | default dict) (index . 1) -}}
+{{- if and $value (ne (toString $value) "") (ne (toString $value) "<nil>") -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
+With redis.enabled=false, the enabled components ("app", "realtime", joined by
+" and ") that no REDIS_URL source reaches. `shared` is whether the app Secret
+carries REDIS_URL, which both pods envFrom. An envDefaults REDIS_URL counts
+only while no app.env (or, for realtime, realtime.env) REDIS_URL masks it: the
+deployments skip inlining a default the operator set there. Empty when every
+enabled component is covered, or when the chart deploys Redis itself.
+*/}}
+{{- define "sim.redisUncoveredComponents" -}}
+{{- $root := .root -}}
+{{- if not $root.Values.redis.enabled -}}
+{{- $shared := .shared -}}
+{{- range $root.Values.extraEnvVars | default list -}}
+{{- if and (eq (toString .name) "REDIS_URL") (or .valueFrom (and .value (ne (toString .value) ""))) -}}
+{{- $shared = true -}}
+{{- end -}}
+{{- end -}}
+{{- $setInAppEnv := include "sim.nonEmptyEnv" (list $root.Values.app.env "REDIS_URL") -}}
+{{- $setInRealtimeEnv := include "sim.nonEmptyEnv" (list $root.Values.realtime.env "REDIS_URL") -}}
+{{- $appDefault := and (not $setInAppEnv) (include "sim.nonEmptyEnv" (list $root.Values.app.envDefaults "REDIS_URL")) -}}
+{{- $realtimeDefault := and (not $setInAppEnv) (not $setInRealtimeEnv) (include "sim.nonEmptyEnv" (list $root.Values.realtime.envDefaults "REDIS_URL")) -}}
+{{- $uncovered := list -}}
+{{- if and $root.Values.app.enabled (not $shared) (not $appDefault) -}}
+{{- $uncovered = append $uncovered "app" -}}
+{{- end -}}
+{{- if and $root.Values.realtime.enabled (not $shared) (not $realtimeDefault) -}}
+{{- $uncovered = append $uncovered "realtime" -}}
+{{- end -}}
+{{- join " and " $uncovered -}}
+{{- end -}}
 {{- end }}
 
 {{/*
@@ -351,6 +420,15 @@ than enforced.
   runtime CrashLoopBackOff with cryptic env errors. Fail at template time
   if the key is neither set in app.env nor mapped via remoteRefs.app.
 */}}
+{{- /*
+  Only remoteRefs reach the synced Secret: app.env / realtime.env must be mapped there too (checked
+  below for each enabled component), and a disabled component's env is synced nowhere.
+*/ -}}
+{{- $redisInSecret := index $remoteRefs "REDIS_URL" -}}
+{{- $redisUncovered := include "sim.redisUncoveredComponents" (dict "root" . "shared" $redisInSecret) -}}
+{{- if $redisUncovered -}}
+{{- fail (printf "Required key 'REDIS_URL' is missing for the %s pod: redis.enabled=false and externalSecrets.enabled=true but the key is neither mapped in externalSecrets.remoteRefs.app nor supplied by an extraEnvVars entry. Map it via externalSecrets.remoteRefs.app.REDIS_URL='path/in/store' so it is synced into the app Secret." $redisUncovered) }}
+{{- end -}}
 {{- if .Values.app.enabled -}}
 {{- $required := list "BETTER_AUTH_SECRET" "ENCRYPTION_KEY" "INTERNAL_API_SECRET" -}}
 {{- if .Values.cronjobs.enabled -}}

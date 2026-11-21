@@ -6,7 +6,6 @@
  */
 import {
   ASYNC_JOBS_CAPABILITY,
-  CACHE_CAPABILITY,
   EMAIL_CAPABILITY,
   type EnvCapabilityConfigurationError,
   type EnvCapabilityValues,
@@ -72,10 +71,6 @@ export interface JobsCapabilityStatus extends FeatureStatusBase<'jobs'> {
   providerId: 'database' | 'trigger-dev'
 }
 
-export interface CacheCapabilityStatus extends FeatureStatusBase<'cache'> {
-  providerId: 'database' | 'redis'
-}
-
 export interface KnowledgeCapabilityStatus extends FeatureStatusBase<'knowledge'> {
   providerId: 'local' | 'mistral' | 'azure-mistral' | null
 }
@@ -107,7 +102,6 @@ interface FeatureStatusById {
   storage: StorageCapabilityStatus
   sandbox: SandboxCapabilityStatus
   jobs: JobsCapabilityStatus
-  cache: CacheCapabilityStatus
   knowledge: KnowledgeCapabilityStatus
   'knowledge-embeddings': KnowledgeEmbeddingsCapabilityStatus
   llm: LlmCapabilityStatus
@@ -318,29 +312,6 @@ function inspectJobs(values: EnvCapabilityValues): JobsCapabilityStatus {
   }
 }
 
-function inspectCache(values: EnvCapabilityValues): CacheCapabilityStatus {
-  const inspection = inspectCapability(CACHE_CAPABILITY, values)
-  if (!inspection.error && inspection.providerId) {
-    return {
-      ...featureMetadata('cache'),
-      state: inspection.providerId === 'database' ? 'default' : 'configured',
-      providerId: inspection.providerId,
-    }
-  }
-
-  if (!inspection.error) {
-    throw new Error('Cache inspection failed without a configuration error')
-  }
-  const redis = inspection.providers.find((provider) => provider.id === 'redis')
-  const state: CapabilityStatusIssue['state'] = redis?.state === 'invalid' ? 'invalid' : 'partial'
-  return {
-    ...featureMetadata('cache'),
-    state,
-    providerId: 'redis',
-    issue: issue(state, inspection.error),
-  }
-}
-
 function inspectKnowledge(values: EnvCapabilityValues): KnowledgeCapabilityStatus {
   const inspection = inspectCapability(OCR_CAPABILITY, values)
   if (!inspection.error && inspection.providerId) {
@@ -486,7 +457,6 @@ const FEATURE_STATUS_BUILDERS = {
   storage: inspectStorage,
   sandbox: inspectSandbox,
   jobs: inspectJobs,
-  cache: inspectCache,
   knowledge: inspectKnowledge,
   'knowledge-embeddings': inspectKnowledgeEmbeddings,
   llm: inspectLlm,
@@ -500,7 +470,6 @@ export function buildEnvCapabilityStatus(values: EnvCapabilityValues): EnvCapabi
       storage: FEATURE_STATUS_BUILDERS.storage(values),
       sandbox: FEATURE_STATUS_BUILDERS.sandbox(values),
       jobs: FEATURE_STATUS_BUILDERS.jobs(values),
-      cache: FEATURE_STATUS_BUILDERS.cache(values),
       knowledge: FEATURE_STATUS_BUILDERS.knowledge(values),
       'knowledge-embeddings': FEATURE_STATUS_BUILDERS['knowledge-embeddings'](values),
       llm: FEATURE_STATUS_BUILDERS.llm(values),

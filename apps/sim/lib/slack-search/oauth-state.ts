@@ -48,19 +48,13 @@ redis.call('DEL', KEYS[1])
 return value
 `
 
-function requireRedis() {
-  const redis = getRedisClient()
-  if (!redis) throw new Error('Slack OAuth setup requires Redis')
-  return redis
-}
-
 function stateKey(state: string) {
   return `slack-search:oauth:${sha256Hex(state)}`
 }
 
 export async function storeSlackSearchOAuthAttempt(attempt: SlackSearchOAuthAttempt) {
   const state = generateId()
-  const saved = await requireRedis().set(
+  const saved = await getRedisClient().set(
     stateKey(state),
     JSON.stringify(attemptSchema.parse(attempt)),
     'EX',
@@ -73,7 +67,7 @@ export async function storeSlackSearchOAuthAttempt(attempt: SlackSearchOAuthAtte
 
 /** Consumes only the initiating browser session's attempt; another session cannot invalidate it. */
 export async function consumeSlackSearchOAuthAttempt(state: string, principal: SessionPrincipal) {
-  const value = await requireRedis().eval(
+  const value = await getRedisClient().eval(
     CONSUME,
     1,
     stateKey(state),

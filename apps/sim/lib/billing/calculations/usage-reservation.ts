@@ -366,7 +366,7 @@ function localKeyArguments(keys: LocalReservationKeys): string[] {
 }
 
 async function rollbackCreatedReservation(params: {
-  redis: NonNullable<ReturnType<typeof getRedisClient>>
+  redis: ReturnType<typeof getRedisClient>
   keys: LocalReservationKeys
   reservationId: string
   descriptorValue: string
@@ -480,11 +480,6 @@ export async function reserveExecutionSlot(
   }
 
   const redis = getRedisClient()
-  if (!redis) {
-    throw new UsageReservationUnavailableError(
-      'Usage admission is temporarily unavailable. Please retry.'
-    )
-  }
 
   const { billingEntity, plan, member } = params
   const reservationId = requireBoundedIdentifier(
@@ -649,11 +644,6 @@ export async function refreshExecutionSlotExpiry(
   if (!isHosted || !isBillingEnabled) return true
 
   const redis = getRedisClient()
-  if (!redis) {
-    throw new UsageReservationUnavailableError(
-      'Usage admission is temporarily unavailable. Please retry.'
-    )
-  }
 
   const now = Date.now()
   if (!Number.isSafeInteger(expiresAt) || expiresAt <= now) {
@@ -720,9 +710,6 @@ export async function releaseExecutionSlot(reservationId: string): Promise<void>
   }
 
   const redis = getRedisClient()
-  if (!redis) {
-    return
-  }
 
   try {
     const boundedReservationId = requireBoundedIdentifier(reservationId, 'reservation id')

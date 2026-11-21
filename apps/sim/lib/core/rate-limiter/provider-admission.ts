@@ -146,9 +146,7 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
       throw new ProviderQuotaExhaustedError(input.providerId)
     let result: AtomicAdmissionResult
     try {
-      result = await createStorageAdapter({
-        requireConfiguredBackend: true,
-      }).consumeTokensAtomically(reservations, {
+      result = await createStorageAdapter().consumeTokensAtomically(reservations, {
         cooldownKeys: [`${key}:cooldown`, `${key}:quota`],
         deadlineAt,
         signal: input.signal,
@@ -202,9 +200,7 @@ function providerKey(identity: ProviderIdentity): string {
 
 export async function isProviderQuotaExhausted(identity: ProviderIdentity): Promise<boolean> {
   try {
-    const until = await createStorageAdapter({ requireConfiguredBackend: true }).getCooldownUntil(
-      `${providerKey(identity)}:quota`
-    )
+    const until = await createStorageAdapter().getCooldownUntil(`${providerKey(identity)}:quota`)
     return (until?.getTime() ?? 0) > Date.now()
   } catch (error) {
     throw new ProviderAdmissionStorageError(error)
@@ -220,7 +216,7 @@ export async function recordProviderCooldown(
   if (!Number.isFinite(waitMs) || waitMs <= 0)
     throw new Error('Provider cooldown must be positive and finite')
   try {
-    await createStorageAdapter({ requireConfiguredBackend: true }).setCooldownUntil(
+    await createStorageAdapter().setCooldownUntil(
       `${providerKey(identity)}:${quotaExhausted ? 'quota' : 'cooldown'}`,
       new Date(Date.now() + waitMs)
     )

@@ -18,15 +18,13 @@ export const defaultMockEnv = {
   BETTER_AUTH_SECRET: 'test-secret-that-is-at-least-32-chars-long',
   ENCRYPTION_KEY: 'test-encryption-key-32-chars-long!',
   INTERNAL_API_SECRET: 'test-internal-api-secret-32-chars!',
+  REDIS_URL: 'redis://localhost:6379',
 
   // Email
   RESEND_API_KEY: 'test-resend-key',
   FROM_EMAIL_ADDRESS: 'Sim <noreply@test.sim.ai>',
   EMAIL_DOMAIN: 'test.sim.ai',
   PERSONAL_EMAIL_FROM: 'Test <test@test.sim.ai>',
-
-  // Cache
-  REDIS_URL: undefined,
 
   // Storage
   STORAGE_PROVIDER: 'local',

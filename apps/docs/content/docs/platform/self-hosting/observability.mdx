@@ -95,7 +95,7 @@ Sim's hosted-key metrics recorder arms itself whenever `AWS_ACCESS_KEY_ID` is pr
 | Ingress 5xx rate above baseline | Broad user impact |
 | Postgres connections above 80% of `max_connections` | Next replica or traffic spike will start failing |
 | Postgres disk above 80% | Knowledge base embeddings grow steadily |
-| Redis unreachable | Live collaboration and status updates can stop; inspect app and realtime connection errors |
+| Redis unreachable | Redis is required: rate limiting, one-time passcodes, live collaboration, and status updates depend on it. Inspect app and realtime connection errors |
 | Certificate expiry within 14 days | Especially with manually managed certs |
 | Object storage 4xx/5xx rate | Broken uploads usually show here first |
 

@@ -60,16 +60,15 @@ export function payerPrefixEpochKey(entity: BillingEntity): string {
  */
 export function readyRedisClient(): Redis | null {
   const redis = getRedisClient()
-  return redis?.status === 'ready' ? redis : null
+  return redis.status === 'ready' ? redis : null
 }
 
 /**
- * Throws when a configured Redis is not ready, since its stored prefixes then outlive the bump:
- * each caller logs that like a failed or timed-out SET. Without Redis there is nothing to discard.
+ * Throws when Redis is not ready, since its stored prefixes then outlive the bump: each caller
+ * logs that like a failed or timed-out SET.
  */
 async function replaceEpoch(epochKey: string): Promise<void> {
   const redis = getRedisClient()
-  if (!redis) return
   if (redis.status !== 'ready') throw new Error(`Redis not ready (${redis.status})`)
   await withinDeadline(
     () => redis.set(epochKey, generateShortId(), 'PX', PREFIX_EPOCH_RETAIN_MS),

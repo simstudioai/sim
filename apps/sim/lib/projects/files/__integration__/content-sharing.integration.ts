@@ -16,7 +16,6 @@ import {
   publicShare,
   subscription,
   user,
-  verification,
   workspace,
   workspaceFileSecretProvenance,
   workspaceFiles,
@@ -575,12 +574,10 @@ describe('Public file shares against PostgreSQL and private storage', () => {
       await (
         await requestPublicFileShareOtp({ token: share.token, email: 'outsider@shared.invalid' })
       ).deliver()
+      const { getRedisClient } = await import('@/lib/core/config/redis')
       const storedCode = async (address: string) => {
-        const [row] = await db
-          .select({ value: verification.value })
-          .from(verification)
-          .where(eq(verification.identifier, `file-otp:${share.id}:${address}`))
-        return row?.value.split(':')[0]
+        const value = await getRedisClient().get(`otp:file:${address}:${share.id}`)
+        return value?.split(':')[0]
       }
       expect(await storedCode('outsider@shared.invalid')).toBeUndefined()
       const failure = { authorized: false, status: 400, error: 'Invalid verification code' }

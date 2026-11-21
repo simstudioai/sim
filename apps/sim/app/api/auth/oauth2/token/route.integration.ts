@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { auth } from '@/lib/auth'
 import * as tokenStore from '@/lib/auth/oauth-access-token'
 import * as provider from '@/lib/auth/oauth-provider'
+import { getRedisClient } from '@/lib/core/config/redis'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { POST as revokeRoute } from '@/app/api/auth/oauth2/revoke/route'
 import { POST as tokenRoute } from '@/app/api/auth/oauth2/token/route'
@@ -251,9 +252,7 @@ describe('OAuth token route in PostgreSQL', () => {
         await db.delete(schema.verification).where(like(schema.verification.value, `%${userId}%`))
         await db.delete(schema.oauthClient).where(eq(schema.oauthClient.clientId, clientId))
         await db.delete(schema.user).where(eq(schema.user.id, userId))
-        await db
-          .delete(schema.rateLimitBucket)
-          .where(eq(schema.rateLimitBucket.key, `route:oauth-provider-token:ip:${clientIp}`))
+        await getRedisClient().del(`ratelimit:tb:route:oauth-provider-token:ip:${clientIp}`)
         requestUtilsMockFns.mockGetClientIp.mockReturnValue('127.0.0.1')
       }
     },
@@ -728,14 +727,10 @@ describe('OAuth token route in PostgreSQL', () => {
         .delete(schema.subscription)
         .where(eq(schema.subscription.referenceId, organizationId))
       await db.delete(schema.organization).where(eq(schema.organization.id, organizationId))
-      await db
-        .delete(schema.rateLimitBucket)
-        .where(
-          inArray(schema.rateLimitBucket.key, [
-            `route:oauth-provider-token:ip:${clientIp}`,
-            `route:oauth-provider-revoke:ip:${clientIp}`,
-          ])
-        )
+      await getRedisClient().del(
+        `ratelimit:tb:route:oauth-provider-token:ip:${clientIp}`,
+        `ratelimit:tb:route:oauth-provider-revoke:ip:${clientIp}`
+      )
       requestUtilsMockFns.mockGetClientIp.mockReset()
       requestUtilsMockFns.mockGetClientIp.mockReturnValue('127.0.0.1')
     }

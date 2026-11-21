@@ -1,9 +1,9 @@
 import {
   ASYNC_JOBS_CAPABILITY,
-  CACHE_CAPABILITY,
   CORE_CONFIGURATION_KEYS,
   EMAIL_CAPABILITY,
   EnvCapabilityConfigurationError,
+  getRedisConfigurationError,
   inspectCapability,
   inspectOAuthClientCapability,
   OAUTH_CLIENT_CAPABILITIES,
@@ -121,6 +121,7 @@ const REQUIRED_KEYS: Partial<Record<EnvTarget, readonly string[]>> = {
     'BETTER_AUTH_SECRET',
     'INTERNAL_API_SECRET',
     'NEXT_PUBLIC_APP_URL',
+    'REDIS_URL',
   ],
   db: ['DATABASE_URL'],
   // Compose's single root .env only carries the secrets that have no safe
@@ -264,6 +265,17 @@ function checkSchema(ctx: CheckContext): Finding[] {
           })
         }
       }
+      if (key === 'REDIS_URL') {
+        const redisError = getRedisConfigurationError(file.vars)
+        if (redisError) {
+          findings.push({
+            group: 'schema',
+            status: 'fail',
+            message: `${rel(file)}: ${redisError}`,
+            fix: `correct the Redis settings in ${rel(file)}`,
+          })
+        }
+      }
     }
     if (missing.length === 0 && findings.every((f) => !f.message.startsWith(rel(file)))) {
       findings.push({
@@ -346,10 +358,6 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     {
       command: getSetupCommand(ASYNC_JOBS_CAPABILITY.id),
       resolve: () => requireCapability(ASYNC_JOBS_CAPABILITY, sim.vars),
-    },
-    {
-      command: getSetupCommand(CACHE_CAPABILITY.id),
-      resolve: () => requireCapability(CACHE_CAPABILITY, sim.vars),
     },
     {
       command: getSetupCommand(SANDBOX_CAPABILITY.id),
@@ -674,10 +682,25 @@ async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
 }
 
 async function checkRedis(sim: EnvFile): Promise<Finding[]> {
-  const inspection = inspectCapability(CACHE_CAPABILITY, sim.vars)
-  if (inspection.error || inspection.providerId !== 'redis') return []
+  // With no env file yet the files check already reports it; a Redis failure would only repeat it.
+  if (!sim.exists) {
+    return [{ group: 'live', status: 'skip', message: 'redis: no env file yet' }]
+  }
   const redisUrl = sim.vars.get('REDIS_URL')
-  if (!redisUrl) throw new Error('Redis resolved as ready without REDIS_URL')
+  // A Compose install's REDIS_URL comes from the service definition, not the root .env.
+  if (!redisUrl && sim.target === 'root') {
+    return [{ group: 'live', status: 'skip', message: 'redis: REDIS_URL is set by Compose' }]
+  }
+  if (!redisUrl || getRedisConfigurationError(sim.vars)) {
+    return [
+      {
+        group: 'live',
+        status: 'fail',
+        message: 'redis: REDIS_URL is missing or invalid',
+        fix: 'set REDIS_URL to a reachable redis:// or rediss:// URL (npx sim-setup can manage a Redis container)',
+      },
+    ]
+  }
   const ping = await redisPing(redisUrl)
   return [
     ping.ok
@@ -686,7 +709,7 @@ async function checkRedis(sim: EnvFile): Promise<Finding[]> {
           group: 'live',
           status: 'fail',
           message: `redis unreachable: ${ping.error}`,
-          fix: 'fix REDIS_URL or remove it (optional for single-replica)',
+          fix: 'start Redis (npx sim-setup can manage a Redis container) or fix REDIS_URL',
         },
   ]
 }

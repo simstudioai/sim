@@ -7,8 +7,6 @@ const logger = createLogger('WebhookPendingVerification')
 const DEFAULT_TTL_SECONDS = 120
 const REDIS_KEY_PREFIX = 'webhook:pending-verification:'
 
-const inMemoryPendingVerificationStore = new Map<string, PendingWebhookVerification>()
-
 export interface PendingWebhookVerification {
   path: string
   provider: string
@@ -89,20 +87,6 @@ function isExpired(entry: PendingWebhookVerification): boolean {
   return entry.expiresAt <= Date.now()
 }
 
-function getInMemoryPendingWebhookVerification(path: string): PendingWebhookVerification | null {
-  const entry = inMemoryPendingVerificationStore.get(path)
-  if (!entry) {
-    return null
-  }
-
-  if (isExpired(entry)) {
-    inMemoryPendingVerificationStore.delete(path)
-    return null
-  }
-
-  return entry
-}
-
 export function requiresPendingWebhookVerification(
   provider: string,
   metadata?: Record<string, unknown>
@@ -137,12 +121,12 @@ export async function registerPendingWebhookVerification(
     expiresAt: Date.now() + ttlSeconds * 1000,
   }
 
-  const redis = getRedisClient()
-  if (redis) {
-    await redis.set(getRedisKey(registration.path), JSON.stringify(entry), 'EX', ttlSeconds)
-  } else {
-    inMemoryPendingVerificationStore.set(registration.path, entry)
-  }
+  await getRedisClient().set(
+    getRedisKey(registration.path),
+    JSON.stringify(entry),
+    'EX',
+    ttlSeconds
+  )
 
   logger.info('Registered pending webhook verification', {
     provider: registration.provider,
@@ -155,39 +139,30 @@ export async function getPendingWebhookVerification(
   path: string
 ): Promise<PendingWebhookVerification | null> {
   const redis = getRedisClient()
-  if (redis) {
-    const value = await redis.get(getRedisKey(path))
-    if (!value) {
-      return null
-    }
+  const value = await redis.get(getRedisKey(path))
+  if (!value) {
+    return null
+  }
 
-    try {
-      const entry = JSON.parse(value) as PendingWebhookVerification
-      if (isExpired(entry)) {
-        await redis.del(getRedisKey(path))
-        return null
-      }
-      return entry
-    } catch (error) {
-      logger.warn('Failed to parse pending webhook verification entry', {
-        path,
-        error: toError(error).message,
-      })
+  try {
+    const entry = JSON.parse(value) as PendingWebhookVerification
+    if (isExpired(entry)) {
       await redis.del(getRedisKey(path))
       return null
     }
+    return entry
+  } catch (error) {
+    logger.warn('Failed to parse pending webhook verification entry', {
+      path,
+      error: toError(error).message,
+    })
+    await redis.del(getRedisKey(path))
+    return null
   }
-
-  return getInMemoryPendingWebhookVerification(path)
 }
 
 export async function clearPendingWebhookVerification(path: string): Promise<void> {
-  const redis = getRedisClient()
-  if (redis) {
-    await redis.del(getRedisKey(path))
-  } else {
-    inMemoryPendingVerificationStore.delete(path)
-  }
+  await getRedisClient().del(getRedisKey(path))
 
   logger.info('Cleared pending webhook verification', { path })
 }

@@ -7,7 +7,7 @@ const EnvSchema = z.object({
   DATABASE_REPLICA_URL_REALTIME: z.string().url().optional(),
   REDIS_URL: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-    z.string().url().optional()
+    z.string({ error: 'REDIS_URL is required' }).url()
   ),
   BETTER_AUTH_URL: z.string().url(),
   BETTER_AUTH_SECRET: z.string().min(32),

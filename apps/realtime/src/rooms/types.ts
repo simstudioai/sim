@@ -41,17 +41,7 @@ export interface UserSession {
 }
 
 /**
- * Room presence state.
- */
-export interface RoomState {
-  room: RoomRef
-  users: Map<string, UserPresence>
-  lastModified: number
-  activeConnections: number
-}
-
-/**
- * Common interface for room managers (in-memory and Redis).
+ * Common interface for the room manager (implemented by `RedisRoomManager`).
  *
  * The manager is domain-neutral: it tracks room membership and presence keyed by
  * {@link RoomRef}, and knows nothing about workflows, files, or any specific

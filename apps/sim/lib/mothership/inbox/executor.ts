@@ -176,7 +176,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
               .returning({ id: copilotChats.id })
             // The rename won — do not announce a title the row no longer holds.
             if (stamped.length === 0) return
-            chatPubSub?.publishStatusChanged({
+            chatPubSub.publishStatusChanged({
               workspaceId: ws.id,
               chatId,
               type: 'renamed',
@@ -187,7 +187,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
           logger.warn('Failed to generate chat title', { chatId, err })
         })
 
-      chatPubSub?.publishStatusChanged({
+      chatPubSub.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'created',
@@ -197,7 +197,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     const userMessageId = generateId()
 
     if (chatId) {
-      chatPubSub?.publishStatusChanged({
+      chatPubSub.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'started',
@@ -315,7 +315,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       .where(eq(mothershipInboxTask.id, taskId))
 
     if (chatId) {
-      chatPubSub?.publishStatusChanged({
+      chatPubSub.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'completed',

@@ -19,14 +19,6 @@ function getSessionKey(credentialId: string, target: SlackStreamSessionTarget): 
   return `slack:agent-session:${credentialId}:${target.channel}:${target.threadTs}`
 }
 
-function requireRedis() {
-  const redis = getRedisClient()
-  if (!redis) {
-    throw new Error('Redis is required for Slack agent session streaming')
-  }
-  return redis
-}
-
 function parseExecution(value: string): SlackStreamSessionExecution {
   const parsed = JSON.parse(value) as unknown
   if (
@@ -51,7 +43,7 @@ export async function registerSlackStreamSession(
   target: SlackStreamSessionTarget,
   execution: SlackStreamSessionExecution
 ): Promise<void> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const key = getSessionKey(credentialId, target)
   await redis
     .multi()
@@ -65,7 +57,7 @@ export async function unregisterSlackStreamSession(
   target: SlackStreamSessionTarget,
   executionId: string
 ): Promise<void> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const key = getSessionKey(credentialId, target)
   await redis.eval(
     `
@@ -85,7 +77,7 @@ export async function listSlackStreamSessions(
   credentialId: string,
   target: SlackStreamSessionTarget
 ): Promise<SlackStreamSessionExecution[]> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const values = await redis.hvals(getSessionKey(credentialId, target))
   if (!Array.isArray(values)) {
     throw new Error('Invalid Redis response for Slack agent session lookup')

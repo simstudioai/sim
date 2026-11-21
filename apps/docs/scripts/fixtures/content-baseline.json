@@ -173281,8 +173281,8 @@
         {
           "lang": "text",
           "meta": null,
-          "sha256": "a45ddc97179f78324455bd2d0f25917282f721b3962c68e7455d9917e32379f5",
-          "bytes": 852,
+          "sha256": "673549d971c13b6c90e7b362eff976c647ad34aa6282346e3b66b738d479478c",
+          "bytes": 828,
           "line": 329
         }
       ],
@@ -173878,126 +173878,126 @@
           "meta": null,
           "sha256": "297876dd58effad6b4b090076d0ef45be7e8bfed12f88675b87163dd3994bf2d",
           "bytes": 267,
-          "line": 35
+          "line": 39
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "1207989a26fa955c4393c00573ddef43c081589c29f31ac59e33c21ec5cbcd24",
           "bytes": 460,
-          "line": 53
+          "line": 57
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "ebd6f30ec1291421eb6a701952e95b5e95d26c11da036967e1f8763ae3e53cb5",
           "bytes": 62,
-          "line": 67
+          "line": 71
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "ef408cf27c701be6e6a5f6d18e697faaee73fa7c45fc9f10c73d2f27f3ced278",
           "bytes": 67,
-          "line": 71
+          "line": 75
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "cf37759439567599919c84244b0ba560f03ef642d1af27396fc1a356b26b90ca",
           "bytes": 701,
-          "line": 81
+          "line": 85
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "2c02be05f3177ceb5daa6aa1598f3b56d79d929eadb8d3c64463697fc68cbfb4",
           "bytes": 89,
-          "line": 125
+          "line": 129
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "df68603f8a69b1564ae8792b1bf46bead93f1635ad2cf6aba1b0e53e250f2276",
           "bytes": 176,
-          "line": 134
+          "line": 138
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "ed8c55ae5557bb7dbe7bf3c4e6fea6d0a1afaab691bfaf5452bd19707cf5df59",
           "bytes": 193,
-          "line": 156
+          "line": 160
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "49ba0eabaea74095c7bf5b0d0a73d16eb74cc1eba7a112fa2c98311345dd750e",
           "bytes": 214,
-          "line": 172
+          "line": 176
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "a1f59ab8940c1e0727969aa6e93265c859abb5faadabf08c4cc9a4a4c0b42dfe",
           "bytes": 821,
-          "line": 192
+          "line": 196
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "dd8942b9048a34ff56d9db7b7a76c8dad1412c0fc7d5b8aeca28f2d704740e51",
           "bytes": 130,
-          "line": 228
+          "line": 232
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "78c085f5cd3de3d18a521eef6bbf9039067fad49d81139b1d782d07ebe314cf6",
           "bytes": 864,
-          "line": 243
+          "line": 247
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "1dfa426d61e4433a888e565f694495f8448d610d39b8ca1155a8618ff6fed976",
           "bytes": 183,
-          "line": 272
+          "line": 276
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "1ce222972b46042dd9583d7681fd0ddb1895e3b7966efb8e3f692050714bd753",
           "bytes": 288,
-          "line": 285
+          "line": 289
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "7829d9f42845f3c88229a162bca612db3a9e1dc7c09c70e530de7daf539c97a7",
           "bytes": 194,
-          "line": 299
+          "line": 303
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "5c09247e6bc794856c1f448ef7995291c75ad497932c62ba34b939954f5fa008",
           "bytes": 56,
-          "line": 318
+          "line": 322
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "a31bca6832c9273c0d24c26b45f04bc6dd2e6d0841080971ecc3fa76055eb9bf",
           "bytes": 117,
-          "line": 329
+          "line": 333
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "486ac558c4262f2f4cf319ccb39b6883911bb16cd173cabf47980a246bd1b32b",
           "bytes": 40,
-          "line": 338
+          "line": 342
         }
       ],
       "links": [
@@ -174974,13 +174974,18 @@
       "bytes": 6715,
       "frontmatter": {
         "title": "Redis",
-        "description": "When Redis is optional, when it is required, and how to configure it"
+        "description": "Why Sim requires Redis, what it backs, and how to configure it"
       },
       "headings": [
         {
           "title": "What it backs",
           "url": "#what-it-backs",
           "depth": 2
+        },
+        {
+          "title": "Eviction policy",
+          "url": "#eviction-policy",
+          "depth": 3
         },
         {
           "title": "Configuration",
@@ -175072,28 +175077,28 @@
           "meta": null,
           "sha256": "eb73d81bd9564fdbb8cd1a57ac1eb1bdd906e057d04d5a6414ddbd7b67ff2cc3",
           "bytes": 103,
-          "line": 27
+          "line": 52
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "59ac0be78ca58845392d8e9d91445a890fad94ebf9659d1ac2a1c0183e04e0c3",
           "bytes": 97,
-          "line": 49
+          "line": 84
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "75128b92e81c8670e89b93d25c8a6f695fc5ba9bf9e84c21b3a7a8dd45357014",
           "bytes": 116,
-          "line": 87
+          "line": 122
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "f81661b02c93f78580f48d5e525a71d31d59cedd7974bcdcfc00588cf2f070aa",
           "bytes": 312,
-          "line": 96
+          "line": 131
         }
       ],
       "links": [
@@ -175236,7 +175241,7 @@
           "meta": null,
           "sha256": "84007d710ad43b8238b79e9bf599510bdbe4af4967fdd8ba16e3ea753d186b9c",
           "bytes": 1381,
-          "line": 138
+          "line": 142
         }
       ],
       "links": [
@@ -175555,35 +175560,35 @@
           "meta": null,
           "sha256": "6d56d9453ee52a49d2dc12540f7c190354b0624ef1ac23bbded9c7ee40aa639f",
           "bytes": 131,
-          "line": 26
+          "line": 30
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "8c382d74d832410c9c2ee0df5bf225951474f715ec638f0fd5ead7648601f1ba",
           "bytes": 140,
-          "line": 48
+          "line": 52
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "87dd4fd553ca2c5b50cb2459cc2411cb7a5f2cf5805c7019482f3d6060cca458",
           "bytes": 43,
-          "line": 65
+          "line": 69
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "973060d6289adb956c0e24441d547751e58f731c47962b3949672a61bee7ea10",
           "bytes": 71,
-          "line": 98
+          "line": 102
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "be931c51a1b69c7051582ecc60db3d243f86cf6819c48400b4d4017c6e1f4909",
           "bytes": 932,
-          "line": 141
+          "line": 145
         }
       ],
       "links": [
@@ -175933,6 +175938,11 @@
           "depth": 2
         },
         {
+          "title": "App refuses to start: REDIS_URL is required",
+          "url": "#app-refuses-to-start-redis_url-is-required",
+          "depth": 2
+        },
+        {
           "title": "App crashes at startup with a REDIS_TLS_SERVERNAME error",
           "url": "#app-crashes-at-startup-with-a-redis_tls_servername-error",
           "depth": 2
@@ -176066,70 +176076,70 @@
           "meta": null,
           "sha256": "c54df79de3f702f739f9fe5c288c3a9fcc348197d33272df3187cf74b5ad8117",
           "bytes": 197,
-          "line": 138
+          "line": 142
         },
         {
           "lang": "yaml",
           "meta": null,
           "sha256": "7b4b8ea041d0669f220e56eeabcd0c5c906738646a647de5bb1a548983ffc2d3",
           "bytes": 280,
-          "line": 148
+          "line": 152
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "4fd1ce391cf85e5093c6348b4d57dac12c1302939037c308314bd8e12c260b38",
           "bytes": 117,
-          "line": 171
+          "line": 175
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "7a9aac79c13c638a232f991fc97e9076d7080ec7ac75d80c60eb780b42e1d4bd",
           "bytes": 76,
-          "line": 187
+          "line": 191
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "ce7ef86fc4fbeab2fdae583b7e60a64259680ac3374b92e8c7641601ca35af93",
           "bytes": 207,
-          "line": 200
+          "line": 204
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "8560a7167d89cfcd9241ccda8ad1ed21f36e8dc5f108714518fe306aadbd5222",
           "bytes": 61,
-          "line": 231
+          "line": 235
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "a69235481ad1a0208b7ab7a563c83664dce5cc1ca5ec486ae08b9c10c194ca94",
           "bytes": 108,
-          "line": 239
+          "line": 243
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "341e83bdf0029a50800e322164b960fd942b1344aa38b563aea95a5640ca103b",
           "bytes": 190,
-          "line": 246
+          "line": 250
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "62bb3e351950d9f5d7f8ed10bfae6fa61dddb02dcfbaa1a5a27f805d3c861df9",
           "bytes": 13,
-          "line": 273
+          "line": 277
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "7b2c4142afb1d9e4d4609bd3746ddf70d89307eda5cc804cf471c5527dbc3f3d",
           "bytes": 65,
-          "line": 278
+          "line": 282
         }
       ],
       "links": [

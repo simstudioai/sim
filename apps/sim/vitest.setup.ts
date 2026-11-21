@@ -3,6 +3,7 @@ import { databaseMock, drizzleOrmMock } from '@sim/testing/mocks/database.mock'
 import { envMock } from '@sim/testing/mocks/env.mock'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { environmentUtilsMock } from '@sim/testing/mocks/environment-utils.mock'
+import { executionSignalMock } from '@sim/testing/mocks/execution-signal.mock'
 import { setupGlobalFetchMock } from '@sim/testing/mocks/fetch.mock'
 import { hybridAuthMock } from '@sim/testing/mocks/hybrid-auth.mock'
 import { loggerMock } from '@sim/testing/mocks/logger.mock'
@@ -53,6 +54,7 @@ vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 vi.mock('@/lib/core/config/env', () => envMock)
 vi.mock('@/lib/core/utils/urls', () => urlsMock)
 vi.mock('@/lib/core/config/redis', () => redisConfigMock)
+vi.mock('@/lib/execution/signal', () => executionSignalMock)
 vi.mock('@/lib/environment/utils', () => environmentUtilsMock)
 
 vi.mock('@/stores/terminal', () => terminalConsoleMock)

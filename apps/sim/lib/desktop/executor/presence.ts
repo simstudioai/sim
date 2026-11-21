@@ -14,28 +14,21 @@ function presenceKey(deviceId: string): string {
   return `desktop:presence:${deviceId}`
 }
 
-/** Whether presence can be tracked at all, which needs Redis. */
-export function isDesktopPresenceAvailable(): boolean {
-  return getRedisClient() !== null
-}
-
 /**
  * Records that the device just made a request. Best effort: presence only decides how fast an
  * unclaimed call fails, so a Redis error must not fail the request that proves the device is awake.
  */
 export async function markDesktopPresent(deviceId: string): Promise<void> {
-  const redis = getRedisClient()
-  if (!redis) return
   try {
+    const redis = getRedisClient()
     await redis.set(presenceKey(deviceId), '1', 'EX', DESKTOP_PRESENCE_TTL_SECONDS)
   } catch (error) {
     logger.warn('Could not record desktop presence', { deviceId, error: toError(error).message })
   }
 }
 
-/** Whether the device made a request within the presence TTL; a missing Redis reads as absent. */
+/** Whether the device made a request within the presence TTL. */
 export async function isDesktopPresent(deviceId: string): Promise<boolean> {
   const redis = getRedisClient()
-  if (!redis) return false
   return (await redis.exists(presenceKey(deviceId))) === 1
 }

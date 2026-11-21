@@ -316,6 +316,12 @@ export {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
 } from './execution-preprocessing.mock'
+// Execution signal hub mocks (for @/lib/execution/signal)
+export {
+  deliverExecutionSignal,
+  executionSignalMock,
+  executionSignalMockFns,
+} from './execution-signal.mock'
 export {
   executorPrincipalMock,
   executorPrincipalMockFns,

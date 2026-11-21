@@ -9,8 +9,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const { createServer } = await import('node:http')
   const worker = {
     requests: [] as Array<{ path: string; body: Record<string, unknown> }>,
@@ -33,14 +32,11 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const url = readTestRedisUrl()
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
   }
-  process.env.REDIS_URL = url
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
-  return { redisUrl: url, inheritedEnv, worker: Object.assign(worker, { server }) }
+  return { inheritedEnv, worker: Object.assign(worker, { server }) }
 })
 
 vi.mock('@/lib/auth', () => authMock)
@@ -136,8 +132,8 @@ async function orphanedRunWithTrimmedRing() {
     ),
     { streamId }
   )
-  await getRedisClient()!.set(`mothership_stream:${streamId}:seq`, '4')
-  await getRedisClient()!.zremrangebyrank(`mothership_stream:${streamId}:events`, 0, 1)
+  await getRedisClient().set(`mothership_stream:${streamId}:seq`, '4')
+  await getRedisClient().zremrangebyrank(`mothership_stream:${streamId}:events`, 0, 1)
   const frame = (seq: number, type: string, payload: unknown) => ({
     v: 1,
     type,
@@ -187,7 +183,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', () => {
+describe('recovering a run whose ring lost its head', () => {
   beforeAll(async () => {
     const now = new Date()
     await db.insert(user).values({
@@ -254,7 +250,7 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
     // the response rather than running, or billing, the turn again.
     expect(worker.requests.map((request) => request.path)).toEqual(['/api/mothership'])
     expect(worker.requests[0].body).toMatchObject({ messageId: streamId, receivedTextChars: 0 })
-    expect(await getRedisClient()!.get(chatStreamLockKey(chatId))).toBeNull()
+    expect(await getRedisClient().get(chatStreamLockKey(chatId))).toBeNull()
   })
 
   it('shows replayed tools once and never re-runs a re-handed call the dead controller ran', async () => {
@@ -352,7 +348,7 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
 
   it('numbers a recovered turn past a ring whose events are all unreadable', async () => {
     const { streamId, runId, frame } = await orphanedRunWithTrimmedRing()
-    const redis = getRedisClient()!
+    const redis = getRedisClient()
     const eventsKey = `mothership_stream:${streamId}:events`
     await redis.del(eventsKey)
     await redis.zadd(eventsKey, 1, 'corrupt-1', 2, 'corrupt-2', 3, 'corrupt-3', 4, 'corrupt-4')

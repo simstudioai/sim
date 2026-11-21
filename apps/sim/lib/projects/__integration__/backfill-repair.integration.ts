@@ -335,13 +335,18 @@ describeWithRedis('Operator archive repair against the full compatible schema', 
         import { db, dbReplica } from '@sim/db';
         import assert from 'node:assert/strict';
         import postgres from 'postgres';
+        import { sleep } from '@sim/utils/helpers';
         const client = postgres(process.env.MIGRATION_DATABASE_URL, {max:1});
         const unsubscribe = mcpPubSub.onWorkflowToolsChanged(() => { throw new Error('fixture subscriber failed'); });
         const received = [];
         const unsubscribeHealthy = mcpPubSub.onWorkflowToolsChanged((event) => received.push(event));
+        const notified = () => received.some((event) => event.serverId === '${serverId}' && event.workspaceId === 'local-env');
         try {
+          await mcpPubSub.ready();
           await repairArchivedProjectEnvironment(client, {workspaceId:'local-env', archivedAt:'2026-05-01 00:00:00', workflowIds:['local-flow']}, 'local-subscriber');
-          assert.ok(received.some((event) => event.serverId === '${serverId}' && event.workspaceId === 'local-env'), 'Healthy subscriber missed the archive notification');
+          const deadline = Date.now() + 10000;
+          while (!notified() && Date.now() < deadline) await sleep(25);
+          assert.ok(notified(), 'Healthy subscriber missed the archive notification');
         } finally {
           unsubscribe(); unsubscribeHealthy(); mcpPubSub.dispose(); await client.end();
           await Promise.all([...new Set([db.$client,dbReplica.$client])].map(client=>client.end()));
@@ -350,7 +355,7 @@ describeWithRedis('Operator archive repair against the full compatible schema', 
         ],
         {
           cwd: new URL('../../../', import.meta.url),
-          env: { ...environment, REDIS_URL: '' },
+          env: environment,
           timeout: 45000,
         }
       )

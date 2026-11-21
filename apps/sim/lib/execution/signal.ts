@@ -273,41 +273,6 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
   }
 }
 
-class LocalExecutionSignalHub implements ExecutionSignalHub {
-  private readonly handlers = new Map<string, Set<ExecutionSignalHandler>>()
-
-  async subscribe(executionId: string, handler: ExecutionSignalHandler): Promise<() => void> {
-    const channel = getExecutionSignalChannel(executionId)
-    let channelHandlers = this.handlers.get(channel)
-    if (!channelHandlers) {
-      channelHandlers = new Set()
-      this.handlers.set(channel, channelHandlers)
-    }
-    channelHandlers.add(handler)
-    return () => {
-      const current = this.handlers.get(channel)
-      if (!current) return
-      current.delete(handler)
-      if (current.size === 0) this.handlers.delete(channel)
-    }
-  }
-
-  publish(
-    executionId: string,
-    reason: Extract<ExecutionSignalReason, 'event' | 'cancelled'>
-  ): void {
-    const channelHandlers = this.handlers.get(getExecutionSignalChannel(executionId))
-    if (!channelHandlers) return
-    for (const handler of channelHandlers) {
-      try {
-        handler(reason)
-      } catch (error) {
-        logger.error('Local execution signal handler failed', { error: toError(error).message })
-      }
-    }
-  }
-}
-
 type ExecutionSignalGlobal = typeof globalThis & {
   _executionSignalHub?: ExecutionSignalHub
 }
@@ -315,13 +280,7 @@ type ExecutionSignalGlobal = typeof globalThis & {
 const executionSignalGlobal = globalThis as ExecutionSignalGlobal
 
 export function getExecutionSignalHub(): ExecutionSignalHub {
-  if (executionSignalGlobal._executionSignalHub) return executionSignalGlobal._executionSignalHub
-  const redisUrl = getConfiguredRedisUrl()
-  if (!redisUrl) {
-    executionSignalGlobal._executionSignalHub = new LocalExecutionSignalHub()
-    return executionSignalGlobal._executionSignalHub
-  }
-  executionSignalGlobal._executionSignalHub = new RedisExecutionSignalHub(redisUrl)
+  executionSignalGlobal._executionSignalHub ??= new RedisExecutionSignalHub(getConfiguredRedisUrl())
   return executionSignalGlobal._executionSignalHub
 }
 
@@ -341,15 +300,4 @@ export function connectExecutionSignalHub(): void {
   } catch {
     return
   }
-}
-
-export function publishLocalExecutionSignal(
-  executionId: string,
-  reason: Extract<ExecutionSignalReason, 'event' | 'cancelled'>
-): void {
-  const hub = getExecutionSignalHub()
-  if (!(hub instanceof LocalExecutionSignalHub)) {
-    throw new Error('Local execution signals are unavailable while Redis is configured')
-  }
-  hub.publish(executionId, reason)
 }

@@ -16,11 +16,10 @@ const CLAIM_TTL_SECONDS = 7 * 24 * 60 * 60
 export type DemoBookerStatus = 'verified' | 'unverified'
 
 /**
- * What a booking request finds for its attendee: the form's verdict, `unseen`
- * when no form submission vouches for the email, or `unavailable` when there is
- * no Redis to ask.
+ * What a booking request finds for its attendee: the form's verdict, or `unseen`
+ * when no form submission vouches for the email.
  */
-export type DemoBookerLookup = DemoBookerStatus | 'unseen' | 'unavailable'
+export type DemoBookerLookup = DemoBookerStatus | 'unseen'
 
 /** Keys on a hash, so Redis never holds a visitor's email address. */
 function bookerKey(email: string): string {
@@ -34,7 +33,6 @@ function bookerKey(email: string): string {
  */
 export async function recordDemoBooker(email: string, status: DemoBookerStatus): Promise<void> {
   const redis = getRedisClient()
-  if (!redis) return
   if (status === 'verified') {
     await redis.set(bookerKey(email), status, 'EX', BOOKER_TTL_SECONDS)
   } else {
@@ -67,8 +65,6 @@ export async function claimDemoBooker(
   bookingUid: string
 ): Promise<DemoBookerLookup> {
   const redis = getRedisClient()
-  if (!redis) return 'unavailable'
-
   const lookup = await redis.eval(
     CLAIM_SCRIPT,
     2,

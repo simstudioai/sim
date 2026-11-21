@@ -6,7 +6,6 @@
  */
 import {
   ASYNC_JOBS_CAPABILITY,
-  CACHE_CAPABILITY,
   type CapabilityDefinition,
   EMAIL_CAPABILITY,
   ENV_CAPABILITIES,
@@ -653,36 +652,6 @@ export const JOBS_SETUP = defineCapabilitySetup(ASYNC_JOBS_CAPABILITY, {
   optionOrder: ['database', 'trigger-dev'],
 })
 
-export const CACHE_SETUP = defineCapabilitySetup(CACHE_CAPABILITY, {
-  label: 'Redis cache',
-  message: 'Cache and realtime coordination?',
-  actions: {},
-  defaultOption: { hint: 'built-in default' },
-  providers: {
-    redis: {
-      hint: 'recommended for multiple replicas',
-      prompts: [
-        {
-          type: 'field',
-          key: 'REDIS_URL',
-          input: 'text',
-          required: true,
-          defaultValue: 'redis://localhost:6379',
-          validate: true,
-        },
-        {
-          type: 'field',
-          key: 'REDIS_TLS_SERVERNAME',
-          input: 'text',
-          required: true,
-          when: { kind: 'provider-missing-field', key: 'REDIS_TLS_SERVERNAME' },
-        },
-      ],
-    },
-  },
-  optionOrder: ['database', 'redis'],
-})
-
 export const KNOWLEDGE_SETUP = defineCapabilitySetup(OCR_CAPABILITY, {
   label: 'Knowledge and OCR',
   message: 'PDF OCR provider?',
@@ -972,7 +941,6 @@ export const CAPABILITY_SETUPS = [
   STORAGE_SETUP,
   SANDBOX_SETUP,
   JOBS_SETUP,
-  CACHE_SETUP,
   KNOWLEDGE_SETUP,
   KNOWLEDGE_EMBEDDINGS_SETUP,
 ] as const

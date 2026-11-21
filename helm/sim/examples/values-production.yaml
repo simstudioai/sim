@@ -73,10 +73,8 @@ app:
 realtime:
   enabled: true
   # Safe to scale: Socket.IO bridges events across pods through its Redis
-  # adapter, and the chart bundles Redis by default (redis.enabled). If you
-  # set redis.enabled=false without supplying app.env.REDIS_URL, drop this
-  # back to 1 and disable autoscaling.realtime below — multi-replica realtime
-  # without Redis silently drops cross-pod collaboration updates.
+  # adapter. Sim requires Redis — the chart bundles it (redis.enabled) unless
+  # you supply REDIS_URL for a managed instance.
   replicaCount: 2
 
   resources:
@@ -182,9 +180,8 @@ certManager:
 # Horizontal Pod Autoscaler (automatically scales pods based on CPU/memory usage)
 autoscaling:
   enabled: true
-  # Realtime scales with the app because Redis is available by default. Set
-  # this to false if you run without Redis (redis.enabled=false and no
-  # app.env.REDIS_URL) — multi-replica realtime would drop cross-pod events.
+  # Realtime scales with the app; Redis (always required) bridges its
+  # cross-pod events. Set false to pin realtime at realtime.replicaCount.
   realtime:
     enabled: true
   minReplicas: 2

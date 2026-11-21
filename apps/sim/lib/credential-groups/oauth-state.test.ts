@@ -89,28 +89,6 @@ describe('credential group OAuth state', () => {
     await expect(consumeCredentialGroupOAuthAttempt(created.state)).resolves.toBeNull()
   })
 
-  it('fails closed when Redis is unavailable', async () => {
-    vi.mocked(getRedisClient).mockReturnValue(null)
-
-    await expect(
-      createCredentialGroupOAuthAttempt({
-        provider: 'gmail',
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        email: 'person@example.com',
-        enrollmentId: 'enrollment-1',
-        credentialGroupId: 'group-1',
-        optionId: 'option-1',
-        authorizationAppId: 'google:app',
-        scopeVersion: 1,
-        requiredScopes: ['openid'],
-        redirectUri: 'https://sim.ai/callback',
-        codeVerifier: 'code-verifier',
-        invitationToken: 'invitation-token',
-      })
-    ).rejects.toThrow('Credential group OAuth requires Redis')
-  })
-
   it('rejects an arbitrary stored return URL while consuming the state only once', async () => {
     const created = await createCredentialGroupOAuthAttempt({
       provider: 'gmail',

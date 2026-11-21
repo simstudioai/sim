@@ -1094,16 +1094,13 @@
   "apps/sim/lib/core/rate-limiter/hosted-key/rate-limiter.test.ts": {
     "TS2352": 1
   },
-  "apps/sim/lib/core/rate-limiter/provider-admission.test.ts": {
-    "TS2345": 1
-  },
   "apps/sim/lib/core/rate-limiter/rate-limiter.test.ts": {
     "TS2307": 4,
     "TS2352": 1,
     "TS2664": 2
   },
   "apps/sim/lib/core/rate-limiter/storage/factory.test.ts": {
-    "TS2345": 2
+    "TS2345": 1
   },
   "apps/sim/lib/core/security/encryption.test.ts": {
     "TS2352": 2
@@ -2060,9 +2057,6 @@
     "TS2502": 1
   },
   "apps/sim/lib/table/dispatcher.test.ts": {
-    "TS2322": 1
-  },
-  "apps/sim/lib/table/events.test.ts": {
     "TS2322": 1
   },
   "apps/sim/lib/table/jobs/service.test.ts": {

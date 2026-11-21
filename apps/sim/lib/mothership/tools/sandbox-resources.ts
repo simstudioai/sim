@@ -78,12 +78,6 @@ const contextKey = (token: string) => `mothership:sandbox-resources:${token}:con
 const inboxKey = (token: string) => `mothership:sandbox-resources:${token}:inbox`
 const seenKey = (token: string) => `mothership:sandbox-resources:${token}:seen`
 
-function redisClient() {
-  const redis = getRedisClient()
-  if (!redis) throw new Error('Sandbox resource tracking requires Redis')
-  return redis
-}
-
 /** Only the admitted in-process tool can bind an endpoint; arguments cannot select a chat. */
 export async function sandboxResourceEndpoint(
   endpoint: string,
@@ -125,10 +119,10 @@ export async function sandboxResourceEndpoint(
   }
   active.fileOwnerProtocolVersion = fileOwnerProtocolVersion
   active.workspaceFileCopy = workspaceFileCopy
-  await redisClient().set(contextKey(token), JSON.stringify(scope), 'EX', CONTEXT_TTL_SECONDS)
+  await getRedisClient().set(contextKey(token), JSON.stringify(scope), 'EX', CONTEXT_TTL_SECONDS)
   active.token = token
   if (active.signal.aborted) {
-    await redisClient().del(contextKey(token))
+    await getRedisClient().del(contextKey(token))
     active.signal.throwIfAborted()
   }
   return `${endpoint.replace(/\/$/, '')}/api/mothership/sandbox/${token}`
@@ -140,7 +134,7 @@ export async function readSandboxResourceScope(
   apiKey: string | null
 ): Promise<SandboxResourceScope | null> {
   if (!/^[0-9a-f-]{36}$/.test(token) || !apiKey) return null
-  const raw = await redisClient().get(contextKey(token))
+  const raw = await getRedisClient().get(contextKey(token))
   if (!raw) return null
   const scope = scopeSchema.parse(JSON.parse(raw))
   if (scope.apiKeyHash !== sha256Hex(apiKey) || !(await isActiveSandboxResourceOwner(scope)))
@@ -169,9 +163,9 @@ export async function recordSandboxResourceEffects(
   }
   for (const effect of effects) {
     try {
-      if (!(await redisClient().exists(contextKey(token)))) return
+      if (!(await getRedisClient().exists(contextKey(token)))) return
       await persistResourceEffect(scope.chatId, effect)
-      await redisClient().eval(
+      await getRedisClient().eval(
         "if redis.call('exists', KEYS[1]) == 0 then return 0 end if redis.call('sadd', KEYS[3], ARGV[3]) == 0 then return 0 end redis.call('rpush', KEYS[2], ARGV[1]); redis.call('expire', KEYS[2], ARGV[2]); redis.call('expire', KEYS[3], ARGV[2]); return 1",
         3,
         contextKey(token),
@@ -199,7 +193,7 @@ export async function withSandboxResourceScope<T>(
     if (active.token) {
       void (async () => {
         try {
-          await redisClient().del(contextKey(active.token!))
+          await getRedisClient().del(contextKey(active.token!))
         } catch {
           logger.warn('Sandbox resource scope revocation deferred to lease fencing', {
             toolCallId: identity.toolCallId,
@@ -212,7 +206,7 @@ export async function withSandboxResourceScope<T>(
   const drain = async (all = false): Promise<boolean> => {
     if (!active.token || signal.aborted) return true
     try {
-      const redis = redisClient()
+      const redis = getRedisClient()
       do {
         const entries = await redis.lrange(inboxKey(active.token), 0, 63)
         if (entries.length && !(await isActiveSandboxResourceOwner(identity))) return true
@@ -243,7 +237,7 @@ export async function withSandboxResourceScope<T>(
   const renew = async () => {
     if (!active.token || signal.aborted) return
     try {
-      await redisClient().expire(contextKey(active.token), CONTEXT_TTL_SECONDS)
+      await getRedisClient().expire(contextKey(active.token), CONTEXT_TTL_SECONDS)
     } catch {
       logger.warn('Sandbox resource scope renewal deferred', { toolCallId: identity.toolCallId })
     }
@@ -263,9 +257,9 @@ export async function withSandboxResourceScope<T>(
     signal.removeEventListener('abort', revoke)
     if (active.token) {
       try {
-        await redisClient().del(contextKey(active.token))
-        if (await drain(true)) await redisClient().del(inboxKey(active.token))
-        await redisClient().del(seenKey(active.token))
+        await getRedisClient().del(contextKey(active.token))
+        if (await drain(true)) await getRedisClient().del(inboxKey(active.token))
+        await getRedisClient().del(seenKey(active.token))
       } catch {
         logger.warn('Sandbox resource scope cleanup deferred to expiry', {
           toolCallId: identity.toolCallId,

@@ -164,33 +164,6 @@ describe('execution event buffer', () => {
     })
   })
 
-  it('uses the configured in-memory provider when database cache mode is selected', async () => {
-    setEnv({ REDIS_URL: undefined })
-    mockGetRedisClient.mockReturnValue(null)
-    const executionId = 'exec-database-provider'
-
-    await expect(
-      initializeExecutionStreamMeta(executionId, {
-        workflowId: 'wf-1',
-        userId: 'user-1',
-      })
-    ).resolves.toBe(true)
-    const writer = createExecutionEventWriter(executionId)
-    const entry = await writer.write({
-      ...makeEvent('function-local'),
-      executionId,
-    })
-
-    await expect(readExecutionEventsState(executionId, 0)).resolves.toMatchObject({
-      status: 'ok',
-      events: [{ eventId: entry.eventId, event: { type: 'block:started' } }],
-    })
-    await expect(readExecutionMetaState(executionId)).resolves.toMatchObject({
-      status: 'found',
-      meta: { status: 'active', protocolVersion: 1 },
-    })
-  })
-
   it('retains active runs through the execution ceiling but expires terminal streams after an hour', async () => {
     await setExecutionMeta('exec-1', { status: 'active' })
     await setExecutionMeta('exec-1', { status: 'complete' })
@@ -241,32 +214,6 @@ describe('execution event buffer', () => {
     expect(signalChannel).toBe('execution:signal:exec-1')
     expect(snapshot).toBe(JSON.stringify(activeBlockStarts))
     expect(ttlSeconds).toBeGreaterThan(60 * 60)
-  })
-
-  it('does not replace a terminal process-local snapshot with a late block event', async () => {
-    setEnv({ REDIS_URL: undefined })
-    mockGetRedisClient.mockReturnValue(null)
-    const executionId = 'exec-terminal-snapshot'
-
-    await expect(markExecutionStreamTerminal(executionId, 'cancelled')).resolves.toBe(true)
-    await expect(
-      setExecutionActiveBlockStarts(executionId, [
-        {
-          eventId: 9,
-          data: {
-            blockId: 'function-late',
-            blockName: 'Late',
-            blockType: 'function',
-            executionOrder: 3,
-          },
-        },
-      ])
-    ).resolves.toBe(true)
-
-    await expect(readExecutionMetaState(executionId)).resolves.toMatchObject({
-      status: 'found',
-      meta: { status: 'cancelled', activeBlockStarts: [] },
-    })
   })
 
   it('serializes event id reservation so reconnect replay preserves write order', async () => {

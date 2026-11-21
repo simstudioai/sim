@@ -88,12 +88,4 @@ describe('cli-auth approval store', () => {
       await expect(pollApproval(REQUEST, SECRET)).resolves.toEqual({ status: 'pending' })
     })
   })
-
-  describe('without Redis', () => {
-    beforeEach(() => mockGetRedisClient.mockReturnValue(null))
-
-    it('fails fast on write', async () => {
-      await expect(createApproval('user-1', REQUEST, CHALLENGE)).rejects.toThrow('REDIS_URL')
-    })
-  })
 })

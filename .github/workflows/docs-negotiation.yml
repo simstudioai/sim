@@ -334,6 +334,17 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # The platform consumer runs the app's docs search in-process, and its provider admission
+      # needs Redis.
+      search-redis:
+        image: ${{ (matrix.group == 'http' || matrix.group == 'platform') && 'redis:8.2-alpine' || '' }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:1/docs_test
       DOCS_E2E_BASE_URL: http://127.0.0.1:3001
@@ -348,6 +359,7 @@ jobs:
       DOCS_SAMPLES_SYNTAX_LANGUAGES: javascript,python,bash,go,java,csharp
       DOCS_SAMPLES_HTTP_BASE_URL: http://127.0.0.1:3001
       DOCS_PROVIDER_E2E_DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:5432/docs_search_test
+      DOCS_PROVIDER_E2E_REDIS_URL: redis://127.0.0.1:6379
       DOCS_PROVIDER_E2E_BASE_URL: http://127.0.0.1:3001
       DOCS_PROVIDER_E2E_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/platform-consumer/report.json
     steps:

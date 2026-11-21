@@ -106,7 +106,6 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel', () => {
         new WorkflowRunAlreadyTerminalError({
           executionId: RUN_ID,
           executionStatus,
-          redisAvailable: true,
           locallyAborted: false,
         })
       )

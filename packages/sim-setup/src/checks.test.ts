@@ -210,6 +210,17 @@ describe('registration mode checks', () => {
   })
 })
 
+describe('doctor live checks', () => {
+  beforeEach(() => rmSync(fakeRoot, { recursive: true, force: true }))
+
+  it('leaves the missing env file as the only report instead of failing Redis', async () => {
+    const findings = await runChecks(loadCheckContext(true), ['live'])
+
+    const redis = findings.filter((finding) => finding.message.startsWith('redis'))
+    expect(redis).toEqual([{ group: 'live', status: 'skip', message: 'redis: no env file yet' }])
+  })
+})
+
 describe('doctor --fix on env files', () => {
   const files = {
     sim: path.join(fakeRoot, 'apps/sim/.env'),

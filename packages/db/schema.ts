@@ -1861,6 +1861,7 @@ export const subscription = pgTable(
   })
 )
 
+// contract-pending(after the release that stops using it is deployed): drop rate_limit_bucket — Redis is required and the Postgres token bucket and provider-capacity store were removed, so no deployed release reads or writes it.
 export const rateLimitBucket = pgTable('rate_limit_bucket', {
   key: text('key').primaryKey(),
   tokens: decimal('tokens').notNull(),

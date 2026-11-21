@@ -16,12 +16,6 @@ redis.call('DEL', KEYS[1])
 return request.encrypted
 `
 
-function redis() {
-  const client = getRedisClient()
-  if (!client) throw new Error('Desktop connections require Redis')
-  return client
-}
-
 function requestKey(requestId: string) {
   return `desktop:source-request:${sha256Hex(requestId)}`
 }
@@ -47,7 +41,7 @@ export const createDesktopSourceRequest = defineAuthorizedCredentialUserUseCase(
     if (!/^[A-Za-z0-9_-]{32}$/.test(requestId))
       throw new OrchestrationError('validation', 'Invalid connection request')
     const { encrypted } = await encryptSecret(input.payload)
-    const saved = await redis().set(
+    const saved = await getRedisClient().set(
       requestKey(requestId),
       JSON.stringify({ userId: principal.userId, encrypted }),
       'EX',
@@ -74,7 +68,12 @@ export const consumeDesktopSourceRequest = defineAuthorizedCredentialUserUseCase
     principal: { userId: string }
     input: { requestId: string }
   }) {
-    const encrypted = await redis().eval(CONSUME, 1, requestKey(input.requestId), principal.userId)
+    const encrypted = await getRedisClient().eval(
+      CONSUME,
+      1,
+      requestKey(input.requestId),
+      principal.userId
+    )
     if (typeof encrypted !== 'string')
       throw new OrchestrationError(
         'not_found',

@@ -490,7 +490,7 @@ export async function finishWorkflowArchive(
     options.strictExternalCleanup
   )
 
-  if (workspaceId && mcpPubSub) {
+  if (workspaceId) {
     for (const serverId of new Set(serverIds)) {
       try {
         mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })

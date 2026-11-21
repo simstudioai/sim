@@ -15,6 +15,7 @@ import {
 } from '@sim/testing/factories/principal.factory'
 import { customBlockOperationsMock } from '@sim/testing/mocks/custom-block-operations.mock'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { executionSignalMockFns } from '@sim/testing/mocks/execution-signal.mock'
 import {
   largeValueMetadataMock,
   largeValueMetadataMockFns,
@@ -108,13 +109,7 @@ vi.mock('@/lib/execution/cancellation', () => ({
   clearExecutionCancellation: clearExecutionCancellationMock,
 }))
 
-const { connectExecutionSignalHubMock } = vi.hoisted(() => ({
-  connectExecutionSignalHubMock: vi.fn(),
-}))
-
-vi.mock('@/lib/execution/signal', () => ({
-  connectExecutionSignalHub: connectExecutionSignalHubMock,
-}))
+const connectExecutionSignalHubMock = executionSignalMockFns.mockConnectExecutionSignalHub
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 

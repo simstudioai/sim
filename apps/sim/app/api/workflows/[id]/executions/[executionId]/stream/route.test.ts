@@ -1,14 +1,13 @@
 import { authMockFns, createMockRequest, workflowAuthzMockFns } from '@sim/testing'
+import { executionSignalMockFns } from '@sim/testing/mocks/execution-signal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
 
-const { mockReadExecutionEventsState, mockReadExecutionMetaState, mockSubscribe } = vi.hoisted(
-  () => ({
-    mockReadExecutionEventsState: vi.fn(),
-    mockReadExecutionMetaState: vi.fn(),
-    mockSubscribe: vi.fn(),
-  })
-)
+const { mockReadExecutionEventsState, mockReadExecutionMetaState } = vi.hoisted(() => ({
+  mockReadExecutionEventsState: vi.fn(),
+  mockReadExecutionMetaState: vi.fn(),
+}))
+const mockSubscribe = executionSignalMockFns.mockSubscribe
 
 const mockAuthorizeWorkflowByWorkspacePermission =
   workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
@@ -17,10 +16,6 @@ vi.mock('@/lib/execution/event-buffer', () => ({
   EXECUTION_STREAM_PROTOCOL_VERSION: 1,
   readExecutionEventsState: mockReadExecutionEventsState,
   readExecutionMetaState: mockReadExecutionMetaState,
-}))
-
-vi.mock('@/lib/execution/signal', () => ({
-  getExecutionSignalHub: () => ({ subscribe: mockSubscribe }),
 }))
 
 import { GET } from './route'
@@ -191,7 +186,7 @@ describe('execution stream reconnect route', () => {
     let signalHandler: ((reason: 'event') => void) | undefined
     mockSubscribe.mockImplementationOnce(async (_executionId, handler) => {
       signalHandler = handler
-      return vi.fn()
+      return vi.fn<() => void>()
     })
     mockReadExecutionMetaState
       .mockResolvedValueOnce({
@@ -253,7 +248,7 @@ describe('execution stream reconnect route', () => {
     let signalHandler: ((reason: 'event') => void) | undefined
     mockSubscribe.mockImplementationOnce(async (_executionId, handler) => {
       signalHandler = handler
-      return vi.fn()
+      return vi.fn<() => void>()
     })
     const staleActiveMeta = {
       status: 'found' as const,
@@ -313,7 +308,7 @@ describe('execution stream reconnect route', () => {
   it('fails the observer closed when its Redis signal subscription becomes unavailable', async () => {
     mockSubscribe.mockImplementationOnce(async (_executionId, handler) => {
       queueMicrotask(() => handler('unavailable'))
-      return vi.fn()
+      return vi.fn<() => void>()
     })
     const req = createMockRequest(
       'GET',
