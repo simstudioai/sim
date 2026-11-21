@@ -33,7 +33,7 @@ function fixture() {
   return { session, machine, key }
 }
 afterAll(async () => {
-  if (keys.length) await getRedisClient()?.del(...keys)
+  if (keys.length) await getRedisClient().del(...keys)
   await closeRedisConnection()
 })
 

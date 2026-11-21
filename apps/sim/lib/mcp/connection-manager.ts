@@ -12,6 +12,7 @@ import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.ser
  */
 
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { isTest } from '@/lib/core/config/env-flags'
 import { McpClient } from '@/lib/mcp/client'
@@ -82,22 +83,34 @@ export class McpConnectionManager {
   private disposed = false
   private unsubscribePubSub?: () => void
 
-  constructor() {
-    if (mcpPubSub) {
-      this.unsubscribePubSub = mcpPubSub.onToolsChanged((event) => {
-        this.notifyLocalListeners(event)
-      })
-    }
-  }
-
   /**
    * Subscribe to tools-changed events from any managed connection.
    * Returns an unsubscribe function.
    */
   subscribe(listener: ToolsChangedListener): () => void {
+    this.joinCrossProcessEvents()
     this.listeners.add(listener)
     return () => {
       this.listeners.delete(listener)
+    }
+  }
+
+  /**
+   * Joins the cross-process tools-changed channel on the first subscriber rather than at
+   * construction: the manager is built at import, which `next build` runs without REDIS_URL.
+   * A subscriber that arrives before Redis is reachable is still served locally, and the
+   * next subscriber tries again.
+   */
+  private joinCrossProcessEvents(): void {
+    if (this.disposed || this.unsubscribePubSub) return
+    try {
+      this.unsubscribePubSub = mcpPubSub.onToolsChanged((event) => {
+        this.notifyLocalListeners(event)
+      })
+    } catch (error) {
+      logger.warn('Could not join the MCP tools-changed channel; retrying on the next subscriber', {
+        error: toError(error).message,
+      })
     }
   }
 
@@ -368,7 +381,7 @@ export class McpConnectionManager {
 
     logger.info('Tools changed — publishing to pub/sub', { serverName: state.serverName })
 
-    mcpPubSub?.publishToolsChanged(event)
+    mcpPubSub.publishToolsChanged(event)
   }
 
   private handleDisconnect(config: McpServerConfig, userId: string, workspaceId: string): void {

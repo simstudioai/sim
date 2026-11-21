@@ -13,12 +13,6 @@ const stateSchema = z.object({
 })
 export type SlackSearchOnboardingState = z.infer<typeof stateSchema>
 
-function requireRedis() {
-  const redis = getRedisClient()
-  if (!redis) throw new Error('Slack onboarding requires Redis')
-  return redis
-}
-
 function stateKey(token: string) {
   return `slack-search:onboarding:${sha256Hex(token)}`
 }
@@ -26,7 +20,7 @@ function stateKey(token: string) {
 /** Navigation proof only: every read and retry separately verifies the signed-in Slack sender. */
 export async function storeSlackSearchOnboardingState(state: SlackSearchOnboardingState) {
   const token = generateId()
-  const result = await requireRedis().set(
+  const result = await getRedisClient().set(
     stateKey(token),
     JSON.stringify(stateSchema.parse(state)),
     'EX',
@@ -38,7 +32,7 @@ export async function storeSlackSearchOnboardingState(state: SlackSearchOnboardi
 }
 
 export async function readSlackSearchOnboardingState(token: string) {
-  const value = await requireRedis().get(stateKey(token))
+  const value = await getRedisClient().get(stateKey(token))
   if (!value)
     throw new OrchestrationError(
       'validation',

@@ -49,7 +49,6 @@ describe('env capability status', () => {
       SMTP_HOST: 'localhost',
       TRIGGER_DEV_ENABLED: 'true',
       TRIGGER_PROJECT_ID: 'project',
-      REDIS_URL: 'not-a-url',
       OCR_AZURE_ENDPOINT: 'https://ocr.example.com',
     })
 
@@ -61,7 +60,6 @@ describe('env capability status', () => {
       missingFields: ['SMTP_PORT'],
     })
     expect(status.features.jobs).toMatchObject({ state: 'partial', providerId: 'trigger-dev' })
-    expect(status.features.cache).toMatchObject({ state: 'invalid', providerId: 'redis' })
     expect(status.features.knowledge).toMatchObject({
       state: 'partial',
       providerId: 'azure-mistral',

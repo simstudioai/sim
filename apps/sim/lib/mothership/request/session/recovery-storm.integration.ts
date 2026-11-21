@@ -134,7 +134,7 @@ vi.mock('@/lib/mothership/request/session/buffer', async (importOriginal) => {
         throw new Error('simulated transient Redis write failure')
       }
       /** The lock expires under a live controller, and nobody else holds it. */
-      if (hit && fault.effect === 'lose_lease') await getRedisClient()!.del(lease.key)
+      if (hit && fault.effect === 'lose_lease') await getRedisClient().del(lease.key)
       return actual.appendEvents(...args)
     },
     readEvents: async (...args: Parameters<typeof actual.readEvents>) => {
@@ -182,7 +182,6 @@ const chatIds: string[] = []
 
 function redis() {
   const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
   return client
 }
 

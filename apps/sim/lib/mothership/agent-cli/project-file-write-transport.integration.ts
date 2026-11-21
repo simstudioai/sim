@@ -608,7 +608,6 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
         executionLeaseExpiresAt: new Date(Date.now() + 60_000),
       })
       const redis = getRedisClient()
-      if (!redis) throw new Error('Expected integration Redis')
       for (const leaseToken of [token, otherToken]) {
         const prefix = `mothership:sandbox-resources:${leaseToken}`
         callbackRedisKeys.push(`${prefix}:context`, `${prefix}:inbox`, `${prefix}:seen`)
@@ -780,7 +779,7 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
 })
 
 afterAll(async () => {
-  if (callbackRedisKeys.length) await getRedisClient()?.del(...callbackRedisKeys)
+  if (callbackRedisKeys.length) await getRedisClient().del(...callbackRedisKeys)
   for (const f of fixtures) {
     await db.delete(uploadSession).where(eq(uploadSession.userId, f.userId))
     await db

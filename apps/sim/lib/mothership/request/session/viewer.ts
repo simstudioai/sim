@@ -25,7 +25,6 @@ function getViewersKey(streamId: string) {
 
 async function markStreamViewer(streamId: string, attachmentId: string): Promise<void> {
   const redis = getRedisClient()
-  if (!redis) return
   const key = getViewersKey(streamId)
   const now = Date.now()
   // Drops readers that died without leaving, which a live reader's refresh keeps the key past.
@@ -38,9 +37,7 @@ async function markStreamViewer(streamId: string, attachmentId: string): Promise
 }
 
 async function unmarkStreamViewer(streamId: string, attachmentId: string): Promise<void> {
-  const redis = getRedisClient()
-  if (!redis) return
-  await redis.zrem(getViewersKey(streamId), attachmentId)
+  await getRedisClient().zrem(getViewersKey(streamId), attachmentId)
 }
 
 function warnMarkFailed(streamId: string, error: unknown) {
@@ -68,13 +65,11 @@ export async function holdStreamViewer(streamId: string): Promise<() => void> {
 
 /**
  * Whether a reconnected reader is attached to the stream. Answers true whenever it cannot
- * tell (no Redis, a failed read), so an unknown never cuts a present view's pickup window.
+ * tell (a failed read), so an unknown never cuts a present view's pickup window.
  */
 export async function hasStreamViewer(streamId: string): Promise<boolean> {
-  const redis = getRedisClient()
-  if (!redis) return true
   try {
-    return (await redis.zcount(getViewersKey(streamId), Date.now(), '+inf')) > 0
+    return (await getRedisClient().zcount(getViewersKey(streamId), Date.now(), '+inf')) > 0
   } catch (error) {
     logger.warn('Could not read whether a chat stream reader is attached', {
       streamId,

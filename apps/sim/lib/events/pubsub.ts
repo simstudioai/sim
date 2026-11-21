@@ -1,11 +1,11 @@
 /**
  * Generic Pub/Sub Channel Factory
  *
- * Creates a single-channel pub/sub adapter backed by Redis (with EventEmitter fallback).
- * Each call creates its own Redis connections — use multiple instances for multiple channels.
+ * Creates a single-channel pub/sub adapter backed by Redis. Each channel opens its own pair of
+ * Redis connections, and only on first use, so a module may build its channel at import time
+ * (including during `next build`, where no REDIS_URL is set) without connecting or throwing.
  */
 
-import { EventEmitter } from 'events'
 import { createLogger } from '@sim/logger'
 import { noop } from '@sim/utils/helpers'
 import Redis, { type RedisOptions } from 'ioredis'
@@ -149,51 +149,39 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
   }
 }
 
-class LocalPubSubChannel<T> implements PubSubChannel<T> {
-  private emitter = new EventEmitter()
-
-  constructor(private config: PubSubChannelConfig) {
-    this.emitter.setMaxListeners(100)
-    logger.info(`${config.label}: Using process-local EventEmitter (Redis not configured)`)
-  }
-
-  publish(event: T): void {
-    this.emitter.emit(this.config.channel, event)
-  }
-
-  subscribe(handler: (event: T) => void): () => void {
-    const isolatedHandler = (event: T) => {
-      try {
-        handler(event)
-      } catch (error) {
-        logger.error(`Error in ${this.config.label} handler:`, error)
-      }
-    }
-    this.emitter.on(this.config.channel, isolatedHandler)
-    return () => {
-      this.emitter.off(this.config.channel, isolatedHandler)
-    }
-  }
-
-  ready(): Promise<void> {
-    return Promise.resolve()
-  }
-
-  dispose(): void {
-    this.emitter.removeAllListeners()
-    logger.info(`${this.config.label} local pub/sub disposed`)
-  }
-}
-
+/**
+ * Builds a channel whose Redis connections open on its first `publish`, `subscribe`, or `ready`.
+ * A missing or invalid REDIS_URL surfaces from that first call, never from construction. A
+ * disposed channel publishes nothing, adds no handlers, and never becomes ready.
+ */
 export function createPubSubChannel<T>(config: PubSubChannelConfig): PubSubChannel<T> {
-  const redisUrl = getConfiguredRedisUrl()
-  if (!redisUrl) return new LocalPubSubChannel<T>(config)
+  let connection: RedisPubSubChannel<T> | null = null
+  let disposed = false
 
-  // Resolve config-derived defaults outside the try so a missing
-  // REDIS_TLS_SERVERNAME (config error) surfaces instead of silently degrading
-  // to the in-process EventEmitter — that would break cross-replica pub/sub.
-  const connectionDefaults = getRedisConnectionDefaults(redisUrl)
+  const open = (): RedisPubSubChannel<T> => {
+    if (connection) return connection
+    const redisUrl = getConfiguredRedisUrl()
+    connection = new RedisPubSubChannel<T>(redisUrl, getRedisConnectionDefaults(redisUrl), config)
+    return connection
+  }
 
-  logger.info(`${config.label}: Using Redis`)
-  return new RedisPubSubChannel<T>(redisUrl, connectionDefaults, config)
+  return {
+    publish(event) {
+      if (disposed) return
+      open().publish(event)
+    },
+    subscribe(handler) {
+      if (disposed) return noop
+      return open().subscribe(handler)
+    },
+    ready() {
+      if (disposed) return new Promise<void>(noop)
+      return open().ready()
+    },
+    dispose() {
+      disposed = true
+      connection?.dispose()
+      connection = null
+    },
+  }
 }

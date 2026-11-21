@@ -236,9 +236,9 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # Desktop inbox, browser extension, and Project Files use Redis.
+      # Redis is required: every app server the suites start connects to it.
       redis:
-        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'assistant-actions' || matrix.group == 'organization-search' || matrix.group == 'search-permissions' || startsWith(matrix.group, 'browser-extension-') || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
+        image: redis:8.2-alpine
         ports:
           - 6379:6379
         options: >-
@@ -405,6 +405,16 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d sim_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      # Redis is required: the app server refuses to start without it.
+      redis:
+        image: redis:8.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10

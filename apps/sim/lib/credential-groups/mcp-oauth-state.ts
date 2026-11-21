@@ -69,12 +69,6 @@ export interface CredentialGroupMcpOAuthAttempt {
   createdAt: number
 }
 
-function requireRedis() {
-  const redis = getRedisClient()
-  if (!redis) throw new Error('Credential Group MCP OAuth requires Redis')
-  return redis
-}
-
 function attemptKey(state: string): string {
   return `credential-group:mcp-oauth-attempt:${sha256Hex(state)}`
 }
@@ -146,7 +140,7 @@ export async function createCredentialGroupMcpOAuthAttempt(params: {
   if (!isCredentialGroupMcpOAuthState(params.state)) {
     throw new Error('Managed MCP OAuth state has an invalid prefix')
   }
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const [codeVerifier, invitationToken] = await Promise.all([
     encryptSecret(params.codeVerifier),
     encryptSecret(params.invitationToken),
@@ -184,13 +178,13 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   state: string
 ): Promise<CredentialGroupMcpOAuthAttempt | null> {
   if (!isCredentialGroupMcpOAuthState(state)) return null
-  const raw = await requireRedis().eval(CONSUME_SCRIPT, 1, attemptKey(state))
+  const raw = await getRedisClient().eval(CONSUME_SCRIPT, 1, attemptKey(state))
   if (raw === null) return null
   if (typeof raw !== 'string') throw new Error('Credential Group MCP OAuth state is malformed')
   const parsed: unknown = JSON.parse(raw)
   assertCredentialGroupOAuthAttemptVersion(parsed, MCP_OAUTH_ATTEMPT_VERSION)
   if (!isStoredAttempt(parsed)) throw new Error('Credential Group MCP OAuth state is malformed')
-  await requireRedis().srem(serverAttemptsKey(parsed.mcpServerId), attemptKey(state))
+  await getRedisClient().srem(serverAttemptsKey(parsed.mcpServerId), attemptKey(state))
   if (Date.now() - parsed.createdAt > MCP_OAUTH_ATTEMPT_TTL_MS) return null
   const [codeVerifier, invitationToken] = await Promise.all([
     decryptSecret(parsed.encryptedCodeVerifier),
@@ -217,7 +211,7 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
 
 export async function clearCredentialGroupMcpOAuthAttempts(mcpServerIds: string[]): Promise<void> {
   if (mcpServerIds.length === 0) return
-  const redis = requireRedis()
+  const redis = getRedisClient()
   await Promise.all(
     mcpServerIds.map((mcpServerId) =>
       redis.eval(CLEAR_SERVER_ATTEMPTS_SCRIPT, 1, serverAttemptsKey(mcpServerId))

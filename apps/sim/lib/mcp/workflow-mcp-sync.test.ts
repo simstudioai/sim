@@ -1,4 +1,5 @@
 import { flattenMockConditions, hasMockCondition } from '@sim/testing'
+import { mcpPubsubMock } from '@sim/testing/mocks/mcp-pubsub.mock'
 import { workflowsPersistenceUtilsMock } from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,7 +19,7 @@ vi.mock('@/lib/workflows/triggers/utils', () => ({
   hasValidStartBlockInState: mocks.hasValidStartBlock,
 }))
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
-vi.mock('@/lib/mcp/pubsub', () => ({ mcpPubSub: null }))
+vi.mock('@/lib/mcp/pubsub', () => mcpPubsubMock)
 vi.mock('@/lib/mcp/workflow-tool-schema', () => ({
   applyDescriptionOverrides: (schema: unknown) => schema,
   extractInputFormatFromBlocks: () => [],

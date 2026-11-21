@@ -375,11 +375,8 @@ const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
 
 interface SidebarProps {
   organizationHref: string | null
-  /**
-   * Whether this install runs the desktop background executor, and whether the user has a desktop
-   * registered to run their turns, so chats show desktop activity.
-   */
-  desktopExecutor: { available: boolean; registered: boolean }
+  /** Whether the user has a desktop registered to run their turns, so chats show desktop activity. */
+  desktopExecutor: { registered: boolean }
 }
 
 /**

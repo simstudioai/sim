@@ -63,7 +63,7 @@ return 1
  * terminal/pause boundary (deterministic cleanup is {@link clearProgressMarkers});
  * it mirrors the admission reservation so a crashed run's marker key and slot
  * expire together. Returns `true` only when the marker was durably written to Redis,
- * so callers can fall back to the SQL path on a missing client or a failure.
+ * so callers can fall back to the SQL path when the write fails.
  */
 async function setMarker(
   executionId: string,
@@ -74,8 +74,6 @@ async function setMarker(
   expiresAt?: number
 ): Promise<boolean> {
   const redis = getMarkerClient()
-  if (!redis) return false
-
   try {
     await redis.eval(
       SET_MARKER_SCRIPT,
@@ -201,9 +199,8 @@ function parseCompletedMarker(raw: string | undefined): ExecutionLastCompletedBl
 }
 
 /**
- * Read both markers for an execution. Returns an empty object when Redis is
- * unavailable (markers were never stored here) or the key holds nothing, and
- * `null` when the Redis read itself failed — callers must treat `null` as
+ * Read both markers for an execution. Returns an empty object when the key
+ * holds nothing, and `null` when the Redis read itself failed — callers must treat `null` as
  * "unknown" and skip {@link clearProgressMarkers}, so a transient read error
  * never wipes the only copy of markers that are still in Redis.
  */
@@ -211,8 +208,6 @@ export async function getProgressMarkers(
   executionId: string
 ): Promise<ExecutionProgressMarkers | null> {
   const redis = getMarkerClient()
-  if (!redis) return {}
-
   try {
     const fields = await redis.hgetall(markerKey(executionId))
     if (!fields || Object.keys(fields).length === 0) return {}
@@ -234,12 +229,10 @@ export async function getProgressMarkers(
 /**
  * Delete the markers for an execution. Called at every terminal/pause boundary
  * after the durable record has been written, so paused executions (which can
- * live indefinitely) hold no Redis keys. Fire-and-forget; no-op without Redis.
+ * live indefinitely) hold no Redis keys. Fire-and-forget: a failed delete is logged.
  */
 export async function clearProgressMarkers(executionId: string): Promise<void> {
   const redis = getMarkerClient()
-  if (!redis) return
-
   try {
     await redis.del(markerKey(executionId))
   } catch (error) {

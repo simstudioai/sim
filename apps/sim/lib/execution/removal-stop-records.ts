@@ -214,9 +214,6 @@ export async function recordExecutionStops(
  * worker. The deadline (`signal`, else {@link SIGNAL_DEADLINE_MS}) bounds only the Redis writes;
  * every execution this process runs is aborted first. Returns how many flags Redis refused or
  * the deadline left unsent; never throws.
- *
- * Without Redis at all the flag is process-local by design (`markExecutionCancelled`) and a
- * retry from any process could reach no further, so that outcome does not count as refused.
  */
 export async function signalExecutionStops(
   executions: readonly Pick<PlannedExecutionStop, 'executionId' | 'executionDeadlineAt'>[],
@@ -243,7 +240,7 @@ export async function signalExecutionStops(
       const result = await markExecutionCancelled(execution.executionId, {
         executionDeadlineAt: execution.executionDeadlineAt,
       })
-      if (!result.durablyRecorded && result.reason !== 'redis_unavailable') refused += 1
+      if (!result.durablyRecorded) refused += 1
     } catch (error) {
       refused += 1
       logger.warn('Failed to signal an execution being stopped', {

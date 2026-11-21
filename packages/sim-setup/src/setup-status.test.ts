@@ -59,4 +59,22 @@ describe('setup status', () => {
     expect(output).toContain('SPOTIFY_CLIENT_SECRET')
     expect(output).not.toContain('partial-client-value')
   })
+  it.each([
+    ['missing', { REDIS_URL: '' }, { reason: 'missing' }],
+    [
+      'not a Redis URL',
+      { REDIS_URL: 'http://localhost:6379' },
+      { detail: expect.stringContaining('must be a valid redis://') },
+    ],
+    [
+      'a rediss:// IP without a TLS server name',
+      { REDIS_URL: 'rediss://10.0.0.5:6379' },
+      { detail: expect.stringContaining('REDIS_TLS_SERVERNAME is required') },
+    ],
+  ])('fails when Redis is %s', (_, overrides, issue) => {
+    const report = buildSetupStatusReport(source({ ...CORE_VALUES, ...overrides }))
+
+    expect(report.failed).toBe(true)
+    expect(report.coreIssues).toEqual([expect.objectContaining({ key: 'REDIS_URL', ...issue })])
+  })
 })

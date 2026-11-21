@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import {
+  createMockRedis,
   getMockLogger,
   inputValidationMock,
   inputValidationMockFns,
@@ -246,14 +247,10 @@ async function loadExecutionModule(options: {
     ...(options.envOverrides ?? {}),
   })
 
-  const redisEval = options.redisEvalImpl ? vi.fn(options.redisEvalImpl) : undefined
-  mockGetRedisClient.mockImplementation(() =>
-    redisEval
-      ? ({
-          eval: redisEval,
-        } as unknown)
-      : null
-  )
+  const redis = createMockRedis()
+  if (options.redisEvalImpl) redis.eval.mockImplementation(options.redisEvalImpl)
+  else redis.eval.mockResolvedValue(1)
+  mockGetRedisClient.mockReturnValue(redis)
 
   vi.resetModules()
 
@@ -681,28 +678,6 @@ describe('isolated-vm scheduler', () => {
 
     expect(result.error?.message).toContain('Too many concurrent')
     expect(result.result).toBeNull()
-  })
-
-  it('falls back to local limits when no Redis client is available', async () => {
-    const { executeInIsolatedVM } = await loadExecutionModule({
-      envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
-      },
-      spawns: [() => createReadyProc('ok')],
-    })
-
-    const result = await executeInIsolatedVM({
-      code: 'return "ok"',
-      params: {},
-      envVars: {},
-      contextVariables: {},
-      timeoutMs: 100,
-      requestId: 'req-7',
-      ownerKey: 'user:redis-down',
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(result.result).toBe('ok')
   })
 
   it('falls back to local limits when the lease evaluation errors', async () => {

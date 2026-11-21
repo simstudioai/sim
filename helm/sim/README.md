@@ -509,7 +509,7 @@ autoscaling:
   targetMemoryUtilizationPercentage: 80
 ```
 
-When `autoscaling.enabled=true`, the chart omits `spec.replicas` from the Deployment so the HPA owns replica count. Requires `metrics-server` in the cluster. The realtime Deployment gets the same HPA unless `autoscaling.realtime.enabled=false` — scale realtime past one replica only with `REDIS_URL` set (Socket.IO Redis adapter), or cross-pod collaboration events are dropped.
+When `autoscaling.enabled=true`, the chart omits `spec.replicas` from the Deployment so the HPA owns replica count. Requires `metrics-server` in the cluster. The realtime Deployment gets the same HPA unless `autoscaling.realtime.enabled=false` — realtime bridges cross-pod collaboration events through Redis, which every install has (bundled, or your `REDIS_URL`).
 
 ---
 
@@ -606,6 +606,12 @@ kubectl --namespace sim logs deploy/sim-app -c migrations
 
 ---
 
+## Upgrading to 1.13.0
+
+* **Redis is required.** The application no longer falls back to PostgreSQL or in-memory state for rate limiting, OTPs, pub/sub, or realtime coordination, and refuses to start without `REDIS_URL`. Installs that keep the bundled Redis (`redis.enabled: true`, the default) or already supply `REDIS_URL` need no action.
+
+  With `redis.enabled: false`, the chart now fails to render unless `REDIS_URL` comes from `app.env.REDIS_URL`, a pre-created `app.secrets.existingSecret` (which the chart trusts, since it cannot read it), or `externalSecrets.remoteRefs.app.REDIS_URL` when External Secrets is enabled. If you previously ran with Redis disabled, either re-enable the bundled Redis or point `REDIS_URL` at a managed instance before upgrading.
+
 ## Upgrading to 1.6.4
 
 * `appVersion` — the default image tag for every first-party image (`app`, `realtime`, `migrations`, `pii`, `copilot`) when `image.tag` is unset — moves from `v0.7.44` to `v0.8.18`. It had not been bumped since chart 1.2.0, so an unpinned install deployed an application dozens of releases behind the chart it shipped with, and values keys added by newer charts had no effect because the running image did not read them. **An unpinned release rolls every first-party pod on upgrade.** Installs that pin `image.tag` or `image.digest` are unaffected; pinning explicitly remains the recommendation for production.
@@ -620,7 +626,7 @@ Two changes alter behavior on an existing release. Neither requires action, but 
 
   **An existing `REDIS_URL` always wins, wherever it comes from — no action needed on upgrade.** The bundled URL ships as a ConfigMap listed *before* the app Secret in `envFrom`. Kubernetes resolves duplicate keys by letting the last source win, so a `REDIS_URL` in your chart-managed Secret, a pre-created `existingSecret`, or one synced by External Secrets overrides the bundled value — the chart never has to read it. The bundled Redis simply fills the gap when nothing else provides a URL.
 
-  Set `app.env.REDIS_URL` to skip the bundled Deployment entirely (no unused pod), or `redis.enabled: false` to opt out.
+  Set `app.env.REDIS_URL` to skip the bundled Deployment entirely (no unused pod). (Since 1.13.0, `redis.enabled: false` also requires a `REDIS_URL` from one of those sources.)
 
 ## Upgrading to 1.2.0
 

@@ -1,5 +1,5 @@
 /**
- * The join's readiness contract, with the shared store ENABLED (`file-doc.test.ts` runs it disabled).
+ * The join's readiness contract against the shared store.
  *
  * A room loads its document from the file's Redis stream one entry at a time, into the same `Y.Doc`
  * that fans every update out to the room. So a client attached while that is happening is not sent the

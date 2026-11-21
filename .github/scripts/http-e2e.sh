@@ -5,7 +5,8 @@
 #
 # Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|search-permissions|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|workflow-code-ui|mobile|seo>   (run from apps/sim)
 #
-# The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
+# The job provides DATABASE_URL, BETTER_AUTH_SECRET, ENCRYPTION_KEY and a Redis on 127.0.0.1:6379
+# (Redis is required, so every app and realtime server gets REDIS_URL); each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
 #
 # Under `next dev` the first request cold-compiles the app under Turbopack, which takes 60-185s on
@@ -23,6 +24,7 @@ set -euo pipefail
 group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|search-permissions|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|workflow-code-ui|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
+export REDIS_URL=${REDIS_URL:-redis://127.0.0.1:6379}
 mkdir -p "$report_dir"
 
 server_pid=''
@@ -204,6 +206,7 @@ case "$group" in
     export PEOPLE_E2E_SCREENSHOT_DIR="$report_dir/people-ui-report.json.artifacts"
     SCIM_E2E_BASE_URL="$local_app_url" \
     SCIM_E2E_DATABASE_URL="$DATABASE_URL" \
+    SCIM_E2E_REDIS_URL="$REDIS_URL" \
     SCIM_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     SCIM_E2E_REPORT_PATH="$report_dir/scim-e2e-report.json" \
       bun run test:scim:e2e
@@ -238,8 +241,7 @@ case "$group" in
     ;;
 
   # The search suites serve their own fixtures in-process and need no app. They share this group
-  # because they finish in seconds. Self-hosted without billing: hosted billing admits runs through
-  # Redis, which the CLI app is not given.
+  # because they finish in seconds. Self-hosted, so runs are not admitted through hosted billing.
   cli)
     for search in google-content lucid zoom google-meet; do
       report_var="SEARCH_$(echo "$search" | tr 'a-z-' 'A-Z_')_REPORT_PATH"
@@ -262,7 +264,7 @@ case "$group" in
       bun run test:cli-run-latency:e2e
     ;;
 
-  # Self-hosted: hosted billing admits a run only through a Redis usage reservation.
+  # Self-hosted, so runs are not admitted through hosted billing's usage reservation.
   stop-after)
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export CRON_SECRET=stop-after-e2e-local-cron-secret
@@ -278,7 +280,6 @@ case "$group" in
     ;;
 
   desktop-inbox|assistant-actions|organization-search|search-permissions)
-    export REDIS_URL=redis://127.0.0.1:6379
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export COPILOT_TOOL_PERMISSIONS_ENABLED=true
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
@@ -330,7 +331,6 @@ case "$group" in
       browser-extension-composer) extension_group=composer ;;
       browser-extension-access) extension_group=access ;;
     esac
-    export REDIS_URL=redis://127.0.0.1:6379
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
     export SIM_LINKS=true
@@ -358,7 +358,7 @@ JS
 
   project-files)
     PROJECT_FILES_E2E_ADMIN_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres \
-    PROJECT_FILES_E2E_REDIS_URL=redis://127.0.0.1:6379 \
+    PROJECT_FILES_E2E_REDIS_URL="$REDIS_URL" \
     PROJECT_FILES_E2E_BASE_URL=http://127.0.0.1:3050 \
     PROJECT_FILES_E2E_RELAY_URL=http://127.0.0.1:3052 \
     PROJECT_FILES_E2E_REPORT_PATH="$report_dir/project-files/orchestration.json" \

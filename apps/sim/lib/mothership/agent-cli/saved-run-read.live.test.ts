@@ -227,7 +227,12 @@ vi.mock('@/lib/mothership/request/session/controller-lease', async (original) =>
   ...(await original<typeof import('@/lib/mothership/request/session/controller-lease')>()),
   assertChatStreamLease: vi.fn().mockResolvedValue(undefined),
 }))
-vi.mock('@/lib/mothership/chat-status', () => ({ chatPubSub: null }))
+vi.mock('@/lib/mothership/chat-status', async () => {
+  const { mothershipChatStatusMock } = await import(
+    '@sim/testing/mocks/mothership-chat-status.mock'
+  )
+  return mothershipChatStatusMock
+})
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: () => {} }))
 vi.mock('@/lib/mothership/inbox/agentmail-client', () => ({
   getAttachment: async (_inbox: string, _message: string, id: string) => {

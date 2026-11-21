@@ -89,7 +89,7 @@ curl -fsS http://localhost:3000/api/health
 | `simstudio` | 3000 | App; 8G memory limit. |
 | `realtime` | 3002 | WebSocket service; 1G memory limit. |
 | `db` | Not published | PostgreSQL 17 with pgvector. |
-| `redis` | Not published | Shared coordination, pub/sub, and caches. |
+| `redis` | Not published | Required. Rate limits, shared coordination, pub/sub, and caches. |
 | `cron` | None | Calls background job endpoints. |
 | `migrations` | None | Applies migrations once, then exits. |
 
@@ -238,14 +238,14 @@ Invoke commands as `bunx sim-setup <command>` unless the package is installed gl
 | `reset` | Confirms before archiving env files and removing managed Compose/dev data. On Helm it uninstalls the release; PostgreSQL StatefulSet PVCs remain and must be deleted separately to erase data. |
 | `config` | Reports configured capabilities and integrations. |
 | `doctor` | Checks env files and reachable services. `--fix` writes supported repairs; `--json` emits structured findings. |
-| `add <feature>` | Configures `email`, `storage`, `sandbox`, `jobs`, `cache`, `knowledge`, `knowledge-embeddings`, `chat`, `llm`, or `integration <slug>`. Requires one writable configuration; refuses ambiguous destinations and Helm releases. |
+| `add <feature>` | Configures `email`, `storage`, `sandbox`, `jobs`, `knowledge`, `knowledge-embeddings`, `chat`, `llm`, or `integration <slug>`. Requires one writable configuration; refuses ambiguous destinations and Helm releases. |
 | `desktop` | Prints this deployment's installer/server links. `--url <url>` skips discovery; `--no-open` skips the browser-opening prompt. |
 
 `--dir <path>` works with every command and scopes standalone lifecycle commands to that installation.
 
 For Compose, `reset` archives `.env` beside the Compose file. For dev, Kubernetes, or no detected install, it archives `apps/sim/.env`, `apps/realtime/.env`, `packages/db/.env`, and root `.env`. Preserve any backups before intentionally removing volumes.
 
-`add` writes beside the Compose file or to `apps/sim/.env` on a source checkout. Recreate containers that read the change: `cache` changes `REDIS_URL` for both app and realtime. For a source checkout, mirror shared values into `apps/realtime/.env`. `restart` alone does not apply changed container environment. Desktop discovery refuses configurations naming different origins; pass `--url` to choose.
+`add` writes beside the Compose file or to `apps/sim/.env` on a source checkout. Recreate containers that read the change. To point both app and realtime at a different Redis, set `REDIS_URL` in `.env` and recreate both containers. For a source checkout, mirror shared values into `apps/realtime/.env`. `restart` alone does not apply changed container environment. Desktop discovery refuses configurations naming different origins; pass `--url` to choose.
 
 ## Back up and update [#commands]
 

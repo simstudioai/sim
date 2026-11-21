@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import type Redis from 'ioredis'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getStreamConfig } from './buffer'
 import {
@@ -36,12 +37,9 @@ type RedisOperationMetadata = {
 
 async function withRedisRetry<T>(
   metadata: RedisOperationMetadata,
-  operation: (redis: NonNullable<ReturnType<typeof getRedisClient>>) => Promise<T>
+  operation: (redis: Redis) => Promise<T>
 ): Promise<T> {
   const redis = getRedisClient()
-  if (!redis) {
-    throw new Error('Redis is required for mothership preview durability')
-  }
 
   let lastError: unknown
 

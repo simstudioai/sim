@@ -1,3 +1,4 @@
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,7 +53,25 @@ describe('readThroughSegments', () => {
     }, {})
 
   beforeEach(() => {
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
+    const stored = new Map<string, string>()
+    const redis = Object.assign(createMockRedis(), {
+      mget: async (...keys: string[]) => keys.map((key) => stored.get(key) ?? null),
+      pipeline: () => {
+        const writes: [string, string][] = []
+        const pipeline = {
+          set: (key: string, value: string) => {
+            writes.push([key, value])
+            return pipeline
+          },
+          exec: async () => {
+            for (const [key, value] of writes) stored.set(key, value)
+            return []
+          },
+        }
+        return pipeline
+      },
+    })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
     namespace = `test-${generateShortId()}`
   })
 

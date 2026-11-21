@@ -62,7 +62,7 @@ return "waiting"
 export interface EnqueueResult {
   /** Position at the moment of enqueue (0 = head, you go next). */
   position: number
-  /** Whether Redis was available — false means we're in no-op mode. */
+  /** Whether the ticket was enqueued — false means the enqueue failed and the queue is skipped. */
   enabled: boolean
 }
 
@@ -73,7 +73,7 @@ export interface EnqueueResult {
  * the head, then attempt to consume from the token bucket. On success or cap
  * exceeded, they `dequeue` to make room for the next caller.
  *
- * No-op when Redis is unavailable: every method returns "you're the head /
+ * Fails open when a Redis call fails: the method returns "you're the head /
  * empty / etc." so the rate limiter falls back to plain bucket racing.
  */
 export class HostedKeyQueue {
@@ -87,9 +87,6 @@ export class HostedKeyQueue {
     ticketId: string
   ): Promise<EnqueueResult> {
     const redis = getRedisClient()
-    if (!redis) {
-      return { position: 0, enabled: false }
-    }
 
     const listKey = queueListKey(provider, billingActorId)
     const hbKey = heartbeatKey(provider, billingActorId, ticketId)
@@ -127,9 +124,6 @@ export class HostedKeyQueue {
     ticketId: string
   ): Promise<'head' | 'waiting' | 'missing'> {
     const redis = getRedisClient()
-    if (!redis) {
-      return 'head'
-    }
 
     const listKey = queueListKey(provider, billingActorId)
     const hbPrefix = `hosted-queue-tkt:${provider}:${billingActorId}:`
@@ -158,7 +152,6 @@ export class HostedKeyQueue {
     ticketId: string
   ): Promise<void> {
     const redis = getRedisClient()
-    if (!redis) return
 
     const listKey = queueListKey(provider, billingActorId)
     const hbKey = heartbeatKey(provider, billingActorId, ticketId)
@@ -180,7 +173,6 @@ export class HostedKeyQueue {
    */
   async dequeue(provider: string, billingActorId: string, ticketId: string): Promise<void> {
     const redis = getRedisClient()
-    if (!redis) return
 
     const listKey = queueListKey(provider, billingActorId)
     const hbKey = heartbeatKey(provider, billingActorId, ticketId)

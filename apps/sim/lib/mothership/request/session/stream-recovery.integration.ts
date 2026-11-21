@@ -136,8 +136,8 @@ async function orphanedRunWithTrimmedRing() {
     ),
     { streamId }
   )
-  await getRedisClient()!.set(`mothership_stream:${streamId}:seq`, '4')
-  await getRedisClient()!.zremrangebyrank(`mothership_stream:${streamId}:events`, 0, 1)
+  await getRedisClient().set(`mothership_stream:${streamId}:seq`, '4')
+  await getRedisClient().zremrangebyrank(`mothership_stream:${streamId}:events`, 0, 1)
   const frame = (seq: number, type: string, payload: unknown) => ({
     v: 1,
     type,
@@ -254,7 +254,7 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
     // the response rather than running, or billing, the turn again.
     expect(worker.requests.map((request) => request.path)).toEqual(['/api/mothership'])
     expect(worker.requests[0].body).toMatchObject({ messageId: streamId, receivedTextChars: 0 })
-    expect(await getRedisClient()!.get(chatStreamLockKey(chatId))).toBeNull()
+    expect(await getRedisClient().get(chatStreamLockKey(chatId))).toBeNull()
   })
 
   it('shows replayed tools once and never re-runs a re-handed call the dead controller ran', async () => {
@@ -352,7 +352,7 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
 
   it('numbers a recovered turn past a ring whose events are all unreadable', async () => {
     const { streamId, runId, frame } = await orphanedRunWithTrimmedRing()
-    const redis = getRedisClient()!
+    const redis = getRedisClient()
     const eventsKey = `mothership_stream:${streamId}:events`
     await redis.del(eventsKey)
     await redis.zadd(eventsKey, 1, 'corrupt-1', 2, 'corrupt-2', 3, 'corrupt-3', 4, 'corrupt-4')

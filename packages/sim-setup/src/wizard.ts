@@ -150,7 +150,7 @@ export async function runWizard(flags: WizardFlags): Promise<void> {
         {
           value: 'custom',
           label: 'Custom',
-          hint: 'every option: redis, trigger.dev, image variants',
+          hint: 'every option: where Redis lives, trigger.dev, image variants',
         },
       ],
       initialValue: 'quick',

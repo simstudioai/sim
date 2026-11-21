@@ -502,7 +502,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     if (organizationIds.length)
       await db.delete(organization).where(inArray(organization.id, organizationIds))
     if (userIds.length) await db.delete(user).where(inArray(user.id, userIds))
-    chatPubSub?.dispose()
+    chatPubSub.dispose()
     await closeRedisConnection()
   })
 
@@ -564,7 +564,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
 
     expect(await deleteCopilotChat({ chatId: run.chatId, userId: ownerId })).not.toBeNull()
 
-    await expect.poll(() => getRedisClient()?.exists(`execution:cancel:${executionId}`)).toBe(1)
+    await expect.poll(() => getRedisClient().exists(`execution:cancel:${executionId}`)).toBe(1)
   })
 
   it('still stops the run when the worker cannot take the pushed Stop', async () => {
@@ -1177,7 +1177,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     const workspaceRun = await seedRun({ userId: memberId, workspaceId })
     const assistantRun = await seedRun({ userId: memberId, organizationId })
     /** A live controller keeps the run unsettled, as it would be while both removals commit. */
-    await getRedisClient()?.set(
+    await getRedisClient().set(
       chatStreamLockKey(workspaceRun.chatId),
       workspaceRun.streamId,
       'EX',
@@ -1190,7 +1190,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     await expect.poll(pushedStops).toEqual(expected)
     await sleep(300)
     expect(pushedStops()).toEqual(expected)
-    await getRedisClient()?.del(chatStreamLockKey(workspaceRun.chatId))
+    await getRedisClient().del(chatStreamLockKey(workspaceRun.chatId))
   })
 
   it('answers Stop for a suspended owner’s run', async () => {

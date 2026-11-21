@@ -18,7 +18,6 @@ export async function recordSearchConnectionCompletion(
   input: SearchConnectionCompletionScope & { credentialId: string }
 ) {
   const redis = getRedisClient()
-  if (!redis) throw new Error('Search connection completion requires Redis')
   const stored = await redis.set(
     completionKey(input),
     JSON.stringify(receiptSchema.parse({ credentialId: input.credentialId })),
@@ -34,7 +33,6 @@ export async function readSearchConnectionCompletion(
   scope: SearchConnectionCompletionScope
 ): Promise<string | null> {
   const redis = getRedisClient()
-  if (!redis) throw new Error('Search connection completion requires Redis')
   const value = await redis.get(completionKey(scope))
   return value ? receiptSchema.parse(JSON.parse(value)).credentialId : null
 }

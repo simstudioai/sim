@@ -175,7 +175,7 @@ async function seedQueuedJob(workspaceId: string, type = 'webhook-execution') {
 }
 
 async function isCancelled(executionId: string) {
-  return (await getRedisClient()?.exists(`execution:cancel:${executionId}`)) === 1
+  return (await getRedisClient().exists(`execution:cancel:${executionId}`)) === 1
 }
 
 async function jobStatus(jobId: string) {
@@ -209,9 +209,8 @@ afterAll(async () => {
 
 describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan', () => {
   afterAll(async () => {
-    const redis = getRedisClient()
-    if (redis && executionIds.length > 0) {
-      await redis.del(...executionIds.map((id) => `execution:cancel:${id}`))
+    if (executionIds.length > 0) {
+      await getRedisClient().del(...executionIds.map((id) => `execution:cancel:${id}`))
     }
     const scoped = [...executionIds, ...workspaceIds]
     for (const id of scoped) {

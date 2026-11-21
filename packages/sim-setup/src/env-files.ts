@@ -28,6 +28,7 @@ export const SHARED_KEYS = [
   'INTERNAL_API_SECRET',
   'BETTER_AUTH_URL',
   'NEXT_PUBLIC_APP_URL',
+  'REDIS_URL',
 ] as const
 
 export const SECRET_KEYS = [

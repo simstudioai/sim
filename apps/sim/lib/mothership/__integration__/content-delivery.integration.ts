@@ -217,18 +217,13 @@ function noteExercised(method: string, route: string) {
 }
 
 describe('content reaching Chat is admitted per item', () => {
-  let redis: NonNullable<ReturnType<typeof getRedisClient>>
+  let redis: ReturnType<typeof getRedisClient>
   let fixture: ContentFixture
   let connector: { connectorId: string; documentId: string }
 
   beforeAll(async () => {
     fixtureStorage.root = mkdtempSync(path.join(tmpdir(), 'sim-content-delivery-'))
-    const client = getRedisClient()
-    if (!client)
-      throw new Error(
-        'Set TEST_REDIS_URL to a disposable local Redis or use bun run test:integration'
-      )
-    redis = client
+    redis = getRedisClient()
     // Compile the lazy tool graph before request deadlines and per-case provider fixtures exist.
     await matchV2Route('/api/v2/tools/file_get_content/execute')?.load()
     fixture = await seedContentFixture()

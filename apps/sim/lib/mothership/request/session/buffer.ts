@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import type Redis from 'ioredis'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
@@ -82,12 +83,9 @@ export function getStreamConfig(): StreamConfig {
 
 async function withRedisRetry<T>(
   metadata: RedisOperationMetadata,
-  operation: (redis: NonNullable<ReturnType<typeof getRedisClient>>) => Promise<T>
+  operation: (redis: Redis) => Promise<T>
 ): Promise<T> {
   const redis = getRedisClient()
-  if (!redis) {
-    throw new Error('Redis is required for mothership stream durability')
-  }
 
   let lastError: unknown
 
@@ -535,7 +533,6 @@ export async function getLatestSeq(streamId: string): Promise<number | null> {
 /** The streams among these whose replay buffer has not yet expired. */
 export async function findStreamsWithReplay(streamIds: string[]): Promise<Set<string>> {
   const redis = getRedisClient()
-  if (!redis) throw new Error('Redis is required for mothership stream durability')
   if (streamIds.length === 0) return new Set()
   const pipeline = redis.pipeline()
   for (const streamId of streamIds) pipeline.exists(getSeqKey(streamId))

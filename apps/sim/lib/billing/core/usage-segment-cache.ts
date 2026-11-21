@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { randomInt } from '@sim/utils/random'
-import { LRUCache } from 'lru-cache'
 import { type UsageSegment, usageHourKey } from '@/lib/billing/core/usage-analytics'
 import { getRedisClient } from '@/lib/core/config/redis'
 
@@ -36,20 +35,9 @@ const MERGE_GAP_SEGMENTS = 2
 /** Bump when a cached value's shape or meaning changes; old entries are then ignored. */
 const KEY_VERSION = 'v1'
 
-/**
- * The in-process fallback for deployments without Redis, bounded by bytes: a
- * member or model entry can run to tens of kilobytes.
- */
-const localSegments = new LRUCache<string, string>({
-  max: 50_000,
-  maxSize: 64 * 1024 * 1024,
-  sizeCalculation: (value) => value.length,
-})
-
 async function readStored(keys: string[]): Promise<(string | null)[]> {
   if (keys.length === 0) return []
   const redis = getRedisClient()
-  if (!redis) return keys.map((key) => localSegments.get(key) ?? null)
   try {
     return await redis.mget(...keys)
   } catch (error) {
@@ -80,11 +68,6 @@ function writeStored(entries: { key: string; value: string; ttlMs: number }[]): 
   if (entries.length === 0) return
   const jittered = (ttlMs: number) => ttlMs + randomInt(0, Math.floor(ttlMs * TTL_JITTER_RATIO))
   const redis = getRedisClient()
-  if (!redis) {
-    for (const { key, value, ttlMs } of entries)
-      localSegments.set(key, value, { ttl: jittered(ttlMs) })
-    return
-  }
   const pipeline = redis.pipeline()
   for (const { key, value, ttlMs } of entries) pipeline.set(key, value, 'PX', jittered(ttlMs))
   pipeline.exec().catch((error: unknown) => {

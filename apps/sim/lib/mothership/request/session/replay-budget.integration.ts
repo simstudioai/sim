@@ -179,7 +179,6 @@ const MB = 1024 * 1024
 
 function redis() {
   const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
   return client
 }
 

@@ -5,7 +5,7 @@ import { io as connect, type Socket } from 'socket.io-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setupConnectionHandlers, waitForConnectionCleanup } from '@/handlers/connection'
 import type { AuthenticatedSocket } from '@/middleware/auth'
-import { MemoryRoomManager } from '@/rooms'
+import type { IRoomManager } from '@/rooms'
 
 vi.mock('@/handlers/file-doc', () => ({ cleanupFileDocForSocket: vi.fn() }))
 vi.mock('@/handlers/subblocks', () => ({ cleanupPendingSubblocksForSocket: vi.fn() }))
@@ -14,14 +14,18 @@ vi.mock('@/handlers/variables', () => ({ cleanupPendingVariablesForSocket: vi.fn
 describe('server shutdown connection drain', () => {
   let httpServer: HttpServer
   let io: Server
-  let manager: MemoryRoomManager
+  let manager: IRoomManager
   let client: Socket
 
   beforeEach(async () => {
     httpServer = createServer()
     io = new Server(httpServer, { transports: ['websocket'] })
-    manager = new MemoryRoomManager(io)
-    await manager.initialize()
+    manager = {
+      io,
+      removeSocketFromAllRooms: vi.fn(async () => []),
+      removeUserFromRoom: vi.fn(async () => true),
+      broadcastPresenceUpdate: vi.fn(async () => {}),
+    } as unknown as IRoomManager
     io.on('connection', (socket) => setupConnectionHandlers(socket as AuthenticatedSocket, manager))
     await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve))
     const port = (httpServer.address() as AddressInfo).port
@@ -35,7 +39,6 @@ describe('server shutdown connection drain', () => {
     client.disconnect()
     await io.close()
     await waitForConnectionCleanup()
-    await manager.shutdown()
   })
 
   it('keeps automatic reconnection active after transport shutdown', async () => {

@@ -1,4 +1,4 @@
-import { redisConfigMockFns } from '@sim/testing'
+import { createMockRedis, redisConfigMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   clearPendingWebhookVerification,
@@ -10,7 +10,15 @@ import {
 
 describe('pending webhook verification', () => {
   beforeEach(() => {
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
+    const stored = new Map<string, string>()
+    const redis = createMockRedis()
+    redis.set.mockImplementation(async (key: string, value: string) => {
+      stored.set(key, value)
+      return 'OK'
+    })
+    redis.get.mockImplementation(async (key: string) => stored.get(key) ?? null)
+    redis.del.mockImplementation(async (key: string) => (stored.delete(key) ? 1 : 0))
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
   })
 
   afterEach(async () => {

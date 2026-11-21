@@ -178,16 +178,14 @@ export async function finishEnvironmentArchive(
     if (cleanupErrors.length > 0) throw cleanupErrors[0]
   } finally {
     await mcpService.clearCache(workspaceId).catch(() => undefined)
-    if (mcpPubSub) {
-      for (const serverId of effects.serverIds) {
-        try {
-          mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
-        } catch (error) {
-          logger.warn(`MCP tools-changed publish failed for server ${serverId}`, {
-            requestId,
-            error,
-          })
-        }
+    for (const serverId of effects.serverIds) {
+      try {
+        mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+      } catch (error) {
+        logger.warn(`MCP tools-changed publish failed for server ${serverId}`, {
+          requestId,
+          error,
+        })
       }
     }
   }

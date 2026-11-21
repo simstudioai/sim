@@ -1171,42 +1171,6 @@ export function getRedisConfigurationError(values: EnvCapabilityValues): string 
   return null
 }
 
-/**
- * The pre-required-Redis cache capability, kept only for the `sim-setup` wizard
- * until its setup flow treats REDIS_URL as a core value. It is not part of
- * {@link ENV_CAPABILITIES} and the app never reads it: Redis is required.
- *
- * @deprecated Use {@link getRedisConfigurationError}; REDIS_URL is a core configuration key.
- */
-export const CACHE_CAPABILITY = defineCapability({
-  strategy: 'selected',
-  id: 'cache',
-  label: 'Cache',
-  whenUnset: 'first-ready',
-  defaultProvider: { id: 'database', kind: 'built-in', label: 'Postgres' },
-  providers: [
-    {
-      id: 'redis',
-      label: 'Redis',
-      activation: { mode: 'any-present', keys: ['REDIS_URL'] },
-      requires: envField('REDIS_URL', {
-        validation: {
-          kind: 'url',
-          protocols: REDIS_URL_PROTOCOLS,
-          message: 'must be a valid redis:// or rediss:// URL',
-        },
-      }),
-      optionalFields: [envField('REDIS_TLS_SERVERNAME')],
-      validate: (values) => {
-        const error = getRedisConfigurationError(values)
-        return error?.startsWith('REDIS_TLS_SERVERNAME')
-          ? [{ kind: 'missing', fields: ['REDIS_TLS_SERVERNAME'], message: error }]
-          : []
-      },
-    },
-  ],
-} as const)
-
 export const OCR_CAPABILITY = defineCapability({
   strategy: 'selected',
   id: 'knowledge',

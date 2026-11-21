@@ -448,8 +448,8 @@ export class HostedKeyRateLimiter {
    * regular cadence so we don't get reaped as dead. Returns `timedOut: true` once the wait
    * budget is exhausted before reaching the head (see {@link remainingWaitBudgetMs}).
    *
-   * No-op when Redis is unavailable (queue.enqueue returns enabled=false and checkHead
-   * always returns 'head').
+   * Fails open when a queue Redis call fails (queue.enqueue returns enabled=false and checkHead
+   * returns 'head').
    */
   private async waitForQueueHead(
     provider: string,

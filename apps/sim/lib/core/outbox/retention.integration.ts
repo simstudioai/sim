@@ -3,6 +3,7 @@
 import { outboxEvent } from '@sim/db/schema'
 import { readTestDatabaseUrl, readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { withUtcTimestamps } from '@sim/db/timestamps'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { redisConfigMock, redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { generateId } from '@sim/utils/id'
@@ -71,7 +72,7 @@ describe('completed outbox retention in PostgreSQL', () => {
   })
 
   afterEach(async () => {
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(createMockRedis())
     await redis?.del(...cursorKeys)
     await connection`TRUNCATE outbox_event`
   })

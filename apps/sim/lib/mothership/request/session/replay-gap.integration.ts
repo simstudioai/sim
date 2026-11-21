@@ -214,7 +214,7 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
 
   it('re-syncs a cursor ahead of a ring whose numbering restarted', async () => {
     const { streamId } = await liveRunWithTrimmedRing()
-    await getRedisClient()!.del(
+    await getRedisClient().del(
       `mothership_stream:${streamId}:events`,
       `mothership_stream:${streamId}:seq`
     )
@@ -285,7 +285,7 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
     const body = response.text()
     // Let the tail reach its poll loop, past the reconnect-time gap check.
     await sleep(500)
-    await getRedisClient()!.del(
+    await getRedisClient().del(
       `mothership_stream:${streamId}:events`,
       `mothership_stream:${streamId}:seq`
     )

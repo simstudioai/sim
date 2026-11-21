@@ -1,6 +1,8 @@
 import { readWorkspaceFileMetadataMock } from '@sim/testing/mocks/read-workspace-file-metadata.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateId } from '@sim/utils/id'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/file-manager'
 
@@ -83,6 +85,36 @@ function context(workspaceId = generateId()): ServerToolContext {
     toolCallId: 'prepare',
   }
 }
+
+/**
+ * The prepare and apply tools hand the intent over through Redis hashes, so the client keeps the
+ * hashes it is given; everything else stays the shared mock's default.
+ */
+function createHashBackedRedis() {
+  const hashes = new Map<string, Map<string, string>>()
+  const redis = createMockRedis()
+  redis.hset.mockImplementation(async (key: string, field: string, value: string) => {
+    const hash = hashes.get(key) ?? new Map<string, string>()
+    hashes.set(key, hash)
+    hash.set(field, value)
+    return 1
+  })
+  redis.hget.mockImplementation(
+    async (key: string, field: string) => hashes.get(key)?.get(field) ?? null
+  )
+  redis.hgetall.mockImplementation(async (key: string) =>
+    Object.fromEntries(hashes.get(key) ?? new Map<string, string>())
+  )
+  redis.hdel.mockImplementation(async (key: string, ...fields: string[]) => {
+    const hash = hashes.get(key)
+    return fields.filter((field) => hash?.delete(field)).length
+  })
+  return redis
+}
+
+beforeEach(() => {
+  redisConfigMockFns.mockGetRedisClient.mockReturnValue(createHashBackedRedis())
+})
 
 describe('prepared file write across tool invocations', () => {
   it('creates then applies content in a new tool context without another prepare', async () => {

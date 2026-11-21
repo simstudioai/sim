@@ -73,7 +73,7 @@ async function promptRedisUrl(existing?: string): Promise<string> {
   })
   if (!(await pingWithSpinner(url, 'Pinging Redis…'))) {
     throw new SetupError(`Redis at ${url} is not answering.`, [
-      'fix the URL and re-run, or skip Redis — single-instance runs fine without it',
+      'fix the URL and re-run — Sim requires a reachable Redis',
     ])
   }
   return url
@@ -81,13 +81,10 @@ async function promptRedisUrl(existing?: string): Promise<string> {
 
 /**
  * Non-interactive Redis for quick mode: adopt whatever already answers, else
- * start the managed container. Quick's contract is sensible defaults with no
- * questions, and Redis is not optional enough to skip — pub/sub (live Chat
- * status, table events) has no PostgreSQL fallback. Returns null only when
- * nothing answers and Docker is unavailable, so the caller can warn instead of
- * failing the whole setup.
+ * start the managed container. Redis is required, so when nothing answers and
+ * Docker is unavailable setup fails with the steps to provide one.
  */
-export async function ensureRedis(detection: Detection, existing?: string): Promise<string | null> {
+export async function ensureRedis(detection: Detection, existing?: string): Promise<string> {
   if (existing && (await redisPing(existing)).ok) return existing
   if (detection.redisPortOpen && (await redisPing(LOCAL_URL)).ok) {
     p.log.step(`Using the Redis already on :6379`)
@@ -102,10 +99,10 @@ export async function ensureRedis(detection: Detection, existing?: string): Prom
     }
   }
   if (!(await ensureDocker(false))) {
-    p.log.warn(
-      'Docker is unavailable, so Redis was not configured — live Chat status and table events will not stream.'
-    )
-    return null
+    throw new SetupError('Sim requires Redis, and none is reachable.', [
+      'start Docker so the wizard can run a Redis container, then re-run it',
+      `or start Redis yourself and set REDIS_URL in apps/sim/.env (e.g. ${LOCAL_URL})`,
+    ])
   }
   return startManagedRedis(detection)
 }

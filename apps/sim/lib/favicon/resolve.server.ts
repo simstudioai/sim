@@ -45,7 +45,6 @@ const cacheKey = (host: string) => `favicon:v3:${host}`
 /** A host's key holds the result of the walk that starts at that host. */
 async function readCache(host: string): Promise<FaviconResolution | null> {
   const redis = getRedisClient()
-  if (!redis) return null
   try {
     const cached = await redis.getBuffer(cacheKey(host))
     if (cached === null) return null
@@ -67,7 +66,6 @@ async function readCache(host: string): Promise<FaviconResolution | null> {
 
 async function writeCache(host: string, resolution: FaviconResolution): Promise<void> {
   const redis = getRedisClient()
-  if (!redis) return
   const [value, ttl] =
     resolution.kind === 'hit'
       ? resolution.provisional

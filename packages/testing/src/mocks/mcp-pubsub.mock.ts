@@ -26,9 +26,8 @@ export const mcpPubsubMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/mcp/pubsub`. `mcpPubSub` is the non-null (server-side) adapter
- * whose methods are the fns above. Tests that need the `null` adapter (no Redis, browser) keep a
- * local `{ mcpPubSub: null }` factory.
+ * Static mock module for `@/lib/mcp/pubsub`. `mcpPubSub` is the adapter whose methods are the fns
+ * above.
  *
  * @example
  * ```ts

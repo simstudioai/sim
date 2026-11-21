@@ -85,13 +85,6 @@ describe('HostedKeyQueue', () => {
   })
 
   describe('dequeue', () => {
-    it('is a no-op when Redis is unavailable', async () => {
-      redisConfigMockFns.mockGetRedisClient.mockReturnValueOnce(null)
-
-      await expect(queue.dequeue(provider, workspaceId, ticketId)).resolves.toBeUndefined()
-      expect(mockRedis.multi).not.toHaveBeenCalled()
-    })
-
     it('swallows errors so callers do not throw on cleanup', async () => {
       mockRedis.pipeline.exec.mockRejectedValueOnce(new Error('connection lost'))
 

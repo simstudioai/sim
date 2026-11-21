@@ -54,11 +54,6 @@ export async function proxySandboxProjectFileRequest(
       userId: scope.userId,
     })) ?? new ResolvedSecretTraceRegistry([], { userId: scope.userId })
   const bindingKey = `mothership:sandbox-resources:${token}:project-uploads:${encodeURIComponent(projectId)}`
-  const redis = () => {
-    const client = getRedisClient()
-    if (!client) throw new Error('Workbench upload binding is unavailable')
-    return client
-  }
   const transport = createProjectFileUploadTransport({
     endpoint,
     projectId,
@@ -66,7 +61,7 @@ export async function proxySandboxProjectFileRequest(
     resolveSecretTraceRegistry,
     uploadBinding: {
       async record(uploadId) {
-        await redis().eval(
+        await getRedisClient().eval(
           "redis.call('SADD', KEYS[1], ARGV[1]); redis.call('EXPIRE', KEYS[1], ARGV[2]); return 1",
           1,
           bindingKey,
@@ -75,7 +70,7 @@ export async function proxySandboxProjectFileRequest(
         )
       },
       async contains(uploadId) {
-        return (await redis().sismember(bindingKey, uploadId)) === 1
+        return (await getRedisClient().sismember(bindingKey, uploadId)) === 1
       },
     },
     /** Direct uploads conservatively retain the physical machine's complete source history. */

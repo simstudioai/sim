@@ -8,7 +8,6 @@ import { renderToReadableStream } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockIsDesktopPresenceAvailable,
   mockHasSignedInDesktopExecutor,
   mockWorkspaceChrome,
   mockPrefetchWorkspaceHostContext,
@@ -16,7 +15,6 @@ const {
   mockPrefetchWorkspaceAccess,
   mockPrefetchWorkspaceForkAvailability,
 } = vi.hoisted(() => ({
-  mockIsDesktopPresenceAvailable: vi.fn(() => false),
   mockHasSignedInDesktopExecutor: vi.fn(async () => false),
   mockWorkspaceChrome: vi.fn(
     ({ children }: { children: ReactNode; sidebar: ReactNode }) => children
@@ -66,10 +64,6 @@ vi.mock('@/app/workspace/[workspaceId]/components/session-expired', () => ({
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
   WorkspaceChrome: mockWorkspaceChrome,
   WorkspaceViewport: ({ children }: { children: ReactNode }) => children,
-}))
-
-vi.mock('@/lib/desktop/executor/presence', () => ({
-  isDesktopPresenceAvailable: mockIsDesktopPresenceAvailable,
 }))
 
 vi.mock('@/lib/desktop/executor/repository', () => ({
@@ -210,24 +204,13 @@ describe('WorkspaceLayout host context', () => {
     return mockWorkspaceChrome.mock.calls[0][0].sidebar
   }
 
-  it('tells the sidebar the desktop executor runs only where presence is tracked', async () => {
-    mockIsDesktopPresenceAvailable.mockReturnValue(false)
-    mockHasSignedInDesktopExecutor.mockResolvedValue(true)
-
-    expect(await sidebarProps()).toMatchObject({
-      props: { desktopExecutor: { available: false, registered: false } },
-    })
-    mockHasSignedInDesktopExecutor.mockResolvedValue(false)
-  })
-
   it.each([true, false])(
     'tells the sidebar whether the viewer has a desktop that runs their turns (%s)',
     async (registered) => {
-      mockIsDesktopPresenceAvailable.mockReturnValue(true)
       mockHasSignedInDesktopExecutor.mockResolvedValueOnce(registered)
 
       expect(await sidebarProps()).toMatchObject({
-        props: { desktopExecutor: { available: true, registered } },
+        props: { desktopExecutor: { registered } },
       })
     }
   )

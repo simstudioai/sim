@@ -661,6 +661,7 @@ export const cancelWorkflowExecutionReasonSchema = z.enum([
   'already_cancelled',
   'already_completed',
   'already_failed',
+  /** Kept for wire compatibility; no longer produced now that Redis is required. */
   'redis_unavailable',
   'redis_write_failed',
   'paused_event_publish_failed',
@@ -673,6 +674,7 @@ export const cancelWorkflowExecutionReasonSchema = z.enum([
 const cancelWorkflowExecutionResponseSchema = z.object({
   success: z.boolean(),
   executionId: z.string(),
+  /** Kept for wire compatibility; always true since Redis is required, except on a paused-run cancellation whose event failed to publish. */
   redisAvailable: z.boolean(),
   durablyRecorded: z.boolean(),
   locallyAborted: z.boolean(),

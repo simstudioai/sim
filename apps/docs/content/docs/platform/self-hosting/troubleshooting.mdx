@@ -114,7 +114,7 @@ Your reverse proxy is buffering the response stream. Set `proxy_buffering off` (
 
 ## Collaboration breaks with multiple replicas
 
-If members on different replicas do not see edits or live status, check Redis configuration and connectivity in both services. Pub/sub and the Socket.IO adapter have no cross-pod local fallback:
+If members on different replicas do not see edits or live status, check that both services reach the same Redis:
 
 ```bash
 kubectl exec -n simstudio deploy/sim-app -- sh -c 'test -n "$REDIS_URL" && echo "REDIS_URL is set"'
@@ -122,6 +122,10 @@ kubectl exec -n simstudio deploy/sim-realtime -- sh -c 'test -n "$REDIS_URL" && 
 ```
 
 Both pods must have `REDIS_URL`. On Helm they share one Secret, so setting it under `app.env` covers both. See [Redis](/platform/self-hosting/redis).
+
+## App refuses to start: REDIS_URL is required
+
+Redis is required. The app validates `REDIS_URL` at boot and exits when it is missing or is not a `redis://` or `rediss://` URL. Set it for both the app and realtime services: Compose wires the bundled `redis` service by default, and Helm deploys a bundled Redis unless `redis.enabled=false`, in which case supply `REDIS_URL` through `app.env`, your existing Secret, or External Secrets. See [Redis](/platform/self-hosting/redis).
 
 ## App crashes at startup with a REDIS_TLS_SERVERNAME error
 

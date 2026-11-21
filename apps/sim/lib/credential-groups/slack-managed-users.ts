@@ -163,12 +163,6 @@ export class SlackManagedUsersError extends Error {
   }
 }
 
-function requireRedis() {
-  const redis = getRedisClient()
-  if (!redis) throw new Error('Slack managed-user setup requires Redis')
-  return redis
-}
-
 function attemptKey(state: string): string {
   return `credential-group:slack-managed-users:${sha256Hex(state)}`
 }
@@ -725,7 +719,7 @@ export async function createSlackManagedUsersAttempt(params: {
       'The combined Slack request has too many permissions.',
       'invalid_response'
     )
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const state = generateId()
   const redirectUri = getSlackManagedUsersRedirectUri()
   const sharedApp =
@@ -773,7 +767,7 @@ export async function createSlackManagedUsersAttempt(params: {
 export async function consumeSlackManagedUsersAttempt(
   state: string
 ): Promise<SlackManagedUsersAttempt | null> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const raw = await redis.eval(CONSUME_SCRIPT, 1, attemptKey(state))
   return parseSlackManagedUsersAttempt(raw)
 }
@@ -781,7 +775,7 @@ export async function consumeSlackManagedUsersAttempt(
 export async function loadSlackManagedUsersAttempt(
   state: string
 ): Promise<SlackManagedUsersAttempt | null> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const raw = await redis.get(attemptKey(state))
   return parseSlackManagedUsersAttempt(raw)
 }

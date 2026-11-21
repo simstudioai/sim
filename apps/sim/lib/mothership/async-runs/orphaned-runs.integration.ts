@@ -75,19 +75,18 @@ const FIRST_RECOVERY = { attempts: 1, claimedAt: 0, notBefore: 0 }
 
 function redis() {
   const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
   return client
 }
 
 /** The sweep's resume point lives in shared Redis; each test and the next suite start fresh. */
 async function resetSweepCursor() {
-  await getRedisClient()?.del('copilot:orphaned-runs:sweep-cursor')
+  await getRedisClient().del('copilot:orphaned-runs:sweep-cursor')
 }
 
 beforeEach(resetSweepCursor)
 
 afterAll(async () => {
-  chatPubSub?.dispose()
+  chatPubSub.dispose()
   await resetSweepCursor()
   await closeRedisConnection()
   await new Promise<void>((resolve) => worker.server.close(() => resolve()))
@@ -725,7 +724,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       legacy: true,
     })
     const announced: string[] = []
-    const unsubscribe = chatPubSub!.onStatusChanged((event) => {
+    const unsubscribe = chatPubSub.onStatusChanged((event) => {
       if (event.type === 'completed') announced.push(event.chatId)
     })
 

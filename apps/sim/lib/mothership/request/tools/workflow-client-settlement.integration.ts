@@ -73,7 +73,6 @@ interface ResumeEngine {
  */
 async function publishedConfirmation(toolCallId: string) {
   const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
   const value = await client.get(`copilot:tool-confirmation:${toolCallId}`)
   return value === null ? null : JSON.parse(value)
 }

@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { defineOperation } from '@/lib/core/application'
 import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
-import { isDesktopPresenceAvailable, isDesktopPresent } from '@/lib/desktop/executor/presence'
+import { isDesktopPresent } from '@/lib/desktop/executor/presence'
 import { listDesktopActivityRows } from '@/lib/desktop/executor/repository'
 
 const logger = createLogger('DesktopActivity')
@@ -24,9 +24,8 @@ export interface DesktopChatActivityEntry {
   deviceName: string
 }
 
-/** Presence Sim cannot read, or cannot track at all, is not evidence of an offline desktop. */
+/** Presence Sim cannot read is not evidence of an offline desktop. */
 async function readPresence(deviceId: string): Promise<boolean> {
-  if (!isDesktopPresenceAvailable()) return true
   try {
     return await isDesktopPresent(deviceId)
   } catch (error) {
@@ -38,8 +37,8 @@ async function readPresence(deviceId: string): Promise<boolean> {
 /**
  * Which of the caller's chats in a workspace are running on one of their desktops, and in what
  * state. Lists only the caller's own runs, never their content, so it needs no workspace role.
- * Runs already bound are listed until they end, whatever the install's executor availability; the
- * sidebar asks only for a user with a desktop that runs their turns.
+ * Runs already bound are listed until they end; the sidebar asks only for a user with a desktop
+ * that runs their turns.
  */
 export const listDesktopActivity = defineAuthorizedCredentialUserUseCase({
   // permission-group-exempt: reports only the caller's own runs, with no content.

@@ -194,7 +194,6 @@ const scheduleIds: string[] = []
 
 function redis() {
   const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
   return client
 }
 
@@ -371,7 +370,7 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
     await db.delete(permissions).where(eq(permissions.userId, userId))
     await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
-    chatPubSub?.dispose()
+    chatPubSub.dispose()
     await closeRedisConnection()
   })
 

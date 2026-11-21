@@ -1,21 +1,16 @@
 import { createLogger } from '@sim/logger'
+import type Redis from 'ioredis'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
   getExecutionSignalChannel,
   getExecutionSignalHub,
   LEGACY_EXECUTION_CANCEL_CHANNEL,
-  publishLocalExecutionSignal,
 } from '@/lib/execution/signal'
 
 const logger = createLogger('ExecutionCancellation')
 
 const EXECUTION_CANCEL_PREFIX = 'execution:cancel:'
 export const EXECUTION_CANCEL_MIN_RETENTION_MS = 14 * 24 * 60 * 60 * 1000
-const MAX_TIMER_DELAY_MS = 2_147_483_647
-const MAX_LOCAL_CANCELLATION_RECORDS = 50_000
-const localCancelledExecutions = new Map<string, number>()
-let localCancellationCleanupTimer: NodeJS.Timeout | undefined
-let localCancellationCleanupAt: number | undefined
 const MARK_EXECUTION_CANCELLED_SCRIPT = `
 redis.call('SET', KEYS[1], '1', 'PXAT', ARGV[1])
 redis.call('PUBLISH', ARGV[2], 'cancelled')
@@ -29,10 +24,7 @@ export interface MarkExecutionCancelledOptions {
 
 export type ExecutionCancellationRecordResult =
   | { durablyRecorded: true; reason: 'recorded' }
-  | {
-      durablyRecorded: false
-      reason: 'redis_unavailable' | 'redis_write_failed'
-    }
+  | { durablyRecorded: false; reason: 'redis_write_failed' }
 
 function getCancellationExpiryAt(options: MarkExecutionCancelledOptions): number {
   const minimumExpiryAt = Date.now() + EXECUTION_CANCEL_MIN_RETENTION_MS
@@ -52,7 +44,7 @@ function serializeLegacyCancellationSignal(
 }
 
 async function publishCancellationSignalBestEffort(
-  redis: NonNullable<ReturnType<typeof getRedisClient>>,
+  redis: Redis,
   executionId: string
 ): Promise<void> {
   let executionSignalPublished = false
@@ -79,42 +71,6 @@ async function publishCancellationSignalBestEffort(
   }
 }
 
-function scheduleLocalCancellationCleanup(candidateExpiryAt?: number): void {
-  if (
-    candidateExpiryAt !== undefined &&
-    localCancellationCleanupTimer &&
-    localCancellationCleanupAt !== undefined &&
-    localCancellationCleanupAt <= candidateExpiryAt
-  ) {
-    return
-  }
-  if (localCancellationCleanupTimer) clearTimeout(localCancellationCleanupTimer)
-  localCancellationCleanupTimer = undefined
-  localCancellationCleanupAt = undefined
-  if (localCancelledExecutions.size === 0) return
-
-  const now = Date.now()
-  let nextExpiryAt = candidateExpiryAt
-  if (nextExpiryAt === undefined) {
-    nextExpiryAt = Number.POSITIVE_INFINITY
-    for (const expiryAt of localCancelledExecutions.values()) {
-      nextExpiryAt = Math.min(nextExpiryAt, expiryAt)
-    }
-  }
-  const delayMs = Math.min(Math.max(0, nextExpiryAt - now), MAX_TIMER_DELAY_MS)
-  localCancellationCleanupAt = now + delayMs
-  localCancellationCleanupTimer = setTimeout(() => {
-    localCancellationCleanupTimer = undefined
-    localCancellationCleanupAt = undefined
-    const cleanupAt = Date.now()
-    for (const [executionId, expiryAt] of localCancelledExecutions) {
-      if (expiryAt <= cleanupAt) localCancelledExecutions.delete(executionId)
-    }
-    scheduleLocalCancellationCleanup()
-  }, delayMs)
-  localCancellationCleanupTimer.unref?.()
-}
-
 /** Writes the durable key first, then publishes — so a late subscriber still sees the flag on backstop check. */
 export async function markExecutionCancelled(
   executionId: string,
@@ -122,31 +78,6 @@ export async function markExecutionCancelled(
 ): Promise<ExecutionCancellationRecordResult> {
   const redis = getRedisClient()
   const expiryAt = getCancellationExpiryAt(options)
-  if (!redis) {
-    if (!localCancelledExecutions.has(executionId)) {
-      const oldestExecutionId = localCancelledExecutions.keys().next().value
-      if (
-        localCancelledExecutions.size >= MAX_LOCAL_CANCELLATION_RECORDS &&
-        oldestExecutionId !== undefined
-      ) {
-        localCancelledExecutions.delete(oldestExecutionId)
-        logger.warn('Evicted oldest process-local cancellation record at capacity', {
-          maxRecords: MAX_LOCAL_CANCELLATION_RECORDS,
-        })
-      }
-    } else {
-      localCancelledExecutions.delete(executionId)
-    }
-    localCancelledExecutions.set(executionId, expiryAt)
-    scheduleLocalCancellationCleanup(expiryAt)
-    try {
-      publishLocalExecutionSignal(executionId, 'cancelled')
-    } catch (error) {
-      logger.warn('Failed to publish process-local cancellation signal', { executionId, error })
-    }
-    return { durablyRecorded: false, reason: 'redis_unavailable' }
-  }
-
   try {
     await redis.eval(
       MARK_EXECUTION_CANCELLED_SCRIPT,
@@ -171,18 +102,6 @@ export async function markExecutionCancelled(
 
 async function readExecutionCancelledStrict(executionId: string): Promise<boolean> {
   const redis = getRedisClient()
-  if (!redis) {
-    const expiryAt = localCancelledExecutions.get(executionId)
-    if (expiryAt === undefined) return false
-    if (expiryAt <= Date.now()) {
-      localCancelledExecutions.delete(executionId)
-      if (expiryAt <= (localCancellationCleanupAt ?? Number.POSITIVE_INFINITY)) {
-        scheduleLocalCancellationCleanup()
-      }
-      return false
-    }
-    return true
-  }
   return (await redis.exists(`${EXECUTION_CANCEL_PREFIX}${executionId}`)) === 1
 }
 
@@ -249,17 +168,6 @@ export async function subscribeToExecutionCancellation(
 
 export async function clearExecutionCancellation(executionId: string): Promise<void> {
   const redis = getRedisClient()
-  if (!redis) {
-    const expiryAt = localCancelledExecutions.get(executionId)
-    localCancelledExecutions.delete(executionId)
-    if (
-      expiryAt !== undefined &&
-      expiryAt <= (localCancellationCleanupAt ?? Number.POSITIVE_INFINITY)
-    ) {
-      scheduleLocalCancellationCleanup()
-    }
-    return
-  }
 
   try {
     await redis.del(`${EXECUTION_CANCEL_PREFIX}${executionId}`)

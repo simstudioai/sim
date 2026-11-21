@@ -23,7 +23,6 @@ const refusalKey = (workspaceId: string) => `poll-admission-refused:v1:${workspa
 export async function recordPollAdmissionRefusal(workspaceId: string): Promise<void> {
   if (!isBillingEnabled) return
   const redis = getRedisClient()
-  if (!redis) return
   try {
     await redis.set(refusalKey(workspaceId), '1', 'EX', POLL_ADMISSION_REFUSAL_TTL_SECONDS)
   } catch (error) {
@@ -44,7 +43,6 @@ export async function findRecentlyRefusedWorkspaces(
 ): Promise<ReadonlySet<string>> {
   if (!isBillingEnabled || workspaceIds.length === 0) return new Set()
   const redis = getRedisClient()
-  if (!redis) return new Set()
   try {
     const flags = await redis.mget(...workspaceIds.map(refusalKey))
     return new Set(workspaceIds.filter((_, index) => flags[index] !== null))

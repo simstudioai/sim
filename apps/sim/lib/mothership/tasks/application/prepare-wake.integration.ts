@@ -47,7 +47,7 @@ import {
 import { POST as wakeRoute } from '@/app/api/mothership/wake/route'
 
 afterAll(async () => {
-  chatPubSub?.dispose()
+  chatPubSub.dispose()
   await closeRedisConnection()
   if (inheritedRedisUrl === undefined) Reflect.deleteProperty(process.env, 'REDIS_URL')
   else process.env.REDIS_URL = inheritedRedisUrl
@@ -198,7 +198,7 @@ describe.runIf(Boolean(redisUrl))('task wake retries', () => {
     await started
     /** The first wake's lock outlives its TTL while the lookup hangs. */
     const firstLease = getLocalChatStreamLease(chatId, runId)
-    await getRedisClient()?.del(firstLease?.key ?? '')
+    await getRedisClient().del(firstLease?.key ?? '')
     expect((await wake(chatId, runId)).status).toBe(202)
 
     failLookup()

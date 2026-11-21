@@ -40,7 +40,6 @@ export type CancelWorkflowExecutionReason =
   | 'already_cancelled'
   | 'already_completed'
   | 'already_failed'
-  | 'redis_unavailable'
   | 'redis_write_failed'
   | 'paused_event_publish_failed'
   | 'paused_database_cancel_failed'
@@ -51,6 +50,10 @@ export type CancelWorkflowExecutionReason =
 export interface CancelWorkflowExecutionResult {
   success: boolean
   executionId: string
+  /**
+   * Kept on the wire for compatibility. Redis is required, so this is true except on a paused-run
+   * cancellation whose cancellation event failed to publish.
+   */
   redisAvailable: boolean
   durablyRecorded: boolean
   locallyAborted: boolean
@@ -112,9 +115,10 @@ type ActiveResumeCancellationTarget = NonNullable<
   Awaited<ReturnType<typeof PauseResumeManager.getActiveResumeCancellationTarget>>
 >
 
+/** Starts unrecorded; the first merged stop signal replaces `cancellation` before anything reads it. */
 function createExecutionStopSummary(): ExecutionStopSummary {
   return {
-    cancellation: { durablyRecorded: false, reason: 'redis_unavailable' },
+    cancellation: { durablyRecorded: false, reason: 'redis_write_failed' },
     locallyAborted: false,
     queueJobsCancelled: 0,
     accepted: false,
@@ -570,7 +574,7 @@ function activeResumeSignalFailureResult(
   return {
     success: false,
     executionId,
-    redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
+    redisAvailable: true,
     durablyRecorded: stopSummary.cancellation.durablyRecorded,
     locallyAborted: stopSummary.locallyAborted,
     pausedCancelled: false,
@@ -669,7 +673,7 @@ export async function cancelWorkflowExecution({
         return {
           success: true,
           executionId,
-          redisAvailable: cancellation.reason !== 'redis_unavailable',
+          redisAvailable: true,
           durablyRecorded: cancellation.durablyRecorded,
           locallyAborted,
           pausedCancelled: false,
@@ -938,7 +942,7 @@ export async function cancelWorkflowExecution({
           return {
             success: false,
             executionId,
-            redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
+            redisAvailable: true,
             durablyRecorded: stopSummary.cancellation.durablyRecorded,
             locallyAborted: stopSummary.locallyAborted,
             pausedCancelled: false,
@@ -1034,7 +1038,7 @@ export async function cancelWorkflowExecution({
         throw new WorkflowRunAlreadyTerminalError({
           executionId,
           executionStatus: competingTerminalStatus,
-          redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
+          redisAvailable: true,
           locallyAborted: stopSummary.locallyAborted,
         })
       }
@@ -1061,7 +1065,7 @@ export async function cancelWorkflowExecution({
       return {
         success: false,
         executionId,
-        redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
+        redisAvailable: true,
         durablyRecorded: stopSummary.cancellation.durablyRecorded,
         locallyAborted: stopSummary.locallyAborted,
         pausedCancelled: false,
@@ -1191,9 +1195,7 @@ export async function cancelWorkflowExecution({
       success,
       executionId,
       redisAvailable:
-        effectivePausedCancellationPath || pausedCancelled
-          ? cancellationEventPublished
-          : stopSummary.cancellation.reason !== 'redis_unavailable',
+        effectivePausedCancellationPath || pausedCancelled ? cancellationEventPublished : true,
       durablyRecorded,
       locallyAborted: stopSummary.locallyAborted,
       pausedCancelled,

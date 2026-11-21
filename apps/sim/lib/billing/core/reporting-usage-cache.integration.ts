@@ -289,16 +289,6 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     expect(await redis.get(sharedKey(payer))).toBe('9.99')
   })
 
-  it('sums the whole window in one query when Redis is absent', async () => {
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
-    const period = openReportingWindow()
-    await insertUsage(payer, 2, new Date(period.start.getTime() + DAY_MS))
-    await insertUsage(payer, 3, new Date(Date.now() - MINUTE_MS))
-
-    await expect(readInNewProcess(payer, period)).resolves.toBe(5)
-    expect(summedPeriods).toEqual([period])
-  })
-
   it('leases a due refresh to one of the processes missing together', async () => {
     const period = openReportingWindow()
     await insertUsage(payer, 2, new Date(period.start.getTime() + DAY_MS))

@@ -349,7 +349,7 @@ async function releaseChatLocks(fences: ChatLockFence[]): Promise<void> {
 
 async function readSweepCursor(key = SWEEP_CURSOR_KEY): Promise<string | undefined> {
   try {
-    return (await getRedisClient()?.get(key)) ?? undefined
+    return (await getRedisClient().get(key)) ?? undefined
   } catch (error) {
     logger.warn('Orphaned-run sweep cursor is unreadable; starting from the first run', {
       error: getErrorMessage(error),
@@ -361,7 +361,6 @@ async function readSweepCursor(key = SWEEP_CURSOR_KEY): Promise<string | undefin
 async function writeSweepCursor(cursor: string | undefined, key = SWEEP_CURSOR_KEY): Promise<void> {
   try {
     const redis = getRedisClient()
-    if (!redis) return
     if (cursor) await redis.set(key, cursor, 'EX', SWEEP_CURSOR_TTL_SECONDS)
     else await redis.del(key)
   } catch (error) {

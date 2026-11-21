@@ -143,7 +143,6 @@ const TOOL_ARGS = {}
 
 function redis() {
   const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
   return client
 }
 
@@ -396,7 +395,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
     await db.delete(organization).where(eq(organization.id, organizationId))
     await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     for (const id of [ownerId, userId]) await db.delete(user).where(eq(user.id, id))
-    chatPubSub?.dispose()
+    chatPubSub.dispose()
     await closeRedisConnection()
   })
 

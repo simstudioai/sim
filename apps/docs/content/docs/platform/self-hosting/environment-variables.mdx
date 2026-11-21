@@ -19,6 +19,7 @@ Production Compose derives `DATABASE_URL` and `BETTER_AUTH_URL` on its service d
 | `ENCRYPTION_KEY` | Encryption key, exactly 64 hex characters (32 bytes): `openssl rand -hex 32`. A key in any other format leaves [account token sealing](/platform/self-hosting/security#account-token-sealing) off |
 | `INTERNAL_API_SECRET` | Internal API secret, at least 32 characters: `openssl rand -hex 32` |
 | `NEXT_PUBLIC_APP_URL` | Public app URL |
+| `REDIS_URL` | Redis connection string (`redis://` or `rediss://`), shared by the app and realtime services. The app refuses to start without it; there is no PostgreSQL or in-memory fallback. See [Redis](/platform/self-hosting/redis) |
 
 `openssl rand -hex 32` prints 64 hex characters. Encryption keys require that format. The app skips its env schema validation; individual consumers can reject invalid values when first used. Realtime validates `BETTER_AUTH_SECRET` and `INTERNAL_API_SECRET` at boot and rejects values shorter than 32 characters.
 
@@ -32,8 +33,7 @@ Production Compose derives `DATABASE_URL` and `BETTER_AUTH_URL` on its service d
 |----------|-------------|
 | `API_ENCRYPTION_KEY` | Encrypts stored Sim API-key material; use exactly 64 hex characters (`openssl rand -hex 32`). When unset, legacy API keys can be stored in plain text; the key getter logs a warning when called |
 | `CRON_SECRET` | Bearer token for the background job endpoints: `openssl rand -hex 32`. **Required whenever background jobs are enabled** — the Helm chart's default, and the chart will not render without it, unless it comes from `app.secrets.existingSecret` or External Secrets. See [Background jobs](/platform/self-hosting/background-jobs) |
-| `REDIS_URL` | Redis connection string. Required for cross-replica events and features with no fallback, such as CLI pairing approval. Some single-process storage paths can fall back to PostgreSQL or local state; see [Redis](/platform/self-hosting/redis) |
-| `REDIS_TLS_SERVERNAME` | TLS SNI override. Required when `REDIS_URL` uses `rediss://` with a bare IP, or the app throws the first time it opens a Redis connection |
+| `REDIS_TLS_SERVERNAME` | TLS SNI override. Required when `REDIS_URL` uses `rediss://` with a bare IP, or the app refuses to start |
 | `NEXT_PUBLIC_SOCKET_URL` | Public WebSocket URL. Proxied deployments default to the page origin; a localhost page uses port 3002. Set it for a separate realtime host. |
 | `TRUSTED_ORIGINS` | Comma-separated additional origins to trust for auth (apex + `www`, alias domains) |
 | `AUTH_TRUSTED_PROXIES` | Comma-separated reverse-proxy IPs/CIDRs so the client IP cannot be forged through `X-Forwarded-For` |
@@ -340,7 +340,7 @@ INTERNAL_API_SECRET=<openssl rand -hex 32>
 API_ENCRYPTION_KEY=<openssl rand -hex 32>
 CRON_SECRET=<openssl rand -hex 32>
 
-# Coordination (required past one replica)
+# Redis (required)
 REDIS_URL=redis://redis:6379
 
 # Models — OPENAI_API_KEY also powers knowledge base embeddings

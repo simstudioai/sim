@@ -12,7 +12,6 @@ function deadKey(accountId: string): string {
 
 export async function markCredentialDead(accountId: string, code: string): Promise<void> {
   const redis = getRedisClient()
-  if (!redis) return
   try {
     await redis.set(deadKey(accountId), code, 'EX', DEAD_CACHE_TTL_SEC)
   } catch (error) {
@@ -26,7 +25,6 @@ export async function markCredentialDead(accountId: string, code: string): Promi
 
 export async function getRecentTerminalError(accountId: string): Promise<string | null> {
   const redis = getRedisClient()
-  if (!redis) return null
   try {
     return await redis.get(deadKey(accountId))
   } catch (error) {
@@ -40,7 +38,6 @@ export async function getRecentTerminalError(accountId: string): Promise<string 
 
 export async function clearDeadFlag(accountId: string): Promise<void> {
   const redis = getRedisClient()
-  if (!redis) return
   try {
     await redis.del(deadKey(accountId))
   } catch (error) {

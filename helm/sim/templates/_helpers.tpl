@@ -321,8 +321,23 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- fail "externalDatabase.password must only contain alphanumeric characters, hyphens, underscores, or periods to ensure DATABASE_URL compatibility." }}
 {{- end }}
 {{- end }}
+{{- include "sim.validateRedis" . }}
 {{- /* ESO coverage validation - every key set in app.env / realtime.env must be mapped in externalSecrets.remoteRefs.app */ -}}
 {{- include "sim.validateExternalSecretCoverage" . }}
+{{- end }}
+
+{{/*
+Sim requires Redis. With redis.enabled=false the operator must supply
+REDIS_URL: inline in app.env, from a pre-created Secret (which the chart cannot
+read, so it is trusted), or mapped through External Secrets (enforced in
+sim.validateExternalSecretCoverage).
+*/}}
+{{- define "sim.validateRedis" -}}
+{{- $useExistingAppSecret := and .Values.app.secrets .Values.app.secrets.existingSecret .Values.app.secrets.existingSecret.enabled }}
+{{- $useExternalSecrets := and .Values.externalSecrets .Values.externalSecrets.enabled }}
+{{- if and (or .Values.app.enabled .Values.realtime.enabled) (not .Values.redis.enabled) (not (.Values.app.env.REDIS_URL | default "")) (not (or $useExistingAppSecret $useExternalSecrets)) }}
+{{- fail "Sim requires Redis: redis.enabled=false but no REDIS_URL is provided. Set app.env.REDIS_URL to your Redis (redis:// or rediss://), supply it via app.secrets.existingSecret or externalSecrets.remoteRefs.app.REDIS_URL, or set redis.enabled=true to deploy the bundled Redis." }}
+{{- end }}
 {{- end }}
 
 {{/*
@@ -355,6 +370,9 @@ than enforced.
 {{- $required := list "BETTER_AUTH_SECRET" "ENCRYPTION_KEY" "INTERNAL_API_SECRET" -}}
 {{- if .Values.cronjobs.enabled -}}
 {{- $required = append $required "CRON_SECRET" -}}
+{{- end -}}
+{{- if not .Values.redis.enabled -}}
+{{- $required = append $required "REDIS_URL" -}}
 {{- end -}}
 {{- range $key := $required -}}
 {{- $inEnv := index $appEnv $key -}}
