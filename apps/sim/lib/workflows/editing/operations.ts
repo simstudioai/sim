@@ -81,7 +81,7 @@ function renameBlock(blocks: Record<string, BlockState>, blockId: string, name: 
     if (id === blockId) continue
     for (const subBlock of Object.values(block.subBlocks ?? {})) {
       if (subBlock.value === undefined || subBlock.value === null) continue
-      subBlock.value = rewriteBlockNameReferences(subBlock.value, nameMap) as typeof subBlock.value
+      subBlock.value = rewriteBlockNameReferences(subBlock.value, nameMap)
     }
     const data = block.data
     if (!data || (block.type !== 'loop' && block.type !== 'parallel')) continue
