@@ -87,7 +87,8 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   const ssoEnabled = isSsoEnabled
   const {
     selfServeRegistrationClosed: registrationDisabled,
-    emailPasswordAuthEnabled: emailEnabled,
+    emailSignupAllowed,
+    emailPasswordAuthEnabled,
   } = getRegistrationPolicy(useDeploymentShape().registrationMode ?? 'open')
 
   /**
@@ -95,6 +96,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
    * clamped to login rather than mirrored into state through an effect.
    */
   const effectiveView: AuthView = view === 'signup' && registrationDisabled ? 'login' : view
+  const emailEnabled = effectiveView === 'signup' ? emailSignupAllowed : emailPasswordAuthEnabled
 
   /**
    * Tracks whether the visitor still wants the modal open. Cleared on dismiss so a

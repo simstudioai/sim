@@ -41,6 +41,24 @@ describe('resolveRegistrationMode', () => {
     expect(resolve({ mode: 'true' }).mode).toBe('closed')
   })
 
+  it('accepts a mode in any case without reporting it invalid', () => {
+    expect(resolve({ mode: 'CLOSED' })).toEqual({ mode: 'closed', warnings: [] })
+  })
+
+  it('accepts a mode with surrounding whitespace', () => {
+    expect(resolve({ mode: ' no-email ' })).toEqual({ mode: 'no-email', warnings: [] })
+  })
+
+  describe('deprecated values written in another case or padded', () => {
+    it('reads DISABLE_REGISTRATION=TRUE as closed', () => {
+      expect(resolve({ legacy: { disableRegistration: 'TRUE' } }).mode).toBe('closed')
+    })
+
+    it('reads EMAIL_PASSWORD_SIGNUP_ENABLED=" FALSE " as no-email', () => {
+      expect(resolve({ legacy: { emailPasswordSignupEnabled: ' FALSE ' } }).mode).toBe('no-email')
+    })
+  })
+
   describe('deprecated variables alone', () => {
     it('maps DISABLE_REGISTRATION to closed', () => {
       const resolved = resolve({ legacy: { disableRegistration: 'true' } })

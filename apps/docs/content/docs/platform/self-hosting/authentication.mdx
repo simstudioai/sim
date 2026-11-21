@@ -82,6 +82,8 @@ In the `closed` modes, existing accounts can still sign in, including to accept 
 | `EMAIL_PASSWORD_SIGNUP_ENABLED=false` (or `NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED=false`) | `no-email` |
 | `DISABLE_REGISTRATION=true` with `EMAIL_PASSWORD_SIGNUP_ENABLED=false` | `closed-no-email` |
 
+`NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED=false` used to only hide the email form in the browser. It now also turns off email/password and email OTP sign-in on the server for every account, existing ones included; set `REGISTRATION_MODE` explicitly to choose the behavior you want.
+
 The other sign-in controls:
 
 | Variable | Effect |

@@ -49,6 +49,11 @@ export function publicEnvHtmlAttributes(): Record<string, string> {
  * shape, which the browser reads instead of rebuilding deployment configuration from
  * `NEXT_PUBLIC_*` twins. Rides on `<html>` for the same ordering reason as
  * {@link publicEnvHtmlAttributes}; see `@/lib/core/config/deployment-projection`.
+ *
+ * Every field is visible to any visitor, signed in or not, so the shape must never
+ * carry a secret, URL, or identifier (`deployment-shape.test.ts` guards this). It
+ * relies on the same dynamic-root guarantee as {@link PUBLIC_ENV_ATTRIBUTE}: a
+ * prerendered page would carry build-time values instead of the running config.
  */
 export function deploymentShapeHtmlAttributes(): Record<string, string> {
   return { [DEPLOYMENT_SHAPE_ATTRIBUTE]: JSON.stringify(resolveDeploymentShape()) }
