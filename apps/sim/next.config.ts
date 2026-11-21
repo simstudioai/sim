@@ -166,11 +166,10 @@ const nextConfig: NextConfig = {
      */
     turbopackFileSystemCacheForDev: true,
     /**
-     * Only qualified CI builds opt into persistent compiler state. Other builds
-     * remain cache-off until their own memory, invalidation and restore costs are
-     * qualified. CI keeps this state separate from complete build-output caches.
+     * Off, explicitly: Next enables it by default, and a CI build compiles code its cache has
+     * never seen, so it only pays for writing the cache back (15-37s) on a disk that is discarded.
      */
-    turbopackFileSystemCacheForBuild: isTruthy(env.NEXT_BUILD_PERSISTENT_CACHE),
+    turbopackFileSystemCacheForBuild: false,
     /**
      * TypeScript 7 ships no JavaScript compiler API until 7.1, so Next's default
      * checker cannot load it — this shells out to the project-local `tsc` instead.
