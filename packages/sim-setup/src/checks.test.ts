@@ -159,6 +159,20 @@ describe('registration mode checks', () => {
     ])
   })
 
+  it('never advises a mode less restrictive than the one in effect', async () => {
+    const findings = await runChecks(
+      rootContext({ REGISTRATION_MODE: 'closed', DISABLE_EMAIL_SIGNUP: 'false' }),
+      ['coherence']
+    )
+
+    expect(registrationFindings(findings)).toEqual([
+      expect.objectContaining({
+        status: 'warn',
+        fix: 'set REGISTRATION_MODE=closed and remove DISABLE_EMAIL_SIGNUP',
+      }),
+    ])
+  })
+
   it('no longer requires the retired browser twin of EMAIL_PASSWORD_SIGNUP_ENABLED', async () => {
     const findings = await runChecks(rootContext({ EMAIL_PASSWORD_SIGNUP_ENABLED: 'true' }), [
       'coherence',

@@ -638,7 +638,7 @@ function checkRegistrationMode(sim: EnvFile): Finding[] {
         group: 'coherence',
         status: 'warn',
         message: `deprecated registration variables are set (${names}) — REGISTRATION_MODE replaces them`,
-        fix: `set REGISTRATION_MODE=${warning.details.equivalentMode} and remove ${names}`,
+        fix: `set REGISTRATION_MODE=${mode} and remove ${names}`,
       })
     } else {
       findings.push({
