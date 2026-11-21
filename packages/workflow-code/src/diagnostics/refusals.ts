@@ -105,9 +105,13 @@ const PARAM_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_UNKNOWN_OPTION', 'E_APPLY_INVALID_SUBBLOCK_FIELD'],
 ])
 
-/** In `workflow.ts` on a block the edit changed: a path no output of the block has. */
+/**
+ * In `workflow.ts` on a block the edit changed: a path no output of the block has, or a literal
+ * `<name.path>` whose head names no block, which the server's lint refuses as a dangling reference.
+ */
 const ENTRY_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_UNKNOWN_OUTPUT_PATH', 'E_APPLY_UNRESOLVED_REF'],
+  ['W_UNRESOLVED_REF', 'E_APPLY_UNRESOLVED_REF'],
 ])
 
 /**

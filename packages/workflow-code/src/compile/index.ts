@@ -42,6 +42,7 @@ import {
   checkCodeFileRefs,
   checkDynamicOutputRefs,
   checkErrorOutputRefs,
+  checkUnresolvedTags,
   compileJsonLiteral,
   objectEntries,
 } from './values'
@@ -574,6 +575,7 @@ function compileEntry(
     envReferences: new Set(),
     jsonFields: [],
     dynamicOutputRefs: [],
+    unresolvedTags: [],
     errorOutputRefs: [],
     refusedBranches: new Map(),
     valueConsts: new Set(),
@@ -692,6 +694,7 @@ function compileEntry(
     : new Map<BlockKey, BlockKey>()
   const renamed = new Map([...unreadRenames, ...(input.renamedKeys ?? [])])
   checkCodeFileRefs(ctx, renamed)
+  checkUnresolvedTags(ctx, renamed)
   const stored = storedView(input.stored, renamed)
 
   const refTypes: RefTypeScope = {

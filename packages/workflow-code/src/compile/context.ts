@@ -180,6 +180,8 @@ export interface CompileContext {
    * written last (`checkDynamicOutputRefs`).
    */
   dynamicOutputRefs: DynamicOutputRef[]
+  /** Literal tags whose head names no block, checked once renames are known (`checkUnresolvedTags`). */
+  unresolvedTags: LiteralTag[]
   /** `x.error` references, checked once the edges are known (`checkErrorOutputRefs`). */
   errorOutputRefs: Array<Omit<DynamicOutputRef, 'segments'>>
   /**
@@ -192,6 +194,14 @@ export interface CompileContext {
    * write the value there instead of offering a did-you-mean.
    */
   valueConsts: Set<string>
+}
+
+/** A `<Name.path>` in literal text whose head is no declared block's key. */
+export interface LiteralTag {
+  token: string
+  normalized: BlockKey
+  at: Range
+  blockKey: BlockKey
 }
 
 /** A reference path into a block whose outputs its `responseFormat` declares. */

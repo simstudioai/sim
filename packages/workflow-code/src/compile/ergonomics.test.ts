@@ -476,14 +476,18 @@ describe('header, names and hand-written references', () => {
   })
 
   it.each([
-    ['a cased block name', "'<A.data>'", true],
-    ['a name that is no block', "'<nobody.data>'", true],
-    ['the normalized key of a block', "'<a.data>'", false],
-  ])('warns W_REF_NOT_NORMALIZED for %s: %s', (_label, literal, warns) => {
+    ['a cased block name', "'<A.data>'", 'W_REF_NOT_NORMALIZED'],
+    ['a name that is no block', "'<nobody.data>'", 'W_UNRESOLVED_REF'],
+    ['a bare tag that is no reference', "'<nobody>'", 'W_REF_NOT_NORMALIZED'],
+    ['the normalized key of a block', "'<a.data>'", undefined],
+  ])('warns for %s: %s', (_label, literal, warning) => {
     const result = run(
       source(`  const a = api('A', { url: 'x' })\n  api('B', { url: ${literal} })`)
     )
-    expect(codes(result).includes('W_REF_NOT_NORMALIZED')).toBe(warns)
+    const found = codes(result).filter(
+      (code) => code === 'W_REF_NOT_NORMALIZED' || code === 'W_UNRESOLVED_REF'
+    )
+    expect(found).toEqual(warning ? [warning] : [])
     if (literal === "'<A.data>'") {
       const warning = result.diagnostics.find((d) => d.code === 'W_REF_NOT_NORMALIZED')
       expect(warning?.hint).toContain('${a.data}')

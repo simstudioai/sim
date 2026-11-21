@@ -83,6 +83,34 @@ describe('refuseEditedFindings', () => {
     expect(errors(refuseEditedFindings(compiled, edited('call')))).toEqual([])
   })
 
+  it('refuses a literal tag naming no block on a changed block, as the server lint does', () => {
+    const compiled = compile([
+      START,
+      "const call = api('Call', { url: 'https://x/<gone.id>' })",
+      "const cased = api('Cased', { url: 'https://x/<Call.data>' })",
+      "const bare = api('Bare', { url: 'https://x/<b>' })",
+      'start.to(call)',
+    ])
+
+    expect(errors(refuseEditedFindings(compiled, edited('call', 'cased', 'bare')))).toEqual([
+      'E_APPLY_UNRESOLVED_REF call',
+    ])
+    expect(errors(refuseEditedFindings(compiled, edited('cased', 'bare')))).toEqual([])
+  })
+
+  it('keeps a literal tag naming a block the source renamed, which the apply rewrites', () => {
+    const text = `// @sim-sdk 1\n${IMPORTS}\n\nexport default workflow('Test', () => {\n  ${START}\n  const call = api('Call', { url: 'https://x/<former.id>' })\n})\n`
+    const compiled = compileWorkflow({
+      entry: { path: 'workflow.ts', text },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      renamedKeys: new Map([['former', 'call']]),
+    })
+
+    expect(errors(refuseEditedFindings(compiled, edited('call')))).toEqual([])
+  })
+
   it('refuses an iteration field a shared code file reads for a block outside the loop', () => {
     const compiled = compile(
       [
