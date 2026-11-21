@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   DefinedField,
   SourceBase,
@@ -78,9 +79,21 @@ const lockLayoutSchema = withExtensions({
   'Stored canvas geometry; applied only to new blocks.'
 )
 
-/** A lock never binds more entries than a workflow may hold blocks (`parseWorkflowLock` agrees). */
-function atMostMaxBlocks(record: Record<string, unknown>): boolean {
-  return Object.keys(record).length <= SOURCE_LIMITS.maxBlocks
+/**
+ * A string-keyed record of at most `max` entries, a workflow's cap (`parseWorkflowLock` agrees).
+ * The entries are counted before any value is validated, so an oversized lock costs one key count
+ * rather than a walk of every entry.
+ */
+function cappedRecord<Value extends z.ZodType>(values: Value, max: number, field: string) {
+  return z.preprocess(
+    (input, ctx) => {
+      if (isRecordLike(input) && Object.keys(input).length > max) {
+        ctx.addIssue({ code: 'custom', message: `${field} cannot hold more than ${max} entries` })
+      }
+      return input
+    },
+    z.record(z.string(), values)
+  )
 }
 
 const lockBlockSchema = withExtensions({
@@ -113,17 +126,12 @@ const lockBlockSchema = withExtensions({
 
 export const workflowLockSchema = withExtensions({
   version: z.literal(1).describe('Lock format version.'),
-  blocks: z
-    .record(z.string(), lockBlockSchema)
-    .refine(atMostMaxBlocks, `lock.blocks cannot hold more than ${SOURCE_LIMITS.maxBlocks} entries`)
-    .describe('Block key → identity.'),
-  variables: z
-    .record(z.string(), z.string())
-    .refine(
-      atMostMaxBlocks,
-      `lock.variables cannot hold more than ${SOURCE_LIMITS.maxBlocks} entries`
-    )
-    .describe('Variable key → variable id.'),
+  blocks: cappedRecord(lockBlockSchema, SOURCE_LIMITS.maxBlocks, 'lock.blocks').describe(
+    'Block key → identity.'
+  ),
+  variables: cappedRecord(z.string(), SOURCE_LIMITS.maxVariables, 'lock.variables').describe(
+    'Variable key → variable id.'
+  ),
 } satisfies ShapeOf<WorkflowLockV1>).describe(
   'Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.'
 )
