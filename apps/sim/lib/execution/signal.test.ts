@@ -16,6 +16,8 @@ const { connection, mockRedisUrl, mockSubscribe, mockUnsubscribe } = vi.hoisted(
   mockUnsubscribe: vi.fn(),
 }))
 
+vi.unmock('@/lib/execution/signal')
+
 vi.mock('ioredis', () => ({
   default: class extends EventEmitter {
     constructor(_url: string, options: Record<string, unknown>) {

@@ -1,29 +1,24 @@
 import { redisConfigMockFns } from '@sim/testing'
+import { executionSignalMockFns } from '@sim/testing/mocks/execution-signal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExecutionSignalHandler } from '@/lib/execution/signal'
 
 const {
   mockRedisEval,
   mockRedisExists,
   mockRedisPublish,
-  mockSignalSubscribe,
   mockSignalUnsubscribe,
   mockRecordCancellationResult,
 } = vi.hoisted(() => ({
   mockRedisEval: vi.fn(),
   mockRedisExists: vi.fn(),
   mockRedisPublish: vi.fn(),
-  mockSignalSubscribe: vi.fn(),
   mockSignalUnsubscribe: vi.fn(),
   mockRecordCancellationResult: vi.fn(),
 }))
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
-
-vi.mock('@/lib/execution/signal', () => ({
-  getExecutionSignalChannel: (executionId: string) => `execution:signal:${executionId}`,
-  getExecutionSignalHub: () => ({ subscribe: mockSignalSubscribe }),
-  LEGACY_EXECUTION_CANCEL_CHANNEL: 'execution:cancel',
-}))
+const mockSignalSubscribe = executionSignalMockFns.mockSubscribe
 
 vi.mock('@/lib/core/execution-limits/metrics', () => ({
   recordExecutionCancellationBackendResult: mockRecordCancellationResult,
@@ -195,7 +190,7 @@ describe('subscribeToExecutionCancellation', () => {
   })
 
   it('re-reads the durable cancellation flag after the signal connection recovers', async () => {
-    let signalHandler: ((reason: string) => void) | undefined
+    let signalHandler: ExecutionSignalHandler | undefined
     mockSignalSubscribe.mockImplementation(async (_executionId, handler) => {
       signalHandler = handler
       return mockSignalUnsubscribe
@@ -211,7 +206,7 @@ describe('subscribeToExecutionCancellation', () => {
   })
 
   it('queues a fresh durable read when reconnect occurs during an in-flight read', async () => {
-    let signalHandler: ((reason: string) => void) | undefined
+    let signalHandler: ExecutionSignalHandler | undefined
     mockSignalSubscribe.mockImplementation(async (_executionId, handler) => {
       signalHandler = handler
       return mockSignalUnsubscribe
@@ -237,7 +232,7 @@ describe('subscribeToExecutionCancellation', () => {
   })
 
   it('fails closed when the signal subscription cannot be restored', async () => {
-    let signalHandler: ((reason: string) => void) | undefined
+    let signalHandler: ExecutionSignalHandler | undefined
     mockSignalSubscribe.mockImplementation(async (_executionId, handler) => {
       signalHandler = handler
       return mockSignalUnsubscribe

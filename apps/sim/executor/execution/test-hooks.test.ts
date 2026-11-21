@@ -17,6 +17,15 @@ const { executed, inputsSeen } = vi.hoisted(() => ({
   inputsSeen: [] as Array<{ blockId: string; inputs: Record<string, unknown> }>,
 }))
 
+/** A For loop's continuation check is `return Boolean(<index> < <count>)`; nothing here needs a real isolate. */
+vi.mock('@/lib/execution/isolated-vm', () => ({
+  executeInIsolatedVM: vi.fn(async ({ code }: { code: string }) => {
+    const indexCheck = /^return Boolean\((\d+) < (\d+)\)$/.exec(code)
+    if (!indexCheck) throw new Error(`Unexpected isolated-vm code in test: ${code}`)
+    return { result: Number(indexCheck[1]) < Number(indexCheck[2]) }
+  }),
+}))
+
 vi.mock('@/executor/handlers/registry', () => ({
   createBlockHandlers: () => [
     {

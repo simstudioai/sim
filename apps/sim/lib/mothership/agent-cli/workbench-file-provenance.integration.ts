@@ -29,6 +29,13 @@ const redis = redisUrl
     })
   : undefined
 redis?.on('error', () => {})
+/** A client whose connection has closed: every command rejects the way it does when Redis drops. */
+const closedRedis = redisUrl
+  ? new Redis(redisUrl, { lazyConnect: true, retryStrategy: () => null })
+  : undefined
+closedRedis?.on('error', () => {})
+closedRedis?.disconnect()
+const STORAGE_FAILURE = 'Connection is closed'
 const receiptPrefixes = new Set<string>()
 const historyKeys = new Set<string>()
 const fixtureWorkspaceId = generateShortId()
@@ -354,10 +361,10 @@ describe.skipIf(!redisUrl)('trusted workbench byte receipts with real Redis', ()
       await consume(broken.observeUpload(machine, body()))
       expect(broken.uploadProvenance()).toEqual({ status: 'unknown' })
     }
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(closedRedis!)
     const unavailable = createWorkbenchFileProvenance(scope)
     await expect(consume(unavailable.observeUpload(machine, body()))).rejects.toThrow(
-      'storage is unavailable'
+      STORAGE_FAILURE
     )
     expect(() => unavailable.uploadProvenance()).toThrow('has not finished')
   })
@@ -394,7 +401,7 @@ describe.skipIf(!redisUrl)('trusted workbench byte receipts with real Redis', ()
         await expect(reader.read()).rejects.toThrow('stopped')
       } else {
         if (outcome === 'storage failure') {
-          redisConfigMockFns.mockGetRedisClient.mockReturnValueOnce(null)
+          redisConfigMockFns.mockGetRedisClient.mockReturnValueOnce(closedRedis!)
         } else if (outcome === 'abort during persistence') {
           redisConfigMockFns.mockGetRedisClient.mockImplementationOnce(() => {
             stop.abort(new Error('stopped during persistence'))
@@ -406,7 +413,7 @@ describe.skipIf(!redisUrl)('trusted workbench byte receipts with real Redis', ()
           expect(await reader.read()).toEqual({ done: true, value: undefined })
         } else {
           await expect(reader.read()).rejects.toThrow(
-            outcome === 'storage failure' ? 'storage is unavailable' : 'stopped during persistence'
+            outcome === 'storage failure' ? STORAGE_FAILURE : 'stopped during persistence'
           )
         }
       }

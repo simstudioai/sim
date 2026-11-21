@@ -139,6 +139,18 @@ describe('Copilot tool identity with PostgreSQL', () => {
     if (redisUrl) {
       redisState.current = new Redis(redisUrl, { maxRetriesPerRequest: 1 })
       await redisState.current.ping()
+      const channels = globalThis as typeof globalThis & {
+        _toolConfirmationChannel?: { ready(): Promise<void> }
+        _toolPermissionChannel?: { ready(): Promise<void> }
+      }
+      if (!channels._toolConfirmationChannel || !channels._toolPermissionChannel) {
+        throw new Error('Tool confirmation and permission channels were not created on import')
+      }
+      /** The channels connect on first use; open both so no publication below precedes them. */
+      await Promise.all([
+        channels._toolConfirmationChannel.ready(),
+        channels._toolPermissionChannel.ready(),
+      ])
       await vi.waitFor(async () => {
         const counts = await redisState.current?.pubsub(
           'NUMSUB',
