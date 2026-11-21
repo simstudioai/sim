@@ -80,6 +80,7 @@ import {
   namedRows,
   readStoredRows,
   rowsVersion,
+  StoredRowsOverLimitError,
   unkeyedRows,
 } from '@/lib/workspace-source/application/kinds/table/rows'
 import {
@@ -127,6 +128,11 @@ export interface TablePlan {
   changes?: TableChanges
   /** The base's column bindings the plan's fingerprint was read under. */
   bindings?: Record<string, BaseColumn>
+  /**
+   * The base's rows entry, which the write records again when it cannot read the rows back
+   * (see `written`); absent when the base held none for this table.
+   */
+  baseRows?: BaseResource['rows']
   rows?: RowsPlan
   /**
    * The column keys the write records (`metadata.sourceColumnKeys`), by stored column name: each
@@ -484,7 +490,8 @@ function withRows(
 ): TableChange {
   change.diagnostics.push(...rows.diagnostics)
   if (rows.plan) {
-    const bindings = entry?.id === state.table.id ? entry.columns : undefined
+    const based = entry?.id === state.table.id ? entry : undefined
+    const bindings = based?.columns
     return {
       ...change,
       action: 'update',
@@ -493,7 +500,11 @@ function withRows(
         ? { destructive: { what: 'rows', counts: { rows: rows.removed } } }
         : {}),
       storedFingerprint: planFingerprint(storedFingerprint(state, bindings), rows.plan),
-      detail: { ...(bindings ? { bindings } : {}), rows: rows.plan },
+      detail: {
+        ...(bindings ? { bindings } : {}),
+        ...(based?.rows ? { baseRows: based.rows } : {}),
+        rows: rows.plan,
+      },
     }
   }
   if (!rows.base) return change
@@ -696,6 +707,7 @@ async function planTable(
           detail: {
             changes,
             ...(bindings ? { bindings } : {}),
+            ...(entryOfStored?.rows ? { baseRows: entryOfStored.rows } : {}),
             ...(rows.plan ? { rows: rows.plan } : {}),
           },
         },
@@ -750,19 +762,45 @@ function bindingsAfter(state: StoredTableState, decl: TableDecl): Record<string,
 /**
  * The stored table, its base entry and reprinted files after a write, keyed by the declaration:
  * managed rows read back as stored (so the base records what the server holds), seed rows as
- * declared.
+ * declared. Managed rows past what a directory holds (which a get skips) are not read back: the
+ * write has committed, so the rows file reprints as the directory declared it, the base keeps the
+ * rows entry it held (`baseRows`), and a finding says why.
  */
 async function written(
   ctx: SourceContext,
   key: string,
   tableId: string,
-  decl: TableDecl
+  decl: TableDecl,
+  baseRows?: BaseResource['rows']
 ): Promise<AppliedResource> {
   const state = await reload(ctx, tableId)
   const bindings = bindingsAfter(state, decl)
-  const rows = await rowsToPrint(ctx, state, bindings, decl)
-  const { base, printed } = printStoredTable(state, key, bindings, rows)
-  return { id: tableId, base, text: printed.text }
+  const read = await rowsToPrint(ctx, state, bindings, decl).catch((error: unknown) => {
+    if (error instanceof StoredRowsOverLimitError) return error
+    throw error
+  })
+  const overLimit = read instanceof StoredRowsOverLimitError
+  const { base, printed } = printStoredTable(
+    state,
+    key,
+    bindings,
+    overLimit ? { data: decl.rows?.data ?? [] } : read
+  )
+  if (!overLimit) return { id: tableId, base, text: printed.text }
+  return {
+    id: tableId,
+    base: { ...base, ...(baseRows ? { rows: baseRows } : {}) },
+    text: printed.text,
+    diagnostics: [
+      kindFinding(
+        'table',
+        key,
+        'W_SERVER_CHANGED',
+        `${read.message} The apply did not read them back, so ${tableRowsPath(key)} stays as this directory sent it.`,
+        { hint: DRIFT_HINT }
+      ),
+    ],
+  }
 }
 
 /** The rows a stored table prints with: its managed rows read back, or the declaration's seed. */
@@ -955,7 +993,7 @@ export const tableAdapter: KindAdapter<'table', StoredTableState> = {
       throw new Error('A table update needs its plan')
     }
     await reshapeTableUseCase.execute({ principal, input: reshapeInput(ctx, tableId, plan) })
-    return written(ctx, change.key, tableId, decl)
+    return written(ctx, change.key, tableId, decl, plan.baseRows)
   },
 
   async read(stored, ctx) {

@@ -23,6 +23,12 @@ import { selectValueToNames } from '@/lib/table/select-values'
 import type { ColumnDefinition, RowData, TableDefinition } from '@/lib/table/types'
 import type { SourceContext } from '@/lib/workspace-source/application/types'
 
+/**
+ * A managed table holds more rows, or more printed row bytes, than one directory's rows files may:
+ * a get skips the table, and a write already committed keeps the rows file the directory sent.
+ */
+export class StoredRowsOverLimitError extends OrchestrationError {}
+
 /** A stored table's rows as source reads them. */
 export interface StoredRows {
   /** Each row's source cells, keyed by column key. */
@@ -58,7 +64,7 @@ function sourceCell(column: ColumnDefinition, value: unknown): Json {
  * The version is read first, so rows written while the listing pages read as a server change on
  * the next apply. The rows a rows file prints (those holding `rowKey`) are counted as each one
  * is read, and the read stops at the row that takes them past `maxRowsBytes`, which no directory
- * could hold.
+ * could hold ({@link StoredRowsOverLimitError}, as for a table past `maxTableRows`).
  */
 export async function readStoredRows(
   ctx: SourceContext,
@@ -67,7 +73,7 @@ export async function readStoredRows(
   rowKey: string
 ): Promise<StoredRows> {
   if (table.rowCount > WORKSPACE_SOURCE_LIMITS.maxTableRows) {
-    throw new OrchestrationError(
+    throw new StoredRowsOverLimitError(
       'validation',
       `Table "${table.name}" holds ${table.rowCount} rows; source manages at most ${WORKSPACE_SOURCE_LIMITS.maxTableRows}.`
     )
@@ -97,7 +103,7 @@ export async function readStoredRows(
       }
       if (hasRowKey(cells, rowKey)) printedBytes += printedRowBytes(cells)
       if (printedBytes > WORKSPACE_SOURCE_LIMITS.maxRowsBytes) {
-        throw new OrchestrationError(
+        throw new StoredRowsOverLimitError(
           'payload_too_large',
           `The rows of table "${table.name}" pass the ${WORKSPACE_SOURCE_LIMITS.maxRowsBytes}-byte limit a directory's rows files hold.`
         )

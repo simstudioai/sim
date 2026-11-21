@@ -138,14 +138,15 @@ export function storedFingerprint(
 
 /**
  * The base entry and printed files of a stored table read under `bindings`. `rows` carries the
- * rows to print: a managed table's stored rows with the row version they were read at, or the
- * seed rows a declaration wrote, which the server keeps no record of.
+ * rows to print: a managed table's rows with the row version they were read at (without one, the
+ * base records no rows entry), or the seed rows a declaration wrote, which the server keeps no
+ * record of.
  */
 export function printStoredTable(
   state: StoredTableState,
   key: string,
   bindings?: Readonly<Record<string, BaseColumn>>,
-  rows?: { data: TableRowCells[]; version: number } | { seed: TableRowsDecl }
+  rows?: { data: TableRowCells[]; version?: number } | { seed: TableRowsDecl }
 ): { base: BaseResource; printed: PrintedDeclaration } {
   const { decl, keyById, fingerprint } = tableAsDecl(state, bindings)
   let rowsEntry: BaseRows | undefined
@@ -153,7 +154,7 @@ export function printStoredTable(
     if (decl.rows?.mode !== 'managed') decl.rows = rows.seed
   } else if (decl.rows && rows) {
     decl.rows = { ...decl.rows, data: rows.data }
-    rowsEntry = baseRows(decl.rows, rows.version)
+    if (rows.version !== undefined) rowsEntry = baseRows(decl.rows, rows.version)
   }
   const columns: Record<string, BaseColumn> = {}
   for (const column of sourceColumns(state.table)) {
