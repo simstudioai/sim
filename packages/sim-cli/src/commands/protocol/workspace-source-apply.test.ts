@@ -1597,7 +1597,7 @@ describe('workspaces source apply', () => {
     expect(Object.keys(body.files)).not.toContain('notes.ts')
   })
 
-  it('saves what an apply wrote around the changes it held back, and exits 1', async () => {
+  it('saves what an apply wrote around the changes it held back, and exits 15 (written in part)', async () => {
     request.mockResolvedValue(
       answer({
         plan: [
@@ -1622,7 +1622,7 @@ describe('workspaces source apply', () => {
 
     await apply('--yes')
 
-    expect(process.exitCode).toBe(1)
+    expect(process.exitCode).toBe(15)
     const printed = vi
       .mocked(console.log)
       .mock.calls.map(([line]) => String(line))
@@ -1634,6 +1634,28 @@ describe('workspaces source apply', () => {
       .mock.calls.map(([line]) => String(line))
       .join('\n')
     expect(warned).toContain('Held back, not written: workflow ingest')
+  })
+
+  it('exits 1, not 15, when every change it would write was held back and nothing was written', async () => {
+    request.mockResolvedValue(
+      answer({
+        plan: [{ kind: 'workflow', key: 'ingest', action: 'create', held: true }],
+        applied: [],
+        diagnostics: [
+          {
+            code: 'E_SECRET_MISSING',
+            severity: 'error',
+            message: 'workflows/ingest is held back: it reads the secret OPENAI_API_KEY.',
+            kind: 'workflow',
+            key: 'ingest',
+          },
+        ],
+      })
+    )
+
+    await apply('--yes')
+
+    expect(process.exitCode).toBe(1)
   })
 
   it('saves the applied answer when the catalog of a workflow it reprinted cannot be fetched, and says its edges are unrecorded', async () => {

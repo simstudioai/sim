@@ -23,7 +23,7 @@ import { serverResourceChanges } from '@sim/workspace-code/status'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { setSoftExitCode } from '../../embed-context'
-import { SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
+import { SOURCE_HELD_EXIT_CODE, SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
 import type {
   ApplyWorkspaceSourceBody,
   ApplyWorkspaceSourceResponse,
@@ -886,7 +886,8 @@ export function attachWorkspaceSourceApply(source: Command): void {
             printError(
               `Held back, not written: ${held.map((change) => `${change.kind} ${change.key}`).join(', ')}. Fix what each one's error names, then apply again.`
             )
-            setSoftExitCode(1)
+            // Written in part is not the same outcome as nothing written: a script must tell them apart.
+            setSoftExitCode(!data.dryRun && data.applied.length > 0 ? SOURCE_HELD_EXIT_CODE : 1)
           }
           if (data.failed) {
             printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
