@@ -109,9 +109,9 @@ export class Reporter {
    */
   readonly withheld: LocatedDiagnostic<CompileDiagnosticCode>[] = []
   /**
-   * Every other warning a cap left out, counted by code and block (no text, span or frame is built
-   * for one), so a caller can still count every finding while what is kept stays one entry per
-   * code and block however many warnings come.
+   * Every other warning a cap left out, counted by code and block, and a refusable one also by
+   * file and field (no text, span or frame is built for one), so a caller can still count and
+   * judge every finding while what is kept stays bounded by the blocks, files and fields read.
    */
   get omitted(): OmittedFinding[] {
     return [...this.omittedCounts.values()]
@@ -220,16 +220,21 @@ export class Reporter {
   ): void {
     const held = refusableKey(code, at, extras)
     if (held === undefined || this.refusableHeld.has(held)) {
-      const key = `${code}\u0000${extras.blockKey ?? ''}`
+      // A refusable warning keeps its file and field, which decide whether an apply refuses it.
+      const refusable = held === undefined ? undefined : { file: at.file, param: extras.param }
+      const key = [code, extras.blockKey ?? '', refusable?.file ?? '', refusable?.param ?? ''].join(
+        '\u0000'
+      )
       const counted = this.omittedCounts.get(key)
       if (counted) counted.count++
       else {
-        this.omittedCounts.set(
-          key,
-          extras.blockKey === undefined
-            ? { code, count: 1 }
-            : { code, blockKey: extras.blockKey, count: 1 }
-        )
+        this.omittedCounts.set(key, {
+          code,
+          ...(extras.blockKey !== undefined ? { blockKey: extras.blockKey } : {}),
+          ...(refusable ? { file: refusable.file } : {}),
+          ...(refusable?.param !== undefined ? { param: refusable.param } : {}),
+          count: 1,
+        })
       }
       return
     }
@@ -308,11 +313,19 @@ export class Reporter {
   }
 }
 
-/** The warnings of one code and block a compile's caps left out of every list ({@link Reporter.omitted}). */
+/**
+ * The warnings of one code and block a compile's caps left out of every list
+ * ({@link Reporter.omitted}). A {@link REFUSABLE_WARNING_CODES} warning is counted per file and
+ * field too, which decide whether an apply refuses it.
+ */
 export interface OmittedFinding {
   code: CompileDiagnosticCode
   blockKey?: BlockKey
-  /** How many warnings of this code and block were left out. */
+  /** The file a refusable warning is in. */
+  file?: string
+  /** The field a refusable warning names. */
+  param?: SubBlockId
+  /** How many warnings of this code, block (and, when refusable, file and field) were left out. */
   count: number
 }
 

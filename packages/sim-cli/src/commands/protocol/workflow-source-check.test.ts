@@ -916,6 +916,34 @@ export default workflow('W', {}, () => {
     )
   })
 
+  it('counts every refused reference in an edited code file as an error, past the 20 of one code it lists', async () => {
+    cacheCatalog()
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const report = fn('Report', { code: codeFile('./functions/report.js') })
+  start.to(report)
+})
+`
+    )
+    writeLock(['start', 'report'])
+    writeWritten({ 'functions/report.js': 'return 1\n' })
+    const missing = Array.from({ length: 25 }, (_, i) => `$ref.nosuchblock.v${i}`)
+    writeFileSync(join(dir, 'functions/report.js'), `return [${missing.join(', ')}]\n`)
+
+    await check()
+
+    const answer = result()
+    expect(answer).toMatchObject({ errors: 25, warnings: 0 })
+    const codes = (answer.diagnostics as Array<{ code: string }>).map((finding) => finding.code)
+    expect(codes.filter((code) => code === 'E_APPLY_UNRESOLVED_REF')).toHaveLength(20)
+  })
+
   describe('a reference to an output the block lacks', () => {
     /** Start → Call (an HTTP request) → Done, whose JSON body reads `call.<output>`. */
     const reads = (output: string) =>

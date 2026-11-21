@@ -596,20 +596,29 @@ export async function checkWorkflowDir(
       ...(span ? { file: `${prefix}${span.file}`, line: span.line, column: span.column } : {}),
     }
   })
-  // The warnings the compile's caps left out are counted as the listed ones would be: one a
-  // refusal raised is listed already.
+  // The warnings the compile's caps left out are counted as the listed ones would be: a withheld
+  // one a refusal raised is listed already; an omitted refusable one (it keeps its file and
+  // field) is an error wherever the apply would refuse it.
   const unlisted: UnlistedCounts = { errors: 0, warnings: 0 }
   const edit = { changed, codeEdited }
-  // An omitted finding names no field, so one on a block with any deployment-shaped field stays a
-  // warning.
-  for (const { code, blockKey, count, varies } of [
-    ...compiled.omitted.map((omitted) => ({
-      ...omitted,
-      varies:
-        omitted.code === 'W_UNKNOWN_OPTION' &&
-        omitted.blockKey !== undefined &&
-        optionsVaryOn(omitted.blockKey, () => true),
-    })),
+  for (const { code, blockKey, count, varies, refused: isRefused } of [
+    ...compiled.omitted.map((omitted) => {
+      const finding = {
+        code: omitted.code,
+        severity: 'warning',
+        ...(omitted.blockKey !== undefined ? { blockKey: omitted.blockKey } : {}),
+        ...(omitted.param !== undefined ? { param: omitted.param } : {}),
+      }
+      const varies = variesByDeployment(finding)
+      return {
+        ...omitted,
+        varies,
+        refused:
+          !varies &&
+          omitted.file !== undefined &&
+          refusesEdited({ ...finding, span: { file: omitted.file } }, edit),
+      }
+    }),
     ...compiled.withheld
       .filter((finding) => !refusable(finding) || !refusesEdited(finding, edit))
       .map((finding) => ({
@@ -617,10 +626,11 @@ export async function checkWorkflowDir(
         blockKey: finding.blockKey,
         count: 1,
         varies: variesByDeployment(finding),
+        refused: false,
       })),
   ]) {
     if (!reported(code, blockKey)) continue
-    if (!varies && fails(code, blockKey)) unlisted.errors += count
+    if (isRefused || (!varies && fails(code, blockKey))) unlisted.errors += count
     else unlisted.warnings += count
   }
   return { findings, entry: entryText, unlisted }

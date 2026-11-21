@@ -173,8 +173,20 @@ export function raisedMessage(message: string): string {
   return message.replace(KEPT_AS_WRITTEN, '.')
 }
 
+/**
+ * What deciding a refusal reads of a finding: a listed or withheld diagnostic, or a counted
+ * omitted one (which keeps its file and field).
+ */
+interface RefusalSubject {
+  code: string
+  severity: string
+  blockKey?: string
+  param?: string
+  span: { file: string }
+}
+
 /** The code the apply refuses `finding` under, given what the edit changed; none when it stays. */
-function refusalOf(finding: LocatedDiagnostic, edit: EditedBlocks): EditRefusalCode | undefined {
+function refusalOf(finding: RefusalSubject, edit: EditedBlocks): EditRefusalCode | undefined {
   if (finding.severity !== 'warning' || finding.blockKey === undefined) return undefined
   const { blockKey, span } = finding
   const inEntryFile = span.file === SOURCE_ENTRY_FILE
@@ -199,7 +211,7 @@ function refusalOf(finding: LocatedDiagnostic, edit: EditedBlocks): EditRefusalC
 }
 
 /** Whether the apply refuses `finding` (a compile warning), given what the edit changed. */
-export function refusesEdited(finding: LocatedDiagnostic, edit: EditedBlocks): boolean {
+export function refusesEdited(finding: RefusalSubject, edit: EditedBlocks): boolean {
   return refusalOf(finding, edit) !== undefined
 }
 
