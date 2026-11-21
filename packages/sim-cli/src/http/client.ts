@@ -832,14 +832,6 @@ export class SimClient {
   }
 
   /**
-   * Explains a redirect instead of following it, naming the endpoint to switch to.
-   *
-   * The destination comes from `Location` resolved against the request URL, so a
-   * relative target works and no string surgery is done on the configured
-   * endpoint. A `Location` that is missing or unparseable still has to produce a
-   * sentence — the redirect is the finding either way.
-   */
-  /**
    * What to do about a credential the server refused, by where it came from: `sim login` replaces
    * a stored login, but a key from `SIM_API_KEY` or `--api-key` overrides any login, so logging in
    * again would change nothing.
@@ -853,6 +845,14 @@ export class SimClient {
     return `run: ${login}`
   }
 
+  /**
+   * Explains a redirect instead of following it, naming the endpoint to switch to.
+   *
+   * The destination comes from `Location` resolved against the request URL, so a
+   * relative target works and no string surgery is done on the configured
+   * endpoint. A `Location` that is missing or unparseable still has to produce a
+   * sentence — the redirect is the finding either way.
+   */
   private toRedirectError(url: string, path: string, response: Response): SimApiError {
     const requestId = responseRequestId(response)
     const location = response.headers.get('location')?.trim()

@@ -638,6 +638,7 @@ export const CLI_CONTRACT: CliContract = {
   getWorkflowOutline: {
     command: 'workflows outline',
     describe: 'Show a workflow’s draft as a compact read-only outline',
+    dataKeys: true,
   },
   getWorkflowSource: {
     command: 'workflows source get',

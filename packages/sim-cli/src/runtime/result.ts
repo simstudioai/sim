@@ -210,6 +210,14 @@ function inferHeader(key: string, format: ColumnSpec['format'] | null): string {
   return humanizeKey(trimmed || key)
 }
 
+/** A record's fields, each labelled by its humanized field name, or as sent when its keys are data. */
+function inferredFields(record: object, dataKeys: boolean): Array<[string, string]> {
+  return Object.entries(record).map<[string, string]>(([key, value]) => [
+    dataKeys ? key : inferHeader(key, inferFormat(key, value)),
+    inferredCell(key, value),
+  ])
+}
+
 function columnsFrom(specs: ColumnSpec[]): Column<unknown>[] {
   return specs.map((spec) => ({
     header: spec.header,
@@ -456,10 +464,7 @@ export function renderResult(
   const fields = spec.fields
     ? fieldsFrom(data, spec.fields, options)
     : data && typeof data === 'object'
-      ? Object.entries(data).map<[string, string]>(([key, value]) => [
-          inferHeader(key, inferFormat(key, value)),
-          inferredCell(key, value),
-        ])
+      ? inferredFields(data, spec.dataKeys === true)
       : []
 
   printRecord(format, fields, data)

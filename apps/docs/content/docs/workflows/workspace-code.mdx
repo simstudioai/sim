@@ -108,6 +108,8 @@ Commit the record with the rest of the directory, so a promotion from CI or anot
 
 Commit the whole directory, including `.sim/`: its base files are what an apply compares with, from any clone. The generated `.gitignore` leaves out only temporary files. A fresh clone can run `check`, `apply --dry-run` and `apply` with nothing else. See [Workspace source in CI](/cli/scripting#workspace-source-in-ci) for a GitHub Actions setup.
 
+In a git repository, `apply` sends the commit checked out (`HEAD`) and the `origin` remote URL, with any credentials, query or fragment removed, as `provenance.gitSha` and `provenance.repo`, each only when `git` can read it (a repository with no `origin` sends only the commit). An apply that writes records what was sent in its `workspace.updated` [audit log](/platform/enterprise/audit-logs) entry. A directory outside a repository sends neither.
+
 ## Good to know
 
 - Secret values never appear. Workflows read environment variables as `env.NAME`, tool code as `$env.NAME`, and credentials by key.

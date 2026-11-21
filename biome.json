@@ -37,6 +37,7 @@
       "!**/packages/workflow-sdk/src/codegen/core-text.generated.ts",
       "!**/packages/workflow-sdk/src/codegen/cookbook-text.generated.ts",
       "!**/packages/workflow-sdk/src/codegen/workspace-cookbook-text.generated.ts",
+      "!**/packages/workflow-sdk/src/codegen/workspace-text.generated.ts",
       "!**/packages/workflow-sdk/cookbook/workspace/tools/*.js",
       "!**/apps/docs/.content",
       "!**/apps/desktop/release",
