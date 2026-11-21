@@ -207,6 +207,7 @@ describe('workflow source at the block cap', () => {
       sourceLimitExcesses(files, {
         blocks: MAX_WORKFLOW_GRAPH_BLOCKS,
         edges: workflow?.edges.length ?? 0,
+        variables: 0,
       })
     ).toEqual([])
     expect(elapsed).toBeLessThan(ROUND_TRIP_BUDGET_MS)
@@ -216,13 +217,17 @@ describe('workflow source at the block cap', () => {
     const source = syntheticSource(MAX_WORKFLOW_GRAPH_BLOCKS + 1)
     const compiled = compileText([{ path: 'workflow.ts', text: source }])
     expect(errorsOf(compiled).map((diagnostic) => diagnostic.code)).toEqual(['E_LIMIT_EXCEEDED'])
-    expect(sourceLimitExcesses({}, { blocks: MAX_WORKFLOW_GRAPH_BLOCKS + 1, edges: 0 })).toEqual([
+    expect(
+      sourceLimitExcesses({}, { blocks: MAX_WORKFLOW_GRAPH_BLOCKS + 1, edges: 0, variables: 0 })
+    ).toEqual([
       { limit: 'maxBlocks', actual: MAX_WORKFLOW_GRAPH_BLOCKS + 1, max: SOURCE_LIMITS.maxBlocks },
     ])
   })
 
   it('refuses a stored graph over the edge cap in the get check, matching compile', () => {
-    expect(sourceLimitExcesses({}, { blocks: 2, edges: MAX_WORKFLOW_GRAPH_EDGES + 1 })).toEqual([
+    expect(
+      sourceLimitExcesses({}, { blocks: 2, edges: MAX_WORKFLOW_GRAPH_EDGES + 1, variables: 0 })
+    ).toEqual([
       { limit: 'maxEdges', actual: MAX_WORKFLOW_GRAPH_EDGES + 1, max: SOURCE_LIMITS.maxEdges },
     ])
   })

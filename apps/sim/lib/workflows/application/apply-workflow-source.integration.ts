@@ -1640,7 +1640,7 @@ describe('source apply edge cases', () => {
   )
 
   check(
-    'a structural lint finding refuses only a block the apply changed; an untouched one warns',
+    'a dangling reference refuses only a block the apply changed, at compile as an offline check does',
     async () => {
       const start = seedBlock('start_trigger', 'Start')
       const score = seedBlock('function', 'Score', { code: ['code', 'return 1'] })
@@ -1651,15 +1651,13 @@ describe('source apply edge cases', () => {
 
       const error = await expectRejected(
         apply(source, edit(source.files, 'js`return 1`', "'return <ghost.value>'")),
-        'E_APPLY_LINT'
+        'E_APPLY_UNRESOLVED_REF'
       )
 
-      const lint = error.diagnostics.filter((d) => d.code.endsWith('_APPLY_LINT'))
-      const refusedBlocks = lint.filter((d) => d.code === 'E_APPLY_LINT').map((d) => d.blockId)
-      expect(new Set(refusedBlocks)).toEqual(new Set([score.id]))
-      expect(lint).toContainEqual(
-        expect.objectContaining({ code: 'W_APPLY_LINT', blockId: other.id })
-      )
+      const refused = error.diagnostics.filter((d) => d.severity === 'error')
+      expect(refused.map((d) => [d.code, d.blockKey])).toEqual([
+        ['E_APPLY_UNRESOLVED_REF', 'score'],
+      ])
       expect(await snapshot(workflowId)).toEqual(before)
     }
   )

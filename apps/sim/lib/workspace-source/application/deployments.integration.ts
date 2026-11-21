@@ -32,7 +32,10 @@ import { replaceWorkflowChatDeployment } from '@/lib/chat-deployments/applicatio
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
-import { deployWorkflow } from '@/lib/workflows/application/deployments'
+import {
+  deployWorkflow,
+  readWorkflowDeploymentStatus,
+} from '@/lib/workflows/application/deployments'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { listWorkflowTriggers } from '@/lib/workflows/application/triggers'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
@@ -1178,6 +1181,34 @@ describe('workspace source: deployments', () => {
       expect(codes(redeployed.diagnostics, 'warning')).not.toContain(
         'W_TABLE_COLUMN_RENAMED_IN_USE'
       )
+    }
+  )
+
+  check(
+    'reads the deployment state of only the workflows the directory declares or its base records',
+    async () => {
+      const { workspaceId, id, files, base } = await deployedWorkspace()
+      const others: Files = {}
+      for (const name of ['alpha', 'beta', 'gamma']) {
+        others[`workflows/${name}/workflow.ts`] = NIGHTLY.replace(
+          "workflow('Nightly'",
+          `workflow('${name}'`
+        )
+        others[`deployments/${name}.ts`] = DRAFT
+      }
+      const deployedOthers = await apply(workspaceId, others)
+      expect(deployedOthers.failed).toBeUndefined()
+
+      const reads = vi.spyOn(readWorkflowDeploymentStatus, 'execute')
+      try {
+        const plan = await apply(workspaceId, files, { base, kinds: ['deployment'], dryRun: true })
+        expect(plan.failed).toBeUndefined()
+        expect(new Set(reads.mock.calls.map(([call]) => call.input.workflowId))).toEqual(
+          new Set([id])
+        )
+      } finally {
+        reads.mockRestore()
+      }
     }
   )
 

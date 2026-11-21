@@ -5,15 +5,21 @@ import { FINDING_LIMITS } from './bound'
 import { MAX_ERRORS } from './codes'
 import { type EditedBlocks, refuseEditedFindings } from './refusals'
 
-const IMPORTS = "import { api, codeFile, fn, loop, t, trigger, workflow } from '@sim/workflow-sdk'"
+const IMPORTS =
+  "import { api, block, codeFile, fn, loop, t, trigger, workflow } from '@sim/workflow-sdk'"
 
-function compile(body: string[], files: Record<string, string> = {}) {
+function compile(
+  body: string[],
+  files: Record<string, string> = {},
+  options: Partial<Parameters<typeof compileWorkflow>[0]> = {}
+) {
   const text = `// @sim-sdk 1\n${IMPORTS}\n\nexport default workflow('Test', () => {\n${body.map((line) => `  ${line}`).join('\n')}\n})\n`
   return compileWorkflow({
     entry: { path: 'workflow.ts', text },
     files: new Map(Object.entries(files)),
     catalog: TEST_CATALOG,
     sdkMajor: 1,
+    ...options,
   })
 }
 
@@ -81,6 +87,94 @@ describe('refuseEditedFindings', () => {
       'E_APPLY_UNRESOLVED_REF next',
     ])
     expect(errors(refuseEditedFindings(compiled, edited('call')))).toEqual([])
+  })
+
+  it('refuses a literal tag naming no block on a changed block, as the server lint does', () => {
+    const compiled = compile([
+      START,
+      "const call = api('Call', { url: 'https://x/<gone.id>' })",
+      "const cased = api('Cased', { url: 'https://x/<Call.data>' })",
+      "const bare = api('Bare', { url: 'https://x/<b>' })",
+      'start.to(call)',
+    ])
+
+    expect(errors(refuseEditedFindings(compiled, edited('call', 'cased', 'bare')))).toEqual([
+      'E_APPLY_UNRESOLVED_REF call',
+    ])
+    expect(errors(refuseEditedFindings(compiled, edited('cased', 'bare')))).toEqual([])
+  })
+
+  it('keeps a literal tag naming a block the source renamed, which the apply rewrites', () => {
+    const compiled = compile(
+      [START, "const call = api('Call', { url: 'https://x/<former.id>' })"],
+      {},
+      { renamedKeys: new Map([['former', 'call']]) }
+    )
+
+    expect(errors(refuseEditedFindings(compiled, edited('call')))).toEqual([])
+  })
+
+  it('refuses a new block of a type the catalog does not hold, as the placement gate does', () => {
+    for (const type of ['slak', 'toString', '__proto__']) {
+      const compiled = compile([START, `const a = block('${type}', 'A', { text: 'hi' })`])
+      expect(errors(refuseEditedFindings(compiled, edited('a')))).toEqual([
+        'E_APPLY_INVALID_BLOCK_TYPE a',
+      ])
+    }
+  })
+
+  it('keeps a block of an uncatalogued type the lock already binds', () => {
+    const compiled = compile(
+      [START, "const a = block('retired_kind', 'A', { text: 'hi' })"],
+      {},
+      {
+        storedUnread: {
+          version: 1,
+          blocks: { a: { id: 'b-a', parent: null, ident: 'a', order: 0 } },
+          variables: {},
+        },
+      }
+    )
+    expect(compiled.diagnostics.map((d) => d.code)).toEqual([])
+    expect(errors(refuseEditedFindings(compiled, edited('a')))).toEqual([])
+  })
+
+  it('refuses a new block of a type the catalog keeps only for blocks already using it', () => {
+    const catalog = {
+      ...TEST_CATALOG,
+      blocks: {
+        ...TEST_CATALOG.blocks,
+        api: { ...TEST_CATALOG.blocks.api, addable: false as const },
+      },
+    }
+    const body = [
+      START,
+      "const a = api('A', { url: 'x' })",
+      "const b = block('api', 'B', { url: 'x' })",
+    ]
+
+    const added = compile(body, {}, { catalog })
+    expect(errors(refuseEditedFindings(added, edited('a', 'b')))).toEqual([
+      'E_APPLY_TYPE_NOT_ADDABLE a',
+      'E_APPLY_TYPE_NOT_ADDABLE b',
+    ])
+
+    const bound = compile(
+      body,
+      {},
+      {
+        catalog,
+        storedUnread: {
+          version: 1,
+          blocks: {
+            a: { id: 'b-a', parent: null, ident: 'a', order: 0 },
+            b: { id: 'b-b', parent: null, ident: 'b', order: 1 },
+          },
+          variables: {},
+        },
+      }
+    )
+    expect(errors(refuseEditedFindings(bound, edited('a', 'b')))).toEqual([])
   })
 
   it('refuses an iteration field a shared code file reads for a block outside the loop', () => {

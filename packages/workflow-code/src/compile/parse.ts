@@ -12,6 +12,8 @@ export interface CompileLimits {
   maxBlocks?: number
   /** Edges the wiring adds, implied subflow starts included. */
   maxEdges?: number
+  /** Variables the workflow declares. */
+  maxVariables?: number
   /** Bytes of the entry plus the distinct code files `codeFile()` references. */
   maxTotalBytes?: number
   /** Nesting depth of the entry file, and bracket depth of each JavaScript code file. */
@@ -29,6 +31,7 @@ export interface CompileLimits {
 export const DEFAULT_LIMITS: Required<CompileLimits> = {
   maxBlocks: SOURCE_LIMITS.maxBlocks,
   maxEdges: SOURCE_LIMITS.maxEdges,
+  maxVariables: SOURCE_LIMITS.maxVariables,
   maxTotalBytes: SOURCE_LIMITS.maxTotalBytes,
   maxDepth: SOURCE_LIMITS.maxDepth,
   /** One code file per block. */

@@ -211,6 +211,18 @@ const COMPILE_CATALOG_CODES = [
   /** A block of a legacy or deprecated type; `hint` names the type that replaces it. */
   'W_LEGACY_BLOCK_TYPE',
   /**
+   * A new `block()` of a type the catalog does not hold: the server refuses to place it
+   * (`E_APPLY_INVALID_BLOCK_TYPE`). A block the stored workflow or the lock already holds keeps
+   * its type quietly, so a workflow saved with a retired type still round-trips.
+   */
+  'W_UNKNOWN_BLOCK_TYPE',
+  /**
+   * A new block of a type the catalog keeps only for blocks already using it (`addable: false`):
+   * the server refuses to place it (`E_APPLY_TYPE_NOT_ADDABLE`). A block the stored workflow or
+   * the lock may continue stays quiet, as for `W_UNKNOWN_BLOCK_TYPE`.
+   */
+  'W_TYPE_NOT_ADDABLE',
+  /**
    * A schedule created from source with no `timezone`: the editor seeds the viewer's zone, but
    * a schedule with none runs in UTC.
    */
