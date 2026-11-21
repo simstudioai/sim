@@ -134,7 +134,8 @@ export async function withLockedTable<T>(
   opts?: { includeArchived?: boolean; expectedWorkspaceId?: string; tx?: TableWriteTx }
 ): Promise<T> {
   const locked = async (trx: DbTransaction) => {
-    await setTableTxTimeouts(trx)
+    // A write joining `opts.tx` keeps the timeouts its opener (or an earlier heavy step) set.
+    if (!opts?.tx) await setTableTxTimeouts(trx)
     // Re-entrant: a write joining `opts.tx` that already holds this lock takes it again at once.
     await acquireAdvisoryXactLock(trx, 'user_table_schema', `user_table_schema:${tableId}`)
     const table = await getTableById(tableId, { tx: trx, includeArchived: opts?.includeArchived })
