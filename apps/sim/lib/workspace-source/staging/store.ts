@@ -3,24 +3,40 @@
  * their SHA-256 and scoped to one workspace and one caller, so an apply names them by hash and a
  * resumed upload skips what is already here. Rows (`workspace_source_staged_blob`) hold the hash,
  * size, storage key and expiry; the bytes live in object storage under the workspace's prefix.
+ * Only staging (sending the bytes) sets the expiry: looking blobs up or planning with them never
+ * extends it. While held, staged bytes count against the workspace payer's storage quota, on top
+ * of what the payer already stores, so staging can never hold more than the quota leaves.
  * Callers pass canonical ids and a scope string, never a principal: the use cases in
  * `application/stage-blobs.ts` authorize first.
  */
 import { db } from '@sim/db'
-import { workspaceSourceStagedBlob } from '@sim/db/schema'
+import { workspace, workspaceSourceStagedBlob } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
-import { and, asc, eq, gt, inArray, lt, lte, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, lt, lte, notInArray, sql } from 'drizzle-orm'
+import type { BillingEntity } from '@/lib/billing/core/usage-log'
+import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
+import {
+  checkStorageQuotaForBillingContext,
+  isStorageEnforcementEnabled,
+} from '@/lib/billing/storage/limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbTransaction } from '@/lib/db/types'
 import { deleteFiles, downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('WorkspaceSourceStaging')
 
-/** How long a staged blob is kept after it was last staged, checked for, or planned with. */
+/** How long a staged blob is kept after it was last staged. */
 const STAGED_BLOB_TTL_MS = 24 * 60 * 60 * 1000
+
+/**
+ * A staged blob that expires sooner than this reads as missing to a client asking what to stage,
+ * so it sends the bytes again (renewing it) rather than applying with one about to go.
+ */
+export const STAGED_BLOB_RESTAGE_MARGIN_MS = 60 * 60 * 1000
 
 /** Rows one sweep pass deletes. */
 const SWEEP_BATCH = 500
@@ -57,30 +73,30 @@ const inScope = ({ workspaceId, scope }: StagingScope) =>
   )
 
 /**
- * The staged blobs among `hashes` (unexpired), by hash; each one found has its expiry pushed out,
- * so what a client just checked for or an apply just planned with outlives the apply.
+ * The staged blobs among `hashes` that are still staged `until` (default now), by hash, with when
+ * each expires. A read: it never extends an expiry.
  */
 export async function findStagedBlobs(
   target: StagingScope,
-  hashes: readonly string[]
+  hashes: readonly string[],
+  until: Date = new Date()
 ): Promise<Map<string, StagedBlob>> {
   const found = new Map<string, StagedBlob>()
   if (hashes.length === 0) return found
   const rows = await db
-    .update(workspaceSourceStagedBlob)
-    .set({ expiresAt: expiry() })
-    .where(
-      and(
-        inScope(target),
-        inArray(workspaceSourceStagedBlob.sha256, [...new Set(hashes)]),
-        gt(workspaceSourceStagedBlob.expiresAt, new Date())
-      )
-    )
-    .returning({
+    .select({
       sha256: workspaceSourceStagedBlob.sha256,
       size: workspaceSourceStagedBlob.size,
       storageKey: workspaceSourceStagedBlob.storageKey,
     })
+    .from(workspaceSourceStagedBlob)
+    .where(
+      and(
+        inScope(target),
+        inArray(workspaceSourceStagedBlob.sha256, [...new Set(hashes)]),
+        gt(workspaceSourceStagedBlob.expiresAt, until)
+      )
+    )
   for (const row of rows) found.set(row.sha256, row)
   return found
 }
@@ -101,9 +117,62 @@ export async function stagedUsage(
 }
 
 /**
- * A caller's staging area has no room for what it stages: `413` like a body over the limit, told
- * apart by `details.code` `SOURCE_STAGING_FULL`, since freeing staged files (or waiting for them
- * to expire) fixes it and sending smaller requests does not.
+ * The bytes staged (unexpired) in every workspace `payer` pays for, across callers: what staging
+ * holds against the payer's storage quota.
+ */
+async function payerStagedBytes(tx: DbTransaction, payer: BillingEntity): Promise<number> {
+  const [usage] = await tx
+    .select({
+      bytes: sql<number>`coalesce(sum(${workspaceSourceStagedBlob.size}), 0)::bigint`,
+    })
+    .from(workspaceSourceStagedBlob)
+    .innerJoin(workspace, eq(workspace.id, workspaceSourceStagedBlob.workspaceId))
+    .where(
+      and(
+        gt(workspaceSourceStagedBlob.expiresAt, new Date()),
+        payer.type === 'organization'
+          ? eq(workspace.organizationId, payer.id)
+          : and(isNull(workspace.organizationId), eq(workspace.billedAccountUserId, payer.id))
+      )
+    )
+  return Number(usage?.bytes ?? 0)
+}
+
+/**
+ * Refuses staging `bytes` more in `workspaceId` when the bytes its payer stores, plus those staged
+ * in any of the payer's workspaces, plus these would pass the payer's storage quota. Holds the
+ * payer's staging lock until `tx` ends, so concurrent staging in another workspace of the same
+ * payer cannot pass the check together.
+ */
+async function assertStagingWithinQuota(
+  tx: DbTransaction,
+  workspaceId: string,
+  bytes: number
+): Promise<void> {
+  if (!isStorageEnforcementEnabled()) return
+  const billing = await resolveStorageBillingContext(workspaceId, tx)
+  const { type, id } = billing.billingEntity
+  await acquireAdvisoryXactLock(
+    tx,
+    'workspace_source_staging',
+    `workspace-source-staging-payer:${type}:${id}`
+  )
+  const quota = await checkStorageQuotaForBillingContext(
+    billing,
+    (await payerStagedBytes(tx, billing.billingEntity)) + bytes,
+    tx
+  )
+  if (!quota.allowed) {
+    throw new SourceStagingFullError(
+      `${quota.error ?? 'Storage limit exceeded'}. Staged files count toward storage until they expire, a day after they were last staged.`
+    )
+  }
+}
+
+/**
+ * A caller's staging area, or the payer's storage quota, has no room for what it stages: `413`
+ * like a body over the limit, told apart by `details.code` `SOURCE_STAGING_FULL`, since freeing
+ * staged files (or waiting for them to expire) fixes it and sending smaller requests does not.
  */
 export class SourceStagingFullError extends OrchestrationError {
   constructor(message: string) {
@@ -120,20 +189,21 @@ export function assertStagingFits(
   const { maxStagedBlobs, maxStagedBytes } = WORKSPACE_SOURCE_LIMITS
   if (usage.count + adding.count > maxStagedBlobs) {
     throw new SourceStagingFullError(
-      `Staging ${adding.count} more binary files would hold ${usage.count + adding.count}, over the ${maxStagedBlobs}-file limit. Staged files expire a day after their last use.`
+      `Staging ${adding.count} more binary files would hold ${usage.count + adding.count}, over the ${maxStagedBlobs}-file limit. Staged files expire a day after they were last staged.`
     )
   }
   if (usage.bytes + adding.bytes > maxStagedBytes) {
     throw new SourceStagingFullError(
-      `Staging ${adding.bytes} more bytes would hold ${usage.bytes + adding.bytes}, over the ${maxStagedBytes}-byte limit. Staged files expire a day after their last use.`
+      `Staging ${adding.bytes} more bytes would hold ${usage.bytes + adding.bytes}, over the ${maxStagedBytes}-byte limit. Staged files expire a day after they were last staged.`
     )
   }
 }
 
 /**
  * Stages `blobs` (bytes the caller already hashed): writes each one not yet staged to storage,
- * then records them under one lock on the scope, refusing a batch that would pass the caps (and
- * removing the objects it wrote). A blob already staged only has its expiry pushed out.
+ * then records them under one lock on the scope, refusing a batch that would pass the caps or the
+ * payer's storage quota (and removing the objects it wrote). A blob already staged is not written
+ * again: sending its bytes renews it.
  */
 export async function stageBlobs(
   target: StagingScope,
@@ -165,11 +235,25 @@ export async function stageBlobs(
         'workspace_source_staging',
         `workspace-source-staging:${target.workspaceId}:${target.scope}`
       )
+      if (known.size > 0) {
+        await tx
+          .update(workspaceSourceStagedBlob)
+          .set({ expiresAt: expiry() })
+          .where(
+            and(
+              inScope(target),
+              inArray(workspaceSourceStagedBlob.sha256, [...known.keys()]),
+              gt(workspaceSourceStagedBlob.expiresAt, new Date())
+            )
+          )
+      }
       if (fresh.length === 0) return new Map<string, StagedBlob>()
-      assertStagingFits(await stagedUsage(target, tx), {
+      const adding = {
         count: fresh.length,
         bytes: fresh.reduce((sum, blob) => sum + blob.bytes.byteLength, 0),
-      })
+      }
+      assertStagingFits(await stagedUsage(target, tx), adding)
+      await assertStagingWithinQuota(tx, target.workspaceId, adding.bytes)
       const hashes = fresh.map((blob) => blob.sha256)
       // An expired row of the same hash is replaced, so the unique index admits the new one.
       const expired = await tx

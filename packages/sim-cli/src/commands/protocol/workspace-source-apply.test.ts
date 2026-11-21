@@ -1129,7 +1129,7 @@ describe('workspaces source apply', () => {
   it('keeps the server’s refusal of a staging area with no room, which no CLI update or proxy fixes', async () => {
     write('files/a.bin', Buffer.alloc(3_000, 1))
     const full =
-      'Staging 3000 more bytes would hold 2000000001, over the 2000000000-byte limit. Staged files expire a day after their last use.'
+      'Staging 3000 more bytes would hold 2000000001, over the 2000000000-byte limit. Staged files expire a day after they were last staged.'
     mockRequest.mockImplementation(async (path: string, options: { body?: unknown }) => {
       if (path.endsWith('/source/blobs')) {
         throw new SimApiError(full, 413, 'PAYLOAD_TOO_LARGE', { code: 'SOURCE_STAGING_FULL' })

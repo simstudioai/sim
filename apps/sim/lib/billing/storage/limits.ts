@@ -22,6 +22,7 @@ import { getLegacyStorageBillingEntity } from '@/lib/billing/storage/entity'
 import { getEnv } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('StorageLimits')
 
@@ -253,9 +254,12 @@ export async function getUserStorageLimit(
 /**
  * Reads one user or organization storage counter.
  */
-async function readStorageUsageForEntity(billingEntity: Readonly<BillingEntity>): Promise<number> {
+async function readStorageUsageForEntity(
+  billingEntity: Readonly<BillingEntity>,
+  executor: DbOrTx = db
+): Promise<number> {
   if (billingEntity.type === 'organization') {
-    const [record] = await db
+    const [record] = await executor
       .select({ storageUsedBytes: organization.storageUsedBytes })
       .from(organization)
       .where(eq(organization.id, billingEntity.id))
@@ -263,7 +267,7 @@ async function readStorageUsageForEntity(billingEntity: Readonly<BillingEntity>)
     return record?.storageUsedBytes ?? 0
   }
 
-  const [record] = await db
+  const [record] = await executor
     .select({ storageUsedBytes: userStats.storageUsedBytes })
     .from(userStats)
     .where(eq(userStats.userId, billingEntity.id))
@@ -320,10 +324,11 @@ async function resolveUserStorageQuota(userId: string): Promise<StorageQuotaSnap
  * Resolves an immutable workspace payer quota snapshot.
  */
 async function resolveBillingContextStorageQuota(
-  context: StoragePayerContext
+  context: StoragePayerContext,
+  executor: DbOrTx
 ): Promise<StorageQuotaSnapshot> {
   return {
-    currentUsage: await readStorageUsageForEntity(context.billingEntity),
+    currentUsage: await readStorageUsageForEntity(context.billingEntity, executor),
     limit: getStorageLimitForBillingContext(context),
   }
 }
@@ -365,15 +370,17 @@ export async function checkStorageQuota(
 }
 
 /**
- * Checks storage quota against a workspace-selected immutable payer.
+ * Checks storage quota against a workspace-selected immutable payer, reading its counter through
+ * `executor` (a caller's transaction, so the read joins it).
  */
 export async function checkStorageQuotaForBillingContext(
   context: StoragePayerContext,
-  additionalBytes: number
+  additionalBytes: number,
+  executor: DbOrTx = db
 ): Promise<StorageQuotaResult> {
   return checkStorageQuotaWithResolver(
     additionalBytes,
-    () => resolveBillingContextStorageQuota(context),
+    () => resolveBillingContextStorageQuota(context, executor),
     (error) => logger.error('Error checking workspace payer storage quota:', error)
   )
 }

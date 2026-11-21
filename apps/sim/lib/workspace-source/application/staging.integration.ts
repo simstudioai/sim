@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { user, workspaceSourceStagedBlob } from '@sim/db/schema'
+import { user, userStats, workspaceSourceStagedBlob } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
@@ -50,6 +50,9 @@ const readerId = generateId()
 const owner = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
 const writer = createSessionPrincipal({ userId: writerId, sessionId: generateId() })
 const reader = createSessionPrincipal({ userId: readerId, sessionId: generateId() })
+/** A payer of its own, so no other check's staged bytes count toward its storage quota. */
+const payerId = generateId()
+const payer = createSessionPrincipal({ userId: payerId, sessionId: generateId() })
 const { check, writeReport } = sourceChecks(
   'WORKSPACE_SOURCE_STAGING_REPORT_PATH',
   'workspace-source-staging.json'
@@ -140,7 +143,7 @@ beforeAll(async () => {
   )
   const now = new Date()
   await db.insert(user).values(
-    [ownerId, writerId, readerId].map((id) => ({
+    [ownerId, writerId, readerId, payerId].map((id) => ({
       id,
       name: 'Workspace source staging fixture',
       email: `${id}@workspace-source.invalid`,
@@ -155,7 +158,7 @@ afterAll(async () => {
   await writeReport()
   resetUploadsSetupMock()
   await workspaces.cleanup()
-  await db.delete(user).where(inArray(user.id, [ownerId, writerId, readerId]))
+  await db.delete(user).where(inArray(user.id, [ownerId, writerId, readerId, payerId]))
   await rm(storageRoot, { recursive: true, force: true })
 })
 
@@ -176,6 +179,61 @@ describe('workspace source staging', () => {
       const held = await rows(workspaceId)
       expect(held).toHaveLength(3)
       for (const row of held) expect(stored(row.storageKey)).toBe(true)
+    }
+  )
+
+  check(
+    'asking what is missing never renews a staged blob: one about to expire reads as missing until its bytes are staged again',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const a = blob('expiring alpha')
+      await stage(owner, workspaceId, [a])
+      const soon = new Date(Date.now() + 30 * 60 * 1000)
+      await db
+        .update(workspaceSourceStagedBlob)
+        .set({ expiresAt: soon })
+        .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
+      const expiryOf = async () =>
+        (
+          await db
+            .select({ expiresAt: workspaceSourceStagedBlob.expiresAt })
+            .from(workspaceSourceStagedBlob)
+            .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
+        ).map((row) => row.expiresAt.getTime())
+
+      expect(await missing(owner, workspaceId, [a])).toEqual([a.sha256])
+      expect(await expiryOf()).toEqual([soon.getTime()])
+
+      await stage(owner, workspaceId, [a])
+      expect(await missing(owner, workspaceId, [a])).toEqual([])
+      const [renewed] = await expiryOf()
+      expect(renewed).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000)
+      expect(await rows(workspaceId)).toHaveLength(1)
+    }
+  )
+
+  check(
+    "staging counts against the payer's storage quota, across the payer's workspaces, on top of what it stores",
+    async () => {
+      const quota = 1024 ** 3
+      await db
+        .insert(userStats)
+        .values({ id: generateId(), userId: payerId, storageUsedBytes: quota - 10 })
+      const create = () => workspaces.create({ name: 'Staging quota', ownerId: payerId })
+      const [first, second] = [await create(), await create()]
+      vi.stubEnv('FREE_STORAGE_LIMIT_GB', '1')
+      try {
+        await stage(payer, first, [blob('six b1')])
+        const refused = await failure(stage(payer, second, [blob('six b2')]))
+        expect(refused).toMatchObject({
+          code: 'payload_too_large',
+          name: 'SourceStagingFullError',
+        })
+        expect(await rows(second)).toEqual([])
+        expect(objectsUnder(second)).toEqual([])
+      } finally {
+        vi.unstubAllEnvs()
+      }
     }
   )
 

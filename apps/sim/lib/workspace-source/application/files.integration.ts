@@ -20,6 +20,7 @@ import {
   workspaceFiles,
   workspaceFileVersion,
   workspaceResourceKey,
+  workspaceSourceStagedBlob,
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
@@ -277,6 +278,27 @@ describe('workspace source files', () => {
       read.blobs.map(({ path: blobPath, sha256, size }) => ({ path: blobPath, sha256, size }))
     ).toEqual(blobsOf(STARTER, []).sort((a, b) => compareStrings(b.path, a.path)))
     expect(read.base.resources).toEqual(created.base.resources)
+  })
+
+  check('a dry run plans with staged bytes and leaves their expiry as it was', async () => {
+    const workspaceId = await newWorkspace()
+    await stageBlobsAs(
+      owner,
+      workspaceId,
+      blobsOf(STARTER).map(({ sha256, content }) => ({ sha256, content: content ?? '' }))
+    )
+    const soon = new Date(Date.now() + 30 * 60 * 1000)
+    const staged = eq(workspaceSourceStagedBlob.workspaceId, workspaceId)
+    await db.update(workspaceSourceStagedBlob).set({ expiresAt: soon }).where(staged)
+
+    const dryRun = await apply(workspaceId, STARTER, { dryRun: true })
+
+    expect(dryRun.needBlobs).toEqual([])
+    const expiries = await db
+      .select({ expiresAt: workspaceSourceStagedBlob.expiresAt })
+      .from(workspaceSourceStagedBlob)
+      .where(staged)
+    expect(expiries.map((row) => row.expiresAt.getTime())).toEqual([soon.getTime(), soon.getTime()])
   })
 
   check('re-applying what a get read changes nothing and records no version', async () => {
