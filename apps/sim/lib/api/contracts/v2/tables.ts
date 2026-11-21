@@ -6,6 +6,7 @@ import {
 } from '@/lib/api/contracts/primitives'
 import {
   addWorkflowGroupBodySchema,
+  archivedTableIdParamsSchema,
   cancelTableRunsBodyBaseSchema,
   columnNameSchema,
   columnTypeSchema,
@@ -1406,7 +1407,7 @@ export type V2WorkspaceScopedBody = z.input<typeof v2WorkspaceScopedBodySchema>
 export const v2RestoreTableContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/restore',
-  params: tableIdParamsSchema,
+  params: archivedTableIdParamsSchema,
   query: noInputSchema,
   body: v2WorkspaceScopedBodySchema,
   response: {

@@ -134,6 +134,21 @@ describe('table export application use cases', () => {
     expect(mocks.create).not.toHaveBeenCalled()
   })
 
+  it('cancels an export under its table named by its name, and conceals one under another table', async () => {
+    mocks.getTable.mockImplementation(async (id: string) =>
+      id === table.id ? table : { ...table, id, name: `Table ${id}` }
+    )
+    const cancel = (tableId: string) =>
+      cancelTableExportUseCase.execute({
+        principal: { kind: 'session' as const, userId: 'user-1' },
+        input: { exportId: 'export-1', workspaceId: 'workspace-1', tableId },
+      })
+
+    await expect(cancel(table.name)).resolves.toMatchObject({ export: { status: 'canceled' } })
+    await expect(cancel('Elsewhere')).rejects.toMatchObject({ code: 'not_found' })
+    await expect(cancel('tbl_other')).rejects.toMatchObject({ code: 'not_found' })
+  })
+
   describe('permission-group capability', () => {
     const member = { kind: 'session' as const, userId: 'user-1' }
     const governedContext = {
