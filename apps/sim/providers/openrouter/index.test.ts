@@ -223,7 +223,7 @@ describe('openRouterProvider.executeRequest', () => {
 
     expect(res.content).toBe('Hi there')
     expect(res.model).toBe('anthropic/claude-3.5-sonnet')
-    expect(res.tokens).toEqual({ input: 10, output: 5, total: 15 })
+    expect(res.tokens).toEqual({ input: 10, output: 5, cacheRead: 0, total: 15 })
 
     const payload = mockCreate.mock.calls[0][0]
     expect(payload.model).toBe('anthropic/claude-3.5-sonnet')
@@ -269,7 +269,7 @@ describe('openRouterProvider.executeRequest', () => {
       success: true,
     })
     expect(res.toolResults).toEqual([{ temp: 70 }])
-    expect(res.tokens).toEqual({ input: 28, output: 10, total: 38 })
+    expect(res.tokens).toEqual({ input: 28, output: 10, cacheRead: 0, total: 38 })
 
     const secondMessages = mockCreate.mock.calls[1][0].messages
     const assistant = secondMessages.find((m: { role: string }) => m.role === 'assistant')
