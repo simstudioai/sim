@@ -203,8 +203,10 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
   const open = () => keys.filter((key) => !resolved.has(key) && !settled.has(key))
 
   /**
-   * A key whose ident in the file now belongs to another lock entry: in a chain rename (A takes
-   * B's name while B takes a new one) the key is B's, but the block is A's, so rule 2 binds it.
+   * A key whose ident in the file now belongs to another lock entry whose key the file dropped:
+   * in a chain rename (A takes B's name while B takes a new one) the key is B's, but the block is
+   * A's, so rule 2 binds it. When the owner's key survives (two consts swapped), the key keeps its
+   * own entry, as rule 2 and `lockIdentRenames` read only a dropped key.
    */
   const identOwner = new Map<string, BlockKey>()
   for (const [key, entry] of Object.entries(lock?.blocks ?? {})) {
@@ -215,7 +217,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     const entry = lockEntry(key)
     if (ident === undefined || !entry || entry.ident === ident) return false
     const owner = identOwner.get(ident)
-    return owner !== undefined && owner !== key
+    return owner !== undefined && owner !== key && !Object.hasOwn(workflow.blocks, owner)
   }
 
   /** Stale lock entries whose id left prev; reported only if no later rule matches the key. */

@@ -592,6 +592,22 @@ describe('materialize: identity', () => {
     expect(result.entries.filter((entry) => entry.status !== 'matched')).toEqual([])
   })
 
+  it('keeps each id by key when two blocks swap their consts and both keys survive', () => {
+    const prev = base()
+    const lock = lockFor(prev)
+    const result = run(canonical(prev, lock).workflow, lock, {
+      prev,
+      compiledIdents: {
+        ...Object.fromEntries(Object.entries(lock.blocks).map(([key, b]) => [key, b.ident])),
+        fetch: lock.blocks.report.ident,
+        report: lock.blocks.fetch.ident,
+      },
+    })
+    expect(result.identity.blocks.fetch.id).toBe(lock.blocks.fetch.id)
+    expect(result.identity.blocks.report.id).toBe(lock.blocks.report.id)
+    expect(result.entries.filter((entry) => entry.status !== 'matched')).toEqual([])
+  })
+
   it('infers a lockless rename from type, parent and agreeing neighbours, flagged', () => {
     const prev = base()
     const result = run(renameFetch(canonical(prev).workflow), null, { prev })
@@ -1309,7 +1325,6 @@ describe('materialize: preserved UI state comes from prev', () => {
 
   it.each([
     ['a chain', { fetch: 'report', report: 'summary' }, 'saw <report.result> and <summary.result>'],
-    ['a swap', { fetch: 'report', report: 'fetch' }, 'saw <report.result> and <fetch.result>'],
   ])(
     'rewrites a restored inactive value through %s of renames at once',
     (_label, moves, expected) => {
