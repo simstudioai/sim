@@ -38,7 +38,10 @@ export interface GetCatalogBlockResult {
  * enumerate unrevealed blocks one id at a time. The one exception is a sunset
  * (legacy or deprecated) block hidden only for its lifecycle: placed instances
  * keep running, so it reads by its exact id (`starter`), its description leading
- * with the block that replaces it (`start_trigger`).
+ * with the block that replaces it (`start_trigger`). An exact id that is also a
+ * base type with a visible newer version (`cursor`, beside `cursor_v3`) reads
+ * as that version, the name the list publishes it under, and the response
+ * echoes the resolved id.
  */
 export const getCatalogBlock = defineAuthorizedWorkspaceUseCase({
   operation: catalogOperations.readBlock,
