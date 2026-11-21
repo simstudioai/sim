@@ -11,6 +11,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { utf8Bytes } from '@sim/workflow-code/limits'
 import { isWorkspaceKind, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
+import { isFolderEvaluationFinding } from '@sim/workspace-code/diagnostics/codes'
 import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { kindOfPath, WORKSPACE_BASE_FILE, WORKSPACE_SKIPPED_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
@@ -243,12 +244,13 @@ function planAsApplied(
 
 /**
  * The dry run's findings the plan counts, as an apply's dry run would report them: all but the
- * server changes the status lists, and none about a workflow folder an apply sends by its base
- * (the server compiles and lints only a folder sent whole).
+ * server changes the status lists, and none from compiling or linting a workflow folder an apply
+ * sends by its base (the server evaluates only a folder sent whole). A plan check about such a
+ * folder, such as one using a resource this apply deletes, still refuses the apply, so it stays.
  */
 function workspacePlanFindings(data: PlanData, byBase: ReadonlySet<string>): Diagnostic[] {
   return planFindings(data.diagnostics, isServerChangeFinding).filter(
-    (finding) => !aboutWorkflowSentByBase(finding, byBase)
+    (finding) => !(aboutWorkflowSentByBase(finding, byBase) && isFolderEvaluationFinding(finding))
   )
 }
 

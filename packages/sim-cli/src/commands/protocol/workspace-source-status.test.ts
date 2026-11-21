@@ -576,6 +576,32 @@ describe('workspaces source status', () => {
     expect(report.diagnostics ?? []).toEqual([])
   })
 
+  it('keeps a plan refusal about a workflow an apply sends by its base: status counts the error the apply refuses with', async () => {
+    mockRequest.mockResolvedValue(
+      dryRun(
+        [
+          { kind: 'workflow', key: 'ingest', action: 'noop' },
+          { kind: 'table', key: 'leads', action: 'delete' },
+        ],
+        [
+          {
+            code: 'E_PLAN_REF_DELETED',
+            severity: 'error',
+            message: 'workflows/ingest/ uses table "leads", which this apply deletes.',
+            kind: 'workflow',
+            key: 'ingest',
+          },
+        ]
+      )
+    )
+
+    await run('status')
+
+    const report = printed()
+    expect(report.plan).toMatchObject({ delete: 1, errors: 1 })
+    expect(report.diagnostics?.map((finding) => finding.code)).toEqual(['E_PLAN_REF_DELETED'])
+  })
+
   it('keeps lint findings on a workflow edited here, which an apply sends whole', async () => {
     write('workflows/ingest/workflow.ts', INGEST.replace("'Ingest'", "'Ingest v2'"))
     mockRequest.mockResolvedValue(
