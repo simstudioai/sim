@@ -302,7 +302,9 @@ async function notifyBatchedTableChanges(
  * operation already carries it, and acting on it separately would either pull
  * it out of the folder it is travelling with or archive it under a second
  * timestamp its folder's restore could never recover. A table named twice (by
- * its id and by its name, say) is acted on once.
+ * its id and by its name, say) is acted on once: every reference resolves
+ * before anything is written, since a delete archives a table, and a later
+ * reference to it would no longer find it active.
  */
 async function runTableItems(
   tableIds: readonly string[],
@@ -314,40 +316,58 @@ async function runTableItems(
   succeeded: BulkTableItem[],
   outcome: BulkTablesOutcome
 ): Promise<unknown | undefined> {
+  /** Records a per-item failure; returns the error when it must end the batch instead. */
+  const settle = (error: unknown, tableId: string, tableName: string): unknown | undefined => {
+    const disposition = classifyBulkItemError(error, tableLockVerdict)
+    if (disposition.kind === 'notFound') {
+      outcome.notFound.push({ kind: 'table', id: tableId })
+      return undefined
+    }
+    if (disposition.kind === 'failed') {
+      outcome.failed.push({
+        kind: 'table',
+        id: tableId,
+        name: tableName,
+        reason: disposition.reason,
+      })
+      return undefined
+    }
+    return disposition.error
+  }
+
   const seen = new Set<string>()
+  const selection: Array<
+    { tableId: string; canonical: ActiveTableContext } | { tableId: string; error: unknown }
+  > = []
   for (const tableId of tableIds) {
-    let tableName = tableId
     try {
       const canonical = await resolveActiveTableInWorkspace(tableId, workspace)
       if (seen.has(canonical.table.id)) continue
       seen.add(canonical.table.id)
-      tableName = canonical.table.name
-      if (canonical.table.folderId && covered.has(canonical.table.folderId)) {
-        outcome.skipped.push({ kind: 'table', id: canonical.table.id, name: tableName })
-        continue
-      }
-      await authorize(canonical)
-      succeeded.push({
-        kind: 'table',
-        id: canonical.table.id,
-        name: await apply(canonical),
-      })
+      selection.push({ tableId, canonical })
     } catch (error) {
-      const disposition = classifyBulkItemError(error, tableLockVerdict)
-      if (disposition.kind === 'notFound') {
-        outcome.notFound.push({ kind: 'table', id: tableId })
-        continue
-      }
-      if (disposition.kind === 'failed') {
-        outcome.failed.push({
-          kind: 'table',
-          id: tableId,
-          name: tableName,
-          reason: disposition.reason,
-        })
-        continue
-      }
-      return disposition.error
+      selection.push({ tableId, error })
+    }
+  }
+
+  for (const item of selection) {
+    if ('error' in item) {
+      const fatal = settle(item.error, item.tableId, item.tableId)
+      if (fatal !== undefined) return fatal
+      continue
+    }
+    const { tableId, canonical } = item
+    const tableName = canonical.table.name
+    if (canonical.table.folderId && covered.has(canonical.table.folderId)) {
+      outcome.skipped.push({ kind: 'table', id: canonical.table.id, name: tableName })
+      continue
+    }
+    try {
+      await authorize(canonical)
+      succeeded.push({ kind: 'table', id: canonical.table.id, name: await apply(canonical) })
+    } catch (error) {
+      const fatal = settle(error, tableId, tableName)
+      if (fatal !== undefined) return fatal
     }
   }
   return undefined

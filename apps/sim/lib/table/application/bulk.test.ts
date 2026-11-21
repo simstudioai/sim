@@ -175,9 +175,16 @@ describe('table bulk application use cases', () => {
   })
 
   it('acts once on a table named twice, by its id and by its name', async () => {
-    mocks.resolveTableContext.mockImplementation(async (tableId: string) =>
-      tableContext(tableId === 'Table table-2' ? 'table-2' : tableId)
-    )
+    const archived = new Set<string>()
+    mocks.resolveTableContext.mockImplementation(async (reference: string) => {
+      const tableId = reference === 'Table table-2' ? 'table-2' : reference
+      if (archived.has(tableId)) throw new OrchestrationError('not_found', 'Table not found')
+      return tableContext(tableId)
+    })
+    mocks.deleteTable.mockImplementation(async (tableId: string) => {
+      archived.add(tableId)
+      return { archived: { name: 'Archived', workspaceId: 'workspace-1' } }
+    })
 
     const result = await bulkDeleteTables.execute({
       principal,
