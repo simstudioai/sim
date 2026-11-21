@@ -131,7 +131,7 @@ export function getValueAtPath(source: unknown, path: string): unknown {
 export function canonicalJson(value: unknown): string {
   if (value instanceof Date) return JSON.stringify(value.toISOString())
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (Array.isArray(value)) return `[${Array.from(value, canonicalJson).join(',')}]`
   const entries = Object.entries(value)
     .filter(([, entry]) => entry !== undefined)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
