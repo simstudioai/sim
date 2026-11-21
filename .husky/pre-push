@@ -5,6 +5,23 @@
 # CI runs the full lint, type-check and audit gate on every PR, so it stays the backstop.
 set -e
 
+# A stale generated artifact would only fail CI's check:audits. Generators read the working tree,
+# so the result describes the pushed commit only when the tree is that commit; with uncommitted or
+# untracked files the check is left to CI rather than judging (or blocking) unrelated work.
+check_generated_artifacts() {
+  if git diff --quiet HEAD && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+    bun run generate >/dev/null
+    if ! git diff --quiet; then
+      echo "pre-push: generated artifacts were stale and have been regenerated:"
+      git diff --name-only
+      echo "pre-push: commit them and push again."
+      exit 1
+    fi
+  else
+    echo "pre-push: uncommitted changes; leaving generated-artifact freshness to CI"
+  fi
+}
+
 # git passes one "<local ref> <local sha> <remote ref> <remote sha>" line per pushed ref.
 zero=0000000000000000000000000000000000000000
 head=$(git rev-parse HEAD)
@@ -25,6 +42,7 @@ if [ -z "$base" ]; then
   echo "pre-push: origin/staging not found, running the full lint and type-check"
   bun run lint:check
   bun run type-check
+  check_generated_artifacts
   exit 0
 fi
 
@@ -44,17 +62,4 @@ if printf '%s\n' "$changed" | grep -qE '^scripts/'; then
 fi
 TURBO_SCM_BASE="$base" bunx turbo run type-check --affected --output-logs=errors-only
 
-# A stale generated artifact would only fail CI's check:audits. Generators read the working tree,
-# so the result describes the pushed commit only when the tree is that commit; with uncommitted or
-# untracked files the check is left to CI rather than judging (or blocking) unrelated work.
-if git diff --quiet HEAD && [ -z "$(git ls-files --others --exclude-standard)" ]; then
-  bun run generate >/dev/null
-  if ! git diff --quiet; then
-    echo "pre-push: generated artifacts were stale and have been regenerated:"
-    git diff --name-only
-    echo "pre-push: commit them and push again."
-    exit 1
-  fi
-else
-  echo "pre-push: uncommitted changes; leaving generated-artifact freshness to CI"
-fi
+check_generated_artifacts
