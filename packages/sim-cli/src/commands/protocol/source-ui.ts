@@ -210,14 +210,15 @@ export interface FindingsOutput {
 function findingAnnotation(diagnostic: Diagnostic, dir: string | undefined): string[] {
   if (diagnostic.severity === 'info') return []
   // A finding in a non-source file (`path`, a JSON path into it) has no line to point at.
-  const located = diagnostic.file !== undefined && diagnostic.path === undefined
-  const site = located
-    ? {
-        file: dir === undefined ? diagnostic.file : annotationPath(dir, diagnostic.file),
-        line: diagnostic.line,
-        column: diagnostic.column,
-      }
-    : {}
+  const { file } = diagnostic
+  const site =
+    file !== undefined && diagnostic.path === undefined
+      ? {
+          file: dir === undefined ? file : annotationPath(dir, file),
+          line: diagnostic.line,
+          column: diagnostic.column,
+        }
+      : {}
   const message = diagnostic.hint
     ? `${diagnostic.message} Hint: ${diagnostic.hint}`
     : diagnostic.message

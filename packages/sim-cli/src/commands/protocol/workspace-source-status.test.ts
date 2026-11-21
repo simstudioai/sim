@@ -599,7 +599,7 @@ describe('workspaces source status', () => {
 
     const report = printed()
     expect(report.plan).toMatchObject({ delete: 1, errors: 1 })
-    expect(report.diagnostics?.map((finding) => finding.code)).toEqual(['E_PLAN_REF_DELETED'])
+    expect(report.diagnostics).toEqual([expect.objectContaining({ code: 'E_PLAN_REF_DELETED' })])
   })
 
   it('keeps lint findings on a workflow edited here, which an apply sends whole', async () => {
