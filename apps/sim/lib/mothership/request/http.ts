@@ -116,7 +116,7 @@ export function checkInternalApiKey(req: NextRequest) {
  * schema. Returns the 400 to send, or null to proceed. A non-JSON body proceeds, since the
  * handler owns that failure mode.
  */
-export async function validateShimEnvelope(
+export async function validateChatPostEnvelope(
   request: NextRequest,
   schema: z.ZodType
 ): Promise<NextResponse | null> {

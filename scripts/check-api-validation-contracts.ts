@@ -160,7 +160,7 @@ const DECLARATIVE_ROUTE_BUILDER_USAGE_PATTERN =
   /\b(?:defineInternalJsonRoute|defineV2JsonRoute|defineV2BodyLifecycleRoute|defineInternalBinaryRoute|defineV2BinaryRoute|defineScimRoute)\s*\(/
 const SERVER_VALIDATION_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/server(?:\/validation)?['"]/
 const SCHEMA_PARSE_PATTERN = /\b\w+Schema\.(?:safeParse|parse)\(/
-const CONTRACT_SERVER_HELPER_PATTERN = /\bvalidateShimEnvelope\(/
+const CONTRACT_SERVER_HELPER_PATTERN = /\bvalidateChatPostEnvelope\(/
 const CANONICAL_HELPER_USAGE_PATTERN =
   /\b(?:isZodError|validationErrorResponse|validationErrorResponseFromError|getValidationErrorMessage)\s*\(/
 const CONTRACT_MAP_PARSE_PATTERN =

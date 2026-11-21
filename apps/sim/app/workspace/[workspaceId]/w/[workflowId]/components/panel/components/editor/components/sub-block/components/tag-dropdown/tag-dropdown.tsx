@@ -46,8 +46,6 @@ interface NestedNavigationContextValue {
   navigateIn: (tag: NestedTag) => void
   /** Navigate back one level, returns true if navigation happened, false if at root */
   navigateBack: () => boolean
-  /** Register the base folder when it opens */
-  registerFolder: (folderId: string) => void
 }
 
 const NestedNavigationContext = React.createContext<NestedNavigationContextValue | null>(null)
@@ -526,29 +524,16 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
 
 /**
  * Wrapper component that uses shared nested navigation state from context.
- * Handles registration of the base folder and navigation callbacks.
+ * Supplies the current nested path and the navigate-in callback.
  */
 const FolderContents: React.FC<Omit<NestedTagRendererProps, never>> = (props) => {
   const nestedNav = useNestedNavigation()
-  const { currentFolder } = usePopoverContext()
 
   const nestedPath = nestedNav?.nestedPath ?? []
 
-  useEffect(() => {
-    if (nestedNav && currentFolder) {
-      const folderId = `${props.group.blockId}-${props.nestedTag.key}`
-      if (currentFolder === folderId) {
-        nestedNav.registerFolder(folderId)
-      }
-    }
-  }, [currentFolder, nestedNav, props.group, props.nestedTag])
-
-  const handleNavigateIn = useCallback(
-    (nestedTag: NestedTag) => {
-      nestedNav?.navigateIn(nestedTag)
-    },
-    [nestedNav, props.group]
-  )
+  const handleNavigateIn = (nestedTag: NestedTag) => {
+    nestedNav?.navigateIn(nestedTag)
+  }
 
   return <FolderContentsInner {...props} nestedPath={nestedPath} onNavigateIn={handleNavigateIn} />
 }
@@ -801,23 +786,6 @@ const BlockRootTagItem: React.FC<{
 }
 
 /**
- * Helper component to capture popover context for nested navigation
- */
-const PopoverContextCapture: React.FC<{
-  contextRef: React.RefObject<{
-    openFolder: (id: string, onLoad?: () => void | Promise<void>) => void
-  } | null>
-}> = ({ contextRef }) => {
-  const { openFolder } = usePopoverContext()
-  useEffect(() => {
-    if (contextRef && 'current' in contextRef) {
-      ;(contextRef as { current: typeof contextRef.current }).current = { openFolder }
-    }
-  }, [openFolder, contextRef])
-  return null
-}
-
-/**
  * Back button that handles nested navigation.
  * When in nested folders, goes back one level at a time.
  * At the root folder level, closes the folder.
@@ -898,7 +866,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   const itemRefs = (itemElementsRef.current ??= new Map())
 
   const [nestedPath, setNestedPath] = useState<NestedTag[]>([])
-  const baseFolderRef = useRef<{ id: string } | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   const inputValueRef = useRef(inputValue)
@@ -1474,38 +1441,20 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [workflowVariables, onSelect, onClose, getMergedSubBlocks]
   )
 
-  const popoverContextRef = useRef<{
-    openFolder: (id: string, onLoad?: () => void | Promise<void>) => void
-  } | null>(null)
-
   const nestedNavigationValue = useMemo<NestedNavigationContextValue>(
     () => ({
       nestedPath,
       navigateIn: (tag: NestedTag) => {
-        const baseFolder = baseFolderRef.current
-        if (!baseFolder || !popoverContextRef.current) return
-
         setNestedPath((prev) => [...prev, tag])
 
         if (scrollAreaRef.current) {
           scrollAreaRef.current.scrollTop = 0
         }
-
-        popoverContextRef.current.openFolder(baseFolder.id)
       },
       navigateBack: () => {
-        const baseFolder = baseFolderRef.current
-        if (!baseFolder || !popoverContextRef.current) return false
         if (nestedPath.length === 0) return false
-
-        const newPath = nestedPath.slice(0, -1)
-        setNestedPath(newPath)
-
-        popoverContextRef.current.openFolder(baseFolder.id)
+        setNestedPath(nestedPath.slice(0, -1))
         return true
-      },
-      registerFolder: (folderId) => {
-        baseFolderRef.current = { id: folderId }
       },
     }),
     [nestedPath]
@@ -1514,7 +1463,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   useEffect(() => {
     if (!visible) {
       setNestedPath([])
-      baseFolderRef.current = null
     }
   }, [visible])
 
@@ -1559,7 +1507,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   return (
     <NestedNavigationContext.Provider value={nestedNavigationValue}>
       <Popover open={visible} onOpenChange={(open) => !open && onClose?.()} colorScheme='inverted'>
-        <PopoverContextCapture contextRef={popoverContextRef} />
         <PopoverAnchor asChild>
           <div
             className={cn('pointer-events-none', className)}

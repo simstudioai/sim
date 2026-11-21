@@ -26,9 +26,10 @@ import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('CopilotChatStopAPI')
 
-// POST /api/mothership/chat/stop — persists partial assistant content
-// when the user stops mid-stream. Lock release is handled by the
-// aborted server stream unwinding, not this handler.
+/**
+ * Persists partial assistant content when the user stops mid-stream. Lock release is handled by
+ * the aborted server stream unwinding, not this handler.
+ */
 export const POST = withRouteHandler((req: NextRequest) =>
   withIncomingGoSpan(req.headers, TraceSpan.CopilotChatStopStream, undefined, async (span) => {
     try {

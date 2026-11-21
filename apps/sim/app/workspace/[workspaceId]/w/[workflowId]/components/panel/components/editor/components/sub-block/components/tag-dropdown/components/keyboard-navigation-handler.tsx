@@ -50,7 +50,6 @@ const findFolderInfoForTag = (
 ): {
   id: string
   parentTag: string
-  group: NestedBlockTagGroup
   nestedTag: NestedTag
 } | null => {
   for (const nestedTag of nestedTags) {
@@ -61,7 +60,6 @@ const findFolderInfoForTag = (
       return {
         id: `${group.blockId}-${nestedTag.key}`,
         parentTag: nestedTag.parentTag,
-        group,
         nestedTag,
       }
     }
@@ -191,7 +189,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
   const handleKeyboardEvent = useEffectEvent((e: KeyboardEvent) => {
     if (!flatTagList.length) return
 
-    const openFolderWithSelection = (folderId: string, parentTag: string) => {
+    const enterFolder = (folderId: string, parentTag: string) => {
       const parentIdx = flatTagList.findIndex((item) => item.tag === parentTag)
       openFolder(folderId)
       if (parentIdx >= 0) {
@@ -202,12 +200,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
     const selected = flatTagList[selectedIndex]
     if (!selected && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
 
-    let currentFolderInfo: {
-      id: string
-      parentTag: string
-      group: NestedBlockTagGroup
-      nestedTag: NestedTag
-    } | null = null
+    let currentFolderInfo: ReturnType<typeof findFolderInfoForTag> = null
 
     if (selected) {
       for (const group of nestedBlockTagGroups) {
@@ -283,7 +276,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
           if (isInFolder && nestedNav) {
             nestedNav.navigateIn(currentFolderInfo.nestedTag)
           } else {
-            openFolderWithSelection(currentFolderInfo.id, currentFolderInfo.parentTag)
+            enterFolder(currentFolderInfo.id, currentFolderInfo.parentTag)
             onFolderEnter?.()
           }
         }
