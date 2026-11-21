@@ -8,9 +8,11 @@ import {
   KIND_DIRS,
   parseResourceAddress,
   parseWorkspaceBase,
+  resourceAddress,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
+import { workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import {
   type PromotionRecord,
@@ -31,6 +33,7 @@ import type {
   GetWorkspaceSourceResponse,
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
+import { safeOneLine } from '../../output/render'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { searchTasks } from '../search'
 import { type DeployedUrl, deployedUrls, deployedUrlsText, lockBlockNames } from './deployed-urls'
@@ -155,13 +158,21 @@ function notWritten(data: ApplyData): string[] {
     .map((change) => `${change.kind}:${change.key}`)
 }
 
-/** How a stopped apply left one planned write: written, the one that failed, or not attempted. */
-function outcomeText(change: Change, outcome: PlanOutcome): string {
-  if (change.held) return ''
-  if (wasWritten(change, outcome)) return ' — written'
+/** How an apply left one planned change: held back, written, the one that failed, or not attempted. */
+function changeOutcome(
+  change: Change,
+  outcome: PlanOutcome
+): 'held back' | 'written' | 'failed, not written' | 'not written' {
+  if (change.held) return 'held back'
+  if (wasWritten(change, outcome)) return 'written'
   return outcome.failed && sameChange(outcome.failed, change)
-    ? ' — failed, not written'
-    : ' — not written'
+    ? 'failed, not written'
+    : 'not written'
+}
+
+/** {@link changeOutcome} as a plan line's suffix; a held change says so on its own. */
+function outcomeText(change: Change, outcome: PlanOutcome): string {
+  return change.held ? '' : ` — ${changeOutcome(change, outcome)}`
 }
 
 /**
@@ -831,7 +842,9 @@ export function attachWorkspaceSourceApply(source: Command): void {
           /** Prints `data` as the result, with the findings about files the CLI did not send. */
           const report = (data: ApplyData, next?: NextStep, urls: WorkflowUrl[] = []) => {
             const diagnostics = [...notSent, ...data.diagnostics]
-            appendStepSummary(planMarkdown({ ...data, diagnostics }, options.to ?? workspaceId))
+            appendStepSummary(() =>
+              planMarkdown({ ...data, diagnostics }, options.to ?? workspaceId)
+            )
             const result = {
               ...summarize({ ...data, diagnostics }),
               ...(urls.length > 0 ? { urls } : {}),
@@ -917,7 +930,7 @@ const SUMMARY_ROWS = 50
 
 /** A Markdown table cell: one line, with its pipes escaped. */
 function cell(text: string): string {
-  return text.replaceAll('|', '\\|').replace(/\s+/g, ' ')
+  return safeOneLine(text).replaceAll('|', '\\|')
 }
 
 /**
@@ -928,13 +941,9 @@ function planMarkdown(data: ApplyData, workspaceId: string): string {
   const summary = summarize(data)
   const changes = data.plan.filter((change) => change.action !== 'noop')
   const rows = changes.slice(0, SUMMARY_ROWS).map((change) => {
-    const fields = change.fields?.length ? ` (${change.fields.join(', ')})` : ''
-    const fate = change.held
-      ? 'held back'
-      : data.dryRun
-        ? 'planned'
-        : outcomeText(change, data).replace(' — ', '') || 'written'
-    return `| ${SYMBOLS[change.action]} | ${cell(resourceWhere(change.kind, change.key))}${cell(fields)} | ${change.action} | ${fate} |`
+    const fields = change.fields?.length ? ` (${cell(change.fields.join(', '))})` : ''
+    const fate = data.dryRun && !change.held ? 'planned' : changeOutcome(change, data)
+    return `| ${SYMBOLS[change.action]} | ${cell(resourceWhere(change.kind, change.key))}${fields} | ${change.action} | ${fate} |`
   })
   const errors = data.diagnostics.filter((finding) => finding.severity === 'error')
   const lines = [
@@ -999,14 +1008,10 @@ async function deploymentUrls(
   )
   const perWorkflow = await Promise.all(
     deployed.map(async ({ key }): Promise<WorkflowUrl[]> => {
-      const workflowId = base?.resources[`workflow:${key}`]?.id
+      const workflowId = base?.resources[resourceAddress('workflow', key)]?.id
       if (!workflowId) return []
-      const lockText = data.files[`${KIND_DIRS.workflow}/${key}/${SOURCE_LOCK_FILE}`]
-      let lock: unknown = null
-      try {
-        lock = lockText === undefined ? null : JSON.parse(lockText)
-      } catch {}
-      const named = await deployedUrls(client, workflowId, lockBlockNames(lock))
+      const lock = data.files[`${workflowFolder(key)}/${SOURCE_LOCK_FILE}`]
+      const named = await deployedUrls(client, workflowId, lockBlockNames(lock ?? null))
       return named.map((url) => ({ workflow: key, ...url }))
     })
   )

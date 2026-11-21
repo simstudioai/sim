@@ -3,10 +3,13 @@
  * the directory's lock binds that id to the block's key, const and function file, and a function
  * block's error names its line, which the stored code keeps one to one with the file.
  */
-import { isRecordLike, toRecord } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
+import { escapeRegExp } from '@sim/utils/string'
+import { parseWorkflowLock } from '@sim/workflow-code'
 import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { annotationLine, annotationPath, printAnnotations } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
+import { blockLabel } from './deployed-urls'
 import { readPreviousLock, readSourceJson, readSourceText } from './source-dir'
 
 /** A failed block, as the source directory names it. */
@@ -16,7 +19,7 @@ export interface RunFailureSite {
   line: number | null
   /** The block's key, and its const when it differs: `normalize`, or `leadin (hook)`. */
   block: string
-  /** The entry file and the line of the block's declaration, when it is found there. */
+  /** Where the entry file declares a block whose code is in its own file, when found. */
   declaredAt: string | null
 }
 
@@ -28,7 +31,7 @@ function errorLine(message: string): number | null {
 
 /** The 1-based line of `const <ident> =` in `entry`, else `null`. */
 function declarationLine(entry: string, ident: string): number | null {
-  const pattern = new RegExp(`^\\s*const\\s+${ident.replace(/\$/g, '\\$')}\\s*=`)
+  const pattern = new RegExp(`^\\s*const\\s+${escapeRegExp(ident)}\\s*=`)
   const index = entry.split('\n').findIndex((line) => pattern.test(line))
   return index === -1 ? null : index + 1
 }
@@ -45,28 +48,23 @@ export async function runFailureSite(
   const { blockId, message } = toRecord(error)
   if (typeof blockId !== 'string') return null
   if (toRecord(await readSourceJson(dir, SOURCE_BASE_FILE)).workflowId !== workflowId) return null
-  const blocks = toRecord(await readPreviousLock(dir)).blocks
-  if (!isRecordLike(blocks)) return null
-  const bound = Object.entries(blocks).find(
-    ([, entry]) => isRecordLike(entry) && entry.id === blockId
-  )
+  const { lock } = parseWorkflowLock(await readPreviousLock(dir))
+  const bound = Object.entries(lock?.blocks ?? {}).find(([, entry]) => entry.id === blockId)
   if (!bound) return null
-  const [key, entry] = bound as [string, Record<string, unknown>]
-  const ident = typeof entry.ident === 'string' ? entry.ident : key
+  const [key, entry] = bound
+  const block = blockLabel(key, entry.ident)
   const entryText = await readSourceText(dir, SOURCE_ENTRY_FILE)
-  const declared = entryText === null ? null : declarationLine(entryText, ident)
+  const declared = entryText === null ? null : declarationLine(entryText, entry.ident)
   const entryPath = annotationPath(dir, SOURCE_ENTRY_FILE)
-  const declaredAt = declared === null ? null : `${entryPath}:${declared}`
-  const block = ident === key ? key : `${key} (${ident})`
-  if (typeof entry.codeFile === 'string') {
+  if (entry.codeFile !== undefined) {
     return {
       file: annotationPath(dir, entry.codeFile),
       line: typeof message === 'string' ? errorLine(message) : null,
       block,
-      declaredAt,
+      declaredAt: declared === null ? null : `${entryPath}:${declared}`,
     }
   }
-  return { file: entryPath, line: declared, block, declaredAt }
+  return { file: entryPath, line: declared, block, declaredAt: null }
 }
 
 /**
@@ -86,17 +84,14 @@ export async function printRunFailureSite(
     return
   }
   const where = `${site.file}${site.line === null ? '' : `:${site.line}`}`
-  const declared =
-    site.declaredAt && !site.declaredAt.startsWith(`${site.file}:`)
-      ? `, declared at ${site.declaredAt}`
-      : ''
+  const declared = site.declaredAt ? `, declared at ${site.declaredAt}` : ''
   const message = toRecord(error).message
   const text = typeof message === 'string' ? message : 'The block failed.'
   printError(`${where}: ${text} (block ${site.block}${declared})`)
   printAnnotations([
     annotationLine('error', text, {
       file: site.file,
-      ...(site.line !== null ? { line: site.line } : {}),
+      line: site.line ?? undefined,
       title: `Run failed in ${site.block}`,
     }),
   ])

@@ -67,14 +67,17 @@ export function printAnnotations(lines: readonly string[]): void {
 }
 
 /**
- * Appends `markdown` to the job's step summary, when this is a GitHub Actions step that has one. A
+ * Appends `markdown()` (built only then) to the job's step summary, when this is a GitHub Actions step that has one. A
  * summary that cannot be written is reported and skipped: the command's own result stands.
  */
-export function appendStepSummary(markdown: string, env: NodeJS.ProcessEnv = process.env): void {
+export function appendStepSummary(
+  markdown: () => string,
+  env: NodeJS.ProcessEnv = process.env
+): void {
   const path = env.GITHUB_STEP_SUMMARY
   if (!inGithubActions(env) || !path) return
   try {
-    appendFileSync(path, `${markdown.trimEnd()}\n\n`)
+    appendFileSync(path, `${markdown().trimEnd()}\n\n`)
   } catch (error) {
     printError(`The step summary could not be written: ${getErrorMessage(error)}`)
   }

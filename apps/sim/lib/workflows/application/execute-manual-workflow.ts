@@ -1,4 +1,5 @@
 import { requirePrincipalSubjectUserId, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
+import { formatQuotedNameList } from '@sim/utils/string'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -60,13 +61,13 @@ type ManualWorkflowState = Awaited<ReturnType<typeof loadManualState>>
 /** At most this many block names are listed when a block selector matches none. */
 const MAX_LISTED_BLOCKS = 25
 
-/** `name (id)` for each block of `ids`, at most {@link MAX_LISTED_BLOCKS} of them. */
-function listBlocks(state: ManualWorkflowState, ids: readonly string[]): string {
-  const shown = ids
-    .slice(0, MAX_LISTED_BLOCKS)
-    .map((id) => `"${state.blocks[id]?.name ?? id}" (${id})`)
-  const more = ids.length > MAX_LISTED_BLOCKS ? `, and ${ids.length - MAX_LISTED_BLOCKS} more` : ''
-  return `${shown.join(', ')}${more}`
+/** `"name" (id)` for each block of `ids`, at most {@link MAX_LISTED_BLOCKS} of them. */
+function listBlocks(state: ManualWorkflowState, ids: string[]): string {
+  return formatQuotedNameList(
+    ids,
+    MAX_LISTED_BLOCKS,
+    (id) => `"${state.blocks[id]?.name ?? id}" (${id})`
+  )
 }
 
 /**
@@ -162,6 +163,8 @@ function executionServiceInput(params: {
   context: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>
   input: ManualExecutionInput
   draftState: NormalizedWorkflowData
+  /** The resolved id of the block to stop after, never the caller's raw selector. */
+  stopAfterBlockId: string | undefined
 }) {
   return {
     workflowId: params.context.workflowId,
@@ -179,7 +182,7 @@ function executionServiceInput(params: {
     ),
     base64MaxBytes: params.input.base64MaxBytes,
     selectedOutputs: params.input.selectedOutputs,
-    stopAfterBlockId: params.input.stopAfterBlockId,
+    stopAfterBlockId: params.stopAfterBlockId,
     rateLimitCounter: 'sync' as const,
     requestedTimeoutSeconds: params.input.requestedTimeoutSeconds,
     abortSignal: params.input.abortSignal,
@@ -243,8 +246,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
     }
 
     const result = await executeWorkflowService({
-      ...executionServiceInput({ principal, context, input, draftState: state }),
-      stopAfterBlockId,
+      ...executionServiceInput({ principal, context, input, draftState: state, stopAfterBlockId }),
       input: executionInput,
       triggerBlockId: selected.triggerBlockId,
     })
@@ -269,8 +271,7 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
     }
 
     const result = await executeWorkflowService({
-      ...executionServiceInput({ principal, context, input, draftState: state }),
-      stopAfterBlockId,
+      ...executionServiceInput({ principal, context, input, draftState: state, stopAfterBlockId }),
       input: input.input,
       runFromBlock: {
         startBlockId: blockId,

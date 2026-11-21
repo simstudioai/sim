@@ -75,7 +75,7 @@ describe('param aliases', () => {
     )
     const unknown = result.diagnostics.find((d) => d.code === 'E_UNKNOWN_PARAM')
     expect(unknown?.hint).toMatch(
-      /^retry is block meta, not a param: pass it in the third argument/
+      /^retry is block meta, not a param: pass it in the builder's third argument/
     )
   })
 })

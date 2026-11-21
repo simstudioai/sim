@@ -43,6 +43,7 @@ import {
   type FindingsOutput,
   findingsOutput,
   fresh,
+  isMachine,
   printRefusal,
   refusedExitCode,
   shellWord,
@@ -286,7 +287,7 @@ async function deployStep(
           isDeployed: true,
         },
         needsRedeployment: false,
-        ...urlsOf(namedUrls(status.webhooks, lockBlockNames(data.lock))),
+        urls: namedUrls(status.webhooks, lockBlockNames(data.lock)),
       }
     }
   }
@@ -312,21 +313,10 @@ async function deployStep(
       ...(options.machine && deployed.warnings.length > 0 ? { warnings: deployed.warnings } : {}),
     },
     needsRedeployment: false,
-    ...(deployed.isDeployed ? await liveUrls(client, data) : {}),
+    ...(deployed.isDeployed
+      ? { urls: await deployedUrls(client, data.workflowId, lockBlockNames(data.lock)) }
+      : {}),
   }
-}
-
-/** The live deployment's webhook URLs, each named as the stored lock names its block. */
-async function liveUrls(
-  client: OperationClient<'getWorkflowDeployment'>,
-  data: SourceApplyData
-): Promise<Pick<DeployOutcome, 'urls'>> {
-  return urlsOf(await deployedUrls(client, data.workflowId, lockBlockNames(data.lock)))
-}
-
-/** `urls` as a deploy outcome's field: absent when there are none. */
-function urlsOf(urls: DeployedUrl[]): Pick<DeployOutcome, 'urls'> {
-  return urls.length > 0 ? { urls } : {}
 }
 
 /** A failed deploy after a saved write, saying the write itself stands and how to deploy it. */
@@ -506,7 +496,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
               command: `${createCommand(shellWord(options.dir), workspaceId)} --yes`,
               reason: `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, check it, then create it.`,
             }
-            const machine = profile.output === 'json' || profile.output === 'yaml'
+            const machine = isMachine(profile.output)
             if (!machine) printError(`${next.reason} Next: ${next.command}`)
             printTreeResult(profile.output, {
               created: false,

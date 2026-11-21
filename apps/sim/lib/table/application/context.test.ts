@@ -91,6 +91,12 @@ describe('table application context', () => {
     await resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-1' })
     expect(findByName).not.toHaveBeenCalled()
 
+    // A stale id is never read as a name, so it costs no second query.
+    await expect(
+      resolveActiveTableContext({ tableId: 'tbl_gone', assertedWorkspaceId: 'workspace-1' })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(findByName).not.toHaveBeenCalled()
+
     // A name never reaches past the asserted workspace, and without one it is not looked up.
     await expect(
       resolveActiveTableContext({ tableId: 'leads', assertedWorkspaceId: 'workspace-2' })

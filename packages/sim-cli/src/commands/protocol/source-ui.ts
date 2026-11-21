@@ -8,7 +8,12 @@ import { boundFindingText, type RefusalClass } from '@sim/workflow-code/diagnost
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { type FlatDiagnostic, refusalClass } from '@sim/workspace-code'
 import type { Command } from 'commander'
-import { annotationLine, annotationPath, printAnnotations } from '#sim-cli/output/github-actions'
+import {
+  annotationLine,
+  annotationPath,
+  inGithubActions,
+  printAnnotations,
+} from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
 import { askLine } from '#sim-cli/terminal/line-input'
 import type { OutputFormat } from '../../config/index'
@@ -139,7 +144,7 @@ function printDiagnostics(diagnostics: readonly Diagnostic[]): void {
 type ResultDiagnostic = Omit<FlatDiagnostic, 'frame' | 'code'> & { code: Diagnostic['code'] }
 
 /** Whether `format` prints one machine document on stdout rather than lines for a person. */
-function isMachine(format: OutputFormat): boolean {
+export function isMachine(format: OutputFormat): boolean {
   return format === 'json' || format === 'yaml'
 }
 
@@ -210,24 +215,16 @@ export interface FindingsOutput {
 function findingAnnotation(diagnostic: Diagnostic, dir: string | undefined): string[] {
   if (diagnostic.severity === 'info') return []
   const file =
-    diagnostic.file !== undefined && diagnostic.path === undefined
-      ? dir === undefined
+    diagnostic.file === undefined || diagnostic.path !== undefined
+      ? undefined
+      : dir === undefined
         ? diagnostic.file
         : annotationPath(dir, diagnostic.file)
-      : undefined
+  const site = file === undefined ? {} : { file, line: diagnostic.line, column: diagnostic.column }
   const message = diagnostic.hint
     ? `${diagnostic.message} Hint: ${diagnostic.hint}`
     : diagnostic.message
-  return [
-    annotationLine(diagnostic.severity, message, {
-      ...(file !== undefined ? { file } : {}),
-      ...(file !== undefined && diagnostic.line !== undefined ? { line: diagnostic.line } : {}),
-      ...(file !== undefined && diagnostic.column !== undefined
-        ? { column: diagnostic.column }
-        : {}),
-      title: diagnostic.code,
-    }),
-  ]
+  return [annotationLine(diagnostic.severity, message, { ...site, title: diagnostic.code })]
 }
 
 /**
@@ -261,7 +258,9 @@ export function findingsOutput(
         )
         .map((diagnostic) => boundFindingText(diagnostic))
       if (!machine) printDiagnostics(unseen)
-      printAnnotations(unseen.flatMap((diagnostic) => findingAnnotation(diagnostic, dir)))
+      if (inGithubActions()) {
+        printAnnotations(unseen.flatMap((diagnostic) => findingAnnotation(diagnostic, dir)))
+      }
     },
     result: (diagnostics) =>
       resultDiagnostics(

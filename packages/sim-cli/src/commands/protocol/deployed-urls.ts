@@ -3,7 +3,7 @@
  * named with its URL, so nobody has to look it up with `sim workflows deployment status` after.
  */
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { parseWorkflowLock } from '@sim/workflow-code'
 import { printError } from '#sim-cli/output/io'
 import type { GetWorkflowDeploymentResponse } from '../../generated/v2-api'
 import type { OperationClient } from '../../runtime/called-operations'
@@ -15,17 +15,23 @@ export interface DeployedUrl {
   url: string
 }
 
-/** Each block id of a lock (`.sim/lock.json`) mapped to how source names it: `key (ident)`. */
-export function lockBlockNames(lock: unknown): Map<string, string> {
-  const names = new Map<string, string>()
-  const blocks = isRecordLike(lock) ? lock.blocks : undefined
-  if (!isRecordLike(blocks)) return names
-  for (const [key, entry] of Object.entries(blocks)) {
-    if (!isRecordLike(entry) || typeof entry.id !== 'string') continue
-    const ident = typeof entry.ident === 'string' && entry.ident !== key ? ` (${entry.ident})` : ''
-    names.set(entry.id, `${key}${ident}`)
-  }
-  return names
+/** How source names a block: its key, with its const when that differs (`leadin (hook)`). */
+export function blockLabel(key: string, ident: string): string {
+  return ident === key ? key : `${key} (${ident})`
+}
+
+/**
+ * Each block id of a lock (`.sim/lock.json`, parsed or as JSON text) mapped to its
+ * {@link blockLabel}; empty when the lock does not parse.
+ */
+export function lockBlockNames(lockInput: unknown): Map<string, string> {
+  const { lock } = parseWorkflowLock(lockInput)
+  return new Map(
+    Object.entries(lock?.blocks ?? {}).map(([key, entry]) => [
+      entry.id,
+      blockLabel(key, entry.ident),
+    ])
+  )
 }
 
 /** The deployment's webhook URLs, each named through `names` (block id → source name). */
