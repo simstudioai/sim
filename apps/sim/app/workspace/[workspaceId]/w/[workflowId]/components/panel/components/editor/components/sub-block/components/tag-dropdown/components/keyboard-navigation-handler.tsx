@@ -281,7 +281,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
           e.preventDefault()
           e.stopPropagation()
           if (isInFolder && nestedNav) {
-            nestedNav.navigateIn(currentFolderInfo.nestedTag, currentFolderInfo.group)
+            nestedNav.navigateIn(currentFolderInfo.nestedTag)
           } else {
             openFolderWithSelection(currentFolderInfo.id, currentFolderInfo.parentTag)
             onFolderEnter?.()
