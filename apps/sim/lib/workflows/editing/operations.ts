@@ -66,9 +66,13 @@ function refuseNestedPlacement(
   return true
 }
 
+/** The fields of a loop's or parallel's `data` that hold block references the runtime resolves. */
+const CONTAINER_REFERENCE_FIELDS = ['collection', 'whileCondition', 'doWhileCondition'] as const
+
 /**
- * Renames a block and rewrites the `<name.` references every other block's sub-blocks hold to it,
- * the same rewrite the editor's rename applies.
+ * Renames a block and rewrites the `<name.` references every other block holds to it: in its
+ * sub-blocks, the same rewrite the editor's rename applies, and in a loop's or parallel's
+ * collection and conditions, which the loop and parallel records are rebuilt from.
  */
 function renameBlock(blocks: Record<string, BlockState>, blockId: string, name: string): void {
   const nameMap = new Map([[normalizeName(blocks[blockId].name), normalizeName(name)]])
@@ -78,6 +82,12 @@ function renameBlock(blocks: Record<string, BlockState>, blockId: string, name: 
     for (const subBlock of Object.values(block.subBlocks ?? {})) {
       if (subBlock.value === undefined || subBlock.value === null) continue
       subBlock.value = rewriteBlockNameReferences(subBlock.value, nameMap) as typeof subBlock.value
+    }
+    const data = block.data
+    if (!data || (block.type !== 'loop' && block.type !== 'parallel')) continue
+    for (const field of CONTAINER_REFERENCE_FIELDS) {
+      const value = data[field]
+      if (typeof value === 'string') data[field] = rewriteBlockNameReferences(value, nameMap)
     }
   }
 }
