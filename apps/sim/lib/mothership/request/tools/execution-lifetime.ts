@@ -20,8 +20,8 @@ import {
   settleSimSandboxProcess,
   settleSimToolExecution,
 } from '@/lib/mothership/async-runs/repository'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { recoverSandboxProcesses } from '@/lib/mothership/request/tools/sandbox-recovery'
 

@@ -1,5 +1,4 @@
 import { generateId } from '@sim/utils/id'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamingContext } from '@/lib/mothership/request/types'
 
 /**
@@ -30,7 +29,6 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     errors: [],
     activeFileIntents: new Map(),
     filePreviewBudget: { contentBytes: 0 },
-    trace: new TraceCollector(),
     toolPermissions: { enabled: false, autoAllowed: new Set(), autoAllowPermitted: true },
     ...overrides,
   }

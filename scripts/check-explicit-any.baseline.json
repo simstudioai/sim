@@ -1504,7 +1504,6 @@
     "apps/sim/lib/mothership/integrations/application/catalog.test.ts": 3,
     "apps/sim/lib/mothership/request/application/controls.ts": 1,
     "apps/sim/lib/mothership/request/application/recover-stream.ts": 2,
-    "apps/sim/lib/mothership/request/go/inline-images.ts": 1,
     "apps/sim/lib/mothership/request/handlers/tool.ts": 1,
     "apps/sim/lib/mothership/request/lifecycle/run.test.ts": 1,
     "apps/sim/lib/mothership/request/lifecycle/start.ts": 1,

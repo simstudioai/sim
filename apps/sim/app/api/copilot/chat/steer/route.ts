@@ -7,13 +7,13 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import {
   runControlOperations,
   SteeringNotQueuedError,
   steerRun,
 } from '@/lib/mothership/request/application/controls'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 
 const handler = defineInternalJsonRoute({
   contract: copilotChatSteerContract,
@@ -26,7 +26,7 @@ const handler = defineInternalJsonRoute({
   errorPolicy: {
     project: (error) =>
       error instanceof SteeringNotQueuedError
-        ? internalErrorResponse(409, { ok: false, queued: false, goStatus: error.goStatus })
+        ? internalErrorResponse(409, { ok: false, queued: false, workerStatus: error.workerStatus })
         : internalOrchestrationErrorPolicy.project(error),
   },
   mapInput: ({ body }) => body,
@@ -34,6 +34,6 @@ const handler = defineInternalJsonRoute({
 })
 
 export const POST = (request: NextRequest, context?: Parameters<typeof handler>[1]) =>
-  withIncomingGoSpan(request.headers, TraceSpan.CopilotChatSteerStream, undefined, () =>
+  withIncomingWorkerSpan(request.headers, TraceSpan.CopilotChatSteerStream, undefined, () =>
     handler(request, context)
   )

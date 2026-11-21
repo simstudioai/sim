@@ -6,7 +6,7 @@ export interface RequestContext {
   path?: string
   /**
    * The 32-hex OTel trace id correlating this request across services
-   * (the same value the Go copilot logs as trace_id/request_id). Seeded
+   * (the trace id the worker's spans share). Seeded
    * from an incoming `traceparent` header, or stamped mid-request via
    * `setRequestTraceId` when the trace root is created locally.
    */

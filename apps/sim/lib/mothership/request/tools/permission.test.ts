@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 
 const { toolRequiresApproval, waitForToolPermissionDecision } = vi.hoisted(() => ({
   toolRequiresApproval: vi.fn().mockReturnValue(true),
@@ -36,7 +35,6 @@ function makeContext() {
     autoAllowed: new Set(),
     autoAllowPermitted: true,
   }
-  context.trace = new TraceCollector()
   return context
 }
 
@@ -150,7 +148,7 @@ describe('toolCallNeedsApproval', () => {
     ).toBe(false)
   })
 
-  it('gates a resolved integration operation off the frame Go stamped', () => {
+  it('gates a resolved integration operation off the frame the worker stamped', () => {
     // gmail_read_v2 is request-local: it is not in the catalog at all, so the
     // only thing marking it is the awaiting_approval status on the frame.
     toolRequiresApproval.mockReturnValue(false)
@@ -186,12 +184,12 @@ describe('gated tools are askable', () => {
   })
 
   it('never marks a go-routed tool as requiring approval', async () => {
-    // Go executes these in-process and streams back a result; the call never
+    // The worker executes these in-process and streams back a result; the call never
     // reaches Sim's dispatch, so this gate has nothing to hold. Marking one
     // would draw a permission card for work that already ran.
     //
     // call_integration_tool is the one exception, and only nominally: the
-    // catalog describes the gateway as go/sync, but at runtime Go resolves the
+    // catalog describes the gateway as go/sync, but at runtime the worker resolves the
     // operation and hands it to Sim on a checkpoint, stamping the frame with
     // awaiting_approval. It is gated on that stamp, under the resolved
     // operation's name, never under this one.
@@ -370,7 +368,7 @@ describe('runGatedToolExecution', () => {
 
     expect(execute).not.toHaveBeenCalled()
     expect(toolCall.status).toBe('skipped')
-    // Success keeps Go's consecutive-tool-failure breaker from counting a
+    // Success keeps the worker's consecutive-tool-failure breaker from counting a
     // deliberate user decision as a malfunction.
     expect(signal.status).toBe('success')
     expect(toolCall.result).toMatchObject({ success: true })

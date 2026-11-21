@@ -13,9 +13,9 @@ import {
   authorizeCopilotChatCallback,
   checkCopilotContinuationBilling,
 } from '@/lib/mothership/application/authorize-chat-callback'
-import { BillingLimitError } from '@/lib/mothership/request/go/stream'
 import { BillingAdmissionSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
+import { BillingLimitError } from '@/lib/mothership/request/worker/stream'
 
 /** Restores only the original server-owned admission, never a newly selected payer. */
 export function restoreBillingAdmission(

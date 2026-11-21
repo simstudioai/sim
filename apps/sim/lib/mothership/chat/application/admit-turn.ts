@@ -3,7 +3,6 @@ import { copilotChats, idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import type { z } from 'zod'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -23,7 +22,10 @@ import {
 } from '@/lib/mothership/chat/persisted-message'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import type { MothershipEffort } from '@/lib/mothership/model-options'
-import { StreamRecoveryConfigSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
+import {
+  persistedStreamRecoveryConfig,
+  type StreamRecoveryConfigInput,
+} from '@/lib/mothership/request/lifecycle/recovery-config'
 import {
   assertChatStreamLease,
   type ChatStreamLease,
@@ -35,7 +37,7 @@ interface AdmitTurnInput {
   executionId: string
   requestId: string
   message: UserMessageParams
-  recovery: z.input<typeof StreamRecoveryConfigSchema>
+  recovery: StreamRecoveryConfigInput
   lease: ChatStreamLease
   sendClaim: { normalizedKey: string; claimToken: string }
   notifyWorkspaceStatus: boolean
@@ -124,7 +126,7 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
   authorizationOptions: {},
   async execute({ principal, context, input }) {
     const { userId, workspaceId, organizationId, chatId } = context
-    const recovery = StreamRecoveryConfigSchema.parse(input.recovery)
+    const recovery = persistedStreamRecoveryConfig(input.recovery)
     const request = recovery.request
     if (
       request.userId !== userId ||

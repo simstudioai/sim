@@ -199,7 +199,6 @@
     "apps/sim/lib/mothership/chat/selection-context.test.ts": 1,
     "apps/sim/lib/mothership/chat/sim-key-redaction.test.ts": 1,
     "apps/sim/lib/mothership/chat/terminal-state.test.ts": 1,
-    "apps/sim/lib/mothership/request/go/inline-images.test.ts": 1,
     "apps/sim/lib/mothership/request/handlers/complete.ts": 2,
     "apps/sim/lib/mothership/request/handlers/error.ts": 2,
     "apps/sim/lib/mothership/request/handlers/index.ts": 9,

@@ -3,7 +3,7 @@
  */
 
 import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
-import { describe, expect, it } from 'vitest'
+import { describe, it } from 'vitest'
 import { compareEdges } from '../canonicalize/edges'
 import { compileWorkflow } from '../compile'
 import { TEST_CATALOG } from '../compile/catalog.test-helpers'

@@ -49,7 +49,6 @@ interface GenerateVideoResult {
   fileName?: string
   vfsPath?: string
   downloadUrl?: string
-  _serviceCost?: { service: string; cost: number }
 }
 
 export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, GenerateVideoResult> = {
@@ -167,7 +166,6 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         fileName: written.name,
         vfsPath: written.vfsPath,
         downloadUrl: written.downloadUrl,
-        _serviceCost: { service: 'falai_video', cost: result.cost.costDollars },
       }
     } catch (error) {
       const msg = getErrorMessage(error, 'Unknown error')

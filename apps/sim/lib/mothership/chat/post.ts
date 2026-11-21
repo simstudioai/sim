@@ -66,10 +66,10 @@ import {
   ModelSelectionSchema,
   PROTOCOL_VERSION,
 } from '@/lib/mothership/generated/protocol'
-import { CopilotTransport } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
+import { CopilotTransport } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/mothership/request/http'
 import { durableResourceAuthoringVersion } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/lifecycle/start'
@@ -255,7 +255,7 @@ type UnifiedChatBranch =
       selectedModel: string
       mode: UnifiedChatRequest['mode']
       provider?: string
-      goRoute: '/api/copilot'
+      workerRoute: '/api/copilot'
       titleModel: string
       titleProvider?: string
       notifyChatStatus: false
@@ -305,7 +305,7 @@ type UnifiedChatBranch =
     ) & {
       workspacePermission: PermissionType | null
       effectiveModel: string
-      goRoute: '/api/mothership'
+      workerRoute: '/api/mothership'
       titleModel: string
       titleProvider?: undefined
       notifyChatStatus: boolean
@@ -548,7 +548,7 @@ async function resolveBranch(params: {
       organizationId,
       workspacePermission: null,
       effectiveModel: DEFAULT_MODEL,
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       titleModel: DEFAULT_MODEL,
       notifyChatStatus: true,
       buildPayload: async (payloadParams) =>
@@ -595,7 +595,7 @@ async function resolveBranch(params: {
       selectedModel,
       mode: mode ?? 'agent',
       provider,
-      goRoute: '/api/copilot',
+      workerRoute: '/api/copilot',
       titleModel: selectedModel,
       titleProvider: provider,
       notifyChatStatus: false,
@@ -666,7 +666,7 @@ async function resolveBranch(params: {
     workspaceId: requestedWorkspaceId,
     workspacePermission,
     effectiveModel: DEFAULT_MODEL,
-    goRoute: '/api/mothership',
+    workerRoute: '/api/mothership',
     titleModel: DEFAULT_MODEL,
     notifyChatStatus: true,
     buildPayload: async (payloadParams) =>
@@ -825,9 +825,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     if (otelRoot.requestId) {
       requestId = otelRoot.requestId
     }
-    // Identity stamp — Go already stamps `user.id` on spans from the
-    // validated API-key path, but Sim is the only side of the wire
-    // that knows the human-facing email. Stamping both on the Sim
+    // Identity stamp — Sim is the only side of the wire that knows the
+    // human-facing email. Stamping `user.id` and the email on the Sim
     // root (so they show up on `rootAttrs` in Tempo search) saves
     // the "turn user.id into a real person" round-trip to the DB
     // for every ad-hoc investigation.
@@ -1297,7 +1296,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               kind: 'interactive_stream',
               resourceAuthoringVersion,
               request: { ...requestPayload, messageId: userMessageId, chatId: actualChatId },
-              goRoute: branch.goRoute,
+              workerRoute: branch.workerRoute,
               clientToolPickupExpected,
               userTimezone: executionContext.userTimezone,
               requestMode: body.mode,
@@ -1335,7 +1334,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           chatId: actualChatId,
           executionId,
           runId,
-          goRoute: branch.goRoute,
+          workerRoute: branch.workerRoute,
           autoExecuteTools: true,
           interactive: true,
           // Executor routing is decided HERE, once per turn, from the caller's declared

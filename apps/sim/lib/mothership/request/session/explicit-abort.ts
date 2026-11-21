@@ -2,10 +2,10 @@ import type { Context } from '@opentelemetry/api'
 import { sleep } from '@sim/utils/helpers'
 import { toRecordOrNull } from '@sim/utils/object'
 import { AbortRequest, type AbortResponse } from '@/lib/mothership/generated/protocol'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { AbortReason } from '@/lib/mothership/request/session/abort'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
 export const DEFAULT_EXPLICIT_ABORT_TIMEOUT_MS = 3000
@@ -39,14 +39,14 @@ export async function requestExplicitStreamAbort(params: {
   try {
     const mothershipBaseURL = params.mothershipBaseURL ?? (await getMothershipBaseURL({ userId }))
     while (!controller.signal.aborted) {
-      const response = await fetchGo(`${mothershipBaseURL}/api/streams/explicit-abort`, {
+      const response = await fetchWorker(`${mothershipBaseURL}/api/streams/explicit-abort`, {
         method: 'POST',
         headers,
         signal: controller.signal,
         /** Sim authorizes the actor and canonical run before this service-authenticated signal. */
         body: JSON.stringify(AbortRequest.parse({ messageId: streamId })),
         otelContext,
-        spanName: 'sim → go /api/streams/explicit-abort',
+        spanName: 'sim → worker /api/streams/explicit-abort',
         operation: 'explicit_abort',
         attributes: {
           [TraceAttr.StreamId]: streamId,

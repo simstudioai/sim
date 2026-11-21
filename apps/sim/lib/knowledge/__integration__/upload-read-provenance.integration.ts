@@ -123,7 +123,7 @@ async function readUpload(ids: Awaited<ReturnType<typeof seedUpload>>) {
   }
 }
 
-/** Models promotion by an already-running Go tool after the new reader captured its revision. */
+/** Models promotion by an already-running worker tool after the new reader captured its revision. */
 async function promoteUpload(ids: Awaited<ReturnType<typeof seedUpload>>) {
   await db
     .update(workspaceFiles)

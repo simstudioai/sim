@@ -3,7 +3,7 @@
  */
 
 import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
-import { describe, expect, it } from 'vitest'
+import { describe, it } from 'vitest'
 import { stronglyConnected } from './edges'
 
 describe('compile scaling', () => {

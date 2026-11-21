@@ -3,7 +3,7 @@
  */
 
 import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
-import { describe, expect, it } from 'vitest'
+import { describe, it } from 'vitest'
 import { TEST_CATALOG } from '../compile/catalog.test-helpers'
 import { buildFieldIndex } from './surface'
 import type { CatalogBlock, CatalogSubBlock } from './types'

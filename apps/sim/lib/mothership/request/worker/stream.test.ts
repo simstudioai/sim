@@ -78,6 +78,8 @@ vi.mock('@/lib/mothership/tools/server/files/preview', async () => {
   }
 })
 
+import { createEvent, hasAbortMarker } from '@/lib/mothership/request/session'
+import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
 import {
   buildPreviewContentUpdate,
   CopilotBackendError,
@@ -88,15 +90,12 @@ import {
   StreamEndedWithoutTerminalError,
   WorkerStreamInterruptedError,
   WorkerUnreachableError,
-} from '@/lib/mothership/request/go/stream'
+} from '@/lib/mothership/request/worker/stream'
 import {
   createProviderToolCallIdentity,
   PROVIDER_TOOL_CALL_IDENTITY_LIMITS,
   scopeProviderToolCallId,
-} from '@/lib/mothership/request/go/tool-call-identity'
-import { createEvent, hasAbortMarker } from '@/lib/mothership/request/session'
-import { TraceCollector } from '@/lib/mothership/request/trace'
-import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
+} from '@/lib/mothership/request/worker/tool-call-identity'
 
 const mockFindFilesByReference = workspaceFilesListMockFns.mockFindActiveWorkspaceFilesByReference
 
@@ -144,7 +143,6 @@ function createStreamingContext(): StreamingContext {
     errors: [],
     activeFileIntents: new Map(),
     filePreviewBudget: { contentBytes: 0 },
-    trace: new TraceCollector(),
     toolPermissions: {
       enabled: false,
       autoAllowed: new Set(),
@@ -168,7 +166,7 @@ function turnScopedExecContext(): ExecutionContext {
   }
 }
 
-describe('copilot go stream helpers', () => {
+describe('worker stream helpers', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
     resolveWorkspaceFileReferenceMock.mockReset()
@@ -606,8 +604,6 @@ describe('copilot go stream helpers', () => {
       payload: {
         toolCallId: 'edit-content-alias-1',
         toolName: 'apply_file_edit',
-        executor: MothershipStreamV1ToolExecutor.sim,
-        mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.args_delta,
         argumentsDelta: '{"content":"\\n- Added a workflow step',
       },

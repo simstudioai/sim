@@ -126,7 +126,7 @@ function applyResponseHeaders(
 /**
  * Extracts the 32-hex trace id from a W3C `traceparent` header
  * (`00-<trace-id>-<span-id>-<flags>`) so cross-service log lines can be
- * grepped by the same trace id the Go copilot logs. Returns undefined for
+ * grepped by the trace id their spans share. Returns undefined for
  * absent or malformed headers and the all-zero (invalid) trace id.
  */
 function traceIdFromTraceparent(header: string | null | undefined): string | undefined {

@@ -1,8 +1,8 @@
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
-import { traceHeaders } from '@/lib/mothership/request/go/propagation'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { getCopilotTracer } from '@/lib/mothership/request/otel'
+import { traceHeaders } from '@/lib/mothership/request/worker/propagation'
 
 /** Links internal CLI HTTP calls to their tool; the span ends at response headers. */
 export function createTracedCliTransport(endpoint: string, transport: typeof fetch): typeof fetch {

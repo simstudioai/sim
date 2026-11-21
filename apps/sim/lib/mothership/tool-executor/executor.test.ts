@@ -542,7 +542,7 @@ describe('copilot tool executor fallback', () => {
 
   /**
    * An integration tool resolves `{{SECRET}}` into its user-only params, which is a real use
-   * of a workspace secret. This is the branch that carries it — a gateway call Go resolves to
+   * of a workspace secret. This is the branch that carries it — a gateway call the worker resolves to
    * `slack_send` is not in the copilot catalog, so it lands here rather than on a handler.
    */
   it('records the secrets an integration tool call resolved', async () => {

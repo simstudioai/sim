@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { parsePersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import type { StreamEvent } from '@/lib/mothership/request/types'
 import {
   FatalSseEventError,
   processSSEStream,
   StreamContinuityError,
-} from '@/lib/mothership/request/go/parser'
-import { reconcileTextEvent } from '@/lib/mothership/request/go/text-receipt'
-import { parsePersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
-import type { StreamEvent } from '@/lib/mothership/request/types'
+} from '@/lib/mothership/request/worker/parser'
+import { reconcileTextEvent } from '@/lib/mothership/request/worker/text-receipt'
 
 function text(content: string, textOffset: number): StreamEvent {
   return { type: 'text', payload: { channel: 'assistant', text: content, textOffset } }

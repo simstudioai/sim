@@ -6,7 +6,7 @@ import {
 } from '@/lib/mothership/chat/persisted-message'
 import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
-import { CopilotChatFinalizeOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotChatFinalizeOutcome } from '@/lib/mothership/observability/trace-attribute-values'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
@@ -28,7 +28,7 @@ export function buildOnComplete(params: {
    * assistant message + invoked tool calls are recorded as
    * `gen_ai.output.messages` on it before persistence runs. Keeps
    * the Honeycomb Gen AI view complete across both the Sim root
-   * span and the Go-side `llm.stream` spans.
+   * span and the worker's model-call spans.
    */
   otelRoot?: {
     setOutputMessages: (output: {

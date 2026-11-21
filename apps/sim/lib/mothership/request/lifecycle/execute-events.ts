@@ -1,5 +1,5 @@
-import { reconcileTextEvent } from '@/lib/mothership/request/go/text-receipt'
 import type { StreamEvent } from '@/lib/mothership/request/types'
+import { reconcileTextEvent } from '@/lib/mothership/request/worker/text-receipt'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 
 /** Projects only the main agent's public lifecycle; payloads never cross this delivery boundary. */

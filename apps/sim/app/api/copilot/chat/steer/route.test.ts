@@ -66,7 +66,7 @@ describe('POST /api/copilot/chat/steer', () => {
     mockAppend.mockResolvedValue(undefined)
   })
 
-  it('returns 409 when Go rejects the steer so the client falls back to a normal send', async () => {
+  it('returns 409 when the worker rejects the steer so the client falls back to a normal send', async () => {
     mockRequestStreamSteering.mockResolvedValue({ queued: false, status: 429 })
 
     const response = await POST(steerRequest())

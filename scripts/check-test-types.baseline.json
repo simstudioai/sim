@@ -57,9 +57,6 @@
   "apps/sim/app/api/billing/switch-plan/route.test.ts": {
     "TS2554": 1
   },
-  "apps/sim/app/api/billing/update-cost/replay.live.test.ts": {
-    "TS2554": 1
-  },
   "apps/sim/app/api/billing/update-cost/route.test.ts": {
     "TS2554": 50
   },
@@ -525,7 +522,6 @@
   "apps/sim/app/workspace/[workspaceId]/home/hooks/use-chat.dom.test.tsx": {
     "TS2304": 1,
     "TS2322": 4,
-    "TS2353": 1,
     "TS2550": 1
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form.test.tsx": {
@@ -1866,9 +1862,6 @@
   "apps/sim/lib/mothership/request/context/result.test.ts": {
     "TS2739": 1
   },
-  "apps/sim/lib/mothership/request/go/file-preview-adapter.test.ts": {
-    "TS2322": 1
-  },
   "apps/sim/lib/mothership/request/handlers/handlers.test.ts": {
     "TS2339": 1
   },
@@ -1904,6 +1897,9 @@
     "TS2345": 2
   },
   "apps/sim/lib/mothership/request/tools/workflow-context.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mothership/request/worker/file-preview-adapter.test.ts": {
     "TS2322": 1
   },
   "apps/sim/lib/mothership/resources/search.test.ts": {

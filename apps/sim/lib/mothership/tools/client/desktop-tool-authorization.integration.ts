@@ -39,7 +39,6 @@ import {
 import { getAutoAllowedTools } from '@/lib/mothership/persistence/tool-permission/auto-allow'
 import { prePersistClientExecutableToolCall } from '@/lib/mothership/request/handlers'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamingContext } from '@/lib/mothership/request/types'
 import { POST as confirmPOST } from '@/app/api/copilot/confirm/route'
 import { POST as toolPermissionPOST } from '@/app/api/copilot/tool-permission/route'
@@ -144,7 +143,6 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
       accumulatedContent: '',
       finalAssistantContent: '',
       sawMainToolCall: false,
-      trace: new TraceCollector(),
       contentBlocks: [],
       toolCalls: new Map(),
       pendingToolPromises: new Map(),

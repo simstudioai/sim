@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto'
-import { isRecordLike } from '@sim/utils/object'
 import type { StreamEvent } from '@/lib/mothership/request/types'
 
 export const PROVIDER_TOOL_CALL_IDENTITY_LIMITS = {
@@ -44,7 +43,7 @@ export function scopeProviderToolCallId(
   return toolCallId
 }
 
-/** Only runs that opted into namespacing decode IDs on the return trip to Go. */
+/** Only runs that opted into namespacing decode IDs on the return trip to the worker. */
 export function restoreProviderToolCallId(
   toolCallId: string,
   identity?: ProviderToolCallIdentity
@@ -83,37 +82,8 @@ export function scopeProviderToolCallEvent(
       payload: {
         ...scoped.payload,
         pendingToolCallIds: scoped.payload.pendingToolCallIds.map(scopeId),
-        ...(scoped.payload.frames
-          ? {
-              frames: scoped.payload.frames.map((frame) => ({
-                ...frame,
-                parentToolCallId: scopeId(frame.parentToolCallId),
-                pendingToolIds: frame.pendingToolIds.map(scopeId),
-              })),
-            }
-          : {}),
       },
     }
-  }
-  if (
-    scoped.type === 'span' &&
-    scoped.payload.kind === 'subagent' &&
-    isRecordLike(scoped.payload.data)
-  ) {
-    const mapped = { ...scoped }
-    mapped.payload = {
-      ...scoped.payload,
-      data: {
-        ...scoped.payload.data,
-        ...(typeof scoped.payload.data.tool_call_id === 'string'
-          ? { tool_call_id: scopeId(scoped.payload.data.tool_call_id) }
-          : {}),
-        ...(typeof scoped.payload.data.toolCallId === 'string'
-          ? { toolCallId: scopeId(scoped.payload.data.toolCallId) }
-          : {}),
-      },
-    }
-    return mapped
   }
   return scoped
 }

@@ -1,13 +1,13 @@
 import { type Context, context, SpanStatusCode, trace } from '@opentelemetry/api'
-import { CopilotLeg } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { traceHeaders } from '@/lib/mothership/request/go/propagation'
+import { CopilotLeg } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 import { isActionableErrorStatus, markSpanForError } from '@/lib/mothership/request/otel'
+import { traceHeaders } from '@/lib/mothership/request/worker/propagation'
 
 // Lazy tracer resolution: module-level `trace.getTracer()` can be evaluated
 // before `instrumentation-node.ts` installs the TracerProvider under
 // Next.js 16 + Turbopack dev, freezing a NoOp tracer and silently dropping
-// every outbound Sim → Go span. Resolving per-call avoids the race.
+// every outbound Sim → worker span. Resolving per-call avoids the race.
 const getTracer = () => trace.getTracer('sim-copilot-http', '1.0.0')
 
 interface OutboundFetchOptions extends RequestInit {
@@ -18,15 +18,18 @@ interface OutboundFetchOptions extends RequestInit {
 }
 
 /**
- * Perform an outbound Sim → Go fetch wrapped in an OTel child span so each
+ * Perform an outbound Sim → worker fetch wrapped in an OTel child span so each
  * call shows up as a distinct segment in Jaeger, and propagates the W3C
- * traceparent so the Go-side span joins the same trace.
+ * traceparent so the worker's span joins the same trace.
  *
  * The span captures generic attributes (method, status, duration, response
  * size, error code) so any future latency investigation — not just images or
  * Bedrock — has uniform metadata to work with.
  */
-export async function fetchGo(url: string, options: OutboundFetchOptions = {}): Promise<Response> {
+export async function fetchWorker(
+  url: string,
+  options: OutboundFetchOptions = {}
+): Promise<Response> {
   const {
     otelContext,
     spanName,
@@ -42,14 +45,14 @@ export async function fetchGo(url: string, options: OutboundFetchOptions = {}): 
   const parentContext = otelContext ?? context.active()
 
   const span = getTracer().startSpan(
-    spanName ?? `sim → go ${pathname}`,
+    spanName ?? `sim → worker ${pathname}`,
     {
       attributes: {
         [TraceAttr.HttpMethod]: method,
         [TraceAttr.HttpUrl]: url,
         [TraceAttr.HttpTarget]: pathname,
         [TraceAttr.NetPeerName]: parsed?.host ?? '',
-        [TraceAttr.CopilotLeg]: CopilotLeg.SimToGo,
+        [TraceAttr.CopilotLeg]: CopilotLeg.SimToWorker,
         ...(operation ? { [TraceAttr.CopilotOperation]: operation } : {}),
         ...(attributes ?? {}),
       },
@@ -83,8 +86,7 @@ export async function fetchGo(url: string, options: OutboundFetchOptions = {}): 
     // Only mark ERROR for actionable status codes. 4xx that represent
     // normal auth/validation rejections (400/401/403/404/405/422/etc.)
     // stay UNSET so error dashboards don't drown in expected rejection
-    // paths. See `isActionableErrorStatus` in Go's telemetry middleware
-    // for the mirror rule (5xx + 402/409/429).
+    // paths (`isActionableErrorStatus`: 5xx + 402/409/429).
     if (isActionableErrorStatus(response.status)) {
       span.setStatus({
         code: SpanStatusCode.ERROR,

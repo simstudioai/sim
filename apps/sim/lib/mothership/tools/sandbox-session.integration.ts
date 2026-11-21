@@ -14,9 +14,9 @@ import {
   mothershipAgentUrlMockFns,
 } from '@sim/testing/mocks/mothership-agent-url.mock'
 import {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from '@sim/testing/mocks/mothership-go-fetch.mock'
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import { generateId } from '@sim/utils/id'
 import { inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -29,7 +29,7 @@ vi.mock('node:fs/promises', () => ({ readFile: async () => 'runtime' }))
 vi.mock('@/lib/mothership/transport/connection', () => ({
   getSimConnection: () => ({ mode: 'direct' }),
 }))
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 vi.mock('@/lib/mothership/request/headers', () => ({ mothershipRequestHeaders: () => ({}) }))
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({
@@ -71,7 +71,7 @@ describe('workbench entitlements for a Mothership Function execution', () => {
       parse({ 'workflow-code': { enabled: false, orgIds: [tenant.orgId] } })
     )
     mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('https://worker.test')
-    mothershipGoFetchMockFns.mockFetchGo.mockImplementation(async () =>
+    mothershipWorkerFetchMockFns.mockFetchWorker.mockImplementation(async () =>
       Response.json({ version: 1, entrypoint: 'entry' })
     )
     const now = new Date()

@@ -267,7 +267,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       userId,
       workspaceId: ws.id,
       chatId: chatId ?? undefined,
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       autoExecuteTools: true,
       interactive: false,
       billingAttribution,

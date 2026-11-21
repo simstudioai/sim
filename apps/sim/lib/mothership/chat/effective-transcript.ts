@@ -9,7 +9,6 @@ import {
   type MothershipStreamV1ErrorPayload,
   MothershipStreamV1EventType,
   MothershipStreamV1RunKind,
-  MothershipStreamV1SessionKind,
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
   MothershipStreamV1TextChannel,
@@ -18,7 +17,7 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
-import { isTerminalStreamStatus } from '@/lib/mothership/request/session/contract'
+import { isTerminalStreamStatus, subagentSpanData } from '@/lib/mothership/request/session/contract'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
@@ -281,18 +280,8 @@ export function buildLiveAssistantMessage(params: {
         : 'main'
 
     switch (parsed.type) {
-      case MothershipStreamV1EventType.session: {
-        if (parsed.payload.kind === MothershipStreamV1SessionKind.chat) {
-          continue
-        }
-        if (parsed.payload.kind === MothershipStreamV1SessionKind.start) {
-          continue
-        }
-        if (parsed.payload.kind === MothershipStreamV1SessionKind.trace) {
-          requestId = parsed.payload.requestId
-        }
+      case MothershipStreamV1EventType.session:
         continue
-      }
       case MothershipStreamV1EventType.text: {
         const chunk = parsed.payload.text
         if (!chunk) {
@@ -389,14 +378,8 @@ export function buildLiveAssistantMessage(params: {
           continue
         }
 
-        const spanData = asPayloadRecord(parsed.payload.data)
-        const parentToolCallIdFromData =
-          typeof spanData?.tool_call_id === 'string'
-            ? spanData.tool_call_id
-            : typeof spanData?.toolCallId === 'string'
-              ? spanData.toolCallId
-              : undefined
-        const parentToolCallId = scopedParentToolCallId ?? parentToolCallIdFromData
+        const data = subagentSpanData(parsed.payload.data)
+        const parentToolCallId = scopedParentToolCallId
         const name = typeof parsed.payload.agent === 'string' ? parsed.payload.agent : scopedAgentId
         if (parsed.payload.event === MothershipStreamV1SpanLifecycleEvent.start && name) {
           if (scopedSpanId) {
@@ -411,7 +394,7 @@ export function buildLiveAssistantMessage(params: {
             kind: MothershipStreamV1SpanPayloadKind.subagent,
             lifecycle: MothershipStreamV1SpanLifecycleEvent.start,
             content: name,
-            ...(typeof spanData?.name === 'string' && spanData.name ? { name: spanData.name } : {}),
+            ...(data.name ? { name: data.name } : {}),
             ...(parentToolCallId ? { parentToolCallId } : {}),
             ...spanIdentity,
           })
@@ -419,9 +402,6 @@ export function buildLiveAssistantMessage(params: {
         }
 
         if (parsed.payload.event === MothershipStreamV1SpanLifecycleEvent.end) {
-          if (spanData?.pending === true) {
-            continue
-          }
           if (scopedSpanId) {
             subagentBySpanId.delete(scopedSpanId)
           }
@@ -438,9 +418,7 @@ export function buildLiveAssistantMessage(params: {
             type: MothershipStreamV1EventType.span,
             kind: MothershipStreamV1SpanPayloadKind.subagent,
             lifecycle: MothershipStreamV1SpanLifecycleEvent.end,
-            ...(typeof spanData?.error === 'string' && spanData.error
-              ? { error: spanData.error }
-              : {}),
+            ...(data.error ? { error: data.error } : {}),
             ...(parentToolCallId ? { parentToolCallId } : {}),
             ...spanIdentity,
           })

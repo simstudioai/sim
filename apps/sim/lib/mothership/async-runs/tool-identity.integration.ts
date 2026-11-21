@@ -80,7 +80,7 @@ import {
 import {
   createProviderToolCallIdentity,
   scopeProviderToolCallId,
-} from '@/lib/mothership/request/go/tool-call-identity'
+} from '@/lib/mothership/request/worker/tool-call-identity'
 
 const connection = postgres(databaseUrl, { max: 1 })
 const providerId = 'call_reused_fixture'

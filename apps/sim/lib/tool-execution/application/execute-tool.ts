@@ -493,9 +493,10 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
  *
  * `@/tools` computes the cost and hands it back on `output.cost.total`, but it
  * writes no ledger row: a workflow run bills through the execution ledger and
- * Copilot bills through Go's `_serviceCost`, and this surface is neither. Its
- * own doc comment says so — "any new caller of executeTool that is not Copilot
- * must arrange its own metering" — and this is that arrangement.
+ * Copilot bills through service receipts recorded by `recordServiceCost`, and
+ * this surface is neither. Its own doc comment says so — "any new caller of
+ * executeTool that is not Copilot must arrange its own metering" — and this is
+ * that arrangement.
  *
  * The provider already ran and already charged Sim's key by the time this runs,
  * so a metering failure must not destroy the caller's result: it is logged for

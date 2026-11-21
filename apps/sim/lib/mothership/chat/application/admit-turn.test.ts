@@ -68,7 +68,7 @@ function input(mode: 'assistant' | 'agent' | 'plan' = 'assistant') {
     message: { id: streamId, content: 'Find the policy', requestMode: mode },
     recovery: {
       kind: 'interactive_stream' as const,
-      goRoute: '/api/mothership' as const,
+      workerRoute: '/api/mothership' as const,
       clientToolPickupExpected: false,
       request: {
         userId: 'actor',

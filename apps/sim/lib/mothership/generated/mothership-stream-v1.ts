@@ -1,38 +1,65 @@
 // GENERATED — do not edit. Source of truth: mothership worker packages/contracts/src/mothership-stream-v1.ts
 // Regenerate with `bun run contracts:sync` in the worker.
 
-// The mothership-stream-v1 SSE envelope taxonomy Sim parses. The worker writes the shared
-// StreamEnvelope shell in protocol.ts; this file is the full v1 event vocabulary Sim's
-// stream readers are typed against.
+// The mothership-stream-v1 SSE wire: every `data:` frame the worker emits to Sim (each leg
+// ends with a literal `data: [DONE]` line), and the vocabulary Sim re-emits to the browser
+// (Sim adds `session` chat/title frames of its own).
+// The worker's emitter (apps/server/src/protocol/envelope.ts) builds these envelopes, so a
+// frame that drifts from what Sim parses fails typecheck. Each discriminant const below is
+// checked against its payload union, because Sim's reader accepts exactly the const's values.
 
-/**
- * Shared execution-oriented mothership stream contract from the worker to Sim.
- */
+import type {
+  StreamActivityCheckpoint,
+  StreamTextCompletion,
+  StreamTextPosition,
+  StreamToolDeadline,
+  StreamToolReplay,
+} from "./protocol";
+import type { ResourcePayload } from "./resources";
+
+/** The shell every frame shares. */
+export interface MothershipStreamV1Envelope<TType extends string, TPayload> {
+  payload: TPayload;
+  scope?: MothershipStreamV1StreamScope;
+  seq: number;
+  stream: MothershipStreamV1StreamRef;
+  trace?: MothershipStreamV1Trace;
+  ts: string;
+  type: TType;
+  v: 1;
+}
+
+/** Every frame on the wire, one member per payload shape. */
 export type MothershipStreamV1EventEnvelope =
-  | MothershipStreamV1SessionStartEventEnvelope
-  | MothershipStreamV1SessionChatEventEnvelope
-  | MothershipStreamV1SessionTitleEventEnvelope
-  | MothershipStreamV1SessionTraceEventEnvelope
-  | MothershipStreamV1TextEventEnvelope
-  | MothershipStreamV1ToolCallEventEnvelope
-  | MothershipStreamV1ToolArgsDeltaEventEnvelope
-  | MothershipStreamV1ToolResultEventEnvelope
-  | MothershipStreamV1SubagentSpanStartEventEnvelope
-  | MothershipStreamV1SubagentSpanEndEventEnvelope
-  | MothershipStreamV1StructuredResultSpanEventEnvelope
-  | MothershipStreamV1SubagentResultSpanEventEnvelope
-  | MothershipStreamV1ResourceUpsertEventEnvelope
-  | MothershipStreamV1ResourceRemoveEventEnvelope
-  | MothershipStreamV1CheckpointPauseEventEnvelope
-  | MothershipStreamV1RunResumedEventEnvelope
-  | MothershipStreamV1CompactionStartEventEnvelope
-  | MothershipStreamV1CompactionDoneEventEnvelope
-  | MothershipStreamV1SteeringAppliedEventEnvelope
-  | MothershipStreamV1TaskArmedEventEnvelope
-  | MothershipStreamV1TaskDeliveredEventEnvelope
-  | MothershipStreamV1ErrorEventEnvelope
-  | MothershipStreamV1CompleteEventEnvelope;
+  | MothershipStreamV1Envelope<"session", MothershipStreamV1SessionStartPayload>
+  | MothershipStreamV1Envelope<"session", MothershipStreamV1SessionChatPayload>
+  | MothershipStreamV1Envelope<"session", MothershipStreamV1SessionTitlePayload>
+  | MothershipStreamV1Envelope<"text", MothershipStreamV1TextPayload>
+  | MothershipStreamV1Envelope<"tool", MothershipStreamV1ToolCallDescriptor>
+  | MothershipStreamV1Envelope<"tool", MothershipStreamV1ToolArgsDeltaPayload>
+  | MothershipStreamV1Envelope<"tool", MothershipStreamV1ToolResultPayload>
+  | MothershipStreamV1Envelope<"span", MothershipStreamV1SubagentSpanPayload>
+  | MothershipStreamV1Envelope<"resource", ResourcePayload>
+  | MothershipStreamV1Envelope<"run", MothershipStreamV1CheckpointPausePayload>
+  | MothershipStreamV1Envelope<"run", MothershipStreamV1CompactionStartPayload>
+  | MothershipStreamV1Envelope<"run", MothershipStreamV1CompactionDonePayload>
+  | MothershipStreamV1Envelope<"run", MothershipStreamV1SteeringAppliedPayload>
+  | MothershipStreamV1Envelope<"run", MothershipStreamV1TaskArmedPayload>
+  | MothershipStreamV1Envelope<"run", MothershipStreamV1TaskDeliveredPayload>
+  | MothershipStreamV1Envelope<"error", MothershipStreamV1ErrorPayload>
+  | MothershipStreamV1Envelope<"complete", MothershipStreamV1CompletePayload>;
+
+/** The payload a frame of `type` carries. */
+type PayloadOf<TType extends MothershipStreamV1EventType> = Extract<
+  MothershipStreamV1EventEnvelope,
+  { type: TType }
+>["payload"];
+
 export type MothershipStreamV1TextChannel = "assistant" | "thinking";
+/**
+ * Where a tool call executes. `go` means the worker executes it: the name is a persisted
+ * historical value (stored chat blocks and self-hosted Sims read it), so it stays on the wire.
+ */
 export type MothershipStreamV1ToolExecutor = "go" | "sim" | "client";
 export type MothershipStreamV1ToolMode = "sync" | "async";
 export type MothershipStreamV1ToolStatus =
@@ -46,23 +73,6 @@ export type MothershipStreamV1ToolStatus =
   | "rejected";
 export type MothershipStreamV1CompletionStatus = "complete" | "error" | "cancelled";
 
-export interface MothershipStreamV1SessionStartEventEnvelope {
-  payload: MothershipStreamV1SessionStartPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "session";
-  v: 1;
-}
-export interface MothershipStreamV1SessionStartPayload {
-  data?: MothershipStreamV1SessionStartData;
-  kind: "start";
-}
-export interface MothershipStreamV1SessionStartData {
-  responseId?: string;
-}
 export interface MothershipStreamV1StreamScope {
   agentId?: string;
   lane: "subagent";
@@ -76,83 +86,36 @@ export interface MothershipStreamV1StreamRef {
   streamId: string;
 }
 export interface MothershipStreamV1Trace {
-  /**
-   * OTel trace ID from the first worker ingress. May differ from requestId when Sim assigns the canonical request identity.
-   */
-  goTraceId?: string;
   requestId: string;
   spanId?: string;
 }
-export interface MothershipStreamV1SessionChatEventEnvelope {
-  payload: MothershipStreamV1SessionChatPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "session";
-  v: 1;
+
+export interface MothershipStreamV1SessionStartPayload {
+  data?: MothershipStreamV1SessionStartData;
+  kind: "start";
 }
+export interface MothershipStreamV1SessionStartData {
+  responseId?: string;
+}
+/** Emitted by Sim, not the worker. */
 export interface MothershipStreamV1SessionChatPayload {
   chatId: string;
   kind: "chat";
 }
-export interface MothershipStreamV1SessionTitleEventEnvelope {
-  payload: MothershipStreamV1SessionTitlePayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "session";
-  v: 1;
-}
+/** Emitted by Sim, not the worker. */
 export interface MothershipStreamV1SessionTitlePayload {
   kind: "title";
   title: string;
 }
-export interface MothershipStreamV1SessionTraceEventEnvelope {
-  payload: MothershipStreamV1SessionTracePayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "session";
-  v: 1;
-}
-export interface MothershipStreamV1SessionTracePayload {
-  kind: "trace";
-  requestId: string;
-  spanId?: string;
-}
-export interface MothershipStreamV1TextEventEnvelope {
-  payload: MothershipStreamV1TextPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "text";
-  v: 1;
-}
-export interface MothershipStreamV1TextPayload {
+
+export interface MothershipStreamV1TextPayload extends StreamTextPosition {
   channel: MothershipStreamV1TextChannel;
   text: string;
 }
-export interface MothershipStreamV1ToolCallEventEnvelope {
-  payload: MothershipStreamV1ToolCallDescriptor;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "tool";
-  v: 1;
-}
-export interface MothershipStreamV1ToolCallDescriptor {
+
+export interface MothershipStreamV1ToolCallDescriptor extends StreamToolReplay, StreamToolDeadline {
   activityDescription?: string;
-  arguments?: MothershipStreamV1AdditionalPropertiesMap;
+  arguments?: Record<string, unknown>;
   execName?: string;
   executor: MothershipStreamV1ToolExecutor;
   mode: MothershipStreamV1ToolMode;
@@ -163,9 +126,6 @@ export interface MothershipStreamV1ToolCallDescriptor {
   toolName: string;
   ui?: MothershipStreamV1ToolUI;
 }
-export interface MothershipStreamV1AdditionalPropertiesMap {
-  [k: string]: unknown;
-}
 export interface MothershipStreamV1ToolUI {
   clientExecutable?: boolean;
   hidden?: boolean;
@@ -173,35 +133,14 @@ export interface MothershipStreamV1ToolUI {
   internal?: boolean;
   simExecutable?: boolean;
 }
-export interface MothershipStreamV1ToolArgsDeltaEventEnvelope {
-  payload: MothershipStreamV1ToolArgsDeltaPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "tool";
-  v: 1;
-}
+/** Draw-only argument text as it generates; never replayed, never dispatched on. */
 export interface MothershipStreamV1ToolArgsDeltaPayload {
   argumentsDelta: string;
-  executor: MothershipStreamV1ToolExecutor;
-  mode: MothershipStreamV1ToolMode;
   phase: "args_delta";
   toolCallId: string;
   toolName: string;
 }
-export interface MothershipStreamV1ToolResultEventEnvelope {
-  payload: MothershipStreamV1ToolResultPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "tool";
-  v: 1;
-}
-export interface MothershipStreamV1ToolResultPayload {
+export interface MothershipStreamV1ToolResultPayload extends StreamToolReplay {
   error?: string;
   executor: MothershipStreamV1ToolExecutor;
   mode: MothershipStreamV1ToolMode;
@@ -212,198 +151,40 @@ export interface MothershipStreamV1ToolResultPayload {
   toolCallId: string;
   toolName: string;
 }
-export interface MothershipStreamV1SubagentSpanStartEventEnvelope {
-  payload: MothershipStreamV1SubagentSpanStartPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "span";
-  v: 1;
+
+/** A subagent lane's display title (on start) or failure (on end). */
+export interface MothershipStreamV1SubagentSpanData {
+  name?: string;
+  error?: string;
 }
-export interface MothershipStreamV1SubagentSpanStartPayload {
+
+export interface MothershipStreamV1SubagentSpanPayload {
   agent?: string;
-  data?: unknown;
-  event: "start";
+  data?: MothershipStreamV1SubagentSpanData;
+  event: "start" | "end";
   kind: "subagent";
 }
-export interface MothershipStreamV1SubagentSpanEndEventEnvelope {
-  payload: MothershipStreamV1SubagentSpanEndPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "span";
-  v: 1;
-}
-export interface MothershipStreamV1SubagentSpanEndPayload {
-  agent?: string;
-  data?: unknown;
-  event: "end";
-  kind: "subagent";
-}
-export interface MothershipStreamV1StructuredResultSpanEventEnvelope {
-  payload: MothershipStreamV1StructuredResultSpanPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "span";
-  v: 1;
-}
-export interface MothershipStreamV1StructuredResultSpanPayload {
-  agent?: string;
-  data?: unknown;
-  kind: "structured_result";
-}
-export interface MothershipStreamV1SubagentResultSpanEventEnvelope {
-  payload: MothershipStreamV1SubagentResultSpanPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "span";
-  v: 1;
-}
-export interface MothershipStreamV1SubagentResultSpanPayload {
-  agent?: string;
-  data?: unknown;
-  kind: "subagent_result";
-}
-export interface MothershipStreamV1ResourceUpsertEventEnvelope {
-  payload: MothershipStreamV1ResourceUpsertPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "resource";
-  v: 1;
-}
-export interface MothershipStreamV1ResourceUpsertPayload {
-  op: "upsert";
-  resource: MothershipStreamV1ResourceDescriptor;
-}
-export interface MothershipStreamV1ResourceDescriptor {
-  clearViewId?: boolean;
-  id: string;
-  title?: string;
-  type: string;
-  viewId?: string;
-}
-export interface MothershipStreamV1ResourceRemoveEventEnvelope {
-  payload: MothershipStreamV1ResourceRemovePayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "resource";
-  v: 1;
-}
-export interface MothershipStreamV1ResourceRemovePayload {
-  op: "remove";
-  resource: MothershipStreamV1ResourceDescriptor;
-}
-export interface MothershipStreamV1CheckpointPauseEventEnvelope {
-  payload: MothershipStreamV1CheckpointPausePayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "run";
-  v: 1;
-}
-export interface MothershipStreamV1CheckpointPausePayload {
+
+export interface MothershipStreamV1CheckpointPausePayload extends StreamActivityCheckpoint {
   checkpointId: string;
   executionId: string;
-  frames?: MothershipStreamV1CheckpointPauseFrame[];
   kind: "checkpoint_pause";
   pendingToolCallIds: string[];
   runId: string;
 }
-export interface MothershipStreamV1CheckpointPauseFrame {
-  checkpointId?: string;
-  parentToolCallId: string;
-  parentToolName: string;
-  pendingToolIds: string[];
-}
-export interface MothershipStreamV1RunResumedEventEnvelope {
-  payload: MothershipStreamV1RunResumedPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "run";
-  v: 1;
-}
-export interface MothershipStreamV1RunResumedPayload {
-  kind: "resumed";
-}
-export interface MothershipStreamV1CompactionStartEventEnvelope {
-  payload: MothershipStreamV1CompactionStartPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "run";
-  v: 1;
-}
 export interface MothershipStreamV1CompactionStartPayload {
   kind: "compaction_start";
 }
-export interface MothershipStreamV1CompactionDoneEventEnvelope {
-  payload: MothershipStreamV1CompactionDonePayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "run";
-  v: 1;
-}
 export interface MothershipStreamV1CompactionDonePayload {
-  data?: MothershipStreamV1CompactionDoneData;
   kind: "compaction_done";
 }
-export interface MothershipStreamV1CompactionDoneData {
-  summary_chars: number;
-}
-export interface MothershipStreamV1SteeringAppliedEventEnvelope {
-  payload: MothershipStreamV1SteeringAppliedPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "run";
-  v: 1;
-}
+/** A steer reached the run's model input (the loss-free ack for POST /api/streams/steer). */
 export interface MothershipStreamV1SteeringAppliedPayload {
-  content?: string;
+  /** As in SteerV2Response's `applied`; absent only on frames from workers without steer v2. */
   eventSeq?: number;
   kind: "steering_applied";
-  messageId?: string;
-  mode?: "deferred" | "interrupt";
   steeringId: string;
   textOffset?: number;
-}
-export interface MothershipStreamV1TaskArmedEventEnvelope {
-  payload: MothershipStreamV1TaskArmedPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "run";
-  v: 1;
 }
 export interface MothershipStreamV1TaskArmedPayload {
   kind: "task_armed";
@@ -412,51 +193,25 @@ export interface MothershipStreamV1TaskArmedPayload {
   taskId: string;
   taskKind: "timer" | "workflow_run";
 }
-export interface MothershipStreamV1TaskDeliveredEventEnvelope {
-  payload: MothershipStreamV1TaskDeliveredPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "run";
-  v: 1;
-}
 export interface MothershipStreamV1TaskDeliveredPayload {
   kind: "task_delivered";
   status: "completed" | "failed" | "stopped" | "expired";
   summary: string;
   taskId: string;
 }
-export interface MothershipStreamV1ErrorEventEnvelope {
-  payload: MothershipStreamV1ErrorPayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "error";
-  v: 1;
-}
+
 export interface MothershipStreamV1ErrorPayload {
   code?: string;
+  /** Sim-emitted detail (e.g. the replay-gap bounds); the worker sends none. */
   data?: unknown;
   displayMessage?: string;
+  /** Sim-emitted alias of `message`; the worker sends none. */
   error?: string;
   message: string;
   provider?: string;
 }
-export interface MothershipStreamV1CompleteEventEnvelope {
-  payload: MothershipStreamV1CompletePayload;
-  scope?: MothershipStreamV1StreamScope;
-  seq: number;
-  stream: MothershipStreamV1StreamRef;
-  trace?: MothershipStreamV1Trace;
-  ts: string;
-  type: "complete";
-  v: 1;
-}
-export interface MothershipStreamV1CompletePayload {
+
+export interface MothershipStreamV1CompletePayload extends StreamTextCompletion, StreamActivityCheckpoint {
   cost?: MothershipStreamV1CostData;
   reason?: string;
   response?: unknown;
@@ -477,38 +232,7 @@ export interface MothershipStreamV1UsageData {
   total_tokens?: number;
 }
 
-export type MothershipStreamV1AsyncToolRecordStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "delivered";
-
-export const MothershipStreamV1AsyncToolRecordStatus = {
-  pending: "pending",
-  running: "running",
-  completed: "completed",
-  failed: "failed",
-  cancelled: "cancelled",
-  delivered: "delivered",
-} as const;
-
-export const MothershipStreamV1CompletionStatus = {
-  complete: "complete",
-  error: "error",
-  cancelled: "cancelled",
-} as const;
-
-export type MothershipStreamV1EventType =
-  | "session"
-  | "text"
-  | "tool"
-  | "span"
-  | "resource"
-  | "run"
-  | "error"
-  | "complete";
+export type MothershipStreamV1EventType = MothershipStreamV1EventEnvelope["type"];
 
 export const MothershipStreamV1EventType = {
   session: "session",
@@ -519,97 +243,39 @@ export const MothershipStreamV1EventType = {
   run: "run",
   error: "error",
   complete: "complete",
-} as const;
+} as const satisfies { [K in MothershipStreamV1EventType]: K };
 
-export type MothershipStreamV1ResourceOp = "upsert" | "remove";
-
-export const MothershipStreamV1ResourceOp = {
-  upsert: "upsert",
-  remove: "remove",
-} as const;
-
-export type MothershipStreamV1RunKind =
-  | "checkpoint_pause"
-  | "resumed"
-  | "compaction_start"
-  | "compaction_done"
-  | "steering_applied"
-  | "task_armed"
-  | "task_delivered";
-
-export const MothershipStreamV1RunKind = {
-  checkpoint_pause: "checkpoint_pause",
-  resumed: "resumed",
-  compaction_start: "compaction_start",
-  compaction_done: "compaction_done",
-  steering_applied: "steering_applied",
-  task_armed: "task_armed",
-  task_delivered: "task_delivered",
-} as const;
-
-export type MothershipStreamV1SessionKind = "trace" | "chat" | "title" | "start";
+export type MothershipStreamV1SessionKind = PayloadOf<"session">["kind"];
 
 export const MothershipStreamV1SessionKind = {
-  trace: "trace",
   chat: "chat",
   title: "title",
   start: "start",
-} as const;
-
-export type MothershipStreamV1SpanKind = "subagent";
-
-export const MothershipStreamV1SpanKind = {
-  subagent: "subagent",
-} as const;
-
-export type MothershipStreamV1SpanLifecycleEvent = "start" | "end";
-
-export const MothershipStreamV1SpanLifecycleEvent = {
-  start: "start",
-  end: "end",
-} as const;
-
-export type MothershipStreamV1SpanPayloadKind = "subagent" | "structured_result" | "subagent_result";
-
-export const MothershipStreamV1SpanPayloadKind = {
-  subagent: "subagent",
-  structured_result: "structured_result",
-  subagent_result: "subagent_result",
-} as const;
+} as const satisfies { [K in MothershipStreamV1SessionKind]: K };
 
 export const MothershipStreamV1TextChannel = {
   assistant: "assistant",
   thinking: "thinking",
-} as const;
+} as const satisfies { [K in MothershipStreamV1TextChannel]: K };
 
-export const MothershipStreamV1ToolExecutor = {
-  go: "go",
-  sim: "sim",
-  client: "client",
-} as const;
-
-export const MothershipStreamV1ToolMode = {
-  sync: "sync",
-  async: "async",
-} as const;
-
-export type MothershipStreamV1ToolOutcome = "success" | "error" | "cancelled" | "skipped" | "rejected";
-
-export const MothershipStreamV1ToolOutcome = {
-  success: "success",
-  error: "error",
-  cancelled: "cancelled",
-  skipped: "skipped",
-  rejected: "rejected",
-} as const;
-
-export type MothershipStreamV1ToolPhase = "call" | "args_delta" | "result";
+export type MothershipStreamV1ToolPhase = PayloadOf<"tool">["phase"];
 
 export const MothershipStreamV1ToolPhase = {
   call: "call",
   args_delta: "args_delta",
   result: "result",
-} as const;
+} as const satisfies { [K in MothershipStreamV1ToolPhase]: K };
+
+export const MothershipStreamV1ToolExecutor = {
+  go: "go",
+  sim: "sim",
+  client: "client",
+} as const satisfies { [K in MothershipStreamV1ToolExecutor]: K };
+
+export const MothershipStreamV1ToolMode = {
+  sync: "sync",
+  async: "async",
+} as const satisfies { [K in MothershipStreamV1ToolMode]: K };
 
 export const MothershipStreamV1ToolStatus = {
   generating: "generating",
@@ -620,4 +286,57 @@ export const MothershipStreamV1ToolStatus = {
   cancelled: "cancelled",
   skipped: "skipped",
   rejected: "rejected",
-} as const;
+} as const satisfies { [K in MothershipStreamV1ToolStatus]: K };
+
+export type MothershipStreamV1SpanPayloadKind = PayloadOf<"span">["kind"];
+
+export const MothershipStreamV1SpanPayloadKind = {
+  subagent: "subagent",
+} as const satisfies { [K in MothershipStreamV1SpanPayloadKind]: K };
+
+export type MothershipStreamV1SpanLifecycleEvent = PayloadOf<"span">["event"];
+
+export const MothershipStreamV1SpanLifecycleEvent = {
+  start: "start",
+  end: "end",
+} as const satisfies { [K in MothershipStreamV1SpanLifecycleEvent]: K };
+
+export type MothershipStreamV1ResourceOp = ResourcePayload["op"];
+
+export const MothershipStreamV1ResourceOp = {
+  upsert: "upsert",
+  remove: "remove",
+  clear_view: "clear_view",
+  refresh: "refresh",
+} as const satisfies { [K in MothershipStreamV1ResourceOp]: K };
+
+export type MothershipStreamV1RunKind = PayloadOf<"run">["kind"];
+
+export const MothershipStreamV1RunKind = {
+  checkpoint_pause: "checkpoint_pause",
+  compaction_start: "compaction_start",
+  compaction_done: "compaction_done",
+  steering_applied: "steering_applied",
+  task_armed: "task_armed",
+  task_delivered: "task_delivered",
+} as const satisfies { [K in MothershipStreamV1RunKind]: K };
+
+export const MothershipStreamV1CompletionStatus = {
+  complete: "complete",
+  error: "error",
+  cancelled: "cancelled",
+} as const satisfies { [K in MothershipStreamV1CompletionStatus]: K };
+
+/** The terminal outcomes Sim reports for a tool call it executed (a subset of the tool status). */
+export type MothershipStreamV1ToolOutcome = Extract<
+  MothershipStreamV1ToolStatus,
+  "success" | "error" | "cancelled" | "skipped" | "rejected"
+>;
+
+export const MothershipStreamV1ToolOutcome = {
+  success: "success",
+  error: "error",
+  cancelled: "cancelled",
+  skipped: "skipped",
+  rejected: "rejected",
+} as const satisfies { [K in MothershipStreamV1ToolOutcome]: K };

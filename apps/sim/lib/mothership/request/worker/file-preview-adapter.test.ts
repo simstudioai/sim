@@ -22,12 +22,6 @@ vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
 }))
 
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
-import {
-  createFilePreviewAdapterState,
-  type FilePreviewAdapterState,
-  PREVIEW_TURN_CONTENT_BYTES,
-  processFilePreviewStreamEvent,
-} from '@/lib/mothership/request/go/file-preview-adapter'
 import { createEvent, eventToStreamEvent } from '@/lib/mothership/request/session'
 import { STREAM_EVENT_MAX_PAYLOAD_BYTES } from '@/lib/mothership/request/session/replay-compaction'
 import type {
@@ -35,6 +29,12 @@ import type {
   ExecutionContext,
   StreamEvent,
 } from '@/lib/mothership/request/types'
+import {
+  createFilePreviewAdapterState,
+  type FilePreviewAdapterState,
+  PREVIEW_TURN_CONTENT_BYTES,
+  processFilePreviewStreamEvent,
+} from '@/lib/mothership/request/worker/file-preview-adapter'
 
 const STREAM_ID = 'stream-1'
 const EDIT_TOOL_CALL_ID = 'edit-content-1'
@@ -50,8 +50,13 @@ function toolEvent(payload: Record<string, unknown>): StreamEvent {
       requestId: 'req-1',
       type: MothershipStreamV1EventType.tool,
       payload: {
-        executor: MothershipStreamV1ToolExecutor.sim,
-        mode: MothershipStreamV1ToolMode.async,
+        // Only call and result frames name an executor; argument deltas are draw-only.
+        ...(payload.phase === MothershipStreamV1ToolPhase.args_delta
+          ? {}
+          : {
+              executor: MothershipStreamV1ToolExecutor.sim,
+              mode: MothershipStreamV1ToolMode.async,
+            }),
         ...payload,
       },
     })

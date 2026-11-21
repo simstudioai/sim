@@ -179,9 +179,8 @@ describe('child failure transcript boundaries', () => {
     verify(modelToContentBlocks(recovered), nested, partial)
   })
 
-  it('persists the handler outcome on its own span and reports failure in the trace', async () => {
+  it('persists the handler outcome on its own span', async () => {
     const context = createStreamingContext()
-    const endSpan = vi.spyOn(context.trace, 'endSpan')
     for (const frame of childEvents(false, false)) {
       if (frame.type === 'span')
         await handleSpanEvent(
@@ -201,10 +200,6 @@ describe('child failure transcript boundaries', () => {
     const restored = contentBlocksToModel(blocks)
     expect(restored.nodes.get('failed')).toMatchObject({ status: 'error', error: failure })
     expect(restored.nodes.get('sibling')).toMatchObject({ status: 'success' })
-    expect(endSpan.mock.calls.map(([span, status]) => [span.attributes?.spanId, status])).toEqual([
-      ['failed', 'error'],
-      ['sibling', 'ok'],
-    ])
     expect(context.errors).toEqual([])
     expect(context.streamComplete).toBe(false)
   })

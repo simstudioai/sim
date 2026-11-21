@@ -4,26 +4,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { toRecordOrNull } from '@sim/utils/object'
 import { WORKER_STREAM_IDLE_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
-import { CopilotSseCloseReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
-import {
-  buildPreviewContentUpdate,
-  createFilePreviewAdapterState,
-  decodeJsonStringPrefix,
-  extractEditContent,
-  processFilePreviewStreamEvent,
-} from '@/lib/mothership/request/go/file-preview-adapter'
-import { prepareStreamImages } from '@/lib/mothership/request/go/inline-images'
-import {
-  FatalSseEventError,
-  processSSEStream,
-  StreamContinuityError,
-} from '@/lib/mothership/request/go/parser'
-import { reconcileTextEvent } from '@/lib/mothership/request/go/text-receipt'
-import { scopeProviderToolCallEvent } from '@/lib/mothership/request/go/tool-call-identity'
+import { CopilotSseCloseReason } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceEvent } from '@/lib/mothership/observability/trace-events'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import {
   applyStreamEvent,
   prePersistClientExecutableToolCall,
@@ -50,8 +34,24 @@ import type {
   StreamEvent,
   StreamingContext,
 } from '@/lib/mothership/request/types'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
+import {
+  buildPreviewContentUpdate,
+  createFilePreviewAdapterState,
+  decodeJsonStringPrefix,
+  extractEditContent,
+  processFilePreviewStreamEvent,
+} from '@/lib/mothership/request/worker/file-preview-adapter'
+import { prepareStreamImages } from '@/lib/mothership/request/worker/inline-images'
+import {
+  FatalSseEventError,
+  processSSEStream,
+  StreamContinuityError,
+} from '@/lib/mothership/request/worker/parser'
+import { reconcileTextEvent } from '@/lib/mothership/request/worker/text-receipt'
+import { scopeProviderToolCallEvent } from '@/lib/mothership/request/worker/tool-call-identity'
 
-const logger = createLogger('CopilotGoStream')
+const logger = createLogger('MothershipWorkerStream')
 
 export { buildPreviewContentUpdate, decodeJsonStringPrefix, extractEditContent }
 
@@ -174,15 +174,11 @@ export interface StreamLoopOptions extends OrchestratorOptions {
    * Return true to skip the default handler for this event.
    */
   onBeforeDispatch?: (event: StreamEvent, context: StreamingContext) => boolean | undefined
-  /**
-   * Called when the Go backend's trace ID (go_trace_id) is first received via SSE.
-   */
-  onGoTraceId?: (goTraceId: string) => void
   otelContext?: Context
 }
 
 /**
- * Run the SSE stream processing loop against the Go backend.
+ * Run the SSE stream processing loop against the worker.
  *
  * Handles: fetch -> parse -> normalize -> dedupe -> subagent routing -> handler dispatch.
  * Callers provide the fetch URL/options and can intercept events via onBeforeDispatch.
@@ -220,20 +216,14 @@ export async function runStreamLoop(
 
   const pathname = new URL(fetchUrl).pathname
   const requestBodyBytes = estimateBodyBytes(fetchOptions.body)
-  const fetchSpan = context.trace.startSpan(`HTTP Request → ${pathname}`, 'sim.http.fetch', {
-    url: fetchUrl,
-    method: fetchOptions.method ?? 'GET',
-    requestBodyBytes,
-  })
-  const fetchStart = performance.now()
   let response: Response
   armIdleTimeout()
   try {
-    response = await fetchGo(fetchUrl, {
+    response = await fetchWorker(fetchUrl, {
       ...fetchOptions,
       signal: requestSignal,
       otelContext: options.otelContext,
-      spanName: `sim → go ${pathname}`,
+      spanName: `sim → worker ${pathname}`,
       operation: 'stream',
       attributes: {
         [TraceAttr.CopilotStream]: true,
@@ -241,26 +231,13 @@ export async function runStreamLoop(
       },
     })
   } catch (error) {
-    fetchSpan.attributes = {
-      ...(fetchSpan.attributes ?? {}),
-      headersMs: Math.round(performance.now() - fetchStart),
-    }
-    context.trace.endSpan(fetchSpan, abortSignal?.aborted ? 'cancelled' : 'error')
     if (idle.signal.aborted) throw new WorkerUnreachableError(idle.signal.reason)
     if (requestSignal.aborted) throw error
     throw new WorkerUnreachableError(error)
   } finally {
     clearTimeout(idleTimer)
   }
-  const headersElapsedMs = Math.round(performance.now() - fetchStart)
-  fetchSpan.attributes = {
-    ...(fetchSpan.attributes ?? {}),
-    status: response.status,
-    headersMs: headersElapsedMs,
-  }
-
   if (!response.ok) {
-    context.trace.endSpan(fetchSpan, 'error')
     // An error body is bounded by the same silence as the leg; a stalled one reads as empty.
     armIdleTimeout()
     const errorText = await new Promise<string>((resolve) => {
@@ -279,29 +256,20 @@ export async function runStreamLoop(
   }
 
   if (!response.body) {
-    context.trace.endSpan(fetchSpan, 'error')
     throw new CopilotBackendError('Copilot backend response missing body')
   }
 
-  context.trace.endSpan(fetchSpan)
-
-  const bodySpan = context.trace.startSpan(`SSE Body → ${pathname}`, 'sim.http.stream_body', {
-    url: fetchUrl,
-    method: fetchOptions.method ?? 'GET',
-  })
-
   // Aggregate counters populated inline by the reader wrapper + onEvent
-  // dispatcher below and flushed to both the legacy TraceCollector span
-  // and the OTel read-loop span when the loop terminates. Kept as plain
-  // JS variables (not span attrs) so incrementing them is free — we
-  // only pay OTel cost once at span End().
+  // dispatcher below and flushed to the OTel read-loop span when the loop
+  // terminates. Kept as plain JS variables (not span attrs) so incrementing
+  // them is free — we only pay OTel cost once at span End().
   //
   // Idle-gap tracking is split two ways so we can tell apart
   // upstream-silent from we-were-busy:
   //
   //   - `longestInboundGapMs`: biggest time between consecutive
   //     `reader.read()` calls returning bytes. Upper bound on
-  //     "Go silent". Actually also includes Node waiting for main
+  //     "worker silent". Actually also includes Node waiting for main
   //     thread free, so see dispatchMs below.
   //   - `longestDispatchMs`: biggest time any single event handler
   //     took between "event received" and "returned control". Upper
@@ -389,7 +357,7 @@ export async function runStreamLoop(
   try {
     await processSSEStream(reader, abortSignal, async (raw) => {
       // Track how long THIS handler invocation takes so we can tell
-      // apart "Go was silent" from "we were CPU-bound on a handler".
+      // apart "the worker was silent" from "we were CPU-bound on a handler".
       // `longestInboundGapMs` includes handler time (the next reader.read
       // doesn't run until the previous handler returns), so dispatch
       // time is the correction needed to isolate upstream silence.
@@ -432,11 +400,6 @@ export async function runStreamLoop(
         }
         const streamEvent = reconcileTextEvent(scopedEvent, context.accumulatedContent)
         if (!streamEvent) return
-        if (envelope.trace?.requestId) {
-          const goTraceId = envelope.trace.goTraceId || envelope.trace.requestId
-          context.trace.setGoTraceId(goTraceId)
-          options.onGoTraceId?.(goTraceId)
-        }
 
         // Per-type counters for the copilot.sse.read_loop span. Bound set
         // (8 types) so this can never blow up into high cardinality.
@@ -452,7 +415,7 @@ export async function runStreamLoop(
         // upstream provider error) here to explain a client-side "Stream error".
         if (streamEvent.type === MothershipStreamV1EventType.error) {
           const errorPayload = streamEvent.payload
-          logger.error('Received error event from Go copilot stream', {
+          logger.error('Received error event from worker stream', {
             path: pathname,
             lane: streamEvent.scope?.lane ?? 'main',
             parentToolCallId: streamEvent.scope?.parentToolCallId,
@@ -611,26 +574,6 @@ export async function runStreamLoop(
     flushThinkingBlock(context)
     clearTimeout(timeoutId)
     clearTimeout(idleTimer)
-
-    // Legacy TraceCollector span (consumed by the in-memory trace
-    // collector, kept for backwards compatibility with existing
-    // tooling). The real OTel span is stamped below.
-    const bodyDurationMs = Math.round(performance.now() - bodyStart)
-    bodySpan.attributes = {
-      ...(bodySpan.attributes ?? {}),
-      eventsReceived: counters.events,
-      firstEventMs: counters.firstEventMs,
-      endedOn,
-      durationMs: bodyDurationMs,
-    }
-    context.trace.endSpan(
-      bodySpan,
-      endedOn === CopilotSseCloseReason.Terminal
-        ? 'ok'
-        : endedOn === CopilotSseCloseReason.Aborted
-          ? 'cancelled'
-          : 'error'
-    )
 
     // Real OTel span for Tempo/Grafana. Stamped aggregate-only so
     // there is no per-chunk OTel cost — one span per read loop with

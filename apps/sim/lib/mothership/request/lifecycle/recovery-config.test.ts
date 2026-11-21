@@ -2,6 +2,7 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { describe, expect, it, vi } from 'vitest'
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import {
+  persistedStreamRecoveryConfig,
   StreamRecoveryConfigSchema,
   streamRecoveryConfig,
 } from '@/lib/mothership/request/lifecycle/recovery-config'
@@ -85,6 +86,15 @@ describe('durable recovery admission contract', () => {
   })
 })
 
+it('reads the stored goRoute as workerRoute and writes workerRoute back as goRoute', () => {
+  const read = StreamRecoveryConfigSchema.parse(config(workspaceRequest))
+  expect(read.workerRoute).toBe('/api/mothership')
+  expect(read).not.toHaveProperty('goRoute')
+  const stored = persistedStreamRecoveryConfig(read)
+  expect(stored.goRoute).toBe('/api/mothership')
+  expect(stored).not.toHaveProperty('workerRoute')
+})
+
 it('preserves the explicit Plan wire mode on recovery', () => {
   expect(
     StreamRecoveryConfigSchema.parse(config({ ...workspaceRequest, mode: 'plan' }, 'plan')).request
@@ -97,7 +107,7 @@ describe('recovery marker written by an admitted turn', () => {
     interactive: true,
     userId: identity.userId,
     chatId: identity.chatId,
-    goRoute: '/api/mothership',
+    workerRoute: '/api/mothership',
     copilotResourceAdmission: createCopilotResourceAdmission({
       userId: identity.userId,
       invocation: { kind: 'chat', chatId: identity.chatId },
@@ -114,6 +124,12 @@ describe('recovery marker written by an admitted turn', () => {
       expect(recovery?.resourceAuthoringVersion).toBe(1)
     }
   )
+
+  it('stores the route under the goRoute key every deployed Sim parses', async () => {
+    const recovery = await streamRecoveryConfig(options, workspaceRequest)
+    expect(recovery?.goRoute).toBe('/api/mothership')
+    expect(recovery).not.toHaveProperty('workerRoute')
+  })
 
   it('stays off a turn that was never admitted', async () => {
     const recovery = await streamRecoveryConfig(
