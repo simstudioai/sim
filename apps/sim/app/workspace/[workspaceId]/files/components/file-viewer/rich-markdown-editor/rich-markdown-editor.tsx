@@ -1350,15 +1350,11 @@ export function LoadedRichMarkdownEditor({
       // load-bearing and runs on every settle even when the body is unchanged — setContent maps a
       // pre-existing selection onto the new doc, so a prior select-all survives as "select everything",
       // permanently painting every divider/image with the rich-leaf-in-selection decoration (keymap.ts)
-      // until the user clicks away. setTextSelection (not .focus()) never steals DOM focus. A caret is
-      // already collapsed: moving it to the end would only take away where the reader just clicked,
-      // since an editable editor can take a click before its first settle lands.
+      // until the user clicks away. setTextSelection (not .focus()) never steals DOM focus.
       runOffRender(() => {
         syncEditorContent(content)
         pendingCollapseRef.current = false
-        if (!editor.state.selection.empty) {
-          editor.commands.setTextSelection(editor.state.doc.content.size)
-        }
+        editor.commands.setTextSelection(editor.state.doc.content.size)
         editor.setEditable(effectiveCanEdit && settledVerdict && collabReady)
         if (shouldFocus) editor.commands.focus('end')
       })
@@ -1370,9 +1366,7 @@ export function LoadedRichMarkdownEditor({
       // run bumped the token), so a post-stream select-all can't keep the leaf-in-selection decoration.
       if (pendingCollapseRef.current) {
         pendingCollapseRef.current = false
-        if (!editor.state.selection.empty) {
-          editor.commands.setTextSelection(editor.state.doc.content.size)
-        }
+        editor.commands.setTextSelection(editor.state.doc.content.size)
       }
       if (settled) editor.setEditable(effectiveCanEdit && settled.verdict && collabReady)
     })
