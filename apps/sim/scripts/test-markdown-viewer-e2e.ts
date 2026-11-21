@@ -590,7 +590,15 @@ async function proveWarmNavigation(page: Page, browserName: string) {
   const files: { id: string; name: string }[] = []
   const caughtErrors: string[] = []
   const captureError = (message: import('@playwright/test').ConsoleMessage) => {
-    if (message.type() === 'error') caughtErrors.push(message.text())
+    if (message.type() !== 'error') return
+    const text = message.text()
+    // Some WebKit builds log the existing viewport option at error severity.
+    if (
+      browserName === 'webkit' &&
+      text === 'Viewport argument key "interactive-widget" not recognized and ignored.'
+    )
+      return
+    caughtErrors.push(text)
   }
   page.on('console', captureError)
   try {
