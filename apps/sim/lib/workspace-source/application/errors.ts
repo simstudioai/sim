@@ -121,9 +121,9 @@ export function refusalDiagnostic(
     const file = `${workflowFolder(resource.key)}/${SOURCE_ENTRY_FILE}`
     return finding(
       'E_NAME_TAKEN',
-      `A workflow named ${JSON.stringify(error.workflowName)} already exists in this workspace.`,
+      `A workflow named ${JSON.stringify(error.workflowName)} already exists in the folder this workflow is saved to.`,
       {
-        hint: `Rename the workflow in ${file}, or rename or delete the one that holds the name in Sim.`,
+        hint: `Rename the workflow in ${file}, or rename, move or delete the one that holds the name in Sim.`,
         file,
         ...resource,
       }
@@ -134,7 +134,9 @@ export function refusalDiagnostic(
       hint:
         error instanceof ResourceKeyTakenError
           ? 'Rename the key, or delete the resource that holds it.'
-          : 'Rename it in its declaration, or rename or delete the resource that holds the name in Sim.',
+          : resource.kind === 'file'
+            ? 'Rename it locally, or rename or delete the file that holds the name in Sim.'
+            : 'Rename it in its declaration, or rename or delete the resource that holds the name in Sim.',
       ...resource,
     })
   }
