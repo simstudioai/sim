@@ -4,6 +4,7 @@ import {
   classifyFailure,
   inheritFailureMarks,
   markFailureKind,
+  markFailureLogged,
 } from '@/lib/core/errors/failure-log'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
@@ -861,6 +862,9 @@ export class LoopOrchestrator {
     logFn('Failed to evaluate loop condition', { ...errorDiagnostic, isUserFailure })
     await this.addLoopErrorLog(ctx, loopId, loopType, persistedErrorMessage, {})
     scope.validationError = persistedErrorMessage
-    throw inheritFailureMarks(new Error(persistedErrorMessage), cause)
+    /** Logged above, so the engine does not log the same failure again as it propagates. */
+    const failure = inheritFailureMarks(new Error(persistedErrorMessage), cause)
+    markFailureLogged(failure)
+    throw failure
   }
 }

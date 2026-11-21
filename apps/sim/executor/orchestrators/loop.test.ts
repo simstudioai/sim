@@ -7,7 +7,7 @@ import {
 import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { classifyFailure } from '@/lib/core/errors/failure-log'
+import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
@@ -476,6 +476,8 @@ describe('loop continuation when the sandbox cannot evaluate', () => {
 
     expect(classifyFailure(userError)).toBe('user')
     expect(classifyFailure(systemError)).toBe('internal')
+    expect(logFailureOnce(createLogger('probe'), 'probe', userError)).toBeUndefined()
+    expect(logFailureOnce(createLogger('probe'), 'probe', systemError)).toBeUndefined()
   })
 
   it('keeps a resolved secret out of the persisted condition error', async () => {
