@@ -14,7 +14,7 @@ import { isEnabled } from '../environment'
 import { printError } from './io'
 
 /** Whether this process runs as a GitHub Actions step (never inside an embedded host). */
-export function inGithubActions(env: NodeJS.ProcessEnv = process.env): boolean {
+function inGithubActions(env: NodeJS.ProcessEnv = process.env): boolean {
   return isEnabled(env.GITHUB_ACTIONS) && !embedStore.getStore()
 }
 
