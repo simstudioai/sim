@@ -1037,6 +1037,40 @@ describe('materialize: identity', () => {
     }
   )
 
+  it('keeps the id of a falsy-valued variable renamed in the same edit as the block that reads it', () => {
+    const pulled = workflowState(
+      [
+        blockState('a1', 'function', 'Read', { code: 'return <variable.retries> + 1' }),
+        blockState('a2', 'function', 'Other', { code: 'return 2' }),
+      ],
+      { variables: { 'var-1': { id: 'var-1', name: 'Retries', type: 'number', value: 0 } } }
+    )
+    const lock = lockFor(pulled)
+    const target = edit(canonical(pulled, lock).workflow, (draft) => {
+      draft.variables = {
+        attempts: { key: 'attempts', name: 'Attempts', type: 'number', value: 0 },
+      }
+      draft.blocks.reader = {
+        ...draft.blocks.read,
+        key: 'reader',
+        name: 'Reader',
+        params: {
+          ...draft.blocks.read.params,
+          code: { kind: 'value', value: 'return <variable.attempts> + 1' },
+        },
+      }
+      draft.blocks = omit(draft.blocks, ['read'])
+    })
+
+    const result = run(target, lock, {
+      prev: pulled,
+      compiledIdents: { reader: lock.blocks.read.ident },
+    })
+
+    expect(result.identity.blocks.reader.id).toBe('a1')
+    expect(Object.keys(result.state.variables ?? {})).toEqual(['var-1'])
+  })
+
   it('leaves an inputFormat id two fields share out of the identity items', () => {
     const prev = workflowState([
       blockState('start', 'start_trigger', 'Start', {
