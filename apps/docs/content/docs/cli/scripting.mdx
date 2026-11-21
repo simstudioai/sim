@@ -378,7 +378,7 @@ exit "$status"
 
 ## Workspace source in CI
 
-Keep a [workspace source directory](/workflows/workspace-code) in a repository, `.sim/` included, and let CI plan each pull request and apply each merge. The dry run exits `1` on errors and `5` when the workspace changed since the committed base; `check` downloads the block catalog once on a fresh runner.
+Keep a [workspace source directory](/workflows/workspace-code) in a repository, `.sim/` included, and let CI plan each pull request and apply each merge. The dry run exits `1` on errors and `5` when the workspace changed since the committed base; `check` downloads the block catalog once on a fresh runner. On GitHub Actions (`GITHUB_ACTIONS=true`), every source command also annotates each error and warning at its file and line, so they show inline on the pull request, and `apply` (a dry run too) appends its plan and errors to the job's step summary.
 
 ```yaml title=".github/workflows/sim-workspace.yml"
 on:

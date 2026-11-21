@@ -647,9 +647,15 @@ export function reportCheck(
   output: Parameters<typeof printProtocolResult>[0],
   findings: CheckFinding[],
   result: Record<string, unknown>,
-  options: { verbose?: boolean; bound?: AnswerBound; unlisted?: UnlistedCounts } = {}
+  options: {
+    verbose?: boolean
+    bound?: AnswerBound
+    unlisted?: UnlistedCounts
+    /** The source directory, which GitHub Actions annotations resolve finding files under. */
+    dir?: string
+  } = {}
 ): void {
-  const shown = findingsOutput(output, options.verbose)
+  const shown = findingsOutput(output, options.verbose, options.dir)
   const listed = boundAnswerFindings(findings, options.bound)
   shown.print(listed)
   const unlisted = options.unlisted ?? { errors: 0, warnings: 0 }

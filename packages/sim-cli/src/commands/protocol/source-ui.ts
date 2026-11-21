@@ -8,6 +8,7 @@ import { boundFindingText, type RefusalClass } from '@sim/workflow-code/diagnost
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { type FlatDiagnostic, refusalClass } from '@sim/workspace-code'
 import type { Command } from 'commander'
+import { annotationLine, annotationPath, printAnnotations } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
 import { askLine } from '#sim-cli/terminal/line-input'
 import type { OutputFormat } from '../../config/index'
@@ -203,6 +204,33 @@ export interface FindingsOutput {
 }
 
 /**
+ * A finding as a GitHub Actions annotation at its file, line and column (the file relative to the
+ * source directory `dir`, when known); none for an info finding.
+ */
+function findingAnnotation(diagnostic: Diagnostic, dir: string | undefined): string[] {
+  if (diagnostic.severity === 'info') return []
+  const file =
+    diagnostic.file !== undefined && diagnostic.path === undefined
+      ? dir === undefined
+        ? diagnostic.file
+        : annotationPath(dir, diagnostic.file)
+      : undefined
+  const message = diagnostic.hint
+    ? `${diagnostic.message} Hint: ${diagnostic.hint}`
+    : diagnostic.message
+  return [
+    annotationLine(diagnostic.severity, message, {
+      ...(file !== undefined ? { file } : {}),
+      ...(file !== undefined && diagnostic.line !== undefined ? { line: diagnostic.line } : {}),
+      ...(file !== undefined && diagnostic.column !== undefined
+        ? { column: diagnostic.column }
+        : {}),
+      title: diagnostic.code,
+    }),
+  ]
+}
+
+/**
  * Info findings a display format prints only with `--verbose`: they report what the server does
  * for the person (a new block placed by autolayout), so there is nothing to act on.
  */
@@ -210,22 +238,30 @@ const QUIET_INFO_CODES: ReadonlySet<Diagnostic['code']> = new Set(['I_MAT_NEEDS_
 
 /**
  * The {@link FindingsOutput} of `format`; `verbose` keeps info findings in a machine result, and
- * the {@link QUIET_INFO_CODES} in a display one. It is
+ * the {@link QUIET_INFO_CODES} in a display one. In a GitHub Actions step every error and warning
+ * is also annotated at its file under the source directory `dir`, whatever the format. It is
  * the CLI's output edge, where each finding's message and hint are cut (`boundFindingText`): a
  * finding an offline check made is as long as its source made it until here.
  */
-export function findingsOutput(format: OutputFormat, verbose = false): FindingsOutput {
+export function findingsOutput(
+  format: OutputFormat,
+  verbose = false,
+  dir?: string
+): FindingsOutput {
   const printed = new Set<string>()
   const machine = isMachine(format)
   return {
     machine,
     print(diagnostics) {
-      const unseen = diagnostics.filter(
-        (diagnostic) =>
-          (verbose || !QUIET_INFO_CODES.has(diagnostic.code)) &&
-          fresh(printed, findingKey(diagnostic))
-      )
-      if (!machine) printDiagnostics(unseen.map((diagnostic) => boundFindingText(diagnostic)))
+      const unseen = diagnostics
+        .filter(
+          (diagnostic) =>
+            (verbose || !QUIET_INFO_CODES.has(diagnostic.code)) &&
+            fresh(printed, findingKey(diagnostic))
+        )
+        .map((diagnostic) => boundFindingText(diagnostic))
+      if (!machine) printDiagnostics(unseen)
+      printAnnotations(unseen.flatMap((diagnostic) => findingAnnotation(diagnostic, dir)))
     },
     result: (diagnostics) =>
       resultDiagnostics(

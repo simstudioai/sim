@@ -165,7 +165,7 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
       })
     }
   }
-  const findings = findingsOutput(args.output, options.verbose)
+  const findings = findingsOutput(args.output, options.verbose, options.dir)
   const notes = new Set<string>()
   const report = (data: SourceApplyData, deployment: DeployOutcome = {}) => {
     const result = { ...summarize(data, creating, findings.machine), ...deployment }

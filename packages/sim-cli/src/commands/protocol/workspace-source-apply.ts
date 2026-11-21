@@ -21,6 +21,7 @@ import {
 } from '@sim/workspace-code/promote'
 import { serverResourceChanges } from '@sim/workspace-code/status'
 import type { Command } from 'commander'
+import { appendStepSummary } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
 import { setSoftExitCode } from '../../embed-context'
 import { SOURCE_HELD_EXIT_CODE, SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
@@ -824,12 +825,13 @@ export function attachWorkspaceSourceApply(source: Command): void {
                 }
               : data
           // The apply repeats findings the preview already showed: each is printed once.
-          const findings = findingsOutput(profile.output, options.verbose)
+          const findings = findingsOutput(profile.output, options.verbose, options.dir)
           const notSent = notSentFindings(submission.ignored)
           findings.print(notSent)
           /** Prints `data` as the result, with the findings about files the CLI did not send. */
           const report = (data: ApplyData, next?: NextStep, urls: WorkflowUrl[] = []) => {
             const diagnostics = [...notSent, ...data.diagnostics]
+            appendStepSummary(planMarkdown({ ...data, diagnostics }, options.to ?? workspaceId))
             const result = {
               ...summarize({ ...data, diagnostics }),
               ...(urls.length > 0 ? { urls } : {}),
@@ -908,6 +910,61 @@ export function attachWorkspaceSourceApply(source: Command): void {
         { readOnly: mode === 'dry-run' || mode === 'plan' }
       )
     })
+}
+
+/** At most this many changes and errors are listed in a step summary; the rest are counted. */
+const SUMMARY_ROWS = 50
+
+/** A Markdown table cell: one line, with its pipes escaped. */
+function cell(text: string): string {
+  return text.replaceAll('|', '\\|').replace(/\s+/g, ' ')
+}
+
+/**
+ * The plan of a dry run or apply to `workspaceId` as the Markdown a GitHub Actions step summary
+ * shows: each change and how it went, then each error.
+ */
+function planMarkdown(data: ApplyData, workspaceId: string): string {
+  const summary = summarize(data)
+  const changes = data.plan.filter((change) => change.action !== 'noop')
+  const rows = changes.slice(0, SUMMARY_ROWS).map((change) => {
+    const fields = change.fields?.length ? ` (${change.fields.join(', ')})` : ''
+    const fate = change.held
+      ? 'held back'
+      : data.dryRun
+        ? 'planned'
+        : outcomeText(change, data).replace(' — ', '') || 'written'
+    return `| ${SYMBOLS[change.action]} | ${cell(resourceWhere(change.kind, change.key))}${cell(fields)} | ${change.action} | ${fate} |`
+  })
+  const errors = data.diagnostics.filter((finding) => finding.severity === 'error')
+  const lines = [
+    `### Sim workspace ${data.dryRun ? 'plan' : 'apply'}: ${cell(workspaceId)}`,
+    '',
+    `${summary.created.length} to create, ${summary.updated} to update, ${summary.deleted} to delete, ${summary.unchanged} unchanged; ${summary.errors} error(s), ${summary.warnings} warning(s).`,
+    ...(rows.length > 0
+      ? [
+          '',
+          '| | Resource | Change | Outcome |',
+          '|---|---|---|---|',
+          ...rows,
+          ...(changes.length > rows.length ? [`\n…and ${changes.length - rows.length} more.`] : []),
+        ]
+      : []),
+    ...(errors.length > 0
+      ? [
+          '',
+          '**Errors**',
+          '',
+          ...errors
+            .slice(0, SUMMARY_ROWS)
+            .map(
+              (finding) =>
+                `- \`${finding.code}\`${finding.file ? ` ${cell(finding.file)}${finding.line ? `:${finding.line}` : ''}` : ''}: ${cell(finding.message)}`
+            ),
+        ]
+      : []),
+  ]
+  return lines.join('\n')
 }
 
 /** A webhook URL of a workflow an apply deployed, named by the workflow's key and the block's. */

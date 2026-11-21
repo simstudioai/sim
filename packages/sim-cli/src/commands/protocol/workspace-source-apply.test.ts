@@ -1671,6 +1671,49 @@ describe('workspaces source apply', () => {
     })
   })
 
+  it('appends the plan and its errors to the GitHub Actions step summary', async () => {
+    const summary = join(dir, 'step-summary.md')
+    vi.stubEnv('GITHUB_ACTIONS', 'true')
+    vi.stubEnv('GITHUB_STEP_SUMMARY', summary)
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        plan: [
+          { kind: 'table', key: 'leads', action: 'create' },
+          { kind: 'workflow', key: 'ingest', action: 'update', fields: ['blocks'] },
+        ],
+        diagnostics: [
+          {
+            code: 'E_APPLY_UNRESOLVED_REF',
+            severity: 'error',
+            message: 'Score lead | has no output teir.',
+            file: 'workflows/ingest/workflow.ts',
+            line: 12,
+            kind: 'workflow',
+            key: 'ingest',
+          },
+        ],
+      })
+    )
+
+    await apply('--dry-run')
+
+    const markdown = readFileSync(summary, 'utf8')
+    expect(markdown).toContain('### Sim workspace plan: ws_local')
+    expect(markdown).toContain('| + | tables/leads | create | planned |')
+    expect(markdown).toContain('| ~ | workflows/ingest (blocks) | update | planned |')
+    expect(markdown).toContain(
+      '- `E_APPLY_UNRESOLVED_REF` workflows/ingest/workflow.ts:12: Score lead \\| has no output teir.'
+    )
+    const annotations = vi
+      .mocked(console.error)
+      .mock.calls.map(([line]) => String(line))
+      .filter((line) => line.startsWith('::error'))
+    expect(annotations).toEqual([
+      `::error file=${join(dir, 'workflows/ingest/workflow.ts')},line=12,title=E_APPLY_UNRESOLVED_REF::Score lead | has no output teir.`,
+    ])
+  })
+
   it('exits 1, not 15, when every change it would write was held back and nothing was written', async () => {
     request.mockResolvedValue(
       answer({

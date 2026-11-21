@@ -128,6 +128,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
           {
             verbose: options.verbose === true,
             unlisted,
+            dir: options.dir,
           }
         )
       }
