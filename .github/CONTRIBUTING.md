@@ -179,31 +179,34 @@ Access the application at [http://localhost:3000/](http://localhost:3000/)
 
 #### Using Local Models
 
-To use local models with Sim:
+To use local models with Sim, either point it at an Ollama server you already run or start one alongside the stack.
 
-1. Install Ollama and pull models:
+- **Ollama on your machine**: install it, pull a model, and point the app at the host:
 
-   ```bash
-   # Install Ollama (if not already installed)
-   curl -fsSL https://ollama.ai/install.sh | sh
+  ```bash
+  curl -fsSL https://ollama.ai/install.sh | sh
+  ollama pull gemma3:4b
 
-   # Pull a model (e.g., gemma3:4b)
-   ollama pull gemma3:4b
-   ```
+  echo 'OLLAMA_URL=http://host.docker.internal:11434' >> .env
+  docker compose -f docker-compose.prod.yml up -d
+  ```
 
-2. Start Sim with local model support:
+  Ollama must listen on an interface the container can reach (`OLLAMA_HOST=0.0.0.0:11434`). For an Ollama server elsewhere, set `OLLAMA_URL` to its address instead.
 
-   ```bash
-   # With NVIDIA GPU support
-   docker compose --profile local-gpu -f docker-compose.ollama.yml up -d
+- **Bundled Ollama**: layer `docker-compose.ollama.yml` on the production file, with exactly one of the `gpu` or `cpu` profiles, then pull the starter model once:
 
-   # Without GPU (CPU only)
-   docker compose --profile local-cpu -f docker-compose.ollama.yml up -d
+  ```bash
+  echo 'OLLAMA_URL=http://ollama:11434' >> .env
 
-   # If hosting on a server, update the environment variables in the docker-compose.prod.yml file
-   # to include the server's public IP then start again (OLLAMA_URL to i.e. http://1.1.1.1:11434)
-   docker compose -f docker-compose.prod.yml up -d
-   ```
+  # With NVIDIA GPU support
+  docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile gpu up -d
+
+  # Without GPU (CPU only)
+  docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile cpu up -d
+
+  # Pull gemma3:4b into the running server
+  docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile setup run --rm model-setup
+  ```
 
 ### Option 3: Manual Setup
 

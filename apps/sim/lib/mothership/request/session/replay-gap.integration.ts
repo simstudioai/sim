@@ -59,7 +59,7 @@ import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
 import { allocateCursor, appendEvents } from '@/lib/mothership/request/session/buffer'
 import { createEvent } from '@/lib/mothership/request/session/event'
-import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
+import { GET as streamGET } from '@/app/api/mothership/chat/stream/route'
 
 const userId = generateId()
 const workspaceId = generateId()
@@ -117,7 +117,7 @@ async function liveRunWithTrimmedRing(): Promise<{ streamId: string; runId: stri
 function reconnect(streamId: string, after: string, batch = false, extra = '') {
   return streamGET(
     new NextRequest(
-      `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=${after}${batch ? '&batch=true' : ''}${extra}`
+      `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&after=${after}${batch ? '&batch=true' : ''}${extra}`
     ),
     { params: Promise.resolve({}) }
   )

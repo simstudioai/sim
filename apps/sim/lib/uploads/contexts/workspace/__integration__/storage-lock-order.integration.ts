@@ -1,6 +1,6 @@
 /**
  * Real PostgreSQL lock ordering between new-file finalization and concurrent writers in the same
- * workspace. They reach the workspace row, the file directory lock, and the per-workspace search
+ * workspace. They reach the workspace row, the file directory lock, and the workspace's search
  * dispatch queue row (through the `workspace_files` search-index trigger), so every writer must
  * take them in the same order.
  */
@@ -10,16 +10,16 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { db, dbFor } from '@sim/db'
 import {
+  fileSearchDispatchQueue,
   organization,
   user,
   workspace,
-  workspaceFileSearchDispatchQueue,
   workspaceFiles,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
@@ -113,9 +113,14 @@ describe.skipIf(!migrated)('workspace file storage lock order in PostgreSQL', ()
       { notifyWorkspaceChange: false }
     )
     const queued = await db
-      .select({ workspaceId: workspaceFileSearchDispatchQueue.workspaceId })
-      .from(workspaceFileSearchDispatchQueue)
-      .where(eq(workspaceFileSearchDispatchQueue.workspaceId, ids.workspaceId))
+      .select({ entityId: fileSearchDispatchQueue.entityId })
+      .from(fileSearchDispatchQueue)
+      .where(
+        and(
+          eq(fileSearchDispatchQueue.entityType, 'workspace'),
+          eq(fileSearchDispatchQueue.entityId, ids.workspaceId)
+        )
+      )
     expect(queued).toHaveLength(1)
     return { ...ids, existingFileId: existing.id }
   }

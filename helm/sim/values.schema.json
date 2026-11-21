@@ -885,34 +885,6 @@
         "resources": { "type": "object" }
       }
     },
-    "sharedStorage": {
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enable shared storage"
-        },
-        "volumes": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["name", "size"],
-            "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Volume name"
-              },
-              "size": {
-                "type": "string",
-                "pattern": "^[0-9]+[KMGT]i$",
-                "description": "Volume size (e.g., 100Gi)"
-              }
-            }
-          }
-        }
-      }
-    },
     "copilot": {
       "type": "object",
       "properties": {
@@ -1262,7 +1234,7 @@
     },
     "monitoring": {
       "type": "object",
-      "description": "Prometheus Operator ServiceMonitor configuration"
+      "description": "Removed in chart 1.13 and ignored; still accepted so older values files validate."
     },
     "networkPolicy": {
       "type": "object",
@@ -1283,6 +1255,10 @@
     "serviceAccount": {
       "type": "object",
       "description": "ServiceAccount creation, name, and annotations (e.g. Workload Identity)"
+    },
+    "sharedStorage": {
+      "type": "object",
+      "description": "Removed in chart 1.13; still accepted so older values files validate, but enabled=true with volumes fails the render (see templates/removed-values.yaml)."
     },
     "tolerations": {
       "type": "array",

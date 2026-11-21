@@ -1,34 +1,15 @@
 /**
- * Compositional modal component with optional tabs.
- * Uses Radix UI Dialog and Tabs primitives for accessibility.
- * For sidebar modals, use `sidebar-modal.tsx` instead.
+ * Compositional modal component built on the Radix UI Dialog primitive.
+ * For sidebar modals, use `sidebar-modal.tsx` instead; for the standard header,
+ * body, and footer chrome, compose `ChipModal` parts inside `ModalContent`.
  *
  * @example
  * ```tsx
- * // Base modal
  * <Modal>
  *   <ModalTrigger>Open</ModalTrigger>
  *   <ModalContent>
- *     <ModalHeader>Title</ModalHeader>
- *     <ModalBody>Content here</ModalBody>
- *     <ModalFooter>
- *       <Button>Save</Button>
- *     </ModalFooter>
- *   </ModalContent>
- * </Modal>
- *
- * // Modal with tabs
- * <Modal>
- *   <ModalContent>
- *     <ModalHeader>Title</ModalHeader>
- *     <ModalTabs defaultValue="tab1">
- *       <ModalTabsList>
- *         <ModalTabsTrigger value="tab1">Tab 1</ModalTabsTrigger>
- *         <ModalTabsTrigger value="tab2">Tab 2</ModalTabsTrigger>
- *       </ModalTabsList>
- *       <ModalTabsContent value="tab1">Content 1</ModalTabsContent>
- *       <ModalTabsContent value="tab2">Content 2</ModalTabsContent>
- *     </ModalTabs>
+ *     <ModalTitle>Title</ModalTitle>
+ *     Content here
  *   </ModalContent>
  * </Modal>
  * ```
@@ -38,11 +19,8 @@
 
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { usePathname } from 'next/navigation'
-import { X } from '../../icons'
 import { cn } from '../../lib/cn'
-import { Button } from '../button/button'
 import { focusFirstTextInput, focusFirstTextInputIn } from './auto-focus'
 
 /** Portal geometry follows the visible mobile viewport while the keyboard is open. */
@@ -489,20 +467,20 @@ interface ModalContentProps extends React.ComponentPropsWithoutRef<typeof Dialog
    * remain intact.
    *
    * When `bare` is `true`, pass `srTitle` to keep the dialog accessible —
-   * there's no visible `ModalHeader` providing a title.
+   * there's no visible header providing a title.
    * @default false
    */
   bare?: boolean
   /**
    * Screen-reader-only title rendered as a hidden `DialogPrimitive.Title`.
    * Pair with `bare` to satisfy Radix's accessibility contract when no
-   * visible `ModalHeader` is rendered. Without it, Radix's focus management
+   * visible header title is rendered. Without it, Radix's focus management
    * can fall into states where the dialog can't be re-opened cleanly.
    */
   srTitle?: string
   /**
    * Refuses every dismissal while an action is in flight: the Escape key,
-   * clicking outside, and `ModalHeader`'s close button. Descendants read it via
+   * clicking outside, and the header's close button. Descendants read it via
    * {@link useModalDismissDisabled}.
    *
    * A consumer's own `onEscapeKeyDown` / `onInteractOutside` runs after this
@@ -694,38 +672,6 @@ const ModalContent = React.forwardRef<
 ModalContent.displayName = 'ModalContent'
 
 /**
- * Modal header component for title and description.
- */
-const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, children, ...props }, ref) => {
-    const dismissDisabled = useModalDismissDisabled()
-    return (
-      <div
-        ref={ref}
-        className={cn('flex min-w-0 items-center justify-between gap-2 px-4 pt-4 pb-2', className)}
-        {...props}
-      >
-        <DialogPrimitive.Title className='min-w-0 text-[var(--text-primary)] text-base leading-none'>
-          {children}
-        </DialogPrimitive.Title>
-        <DialogPrimitive.Close asChild>
-          <Button
-            variant='ghost'
-            disabled={dismissDisabled}
-            className='relative size-[16px] shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
-          >
-            <X className='size-[16px]' />
-            <span className='sr-only'>Close</span>
-          </Button>
-        </DialogPrimitive.Close>
-      </div>
-    )
-  }
-)
-
-ModalHeader.displayName = 'ModalHeader'
-
-/**
  * Modal title component.
  */
 const ModalTitle = React.forwardRef<
@@ -749,184 +695,12 @@ const ModalDescription = React.forwardRef<
 
 ModalDescription.displayName = 'ModalDescription'
 
-/**
- * Modal tabs root component. Wraps tab list and content panels.
- */
-const ModalTabs = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>
->(({ onValueChange, ...props }, ref) => {
-  const rootRef = React.useRef<HTMLDivElement>(null)
-  React.useImperativeHandle(ref, () => rootRef.current as HTMLDivElement, [])
-
-  const handleValueChange = (value: string) => {
-    onValueChange?.(value)
-    window.requestAnimationFrame(() => {
-      const root = rootRef.current
-      if (!root) return
-      const panel = root.querySelector<HTMLElement>('[role="tabpanel"][data-state="active"]')
-      focusFirstTextInputIn(panel)
-    })
-  }
-
-  return <TabsPrimitive.Root ref={rootRef} onValueChange={handleValueChange} {...props} />
-})
-
-ModalTabs.displayName = 'ModalTabs'
-
-interface ModalTabsListProps extends React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> {
-  /** Currently active tab value for indicator positioning */
-  activeValue?: string
-  /**
-   * Whether the tabs are disabled (non-interactive with reduced opacity)
-   * @default false
-   */
-  disabled?: boolean
-}
-
-/**
- * Modal tabs list component with animated sliding indicator.
- */
-const ModalTabsList = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.List>,
-  ModalTabsListProps
->(({ className, children, activeValue, disabled = false, ...props }, ref) => {
-  const listRef = React.useRef<HTMLDivElement>(null)
-  const [indicator, setIndicator] = React.useState({ left: 0, width: 0 })
-  const [ready, setReady] = React.useState(false)
-
-  React.useEffect(() => {
-    const list = listRef.current
-    if (!list) return
-
-    const updateIndicator = () => {
-      const activeTab = list.querySelector('[data-state="active"]') as HTMLElement | null
-      if (!activeTab) return
-
-      setIndicator({
-        left: activeTab.offsetLeft,
-        width: activeTab.offsetWidth,
-      })
-      setReady(true)
-    }
-
-    updateIndicator()
-
-    const observer = new MutationObserver(updateIndicator)
-    observer.observe(list, { attributes: true, subtree: true, attributeFilter: ['data-state'] })
-    window.addEventListener('resize', updateIndicator)
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', updateIndicator)
-    }
-  }, [activeValue])
-
-  return (
-    <TabsPrimitive.List
-      ref={ref}
-      className={cn(
-        'relative flex gap-4 px-4 pt-1',
-        disabled && 'pointer-events-none opacity-50',
-        className
-      )}
-      {...props}
-    >
-      <div ref={listRef} className='flex gap-4'>
-        {children}
-      </div>
-      <span
-        className={cn(
-          'pointer-events-none absolute bottom-0 h-[1px] rounded-full bg-[var(--text-primary)]',
-          ready ? 'opacity-100 transition-[left,width,opacity] duration-200 ease-out' : 'opacity-0'
-        )}
-        style={{ left: indicator.left, width: indicator.width }}
-      />
-    </TabsPrimitive.List>
-  )
-})
-
-ModalTabsList.displayName = 'ModalTabsList'
-
-/**
- * Modal tab trigger component. Individual tab button.
- */
-const ModalTabsTrigger = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Trigger
-    ref={ref}
-    className={cn(
-      'px-1 pb-2 text-[var(--text-secondary)] text-small transition-colors',
-      'hover-hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
-      className
-    )}
-    {...props}
-  />
-))
-
-ModalTabsTrigger.displayName = 'ModalTabsTrigger'
-
-/**
- * Modal tab content component. Content panel for each tab.
- * Includes bottom padding for consistent spacing across all tabbed modals.
- *
- * When this panel mounts (i.e. its tab becomes active), focus moves to the first
- * visible text-entry input inside it so typing works immediately. Tabs with no
- * text input are untouched.
- */
-const ModalTabsContent = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content ref={ref} className={cn('pb-2.5', className)} {...props} />
-))
-
-ModalTabsContent.displayName = 'ModalTabsContent'
-
-/**
- * Modal body/content area with background and padding.
- */
-const ModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex-1 overflow-y-auto px-4 pt-3 pb-4', className)} {...props} />
-  )
-)
-
-ModalBody.displayName = 'ModalBody'
-
-/**
- * Modal footer component for action buttons.
- */
-const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'flex justify-end gap-2 rounded-b-xl border-[var(--border)] border-t bg-[color-mix(in_srgb,var(--surface-3)_50%,transparent)] px-4 py-3',
-        className
-      )}
-      {...props}
-    />
-  )
-)
-
-ModalFooter.displayName = 'ModalFooter'
-
 export {
   InsideModalContext,
   Modal,
   ModalTrigger,
   ModalContent,
-  ModalHeader,
   ModalTitle,
   ModalDescription,
-  ModalBody,
-  ModalTabs,
-  ModalTabsList,
-  ModalTabsTrigger,
-  ModalTabsContent,
-  ModalFooter,
   ModalClose,
 }

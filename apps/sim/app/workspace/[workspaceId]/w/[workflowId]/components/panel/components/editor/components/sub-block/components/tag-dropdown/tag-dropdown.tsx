@@ -43,16 +43,9 @@ interface NestedNavigationContextValue {
   /** Stack of nested tags representing current navigation depth */
   nestedPath: NestedTag[]
   /** Navigate into a nested folder */
-  navigateIn: (tag: NestedTag, group: NestedBlockTagGroup) => void
+  navigateIn: (tag: NestedTag) => void
   /** Navigate back one level, returns true if navigation happened, false if at root */
   navigateBack: () => boolean
-  /** Register the base folder when it opens */
-  registerFolder: (
-    folderId: string,
-    folderTitle: string,
-    baseTag: NestedTag,
-    group: NestedBlockTagGroup
-  ) => void
 }
 
 const NestedNavigationContext = React.createContext<NestedNavigationContextValue | null>(null)
@@ -531,29 +524,16 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
 
 /**
  * Wrapper component that uses shared nested navigation state from context.
- * Handles registration of the base folder and navigation callbacks.
+ * Supplies the current nested path and the navigate-in callback.
  */
 const FolderContents: React.FC<Omit<NestedTagRendererProps, never>> = (props) => {
   const nestedNav = useNestedNavigation()
-  const { currentFolder } = usePopoverContext()
 
   const nestedPath = nestedNav?.nestedPath ?? []
 
-  useEffect(() => {
-    if (nestedNav && currentFolder) {
-      const folderId = `${props.group.blockId}-${props.nestedTag.key}`
-      if (currentFolder === folderId) {
-        nestedNav.registerFolder(folderId, props.nestedTag.display, props.nestedTag, props.group)
-      }
-    }
-  }, [currentFolder, nestedNav, props.group, props.nestedTag])
-
-  const handleNavigateIn = useCallback(
-    (nestedTag: NestedTag) => {
-      nestedNav?.navigateIn(nestedTag, props.group)
-    },
-    [nestedNav, props.group]
-  )
+  const handleNavigateIn = (nestedTag: NestedTag) => {
+    nestedNav?.navigateIn(nestedTag)
+  }
 
   return <FolderContentsInner {...props} nestedPath={nestedPath} onNavigateIn={handleNavigateIn} />
 }
@@ -590,11 +570,6 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
         id={folderId}
         title={nestedTag.display}
         active={parentGlobalIndex === selectedIndex && parentGlobalIndex >= 0}
-        onSelect={() => {
-          if (nestedTag.parentTag) {
-            handleTagSelect(nestedTag.parentTag, group)
-          }
-        }}
         onMouseEnter={() => {
           if (isKeyboardNav) return
           setKeyboardNav(false)
@@ -811,23 +786,6 @@ const BlockRootTagItem: React.FC<{
 }
 
 /**
- * Helper component to capture popover context for nested navigation
- */
-const PopoverContextCapture: React.FC<{
-  contextRef: React.RefObject<{
-    openFolder: (id: string, title: string, onLoad?: () => void, onSelect?: () => void) => void
-  } | null>
-}> = ({ contextRef }) => {
-  const { openFolder } = usePopoverContext()
-  useEffect(() => {
-    if (contextRef && 'current' in contextRef) {
-      ;(contextRef as { current: typeof contextRef.current }).current = { openFolder }
-    }
-  }, [openFolder, contextRef])
-  return null
-}
-
-/**
  * Back button that handles nested navigation.
  * When in nested folders, goes back one level at a time.
  * At the root folder level, closes the folder.
@@ -908,13 +866,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   const itemRefs = (itemElementsRef.current ??= new Map())
 
   const [nestedPath, setNestedPath] = useState<NestedTag[]>([])
-  const baseFolderRef = useRef<{
-    id: string
-    title: string
-    baseTag: NestedTag
-    group: NestedBlockTagGroup
-  } | null>(null)
-  const handleTagSelectRef = useRef<((tag: string, group?: BlockTagGroup) => void) | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   const inputValueRef = useRef(inputValue)
@@ -1490,75 +1441,20 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [workflowVariables, onSelect, onClose, getMergedSubBlocks]
   )
 
-  handleTagSelectRef.current = handleTagSelect
-
-  const popoverContextRef = useRef<{
-    openFolder: (id: string, title: string, onLoad?: () => void, onSelect?: () => void) => void
-  } | null>(null)
-
   const nestedNavigationValue = useMemo<NestedNavigationContextValue>(
     () => ({
       nestedPath,
-      navigateIn: (tag: NestedTag, group: NestedBlockTagGroup) => {
-        const baseFolder = baseFolderRef.current
-        if (!baseFolder || !popoverContextRef.current) return
-
+      navigateIn: (tag: NestedTag) => {
         setNestedPath((prev) => [...prev, tag])
 
         if (scrollAreaRef.current) {
           scrollAreaRef.current.scrollTop = 0
         }
-
-        const selectionCallback = () => {
-          if (tag.parentTag && handleTagSelectRef.current) {
-            handleTagSelectRef.current(tag.parentTag, group)
-          }
-        }
-        popoverContextRef.current.openFolder(
-          baseFolder.id,
-          tag.display,
-          undefined,
-          selectionCallback
-        )
       },
       navigateBack: () => {
-        const baseFolder = baseFolderRef.current
-        if (!baseFolder || !popoverContextRef.current) return false
         if (nestedPath.length === 0) return false
-
-        const newPath = nestedPath.slice(0, -1)
-        setNestedPath(newPath)
-
-        if (newPath.length === 0) {
-          const selectionCallback = () => {
-            if (baseFolder.baseTag.parentTag && handleTagSelectRef.current) {
-              handleTagSelectRef.current(baseFolder.baseTag.parentTag, baseFolder.group)
-            }
-          }
-          popoverContextRef.current.openFolder(
-            baseFolder.id,
-            baseFolder.title,
-            undefined,
-            selectionCallback
-          )
-        } else {
-          const parentTag = newPath[newPath.length - 1]
-          const selectionCallback = () => {
-            if (parentTag.parentTag && handleTagSelectRef.current) {
-              handleTagSelectRef.current(parentTag.parentTag, baseFolder.group)
-            }
-          }
-          popoverContextRef.current.openFolder(
-            baseFolder.id,
-            parentTag.display,
-            undefined,
-            selectionCallback
-          )
-        }
+        setNestedPath(nestedPath.slice(0, -1))
         return true
-      },
-      registerFolder: (folderId, folderTitle, baseTag, group) => {
-        baseFolderRef.current = { id: folderId, title: folderTitle, baseTag, group }
       },
     }),
     [nestedPath]
@@ -1567,7 +1463,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   useEffect(() => {
     if (!visible) {
       setNestedPath([])
-      baseFolderRef.current = null
     }
   }, [visible])
 
@@ -1612,7 +1507,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   return (
     <NestedNavigationContext.Provider value={nestedNavigationValue}>
       <Popover open={visible} onOpenChange={(open) => !open && onClose?.()} colorScheme='inverted'>
-        <PopoverContextCapture contextRef={popoverContextRef} />
         <PopoverAnchor asChild>
           <div
             className={cn('pointer-events-none', className)}

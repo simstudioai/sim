@@ -173,35 +173,12 @@ export function getEgressAllowedIpRanges(): string | undefined {
   return isHosted ? undefined : env.EGRESS_ALLOWED_IP_RANGES
 }
 
-/**
- * Whether the deprecated `ALLOW_PRIVATE_DATABASE_HOSTS` is set.
- *
- * It stood for a blanket "database and connector tools may reach anything
- * private", so it maps to a policy that vouches for every private address rather
- * than to a range list — a list would silently drop the ranges it never
- * enumerated, CGNAT (`100.64.0.0/10`, where Tailscale lives) among them.
- *
- * Scoped to database hosts, which is all the flag ever governed. Widening it to
- * HTTP destinations would hand every workflow author on an upgrading deployment
- * a route into the internal network they never granted.
- */
-export function isLegacyPrivateDatabaseAccessAllowed(): boolean {
-  return !isHosted && isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)
-}
-
 if (isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)) {
   import('@sim/logger')
     .then(({ createLogger }) => {
-      const logger = createLogger('EnvFlags')
-      if (isHosted) {
-        logger.error(
-          'ALLOW_PRIVATE_DATABASE_HOSTS is set but ignored on hosted environment. Private, reserved, and loopback destinations remain blocked for security.'
-        )
-      } else {
-        logger.warn(
-          'ALLOW_PRIVATE_DATABASE_HOSTS is deprecated. It opens the whole private address space to database and connector tools. Replace it with EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES naming only the destinations you need.'
-        )
-      }
+      createLogger('EnvFlags').error(
+        'ALLOW_PRIVATE_DATABASE_HOSTS was removed and has no effect; allow specific database hostnames with EGRESS_ALLOWED_HOSTS, or a database IP address (including IPv6) with a single-address EGRESS_ALLOWED_IP_RANGES entry'
+      )
     })
     .catch(() => {
       // Fallback during config compilation when logger is unavailable

@@ -72,10 +72,21 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       },
     })
   )
-  const migration = ['0426_file_search_owner_scope.sql', '0428_file_search_dependency_owner.sql']
-    .map((file) =>
-      readFileSync(resolve(process.cwd(), '../../packages/db/migrations', file), 'utf8')
+  const readMigration = (file: string) =>
+    readFileSync(resolve(process.cwd(), '../../packages/db/migrations', file), 'utf8')
+  /** 0468 redefines the file trigger without the retired workspace-queue enqueue. */
+  const currentMarkPending = readMigration('0468_retire_legacy_search_and_contracts.sql')
+    .split('--> statement-breakpoint')
+    .find((statement) =>
+      statement.includes('CREATE OR REPLACE FUNCTION workspace_file_search_mark_pending()')
     )
+  if (!currentMarkPending)
+    throw new Error('0468 no longer defines workspace_file_search_mark_pending')
+  const migration = [
+    readMigration('0426_file_search_owner_scope.sql'),
+    readMigration('0428_file_search_dependency_owner.sql'),
+    currentMarkPending,
+  ]
     .join('\n--> statement-breakpoint\n')
     .replaceAll('"public".', `"${schemaName}".`)
   const ownerIndexes = [
@@ -136,10 +147,6 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       dispatched_at timestamp, handoff_expires_at timestamp,
       updated_at timestamp NOT NULL DEFAULT now()
     )`
-    await connection`CREATE TABLE workspace_file_search_dispatch_queue (
-      workspace_id text PRIMARY KEY, enqueued_at timestamp NOT NULL,
-      updated_at timestamp NOT NULL, last_dispatched_at timestamp
-    )`
     await connection`CREATE INDEX workspace_files_workspace_active_keyset_idx
       ON workspace_files (workspace_id, id)
       WHERE deleted_at IS NULL AND context = 'workspace' AND workspace_id IS NOT NULL`
@@ -165,7 +172,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
   beforeEach(async () => {
     mocks.batchTrigger.mockReset()
     await connection`DROP TRIGGER IF EXISTS slow_backfill ON workspace_file_search_backfill`
-    await connection`TRUNCATE workspace_files, workspace_file_search_revision, workspace_file_search_dispatch_queue, file_search_dispatch_queue, workspace_file_search_build, workspace_file_search_chunk CASCADE`
+    await connection`TRUNCATE workspace_files, workspace_file_search_revision, file_search_dispatch_queue, workspace_file_search_build, workspace_file_search_chunk CASCADE`
     await connection`INSERT INTO workspace_file_search_backfill (id, updated_at)
       VALUES ('file-search-owners-v3', '2026-09-16 00:00:00')
       ON CONFLICT (id) DO UPDATE SET updated_at = EXCLUDED.updated_at, completed_at = NULL,

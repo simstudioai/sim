@@ -20,10 +20,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { copilotChatAbortContract } from '@/lib/api/contracts/copilot'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import {
   addMothershipChatResourceContract,
+  mothershipChatAbortContract,
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
@@ -3939,7 +3939,7 @@ export function useChat(
             } else {
               const predecessor = queuedSendHandoff?.supersededStreamId
               if (!predecessor) throw new Error('The previous response could not be identified.')
-              const stopped = await requestJson(copilotChatAbortContract, {
+              const stopped = await requestJson(mothershipChatAbortContract, {
                 keepalive: true,
                 signal: createTimeoutSignal(STOP_REQUEST_TIMEOUT_MS),
                 headers: {},
@@ -4894,7 +4894,7 @@ export function useChat(
           let abortSettled = false
           const postAbortRequest = async (chatId?: string): Promise<boolean> => {
             if (!sid) return true
-            const payload = await requestJson(copilotChatAbortContract, {
+            const payload = await requestJson(mothershipChatAbortContract, {
               keepalive: true,
               signal: createTimeoutSignal(STOP_REQUEST_TIMEOUT_MS),
               headers: {

@@ -131,7 +131,7 @@ export const env = createEnv({
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
     EMAIL_PASSWORD_SIGNUP_ENABLED:         z.boolean().optional().default(true),   // Enable email/password authentication (server-side enforcement)
     DISABLE_AUTH:                          z.boolean().optional(),                 // Bypass authentication entirely (self-hosted only, creates anonymous session)
-    ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Deprecated alias for the egress allowlist, kept so existing self-hosted deployments keep working. Equivalent to allowing every private, reserved, and loopback destination. Prefer EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES, which name specific destinations.
+    ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Removed; read only to log a startup error that it has no effect. Use EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES.
     EGRESS_ALLOWED_HOSTS:                  z.string().optional(),                  // Comma-separated hostnames outbound requests may reach on a private network, leading wildcard allowed (e.g. "host.docker.internal,*.svc.cluster.local"). Self-hosted only; ignored on the hosted platform. Replaces ALLOW_PRIVATE_DATABASE_HOSTS.
     EGRESS_ALLOWED_IP_RANGES:              z.string().optional(),                  // Comma-separated CIDRs or IPs outbound requests may reach on a private network (e.g. "10.0.0.0/8,192.168.65.254/32"). Self-hosted only; never lifts the cloud-metadata block.
     DOMAIN_VERIFICATION_NAMESERVERS:       z.string().optional(),                  // Comma-separated nameserver IPs for the domain-verification TXT lookup (e.g. "10.0.0.2"). Defaults to 1.1.1.1 and 8.8.8.8; set it where outbound DNS is restricted to an internal resolver.
@@ -757,7 +757,6 @@ export const env = createEnv({
     NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: z.string().optional(),              // Hide Bedrock credential fields when deployment uses AWS default credential chain (IAM roles, instance profiles, ECS task roles, IRSA)
     NEXT_PUBLIC_AZURE_CONFIGURED:          z.string().optional(),              // Hide Azure credential fields when endpoint/key/version are pre-configured server-side
     NEXT_PUBLIC_COHERE_CONFIGURED:         z.string().optional(),              // Hide Cohere API key field on Knowledge block when COHERE_API_KEY is pre-configured server-side
-    NEXT_PUBLIC_ENABLE_PLAYGROUND:         z.string().optional(),                  // Enable component playground at /playground
 
     // Feature Flags
     NEXT_PUBLIC_ENTERPRISE_ENABLED:        z.boolean().optional(),                   // Client twin of ENTERPRISE_ENABLED — set both together
@@ -817,7 +816,6 @@ export const env = createEnv({
     NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: process.env.NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS,
     NEXT_PUBLIC_AZURE_CONFIGURED: process.env.NEXT_PUBLIC_AZURE_CONFIGURED,
     NEXT_PUBLIC_COHERE_CONFIGURED: process.env.NEXT_PUBLIC_COHERE_CONFIGURED,
-    NEXT_PUBLIC_ENABLE_PLAYGROUND: process.env.NEXT_PUBLIC_ENABLE_PLAYGROUND,
     NEXT_PUBLIC_POSTHOG_ENABLED: process.env.NEXT_PUBLIC_POSTHOG_ENABLED,
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NODE_ENV: process.env.NODE_ENV,

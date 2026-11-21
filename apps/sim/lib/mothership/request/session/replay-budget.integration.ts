@@ -172,7 +172,7 @@ import {
   type PendingFileIntent,
   storeFileIntent,
 } from '@/lib/mothership/tools/server/files/intent-store'
-import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
+import { GET as streamGET } from '@/app/api/mothership/chat/stream/route'
 import { GET as mothershipChatGET } from '@/app/api/mothership/chats/[chatId]/route'
 
 const MB = 1024 * 1024
@@ -619,7 +619,9 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     expect(await redis().get(chatStreamLockKey(chatId))).toBeNull()
 
     const reconnect = await streamGET(
-      new NextRequest(`http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=0`),
+      new NextRequest(
+        `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&after=0`
+      ),
       { params: Promise.resolve({}) }
     )
     const replayed = dataFrames(await reconnect.text())
@@ -834,7 +836,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
         await (
           await streamGET(
             new NextRequest(
-              `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=${after}`
+              `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&after=${after}`
             ),
             { params: Promise.resolve({}) }
           )
@@ -944,7 +946,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
   const resume = async (streamId: string, query: string) =>
     streamGET(
       new NextRequest(
-        `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&${query}`
+        `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&${query}`
       ),
       { params: Promise.resolve({}) }
     )

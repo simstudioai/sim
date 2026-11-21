@@ -2,7 +2,7 @@
  * Default `onOpenAutoFocus` handler for emcn modals.
  *
  * Radix's native behavior focuses the first focusable descendant — usually the close
- * button in `ModalHeader`. We instead focus the first visible text-entry control
+ * button in the modal header. We instead focus the first visible text-entry control
  * (input/textarea/contenteditable) inside the dialog, with the caret at the end.
  *
  * If no such control exists, we let Radix's default behavior run by not calling

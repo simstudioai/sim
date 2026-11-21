@@ -131,7 +131,7 @@ import {
 } from '@/lib/mothership/request/go/tool-call-identity'
 import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
-import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
+import { GET as streamGET } from '@/app/api/mothership/chat/stream/route'
 
 const ownerId = generateId()
 const userId = generateId()
@@ -457,7 +457,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
     const [reconnect] = await Promise.all([
       streamGET(
         new NextRequest(
-          `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=0`
+          `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&after=0`
         ),
         { params: Promise.resolve({}) }
       ),

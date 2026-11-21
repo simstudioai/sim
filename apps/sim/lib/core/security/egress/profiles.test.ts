@@ -111,21 +111,6 @@ describe('the hosted platform ignores every softening', () => {
   })
 })
 
-describe('the deprecated ALLOW_PRIVATE_DATABASE_HOSTS', () => {
-  it('reaches database hosts only', () => {
-    envFlagsMock.legacyPrivateDatabaseAccess = true
-    expect(decide('databaseHost', 'https://pg.corp/', '10.4.2.9').allowed).toBe(true)
-    for (const profile of ['configuredEndpoint', 'selfHostedService', 'requestTarget'] as const) {
-      expect(decide(profile, 'https://pg.corp/', '10.4.2.9').allowed).toBe(false)
-    }
-  })
-
-  it('still cannot reach a metadata endpoint', () => {
-    envFlagsMock.legacyPrivateDatabaseAccess = true
-    expect(decide('databaseHost', 'https://pg.corp/', '169.254.169.254').allowed).toBe(false)
-  })
-})
-
 describe('an unrecognized profile falls back to the strictest one', () => {
   it('refuses what contentFetch refuses', () => {
     envFlagsMock.egressAllowedIpRanges = '10.0.0.0/8'

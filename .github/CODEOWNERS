@@ -5,7 +5,6 @@
 /apps/sim/app/api/mothership/chat/ @simstudioai/mothership
 /apps/sim/app/api/mothership/chats/ @simstudioai/mothership
 /apps/sim/app/api/mothership/execute/ @simstudioai/mothership
-/apps/sim/app/api/v1/copilot/chat/ @simstudioai/mothership
 
 # Server-side stream orchestration, persistence, and protocol.
 /apps/sim/lib/copilot/chat/ @simstudioai/mothership

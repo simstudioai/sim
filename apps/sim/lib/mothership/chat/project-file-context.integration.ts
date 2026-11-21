@@ -29,10 +29,9 @@ import { type MothershipResource, sanitizeChatResources } from '@/lib/mothership
 import { executeTool, registerHandler } from '@/lib/mothership/tool-executor/executor'
 import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
 import {
-  POST as addCopilotResource,
-  DELETE as removeCopilotResource,
-} from '@/app/api/copilot/chat/resources/route'
-import { DELETE as removeMothershipResource } from '@/app/api/mothership/chat/resources/route'
+  POST as addMothershipResource,
+  DELETE as removeMothershipResource,
+} from '@/app/api/mothership/chat/resources/route'
 import { GET as readMothershipChat } from '@/app/api/mothership/chats/[chatId]/route'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -492,7 +491,7 @@ describe('canonical file panel ownership compatibility', () => {
   )
 
   identityCheck(
-    'rejects conflicting or unsupported file removal owners at both HTTP route boundaries',
+    'rejects conflicting or unsupported file removal owners at the HTTP route boundary',
     async () => {
       const f = await fixture()
       authMockFns.mockGetSession.mockResolvedValue({
@@ -509,37 +508,29 @@ describe('canonical file panel ownership compatibility', () => {
         .update(copilotChats)
         .set({ resources: [resource] })
         .where(eq(copilotChats.id, f.chatId))
-      for (const [path, handler] of [
-        ['/api/copilot/chat/resources', removeCopilotResource],
-        ['/api/mothership/chat/resources', removeMothershipResource],
-      ] as const) {
-        for (const address of [
-          { owner: f.owner, workspaceId: f.workspaceId },
-          {
-            owner: { entityType: 'workspace', entityId: generateId() },
-            workspaceId: f.workspaceId,
-          },
-          { owner: { entityType: 'organization', entityId: generateId() } },
-          { owner: f.owner, resourceType: 'table' },
-        ]) {
-          const response = await handler(
-            createMockRequest({
-              method: 'DELETE',
-              url: `http://localhost${path}`,
-              body: {
-                chatId: f.chatId,
-                resourceType: 'file',
-                resourceId: f.fileId,
-                ...address,
-              },
-            }),
-            undefined
-          )
-          expect(
-            response.status,
-            JSON.stringify({ path, address, body: await response.json() })
-          ).toBe(400)
-        }
+      for (const address of [
+        { owner: f.owner, workspaceId: f.workspaceId },
+        {
+          owner: { entityType: 'workspace', entityId: generateId() },
+          workspaceId: f.workspaceId,
+        },
+        { owner: { entityType: 'organization', entityId: generateId() } },
+        { owner: f.owner, resourceType: 'table' },
+      ]) {
+        const response = await removeMothershipResource(
+          createMockRequest({
+            method: 'DELETE',
+            url: 'http://localhost/api/mothership/chat/resources',
+            body: {
+              chatId: f.chatId,
+              resourceType: 'file',
+              resourceId: f.fileId,
+              ...address,
+            },
+          }),
+          undefined
+        )
+        expect(response.status, JSON.stringify({ address, body: await response.json() })).toBe(400)
       }
       const [stored] = await db
         .select({ resources: copilotChats.resources })
@@ -807,10 +798,10 @@ describe('legacy browser file address compatibility', () => {
         { type: 'filefolder', id: folderId, title: 'Project folder', owner: f.owner },
       ]
       for (const resource of resources) {
-        const response = await addCopilotResource(
+        const response = await addMothershipResource(
           createMockRequest({
             method: 'POST',
-            url: 'http://localhost/api/copilot/chat/resources',
+            url: 'http://localhost/api/mothership/chat/resources',
             body: { chatId: f.chatId, resource },
           }),
           undefined
@@ -850,10 +841,10 @@ describe('legacy browser file address compatibility', () => {
         .where(eq(copilotChats.id, f.chatId))
       expect(stored.resources).toEqual([resources[0]])
 
-      const conflicting = await addCopilotResource(
+      const conflicting = await addMothershipResource(
         createMockRequest({
           method: 'POST',
-          url: 'http://localhost/api/copilot/chat/resources',
+          url: 'http://localhost/api/mothership/chat/resources',
           body: { chatId: f.chatId, resource: { ...resources[1], workspaceId: f.workspaceId } },
         }),
         undefined
@@ -914,10 +905,10 @@ describe('legacy browser file address compatibility', () => {
       expect(history.status).toBe(200)
       const historyBody = toRecord(await history.json())
       expect(toRecord(historyBody.chat).resources).toEqual(expectedWire)
-      const mutation = await addCopilotResource(
+      const mutation = await addMothershipResource(
         createMockRequest({
           method: 'POST',
-          url: 'http://localhost/api/copilot/chat/resources',
+          url: 'http://localhost/api/mothership/chat/resources',
           body: { chatId: f.chatId, resource: workspaceFile },
         }),
         undefined

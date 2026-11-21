@@ -32,7 +32,7 @@ vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
 import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
-import { POST } from '@/app/api/copilot/chat/stop/route'
+import { POST } from '@/app/api/mothership/chat/stop/route'
 
 const mockGetAccessibleChat = mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatAuth
 const mockAppendCopilotChatMessages = mothershipChatMessagesMockFns.mockAppendCopilotChatMessages
@@ -46,7 +46,7 @@ mothershipAsyncRunsMockFns.mockGetLatestRunForStream.mockResolvedValue({
 const stopRequest = (request: NextRequest) => POST(request, undefined)
 
 function createRequest(body: Record<string, unknown>) {
-  return new NextRequest('http://localhost:3000/api/copilot/chat/stop', {
+  return new NextRequest('http://localhost:3000/api/mothership/chat/stop', {
     method: 'POST',
     body: JSON.stringify(body),
     headers: { 'Content-Type': 'application/json' },
@@ -66,7 +66,7 @@ function mockReads(opts: {
   dbChainMockFns.limit.mockResolvedValueOnce(opts.last ? [opts.last] : [])
 }
 
-describe('copilot chat stop route', () => {
+describe('mothership chat stop route', () => {
   beforeEach(() => {
     // Drain the once-queue (clearAllMocks/resetDbChainMock don't), then restore defaults.
     dbChainMockFns.limit.mockReset()

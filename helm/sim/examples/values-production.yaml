@@ -1,15 +1,14 @@
 # values-production.yaml
 #
 # When to use: generic production deployment on any cluster. Enables HA
-# (replicaCount > 1, PDB), NetworkPolicy, HPA, ServiceMonitor, and
-# PSS-restricted security defaults.
+# (replicaCount > 1, PDB), NetworkPolicy, HPA, and PSS-restricted security
+# defaults.
 #
 # Prerequisites:
 #   - A premium StorageClass with reclaimPolicy: Retain
 #   - cert-manager (for TLS) or pre-provisioned certs
 #   - ingress-nginx (or equivalent) for ingress
 #   - metrics-server in the cluster (HPA)
-#   - (recommended) Prometheus Operator for ServiceMonitor
 #   - (recommended) External Secrets Operator — see values-external-secrets.yaml
 #
 # Install:
@@ -216,32 +215,9 @@ podDisruptionBudget:
   maxUnavailable: 1  
   unhealthyPodEvictionPolicy: AlwaysAllow 
 
-# Monitoring integration with Prometheus
-monitoring:
-  serviceMonitor:
-    enabled: true
-    labels:
-      monitoring: "prometheus"
-    interval: 15s
-    scrapeTimeout: 10s
-
 # Network policies (restricts pod-to-pod communication for security)
 networkPolicy:
   enabled: true
-
-# Shared storage for data sharing between pods (enterprise feature)
-sharedStorage:
-  enabled: true
-  storageClass: "managed-csi-premium"
-  volumes:
-    - name: output-share
-      size: 100Gi
-      accessModes:
-        - ReadWriteMany
-    - name: model-share
-      size: 200Gi
-      accessModes:
-        - ReadWriteMany
 
 # Telemetry and observability (comprehensive monitoring and tracing)
 telemetry:

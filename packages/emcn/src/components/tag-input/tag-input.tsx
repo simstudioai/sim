@@ -3,9 +3,9 @@
  *
  * @example
  * ```tsx
- * import { TagInput, type TagItem } from '../../index'
+ * import { TagInput } from '@sim/emcn'
  *
- * const [items, setItems] = useState<TagItem[]>([])
+ * const [items, setItems] = useState<{ value: string; isValid: boolean }[]>([])
  *
  * <TagInput
  *   items={items}

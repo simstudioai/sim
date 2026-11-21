@@ -21,7 +21,6 @@ interface EnvFlagsMockState {
   isAuthDisabled: boolean
   egressAllowedHosts: string | undefined
   egressAllowedIpRanges: string | undefined
-  legacyPrivateDatabaseAccess: boolean
   isRegistrationDisabled: boolean
   isEmailPasswordEnabled: boolean
   isSignupMxValidationEnabled: boolean
@@ -73,7 +72,6 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isAuthDisabled: false,
   egressAllowedHosts: undefined,
   egressAllowedIpRanges: undefined,
-  legacyPrivateDatabaseAccess: false,
   isRegistrationDisabled: false,
   isEmailPasswordEnabled: true,
   isSignupMxValidationEnabled: false,
@@ -139,9 +137,6 @@ export const envFlagsMockFns = {
   getEgressAllowedIpRanges: vi.fn<() => string | undefined>(() =>
     envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedIpRanges
   ),
-  isLegacyPrivateDatabaseAccessAllowed: vi.fn<() => boolean>(
-    () => !envFlagsState.isHosted && envFlagsState.legacyPrivateDatabaseAccess
-  ),
   getAllowedIntegrationsFromEnv: vi.fn<() => string[] | null>(() => null),
   getPreviewBlocksFromEnv: vi.fn<() => string[]>(() => []),
   getBlacklistedProvidersFromEnv: vi.fn<() => string[]>(() => []),
@@ -186,9 +181,6 @@ export function resetEnvFlagsMock(): void {
     .mockImplementation(() =>
       envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedIpRanges
     )
-  envFlagsMockFns.isLegacyPrivateDatabaseAccessAllowed
-    .mockReset()
-    .mockImplementation(() => !envFlagsState.isHosted && envFlagsState.legacyPrivateDatabaseAccess)
 }
 
 /**

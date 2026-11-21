@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { copilotChatStopBodySchema } from '@/lib/api/contracts/copilot'
 import type { PersistedToolState } from '@/lib/api/contracts/copilot-messages'
+import { mothershipChatStopBodySchema } from '@/lib/api/contracts/mothership-chats'
 import { isChatContext } from '@/lib/mothership/chat/context'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
@@ -83,7 +83,7 @@ describe('persisted-message', () => {
         ],
       }
       const persisted = buildPersistedAssistantMessage(result)
-      const stopped = copilotChatStopBodySchema.parse({
+      const stopped = mothershipChatStopBodySchema.parse({
         chatId: 'chat-1',
         streamId: 'stream-1',
         content: '',
