@@ -16,6 +16,7 @@
  * directory never read) may only gain columns and rows into an empty table; any other change to
  * it is refused (`refuseUnreadAdopt`).
  */
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { setOwn } from '@sim/workflow-code'
 import {
   type BaseColumn,
@@ -811,6 +812,9 @@ function reshapeInput(
   }
 }
 
+/** Tables whose rows version {@link managedRowsMovedSinceBase} reads at once. */
+const ROWS_VERSION_CONCURRENCY = 4
+
 /**
  * The undeclared tables an `--allow-delete` plan may delete whose managed rows were written since
  * the base recorded them (their rows version moved), by id.
@@ -820,15 +824,20 @@ async function managedRowsMovedSinceBase(
   stored: StoredSet<StoredTableState>,
   ctx: PlanContext
 ): Promise<Set<string>> {
-  const moved = new Set<string>()
-  if (!ctx.allowDelete) return moved
-  for (const [key, resource] of stored.bound) {
-    if (desired.has(key)) continue
+  if (!ctx.allowDelete) return new Set()
+  const recorded = [...stored.bound].flatMap(([key, resource]) => {
+    if (desired.has(key)) return []
     const entry = ctx.base?.resources[resourceAddress('table', key)]
-    if (entry?.id !== resource.id || !entry.rows) continue
-    if ((await rowsVersion(ctx, resource.id)) !== entry.rows.version) moved.add(resource.id)
-  }
-  return moved
+    return entry?.id === resource.id && entry.rows
+      ? [{ id: resource.id, version: entry.rows.version }]
+      : []
+  })
+  const versions = await mapWithConcurrency(recorded, ROWS_VERSION_CONCURRENCY, ({ id }) =>
+    rowsVersion(ctx, id)
+  )
+  return new Set(
+    recorded.filter((table, index) => versions[index] !== table.version).map(({ id }) => id)
+  )
 }
 
 export const tableAdapter: KindAdapter<'table', StoredTableState> = {
