@@ -89,6 +89,7 @@ import type {
   PlanContext,
   PlannedChange,
   SourceContext,
+  StoredResource,
   StoredSet,
 } from '@/lib/workspace-source/application/types'
 import { resolveIds } from '@/lib/workspaces/resource-keys'
@@ -96,8 +97,14 @@ import { resolveIds } from '@/lib/workspaces/resource-keys'
 /** Deployed workflows per page while listing them. */
 const LIST_PAGE = 200
 
-/** Deployments a load reads at once. */
+/** Deployments a plan or a get reads at once. */
 const READ_CONCURRENCY = 4
+
+/**
+ * A listed deployed workflow's settings: `null` until read. A load lists deployed workflows only;
+ * a plan reads the settings of those it needs ({@link readNeeded}) and a get those it prints.
+ */
+type ListedDeployment = StoredDeployment | null
 
 /** The base entry field naming the variable a chat password was last set from. */
 const PASSWORD_ENV = 'x-passwordEnv'
@@ -491,7 +498,7 @@ async function planLiveDraft(
 async function planDeployment(
   key: string,
   decl: DeploymentDecl,
-  stored: StoredSet<StoredDeployment>,
+  stored: StoredSet<ListedDeployment>,
   ctx: PlanContext
 ): Promise<DeploymentChange> {
   const change: DeploymentChange = {
@@ -507,7 +514,8 @@ async function planDeployment(
       planned.kind === 'workflow' && planned.key === key
   )
   const creating = workflowChange?.action === 'create'
-  const deployed = stored.bound.get(key)
+  const listed = stored.bound.get(key)
+  const deployed = listed?.state ? { ...listed, state: listed.state } : undefined
   const workflowId =
     deployed?.id ??
     workflowChange?.storedId ??
@@ -837,23 +845,22 @@ function listAllDeployedWorkflows(ctx: SourceContext) {
   })
 }
 
-export const deploymentAdapter: KindAdapter<'deployment', StoredDeployment> = {
+export const deploymentAdapter: KindAdapter<'deployment', ListedDeployment> = {
   codec: deploymentCodec,
 
   async load(ctx, { allocate }) {
     const workflows = await listDeployedWorkflows(ctx)
-    const records = await mapWithConcurrency(workflows, READ_CONCURRENCY, async (workflow) => {
-      const state = await readDeployment(ctx, workflow.id)
-      return state ? [{ id: workflow.id, name: workflow.name, state }] : []
-    })
-    return bindStored(ctx, 'workflow', records.flat(), { allocate })
+    const records = workflows.map(({ id, name }) => ({ id, name, state: null }))
+    return bindStored<ListedDeployment>(ctx, 'workflow', records, { allocate })
   },
 
-  async plan(desired, stored, ctx) {
+  async plan(desired, listed, ctx) {
+    const stored = await readNeeded(listed, desired, ctx)
     const changes: DeploymentChange[] = []
     for (const [key, decl] of desired) changes.push(await planDeployment(key, decl, stored, ctx))
     const undeclared = planUndeclared('deployment', desired, stored, ctx, {
-      fingerprint: (record, base) => storedFingerprint(record.state, passwordEnvOf(base)),
+      fingerprint: (record, base) =>
+        record.state ? storedFingerprint(record.state, passwordEnvOf(base)) : '',
       detail: (record, base) => ({
         workflowId: record.id,
         deploy: false,
@@ -866,7 +873,7 @@ export const deploymentAdapter: KindAdapter<'deployment', StoredDeployment> = {
       const refused = change.diagnostics.find(
         (finding) => finding.code === 'E_APPLY_DELETE_NOT_ALLOWED'
       )
-      if (!record || (change.action !== 'delete' && !refused)) continue
+      if (!record?.state || (change.action !== 'delete' && !refused)) continue
       const counts = await stopsOnUndeploy(ctx, record.id, record.state)
       if (change.destructive) change.destructive = { what: 'deployment', counts }
       if (refused) {
@@ -1005,24 +1012,62 @@ export const deploymentAdapter: KindAdapter<'deployment', StoredDeployment> = {
     }
   },
 
-  async read(stored) {
-    const { state } = stored
-    // A draft that differs reads as pinned, so applying what a get wrote never publishes it.
-    const decl = declOf(state, { live: state.needsRedeployment ? 'pinned' : 'draft' })
-    if (!decl) {
-      throw new OrchestrationError(
-        'validation',
-        state.chat?.authType === null
-          ? 'Its chat gates access in a way source cannot name (public, password, emails or SSO).'
-          : 'Its chat answers with a block the draft no longer has, which source cannot name.'
+  read: readListed,
+
+  async readMany(stored, ctx) {
+    const reads = await mapWithConcurrency(stored, READ_CONCURRENCY, async (resource) => {
+      const outcome = await readListed(resource, ctx).then(
+        (read) => ({ read }),
+        (error: unknown) => ({ error })
       )
-    }
-    return {
-      text: deploymentCodec.print(stored.key, decl).text,
-      blobs: [],
-      base: baseEntry(stored.id, state, undefined),
-    }
+      return [resource.key, outcome] as const
+    })
+    return new Map(reads)
   },
+}
+
+/**
+ * The listed deployments a plan reads the settings of: those the directory declares and those the
+ * base records, which a plan may update, adopt or undeploy. The rest stay unread (`null`): the plan
+ * only says they are kept. A workflow undeployed since the listing drops out, as if never listed.
+ */
+async function readNeeded(
+  listed: StoredSet<ListedDeployment>,
+  desired: ReadonlyMap<string, unknown>,
+  ctx: PlanContext
+): Promise<StoredSet<ListedDeployment>> {
+  const bound = await mapWithConcurrency(
+    [...listed.bound],
+    READ_CONCURRENCY,
+    async ([key, record]) => {
+      const recorded = ctx.base?.resources[resourceAddress('deployment', key)]?.id === record.id
+      if (!desired.has(key) && !recorded) return [[key, record] as const]
+      const state = await readDeployment(ctx, record.id)
+      return state ? [[key, { ...record, state }] as const] : []
+    }
+  )
+  return { bound: new Map(bound.flat()), unbound: listed.unbound }
+}
+
+/** A listed deployment as source, its settings read now. */
+async function readListed(stored: StoredResource<ListedDeployment>, ctx: SourceContext) {
+  const state = await readDeployment(ctx, stored.id)
+  if (!state) throw new OrchestrationError('not_found', 'The workflow is no longer deployed.')
+  // A draft that differs reads as pinned, so applying what a get wrote never publishes it.
+  const decl = declOf(state, { live: state.needsRedeployment ? 'pinned' : 'draft' })
+  if (!decl) {
+    throw new OrchestrationError(
+      'validation',
+      state.chat?.authType === null
+        ? 'Its chat gates access in a way source cannot name (public, password, emails or SSO).'
+        : 'Its chat answers with a block the draft no longer has, which source cannot name.'
+    )
+  }
+  return {
+    text: deploymentCodec.print(stored.key, decl).text,
+    blobs: [],
+    base: baseEntry(stored.id, state, undefined),
+  }
 }
 
 /**
