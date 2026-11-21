@@ -30,8 +30,9 @@ ${loopRows([
   ['sim workflows source apply --dir ./wf --dry-run', 'the plan; nothing is written'],
   ['sim workflows source apply --dir ./wf --yes', 'save the draft'],
 ])}
-A new workflow: \`sim workflows source create --dir ./new\` writes a starter; edit and check it,
-then \`create --dir ./new --yes\` creates the workflow, and the loop above goes on from there.
+A new workflow: \`sim workflows source create --dir ./new --workspace <workspaceId>\` writes a
+starter that records its workspace; edit and check it, then \`create --dir ./new --yes\` creates the
+workflow there, and the loop above goes on from there.
 
 Flags the loop needs: --allow-delete (apply: an edit that removes a block or variable is refused
 without it), --deploy (apply, create: also deploy the saved draft), --force (get: replace another
