@@ -115,7 +115,7 @@ export interface MothershipStreamV1TextPayload extends StreamTextPosition {
 
 export interface MothershipStreamV1ToolCallDescriptor extends StreamToolReplay, StreamToolDeadline {
   activityDescription?: string;
-  arguments?: MothershipStreamV1AdditionalPropertiesMap;
+  arguments?: Record<string, unknown>;
   execName?: string;
   executor: MothershipStreamV1ToolExecutor;
   mode: MothershipStreamV1ToolMode;
@@ -125,9 +125,6 @@ export interface MothershipStreamV1ToolCallDescriptor extends StreamToolReplay, 
   toolCallId: string;
   toolName: string;
   ui?: MothershipStreamV1ToolUI;
-}
-export interface MothershipStreamV1AdditionalPropertiesMap {
-  [k: string]: unknown;
 }
 export interface MothershipStreamV1ToolUI {
   clientExecutable?: boolean;
@@ -155,7 +152,6 @@ export interface MothershipStreamV1ToolResultPayload extends StreamToolReplay {
   toolName: string;
 }
 
-/** A subagent lane opens (`data: {name}`) or closes (`data: {error}` when it failed). */
 /** A subagent lane's display title (on start) or failure (on end). */
 export interface MothershipStreamV1SubagentSpanData {
   name?: string;
