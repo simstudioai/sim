@@ -886,7 +886,7 @@ export type V2ListToolsQuery = z.output<typeof v2ListToolsQuerySchema>
 
 export const v2GetBlockParamsSchema = z.object({
   blockId: catalogIdSchema.describe(
-    'Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID.'
+    'Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. A legacy or deprecated block (such as `starter`) is readable by its exact ID, and its description opens with the block that replaces it.'
   ),
 })
 export type V2GetBlockParams = z.output<typeof v2GetBlockParamsSchema>

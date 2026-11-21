@@ -6360,12 +6360,12 @@
             "name": "blockId",
             "in": "path",
             "required": true,
-            "description": "Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID.",
+            "description": "Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. A legacy or deprecated block (such as `starter`) is readable by its exact ID, and its description opens with the block that replaces it.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
-              "description": "Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID."
+              "description": "Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. A legacy or deprecated block (such as `starter`) is readable by its exact ID, and its description opens with the block that replaces it."
             }
           },
           {

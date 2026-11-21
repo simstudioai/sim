@@ -351,6 +351,49 @@ describe('catalog block and tool reads', () => {
     expect(included.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
   })
 
+  it('reads a sunset block hidden from the toolbar by its id, naming its replacement first', async () => {
+    const starter = block({
+      type: 'starter',
+      description: 'Start the workflow.',
+      hideFromToolbar: true,
+      sunset: { status: 'legacy', replacedBy: 'start_trigger' },
+    })
+    mocks.getAllBlocks.mockReturnValue([slackBlock, starter])
+    mocks.getBlock.mockImplementation((type: string) =>
+      [slackBlock, starter, confluenceV1].find((entry) => entry.type === type)
+    )
+
+    const { block: detail } = await getCatalogBlock.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, blockId: 'starter' },
+    })
+    expect(detail.id).toBe('starter')
+    expect(detail.description).toBe('Legacy — replaced by start_trigger. Start the workflow.')
+
+    // A superseded version hidden from the toolbar with no sunset stays as unknown as before.
+    await expect(
+      getCatalogBlock.execute({
+        principal: session,
+        input: { workspaceId: WORKSPACE_ID, blockId: 'confluence' },
+      })
+    ).resolves.toMatchObject({ block: { id: 'confluence_v2' } })
+    mocks.getLatestBlockForViewer.mockReturnValue(undefined)
+    await expect(
+      getCatalogBlock.execute({
+        principal: session,
+        input: { workspaceId: WORKSPACE_ID, blockId: 'confluence' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found', message: 'Block not found' })
+
+    setVisibility({ ...NOTHING_GATED, disabled: new Set(['starter']) })
+    await expect(
+      getCatalogBlock.execute({
+        principal: session,
+        input: { workspaceId: WORKSPACE_ID, blockId: 'starter' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found', message: 'Block not found' })
+  })
+
   it('drops a kill-switched block from the list and 404s its detail', async () => {
     setVisibility({
       revealed: new Set<string>(),
