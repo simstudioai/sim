@@ -138,14 +138,30 @@ describe('withSourceDirLock', () => {
     expect(await withSourceDirLock(dir, async () => 'ran')).toBe('ran')
   })
 
-  it('takes over a lock whose command died before recording its owner', async () => {
+  it.each([
+    ['no owner file', undefined],
+    ['an empty owner file', ''],
+    ['an owner file cut short', '{"pid": 12'],
+  ])('takes over a lock whose command died before recording its owner: %s', async (_, owner) => {
     const lock = join(dir, SOURCE_DIR_LOCK)
     mkdirSync(lock, { recursive: true })
+    if (owner !== undefined) writeFileSync(join(lock, 'owner.json'), owner)
     const twoMinutesAgo = Date.now() / 1000 - 120
     utimesSync(lock, twoMinutesAgo, twoMinutesAgo)
 
     expect(await withSourceDirLock(dir, async () => 'ran')).toBe('ran')
     expect(existsSync(lock)).toBe(false)
+  })
+
+  it('refuses as busy a fresh lock whose owner is still being written', async () => {
+    const lock = join(dir, SOURCE_DIR_LOCK)
+    mkdirSync(lock, { recursive: true })
+    writeFileSync(join(lock, 'owner.json'), '')
+
+    await expect(withSourceDirLock(dir, async () => 'ran')).rejects.toMatchObject({
+      code: 'SOURCE_DIR_BUSY',
+    })
+    expect(existsSync(join(lock, 'owner.json'))).toBe(true)
   })
 
   it('a failed command on a missing nested directory leaves none of the folders the lock created', async () => {
