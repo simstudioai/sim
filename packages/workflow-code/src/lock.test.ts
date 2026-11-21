@@ -217,6 +217,9 @@ describe('parseWorkflowLock', () => {
     for (let i = 0; i <= SOURCE_LIMITS.maxVariables; i += 1) variables[`v${i}`] = ''
     expect(codesFor({ version: 1, blocks, variables: {} })).toEqual(['E_LOCK_SHAPE /blocks'])
     expect(codesFor({ version: 1, blocks: {}, variables })).toEqual(['E_LOCK_SHAPE /variables'])
+    // An oversized variables record is refused without walking the malformed blocks beside it.
+    const atCap = Object.fromEntries(Object.entries(blocks).slice(0, SOURCE_LIMITS.maxBlocks))
+    expect(codesFor({ version: 1, blocks: atCap, variables })).toEqual(['E_LOCK_SHAPE /variables'])
   })
 
   it('rejects branch keys that are not identifiers', () => {

@@ -498,7 +498,6 @@ class LockReader {
   }
 
   variables(raw: unknown): Record<VarKey, string> {
-    if (this.overCap(raw, SOURCE_LIMITS.maxVariables, ['variables'])) return {}
     const variables = this.idRecord(raw, ['variables'])
     for (const key of Object.keys(variables)) {
       if (!key || normalizeWorkflowBlockName(key) !== key) {
@@ -630,11 +629,16 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
     return { diagnostics: reader.diagnostics }
   }
 
+  // Both counts come before either record is read, so an oversized one never costs a walk of the other.
+  const blocksOverCap = reader.overCap(json.blocks, SOURCE_LIMITS.maxBlocks, ['blocks'])
+  const variablesOverCap = reader.overCap(json.variables, SOURCE_LIMITS.maxVariables, ['variables'])
+  if (blocksOverCap || variablesOverCap) return { diagnostics: reader.diagnostics }
+
   const extensions = reader.extensions(json, LOCK_FIELDS, [])
   const blockEntries: Array<[BlockKey, WorkflowLockBlock]> = []
   if (!isRecordLike(json.blocks)) {
     reader.report('E_LOCK_SHAPE', ['blocks'], '"blocks" must be an object.')
-  } else if (!reader.overCap(json.blocks, SOURCE_LIMITS.maxBlocks, ['blocks'])) {
+  } else {
     for (const [key, raw] of Object.entries(json.blocks)) {
       const block = reader.block(key, raw)
       if (block) blockEntries.push([key, block])
