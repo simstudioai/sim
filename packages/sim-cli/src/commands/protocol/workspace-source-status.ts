@@ -221,11 +221,9 @@ function workflowsSentByBase(local: LocalWorkspace, target: string): Set<string>
 }
 
 /** Whether `change` or `finding` is about a workflow folder an apply sends by its base alone. */
-function aboutWorkflowSentByBase(
-  { kind, key }: { kind?: string; key?: string },
-  byBase: ReadonlySet<string>
-): boolean {
-  return kind === 'workflow' && key !== undefined && byBase.has(key)
+function aboutWorkflowSentByBase(item: object, byBase: ReadonlySet<string>): boolean {
+  const { kind, key } = toRecord(item)
+  return kind === 'workflow' && typeof key === 'string' && byBase.has(key)
 }
 
 /**
