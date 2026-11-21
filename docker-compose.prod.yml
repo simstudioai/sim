@@ -98,6 +98,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:3002/health']
       interval: 90s
