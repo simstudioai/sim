@@ -10,6 +10,7 @@ import {
   createInternalResourceConcealmentPolicy,
   createInternalSessionOrExecutorAuth,
   createV2ResourceConcealmentPolicy,
+  extendInternalErrorPolicy,
   type InternalAuthPolicy,
   type InternalErrorPolicy,
   InternalUnauthenticatedError,
@@ -24,7 +25,10 @@ import { apiKeyPrincipal } from '@/lib/api-key/principal'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
-import { renderSourceSlotBusy } from '@/lib/workflows/api/source-slots'
+import {
+  projectInternalSourceSlotBusy,
+  renderSourceSlotBusy,
+} from '@/lib/workflows/api/source-slots'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 import { WorkflowImportError } from '@/lib/workflows/application/import-error'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
@@ -233,11 +237,21 @@ export function createInternalWorkflowErrorPolicy(fallback: string): InternalErr
  * Internal-surface counterparts of {@link v2WorkflowErrorPolicies} for the
  * workflow routes that project plain orchestration errors.
  */
+const concealInternalWorkflowAuthorization = createInternalResourceConcealmentPolicy({
+  base: internalOrchestrationErrorPolicy,
+  notFoundMessage: WORKFLOW_NOT_FOUND_MESSAGE,
+})
+
 export const internalWorkflowErrorPolicies = {
-  concealWorkflowAuthorization: createInternalResourceConcealmentPolicy({
-    base: internalOrchestrationErrorPolicy,
-    notFoundMessage: WORKFLOW_NOT_FOUND_MESSAGE,
-  }),
+  concealWorkflowAuthorization: concealInternalWorkflowAuthorization,
+  /**
+   * The Code tab's source read: concealed as `concealWorkflowAuthorization` does, and refused for
+   * want of a slot with `429` and `Retry-After`.
+   */
+  concealWorkflowSourceRead: extendInternalErrorPolicy(
+    concealInternalWorkflowAuthorization,
+    projectInternalSourceSlotBusy
+  ),
   concealRunAuthorization: createInternalResourceConcealmentPolicy({
     base: internalOrchestrationErrorPolicy,
     notFoundMessage: 'Execution not found',

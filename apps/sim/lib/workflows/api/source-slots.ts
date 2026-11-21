@@ -1,4 +1,6 @@
 import type { NextResponse } from 'next/server'
+import { internalErrorResponse } from '@/lib/api/server/routes'
+import type { JsonErrorResponseDescriptor } from '@/lib/api/server/routes/types'
 import type { ApplicationOperation, AuthorizingUseCase } from '@/lib/core/application'
 import { v2Error } from '@/app/api/v2/lib/response'
 
@@ -68,4 +70,16 @@ export function renderSourceSlotBusy(error: unknown): NextResponse | null {
   return v2Error('RATE_LIMITED', error.message, {
     headers: { 'Retry-After': String(SOURCE_BUSY_RETRY_AFTER_SECONDS) },
   })
+}
+
+/** {@link renderSourceSlotBusy} for an internal route. */
+export function projectInternalSourceSlotBusy(error: unknown): JsonErrorResponseDescriptor | null {
+  if (!(error instanceof SourceSlotBusyError)) return null
+  return internalErrorResponse(
+    429,
+    { error: error.message },
+    {
+      'Retry-After': String(SOURCE_BUSY_RETRY_AFTER_SECONDS),
+    }
+  )
 }
