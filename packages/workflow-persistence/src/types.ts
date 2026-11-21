@@ -1,4 +1,4 @@
-import type { db } from '@sim/db'
+import type { db, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import type * as schema from '@sim/db/schema'
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
@@ -13,6 +13,9 @@ export type DbOrTx =
       typeof schema,
       ExtractTablesWithRelations<typeof schema>
     >
+
+/** A table of a workflow's normalized graph. */
+export type GraphTable = typeof workflowBlocks | typeof workflowEdges | typeof workflowSubflows
 
 export interface NormalizedWorkflowData {
   blocks: Record<string, BlockState>

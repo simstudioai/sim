@@ -11,7 +11,7 @@ import {
 import type { Edge } from '@xyflow/react'
 import { and, asc, eq, getTableColumns, inArray, isNull, type SQLWrapper, sql } from 'drizzle-orm'
 import { clampParallelBatchSize } from './subflow-helpers'
-import type { DbOrTx, NormalizedWorkflowData } from './types'
+import type { DbOrTx, GraphTable, NormalizedWorkflowData } from './types'
 
 const logger = createLogger('WorkflowPersistenceLoad')
 
@@ -180,20 +180,21 @@ export async function loadWorkflowsFromNormalizedTablesRaw(
 }
 
 /**
- * The order a workflow's edge rows load in, which the executor reads for a condition or router
- * edge with no handle: creation order. A save writes its edges together, each a microsecond after
- * the one before, so this is the order the state listed them in; rows written in one statement
- * with one timestamp (older saves, a duplicate) keep the order they were inserted in.
+ * The order a workflow's block, edge or subflow rows load in: creation order. A save stamps the
+ * rows it inserts together a microsecond apart, in the order the state listed them, so this is
+ * that order; rows written in one statement with one timestamp (older saves, a duplicate, a
+ * paste) keep the order they were inserted in, as the unordered index scan before this returned
+ * them. The executor reads it for a condition or router edge with no handle, and the editor for
+ * its node order.
  */
-export function edgeLoadOrder() {
-  return [asc(workflowEdges.createdAt), sql`ctid`] as const
+export function creationOrder(table: GraphTable) {
+  return [asc(table.createdAt), sql`ctid`] as const
 }
 
 /**
  * The block, edge and subflow rows of `workflowIds`: a list, or a query of ids that each graph
- * query embeds as a subquery. Blocks and subflows come in creation order, ties by id, and edges
- * in {@link edgeLoadOrder}, so the assembled graph's order is a fact of the stored rows, not of
- * where an update left them in the heap.
+ * query embeds as a subquery, each in {@link creationOrder}, so the assembled graph's order is a
+ * fact of the stored rows, not of the query plan.
  */
 async function selectGraphRows(tx: DbOrTx, workflowIds: string[] | (() => SQLWrapper)) {
   const ids = () => (typeof workflowIds === 'function' ? workflowIds() : workflowIds)
@@ -205,17 +206,17 @@ async function selectGraphRows(tx: DbOrTx, workflowIds: string[] | (() => SQLWra
       })
       .from(workflowBlocks)
       .where(inArray(workflowBlocks.workflowId, ids()))
-      .orderBy(asc(workflowBlocks.createdAt), asc(workflowBlocks.id)),
+      .orderBy(...creationOrder(workflowBlocks)),
     tx
       .select()
       .from(workflowEdges)
       .where(inArray(workflowEdges.workflowId, ids()))
-      .orderBy(...edgeLoadOrder()),
+      .orderBy(...creationOrder(workflowEdges)),
     tx
       .select()
       .from(workflowSubflows)
       .where(inArray(workflowSubflows.workflowId, ids()))
-      .orderBy(asc(workflowSubflows.createdAt), asc(workflowSubflows.id)),
+      .orderBy(...creationOrder(workflowSubflows)),
   ])
   return { blocks, edges, subflows }
 }
