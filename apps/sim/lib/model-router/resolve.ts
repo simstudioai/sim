@@ -3,6 +3,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isHosted } from '@/lib/core/config/env-flags'
+import type {
+  ModelRouterRequest,
+  ModelRouterResponse,
+  ModelRouterUsage,
+} from '@/lib/mothership/generated/model-router'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
@@ -98,22 +103,6 @@ export interface AutoRoutingSignals {
   mediaKind: AutoMediaKind
   hasResponseFormat: boolean
   approxInputTokens: number
-}
-
-/** Mirrors mothership's model-router-v1 response usage block. */
-interface ModelRouterUsage {
-  model: string
-  inputTokens: number
-  cachedInputTokens: number
-  outputTokens: number
-  cost: number
-}
-
-interface ModelRouterResponse {
-  choice?: string
-  decidedBy?: string
-  usage?: ModelRouterUsage
-  billable?: boolean
 }
 
 export interface AutoRoutingResult {
@@ -219,7 +208,7 @@ async function callModelRouter(
   signals: AutoRoutingSignals,
   ctx: ExecutionContext,
   blockId: string
-): Promise<ModelRouterResponse | null> {
+): Promise<Partial<ModelRouterResponse> | null> {
   const baseURL = await getMothershipBaseURL({ userId: ctx.userId ?? '' })
 
   const res = await fetchGo(`${baseURL}/api/model-router`, {
@@ -244,7 +233,7 @@ async function callModelRouter(
       workflowId: ctx.workflowId,
       blockId,
       executionId: ctx.executionId,
-    }),
+    } satisfies ModelRouterRequest),
     signal: AbortSignal.timeout(MODEL_ROUTER_TIMEOUT_MS),
     spanName: 'sim → go /api/model-router',
     operation: 'model_router',
@@ -254,7 +243,7 @@ async function callModelRouter(
     logger.warn('Model router returned non-OK status', { status: res.status })
     return null
   }
-  return (await res.json().catch(() => null)) as ModelRouterResponse | null
+  return (await res.json().catch(() => null)) as Partial<ModelRouterResponse> | null
 }
 
 /**
