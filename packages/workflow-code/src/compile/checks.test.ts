@@ -450,6 +450,8 @@ describe('unknown builders', () => {
       "const s = slack.fetchEverything('S', {})",
       'slack has: slack.sendMessage, slack.listChannels.',
     ],
+    ["const s = slack.send('S', {})", 'Did you mean slack.sendMessage?'],
+    ["const s = slack.list('S', {})", 'Did you mean slack.listChannels?'],
     ["const h = http.request('H', {})", 'Did you mean api?'],
     ["const f = javascript.run('F', {})", 'Did you mean fn?'],
   ])('%s', (body, hint) => {
