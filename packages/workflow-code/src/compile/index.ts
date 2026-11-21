@@ -560,6 +560,7 @@ function compileEntry(
   if (!ast) return emptyResult(reporter, parsed.sdkMajor)
   checkStorableLiterals(file, text, ast, reporter)
 
+  const storedUnread = input.stored === undefined ? input.storedUnread : undefined
   const ctx: CompileContext = {
     file,
     reporter,
@@ -579,7 +580,11 @@ function compileEntry(
     metaSpans: {},
     knownKeys: input.knownKeys ?? new Set(),
     stored: input.stored,
-    storedUnread: input.stored === undefined ? input.storedUnread : undefined,
+    storedUnread,
+    storedTypes: new Set(Object.values(input.stored?.blocks ?? {}).map((block) => block.type)),
+    storedUnreadIdents: new Set(
+      Object.values(storedUnread?.blocks ?? {}).map((entry) => entry.ident)
+    ),
     envNames: input.envNames,
     envDeclaredIn: input.envDeclaredIn,
     envReferences: new Set(),

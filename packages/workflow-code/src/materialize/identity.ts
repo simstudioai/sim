@@ -15,7 +15,7 @@ import {
   isSimNode,
   type VarKey,
 } from '../model'
-import { deepEqual, getOwn } from '../records'
+import { deepEqual, getOwn, pushTo, strings } from '../records'
 import type { MaterializeHooks } from './context'
 import { settingsIndex } from './settings-index'
 
@@ -359,12 +359,6 @@ interface InferenceState {
 
 type CanonicalEdges = CanonicalWorkflow['edges']
 
-function pushTo<K, V>(map: Map<K, V[]>, key: K, item: V): void {
-  const list = map.get(key)
-  if (list) list.push(item)
-  else map.set(key, [item])
-}
-
 /** Each block's edges, in or out, so a block's neighbourhood reads only its own edges. */
 function edgesByEndpoint(edges: CanonicalEdges): Map<BlockKey, CanonicalEdges> {
   const byKey = new Map<BlockKey, CanonicalEdges>()
@@ -429,15 +423,6 @@ function settingsAgree(
     shared = true
   }
   return shared
-}
-
-/** Every string under `value`, depth first. */
-function* strings(value: unknown): Generator<string> {
-  if (typeof value === 'string') yield value
-  else if (Array.isArray(value)) for (const item of value) yield* strings(item)
-  else if (value !== null && typeof value === 'object') {
-    for (const item of Object.values(value)) yield* strings(item)
-  }
 }
 
 /**

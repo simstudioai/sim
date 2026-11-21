@@ -1,11 +1,10 @@
 import { canonicalJson } from '@sim/utils/object'
 import type { BlockKey, CanonicalBlock } from '../model'
+import { pushTo, strings } from '../records'
 
 /** Whether any string under `value` holds a `<`, the only way a reference can sit in it. */
 function holdsAngle(value: unknown): boolean {
-  if (typeof value === 'string') return value.includes('<')
-  if (Array.isArray(value)) return value.some(holdsAngle)
-  if (value !== null && typeof value === 'object') return Object.values(value).some(holdsAngle)
+  for (const text of strings(value)) if (text.includes('<')) return true
   return false
 }
 
@@ -28,10 +27,7 @@ export function settingsIndex(blocks: ReadonlyArray<[BlockKey, Pick<CanonicalBlo
     holdsAngle(value) ? `<\u0000${id}` : `=\u0000${id}\u0000${canonicalJson(value)}`
   for (const [key, block] of blocks) {
     for (const [id, value] of Object.entries(block.params)) {
-      const bucket = bucketOf(id, value)
-      const equal = byValue.get(bucket)
-      if (equal) equal.push(key)
-      else byValue.set(bucket, [key])
+      pushTo(byValue, bucketOf(id, value), key)
       const held = holders.get(id)
       if (held) held.add(key)
       else holders.set(id, new Set([key]))

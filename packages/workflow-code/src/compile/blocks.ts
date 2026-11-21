@@ -1966,7 +1966,7 @@ function lockBinds(ctx: CompileContext, decl: BlockDecl): boolean {
   return (
     lock !== undefined &&
     (Object.hasOwn(lock.blocks, decl.key) ||
-      Object.values(lock.blocks).some((entry) => entry.ident === decl.ident))
+      (decl.ident !== null && ctx.storedUnreadIdents.has(decl.ident)))
   )
 }
 
@@ -1980,10 +1980,10 @@ function checkUnplaceableType(ctx: CompileContext, decl: BlockDecl): void {
   const { builder } = decl
   if (builder.kind !== 'generic' && builder.kind !== 'catalog') return
   const notAddable = builder.block?.addable === false
-  if (!notAddable && (builder.kind !== 'generic' || builder.block)) return
-  if (lockBinds(ctx, decl)) return
-  const stored = Object.values(ctx.stored?.blocks ?? {})
-  if (stored.some((block) => block.type === builder.type)) return
+  const uncatalogued = builder.kind === 'generic' && !builder.block
+  if (!(notAddable || uncatalogued) || ctx.storedTypes.has(builder.type) || lockBinds(ctx, decl)) {
+    return
+  }
   if (notAddable) {
     ctx.reporter.report(
       'W_TYPE_NOT_ADDABLE',
