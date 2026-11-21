@@ -400,7 +400,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_DUPLICATE_VARIABLE` | Two variables with one key. |
 | `E_VARIABLE_NAME_MISMATCH` | A variable's `name` does not normalize to its key. |
 | `E_INVALID_ENV_NAME` | `env.X` with an invalid name. |
-| `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known); the hint has a did-you-mean, and in a workspace directory points at `secrets.ts`. |
+| `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known); the hint has a did-you-mean. An offline check in a workspace directory knows only the names `secrets.ts` declares, so there the finding says `secrets.ts` does not declare it, and the hint points there. |
 | `W_CHILD_INPUT_UNKNOWN` | A child workflow call's `inputMapping` sets an input the child's Start trigger does not declare (`sim workspaces source check`, with the child in the same directory); the hint names the nearest input. |
 | `W_CHILD_NO_START` | A child workflow call names a workflow of the same directory that has no Start trigger (`sim workspaces source check`). |
 | `E_UNKNOWN_SUBFLOW_PROPERTY` | `p.<prop>` that a loop or parallel does not have. |

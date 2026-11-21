@@ -435,7 +435,7 @@ describe('sim workflows source check', () => {
     expect(process.exitCode).toBe(1)
   })
 
-  it('warns on an env name secrets.ts does not declare', async () => {
+  it('warns on an env name secrets.ts does not declare, without claiming the workspace lacks it', async () => {
     cacheCatalog()
     writeWorkspace()
     const folder = writeWorkflowFolder(
@@ -447,6 +447,8 @@ describe('sim workflows source check', () => {
 
     expect(result()).toMatchObject({ errors: 0, warnings: 1 })
     expect(findingLines()).toContain('W_ENV_UNKNOWN')
+    expect(findingLines()).toContain('secrets.ts does not declare ANTHROPIC_KEY')
+    expect(findingLines()).not.toContain('The workspace has no env variable')
   })
 
   it('lists at most 20 warnings of one code, as a workflow answer does, and counts every one', async () => {
