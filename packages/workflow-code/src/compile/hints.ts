@@ -205,8 +205,8 @@ const VERB_SYNONYMS: ReadonlyArray<readonly string[]> = [
 
 /** `postMessage` → `['post', 'message']`: the leading lowercase verb and the rest, lowercased. */
 function splitVerb(method: string): [string, string] {
-  const match = /^([a-z]+)(.*)$/.exec(method)
-  return match ? [match[1], (match[2] ?? '').toLowerCase()] : ['', method.toLowerCase()]
+  const verb = /^[a-z]*/.exec(method)?.[0] ?? ''
+  return [verb, method.slice(verb.length).toLowerCase()]
 }
 
 /**

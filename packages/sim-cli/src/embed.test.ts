@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
 import { resolveEmbeddedCliCommand, runEmbeddedCli } from './embed'
@@ -6,13 +7,6 @@ const IDENTITY = {
   endpoint: 'https://sim.internal.test',
   apiKey: 'sk-embedded-test',
   workspaceId: 'a2e3ab27-2f9d-4b8a-a2f2-3c47a1b0c9d1',
-}
-
-function jsonResponse(body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  })
 }
 
 describe('runEmbeddedCli', () => {

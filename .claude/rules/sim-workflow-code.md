@@ -134,7 +134,7 @@ Follow `/add-column-type`. The workspace codec reads the column registry
 - the `column.<type>()` helper in `packages/workflow-sdk/src/workspace/table.d.ts`
   (`kinds/table/codec.test.ts` fails until it exists), then regenerate the embedded text
   (`bun packages/workflow-sdk/scripts/generate-embedded-text.ts`);
-- `columnType()` in `packages/workflow-sdk/src/codegen/workspace.ts`, the row type `table('k')`
+- `valueType()` in `packages/workflow-sdk/src/codegen/workspace.ts`, the row type `table('k')`
   gives, which defaults to `string`;
 - a type that owns metadata: `TABLE_COLUMN_METADATA_KEYS` in
   `packages/workspace-code/src/kinds/table.ts` plus the reader and printer there.

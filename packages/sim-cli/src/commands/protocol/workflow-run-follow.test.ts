@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -61,13 +62,6 @@ function _streamResponse(body: ReadableStream<Uint8Array>): Response {
   } as unknown as Response
 }
 
-function jsonResponse(data: Record<string, unknown>): Response {
-  return new Response(JSON.stringify({ data }), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  })
-}
-
 function ndjsonResponse(...events: Array<Record<string, unknown>>): Response {
   return new Response(bodyOf(events.map((event) => `${JSON.stringify(event)}\n`)), {
     status: 200,
@@ -85,11 +79,13 @@ beforeEach(() => {
   requestRaw.mockReset()
   requestRaw.mockImplementation(async () =>
     jsonResponse({
-      runId: 'run-1',
-      workflowId: WORKFLOW_ID,
-      status: 'completed',
-      output: {},
-      error: null,
+      data: {
+        runId: 'run-1',
+        workflowId: WORKFLOW_ID,
+        status: 'completed',
+        output: {},
+        error: null,
+      },
     })
   )
 })

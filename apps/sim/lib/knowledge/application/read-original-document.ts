@@ -14,12 +14,17 @@ import {
 } from '@/lib/knowledge/secret-provenance'
 import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 
 export interface ReadOriginalKnowledgeDocumentInput {
   knowledgeBaseId: string
   documentId: string
   assertedWorkspaceId: string
+  /**
+   * Largest original the read accepts. Defaults to the text-extraction cap, for a caller that
+   * parses the bytes; a raw download raises it up to the stored-document limit.
+   */
   maxBytes?: number
   signal?: AbortSignal
 }
@@ -41,7 +46,11 @@ export const readOriginalKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   }) => resolveCanonicalActiveKnowledgeDocumentContext(input, principal),
   async execute({ input, context, principal }) {
     const maxBytes = input.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES
-    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_TEXT_EXTRACTION_BYTES)
+    if (
+      !Number.isSafeInteger(maxBytes) ||
+      maxBytes < 1 ||
+      maxBytes > MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
+    )
       throw new OrchestrationError('validation', 'Invalid document read byte limit')
     input.signal?.throwIfAborted()
     const doc = context.document

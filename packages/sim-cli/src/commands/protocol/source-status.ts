@@ -7,6 +7,7 @@
 
 import { realpathSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { stripTrailingSlashes } from '@sim/utils/string'
 import type { FileChange, SourceStatus } from '@sim/workspace-code/status'
 import { createTwoFilesPatch, FILE_HEADERS_ONLY } from 'diff'
 import type { OutputFormat } from '../../config/index'
@@ -353,10 +354,7 @@ function realPath(path: string): string {
 function filterForms(filter: string, dir: string): string[] {
   const forms = new Set<string>()
   if (!isAbsolute(filter)) {
-    const given = filter
-      .replace(/\\/g, '/')
-      .replace(/^(\.\/)+/, '')
-      .replace(/\/+$/, '')
+    const given = stripTrailingSlashes(filter.replace(/\\/g, '/').replace(/^(\.\/)+/, ''))
     forms.add(given === '' ? '.' : given)
   }
   const resolved = relative(realPath(resolve(dir)), realPath(resolve(filter)))

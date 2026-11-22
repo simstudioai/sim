@@ -62,7 +62,21 @@ export function legacyOnlyBlockTypes(catalog: BlockCatalog): Set<string> {
   )
 }
 
-const CALL = /([A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*)\s*\(/g
+/** A dotted path (`slack . sendMessage`). It always succeeds greedily, so a scan never rescans one. */
+const CHAIN = /[A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*/g
+const OPEN_PAREN = /\s*\(/y
+
+/**
+ * The segments of each dotted call in `text` (`slack . sendMessage (` → `['slack', 'sendMessage']`).
+ * The `(` is checked after the chain matches, not inside its pattern: a pattern that can fail after
+ * the chain retries from each of its characters, quadratic on a long identifier or `a.b.c…` run.
+ */
+function* calledPaths(text: string): Generator<string[]> {
+  for (const match of text.matchAll(CHAIN)) {
+    OPEN_PAREN.lastIndex = match.index + match[0].length
+    if (OPEN_PAREN.test(text)) yield match[0].replace(/\s+/g, '').split('.')
+  }
+}
 
 /**
  * The catalog builders `sources` (workflow files) call, sorted: every dotted call whose path is a
@@ -73,8 +87,7 @@ const CALL = /([A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)*)\s*\(/g
 export function referencedBuilders(catalog: BlockCatalog, sources: Iterable<string>): string[] {
   const keys = new Set<string>()
   for (const text of sources) {
-    for (const match of text.matchAll(CALL)) {
-      const path = match[1].replace(/\s+/g, '').split('.')
+    for (const path of calledPaths(text)) {
       if (path.length > 1 && path[path.length - 2] === TOOL_NAMESPACE)
         path.splice(path.length - 2, 1)
       else if (path.length > 1 && path[path.length - 1] === TOOL_NAMESPACE) path.pop()

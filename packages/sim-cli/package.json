@@ -59,6 +59,7 @@
     "proper-lockfile": "4.1.2"
   },
   "devDependencies": {
+    "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-code": "workspace:*",
