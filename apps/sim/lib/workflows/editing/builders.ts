@@ -1,17 +1,21 @@
 import { createLogger } from '@sim/logger'
-import { generateId, isValidUuid } from '@sim/utils/id'
-import { sortObjectKeysDeep } from '@sim/utils/object'
+import { generateId, generateShortId, isValidUuid } from '@sim/utils/id'
+import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
 import { buildCanonicalIndex, isCanonicalPair } from '@sim/workflow-code/catalog/canonical-index'
 import {
   type BlockRetryConfig,
+  getWorkflowBranchHandleId,
   normalizeBlockRetryTries,
   normalizeBlockRetryWaitMs,
+  type WorkflowBranchKind,
+  type WorkflowState,
   wouldCreateCycle,
 } from '@sim/workflow-types/workflow'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { resolveAvailableAgentDefaultModel } from '@/lib/permission-groups/model-access.server'
 import type { SeedValueGate } from '@/lib/permission-groups/operation-access'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
+import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
   checkRetrySetting,
   createFieldValueGate,
@@ -512,39 +516,138 @@ export function normalizeSubblockValue(key: string, value: unknown, blockType?: 
   return JSON_STRING_SUBBLOCK_KEYS.has(key) ? JSON.stringify(normalized) : normalized
 }
 
+/** How each branch subBlock's rows are read back and named on their edges. */
+const BRANCH_LISTS = {
+  conditions: { kind: 'condition', storedRows: getConditionRows },
+  routes: { kind: 'router', storedRows: getRouterRows },
+} as const satisfies Record<
+  string,
+  {
+    kind: WorkflowBranchKind
+    storedRows: (blockId: string, value: unknown) => ReadonlyArray<{ id: string }>
+  }
+>
+
+type BranchListKey = keyof typeof BRANCH_LISTS
+
+function isBranchListKey(key: string): key is BranchListKey {
+  return Object.hasOwn(BRANCH_LISTS, key)
+}
+
 /**
- * Normalizes condition/router branch IDs to use canonical block-scoped format.
- * The LLM provides branch structure (if/else-if/else or routes) but should not
- * have to generate the internal IDs -- we assign them based on the block ID.
+ * The positional slot of each of `count` rows, spelled as its canonical id suffix: `if`,
+ * `else-if-0`, …, `else` for a condition, and `route1`, `route2`, … for a router (matching the
+ * canvas's first route id).
+ */
+function branchSlots(key: BranchListKey, count: number): string[] {
+  let elseIfCounter = 0
+  return Array.from({ length: count }, (_, index) => {
+    if (key === 'routes') return `route${index + 1}`
+    if (index === 0) return 'if'
+    if (index === count - 1) return 'else'
+    return `else-if-${elseIfCounter++}`
+  })
+}
+
+/**
+ * Assigns ids to branch `rows`, keeping stored ids where a row is the same branch, in this order:
+ * an unchanged row (same slot, same expression) keeps its id; then a row takes the id of a stored
+ * row with the same non-empty expression (so a branch keeps its edges when the rows around it are
+ * inserted, removed or reordered); then the id of the stored row in its slot; else its canonical
+ * id `<blockId>-<slot>`, or a fresh one when a stored row holds that. An `else` row matches only
+ * by slot: its expression is ignored and usually empty.
+ */
+function assignBranchIds(
+  blockId: string,
+  key: BranchListKey,
+  rows: unknown[],
+  stored: ReadonlyArray<{ id: string; value?: unknown }>
+): unknown[] {
+  const slots = branchSlots(key, rows.length)
+  const storedSlots = branchSlots(key, stored.length)
+  const storedInSlot = (index: number) => stored[storedSlots.indexOf(slots[index])]
+  const ids: Array<string | undefined> = rows.map(() => undefined)
+  const claimed = new Set<string>()
+  const claimEach = (pick: (row: Record<string, unknown>, index: number) => string | undefined) => {
+    rows.forEach((row, index) => {
+      if (ids[index] !== undefined || !isRecordLike(row)) return
+      const id = pick(row, index)
+      if (id === undefined || claimed.has(id)) return
+      claimed.add(id)
+      ids[index] = id
+    })
+  }
+
+  claimEach((row, index) => {
+    const same = storedInSlot(index)
+    return same && same.value === row.value ? same.id : undefined
+  })
+  claimEach((row, index) => {
+    if (slots[index] === 'else' || typeof row.value !== 'string' || row.value === '') return
+    return stored.find(
+      (candidate, at) =>
+        storedSlots[at] !== 'else' && candidate.value === row.value && !claimed.has(candidate.id)
+    )?.id
+  })
+  claimEach((_, index) => storedInSlot(index)?.id)
+
+  const taken = new Set(stored.map((row) => row.id))
+  return rows.map((row, index) => {
+    if (!isRecordLike(row)) return row
+    const kept = ids[index]
+    if (kept !== undefined) return { ...row, id: kept }
+    const canonical = `${blockId}-${slots[index]}`
+    const id = taken.has(canonical) ? `${canonical}-${generateShortId(8)}` : canonical
+    taken.add(id)
+    return { ...row, id }
+  })
+}
+
+/**
+ * Assigns canonical block-scoped branch ids to a new block's condition/router rows. The caller
+ * provides the branch structure (if/else-if/else or routes) but not the internal ids.
  */
 export function normalizeConditionRouterIds(blockId: string, key: string, value: unknown): unknown {
-  if (key !== 'conditions' && key !== 'routes') return value
-
+  if (!isBranchListKey(key)) return value
   const parsed = parseJsonArray(value)
   if (!parsed) return value
-
-  let elseIfCounter = 0
-  const normalized = parsed.map((item, index) => {
-    if (!item || typeof item !== 'object') return item
-
-    let canonicalId: string
-    if (key === 'conditions') {
-      if (index === 0) {
-        canonicalId = `${blockId}-if`
-      } else if (index === parsed.length - 1) {
-        canonicalId = `${blockId}-else`
-      } else {
-        canonicalId = `${blockId}-else-if-${elseIfCounter}`
-        elseIfCounter++
-      }
-    } else {
-      canonicalId = `${blockId}-route${index + 1}`
-    }
-
-    return { ...item, id: canonicalId }
-  })
-
+  const normalized = assignBranchIds(blockId, key, parsed, [])
   return typeof value === 'string' ? JSON.stringify(normalized) : normalized
+}
+
+/**
+ * Applies a re-sent condition/router branch list to existing block `blockId` in one mutation.
+ * Stored edges name rows as `condition-<id>` / `router-<id>`, and the canvas mints ids such as
+ * `<blockId>-else-if-<timestamp>`, so a re-sent row that is the same branch keeps its stored id
+ * ({@link assignBranchIds}) instead of a positional one that would orphan its edges. The block's
+ * edges from a stored row the list no longer holds are removed rather than left naming no branch.
+ * Returns the value to store; any other key passes through.
+ */
+export function applyEditedBranchRows(
+  modifiedState: Pick<WorkflowState, 'blocks' | 'edges'>,
+  blockId: string,
+  key: string,
+  value: unknown
+): unknown {
+  if (!isBranchListKey(key)) return value
+  const parsed = parseJsonArray(value)
+  if (!parsed) return value
+  const { kind, storedRows } = BRANCH_LISTS[key]
+  const stored = storedRows(blockId, modifiedState.blocks[blockId]?.subBlocks?.[key]?.value)
+  const rows = assignBranchIds(blockId, key, parsed, stored)
+
+  const keptIds = new Set(rows.map((row) => (isRecordLike(row) ? row.id : undefined)))
+  const droppedHandles = new Set(
+    stored
+      .filter((row) => !keptIds.has(row.id))
+      .map((row) => getWorkflowBranchHandleId(kind, row.id))
+  )
+  if (droppedHandles.size > 0) {
+    modifiedState.edges = modifiedState.edges.filter(
+      (edge) => !(edge.source === blockId && droppedHandles.has(edge.sourceHandle ?? ''))
+    )
+  }
+  return typeof value === 'string' ? JSON.stringify(rows) : rows
 }
 
 /**
