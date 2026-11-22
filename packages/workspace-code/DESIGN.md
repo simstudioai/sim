@@ -405,8 +405,8 @@ refusal until a migration is written.
   `WorkspaceManifest`, and `env.NAME` and `credential('k')` from `secrets.ts` and
   `credentials.ts` live, through `typeof import(...)`, so a declared but unapplied entry
   type-checks). The CLI embeds them through
-  `packages/workflow-sdk/scripts/generate-embedded-text.ts`; the `*-text.test.ts` drift tests fail
-  until it is re-run.
+  `packages/workflow-sdk/scripts/generate-embedded-text.ts`; `check:workflow-sdk-embedded-text`
+  fails until it is re-run.
 - The CLI side is `packages/sim-cli/src/commands/protocol/workspace-source-*.ts`.
   `workspace-source-dir.ts` writes the directory's `tsconfig.json` (`workspaceTsconfig`), the agent guide
   (`AGENTS_GUIDE`) and the local declarations a get types (`localDeclarations`).
