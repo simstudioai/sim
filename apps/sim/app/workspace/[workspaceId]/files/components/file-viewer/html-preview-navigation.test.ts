@@ -80,6 +80,9 @@ it('honors navigation handoffs only from its own preview frame', async () => {
         content: '<p>page</p>',
         mimeType: 'text/html',
         filename: 'page.html',
+        workspaceId: 'ws-1',
+        fileId: 'file-1',
+        fileKey: 'page.html',
       })
     )
   })
