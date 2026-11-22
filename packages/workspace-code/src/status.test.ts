@@ -22,15 +22,22 @@ describe('localResourceChanges', () => {
 
 describe('sourceStatus', () => {
   it('meets many server changes with many local files in linear time', () => {
-    const local = localResourceChanges(changedFiles(100))
+    const local = localResourceChanges([
+      ...changedFiles(100),
+      { path: 'secrets.ts', change: 'edited' as const },
+    ])
     expect(
       sourceStatus(local, [
         { kind: 'file', key: 'f7.txt', server: 'changed' },
         { kind: 'file', key: 'gone.txt', server: 'deleted' },
+        { kind: 'secret', key: 'API_KEY', server: 'changed' },
       ])
     ).toMatchObject({
       state: 'conflict',
-      conflicts: [{ key: 'f7.txt', change: 'created' }],
+      conflicts: [
+        { key: 'f7.txt', change: 'created' },
+        { kind: 'secret', key: 'API_KEY', change: 'edited' },
+      ],
       drift: [{ key: 'gone.txt' }],
     })
     const met = (count: number) => {

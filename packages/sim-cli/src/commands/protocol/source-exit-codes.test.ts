@@ -66,6 +66,7 @@ describe('the exit-code tables of the CLI scripting docs', () => {
   ] as const)('list every code %s names in its --help', (command, heading) => {
     const help = sourceExitCodesHelp(command).replace(/\s+/g, ' ')
     const named = [...help.matchAll(/(?:: |; )(\d+) /g)].map((match) => Number(match[1]))
+    expect(named.length).toBeGreaterThan(0)
     expect(docsTable(heading)).toEqual(expect.arrayContaining(named))
   })
 
