@@ -424,8 +424,24 @@ function tableRowFindings(key: string, decl: TableDecl, text: string | undefined
 /** A table declaration as the codec reads it, with its findings. */
 type ParsedTable = ReturnType<ReturnType<typeof createTableCodec>['parse']>
 
-/** A column helper call and its arguments' text: `column.select({ options: [...] })`. */
-const COLUMN_CALL = /\bcolumn\.(\w+)\s*\(([^)]*)\)/g
+/** The head of a column helper call: `column.select(`. */
+const COLUMN_CALL_HEAD = /\bcolumn\.(\w+)\s*\(/g
+
+/**
+ * Each column helper call in `source` with its arguments' text up to the first `)`:
+ * `column.select({ options: [...] })`. The next call is looked for after that `)`, and the walk
+ * stops at the first call no `)` follows, so a file of unclosed calls is read once.
+ */
+function* columnCalls(source: string): Generator<[type: string, args: string]> {
+  const head = new RegExp(COLUMN_CALL_HEAD)
+  for (let match = head.exec(source); match !== null; match = head.exec(source)) {
+    const open = match.index + match[0].length
+    const close = source.indexOf(')', open)
+    if (close === -1) return
+    yield [match[1], source.slice(open, close)]
+    head.lastIndex = close + 1
+  }
+}
 
 /**
  * A table declaration as the codec reads it. The server's column-type catalog
@@ -441,7 +457,7 @@ function declaredTable(
   const text = Object.fromEntries(paths.map((path) => [path, files[path] ?? '']))
   const owned = new Map<string, Set<(typeof TABLE_COLUMN_METADATA_KEYS)[number]>>()
   for (const source of Object.values(text)) {
-    for (const [, type, args] of source.matchAll(COLUMN_CALL)) {
+    for (const [type, args] of columnCalls(source)) {
       const owns = owned.get(type) ?? new Set()
       for (const option of TABLE_COLUMN_METADATA_KEYS) {
         if (new RegExp(`\\b${option}\\s*:`).test(args)) owns.add(option)
