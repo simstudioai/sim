@@ -385,7 +385,10 @@ export class WorkflowBlockHandler implements BlockHandler {
       // safe to cross the invocation boundary verbatim (it names no source
       // internals), so the catch forwards it instead of the generic failure.
       if (isCustomBlock) {
-        const deployed = await this.checkChildDeployment(workflowId, workflowReadDelegationOrigin)
+        const { deployed } = await this.readChildDeployment(
+          workflowId,
+          workflowReadDelegationOrigin
+        )
         if (!deployed) {
           throw new BoundarySafeError({
             errorType: 'not_deployed',
@@ -395,13 +398,12 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
 
       if (useDeployed && !isCustomBlock) {
-        const hasActiveDeployment = await this.checkChildDeployment(
-          workflowId,
-          workflowReadDelegationOrigin
-        )
-        if (!hasActiveDeployment) {
+        const deployment = await this.readChildDeployment(workflowId, workflowReadDelegationOrigin)
+        if (!deployment.deployed) {
+          const child = deployment.name ? `"${deployment.name}" (${workflowId})` : workflowId
+          if (deployment.name) childWorkflowName = deployment.name
           throw new Error(
-            `Child workflow is not deployed. Please deploy the workflow before invoking it.`
+            `Child workflow ${child} is not deployed. A deployed run calls the deployed version of each child workflow: deploy ${child}, then run again.`
           )
         }
       }
@@ -1375,17 +1377,24 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
   }
 
-  private async checkChildDeployment(
+  /**
+   * Whether the child has an active deployment, and its name when the read found the workflow, so
+   * a refusal can say which child to deploy.
+   */
+  private async readChildDeployment(
     workflowId: string,
     origin: ExecutorDelegationOrigin
-  ): Promise<boolean> {
+  ): Promise<{ deployed: boolean; name?: string }> {
     try {
       const definition = await readWorkflowDefinitionAsExecutor({
         origin,
         workflowId,
         state: 'deployed',
       })
-      return definition.state !== null
+      return {
+        deployed: definition.state !== null,
+        ...(definition.workflow.name ? { name: definition.workflow.name } : {}),
+      }
     } catch (error) {
       if (error instanceof DelegatedWorkspaceAuthorizationError) {
         throw childReadError(error, workflowId)
@@ -1394,7 +1403,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         errorName: toError(error).name,
         hasWorkflowId: workflowId.length > 0,
       })
-      return false
+      return { deployed: false }
     }
   }
 
