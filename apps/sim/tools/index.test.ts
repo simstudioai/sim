@@ -7890,7 +7890,7 @@ describe('Hosted Key Injection', () => {
     }
   })
 
-  describe('requiresPaidPlan', () => {
+  describe('hosted key paid access', () => {
     const PAID_ONLY_TOOL_ID = 'test_paid_only_hosting'
 
     beforeEach(() => {
@@ -7912,7 +7912,6 @@ describe('Hosted Key Injection', () => {
           envKeyPrefix: 'TEST_HOSTED_KEY',
           apiKeyParam: 'apiKey',
           byokProviderId: 'falai',
-          requiresPaidPlan: true,
           pricing: { type: 'per_request', cost: 0.5 },
           rateLimit: { mode: 'per_request', requestsPerMinute: 100 },
         },

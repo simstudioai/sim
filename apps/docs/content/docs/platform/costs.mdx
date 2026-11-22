@@ -21,6 +21,8 @@ A billable workflow run can include:
 | Hosted tools | Operation charges when using Sim-provided provider keys |
 | Sandbox runtime | Applicable runtime charges, such as a Pi sandbox |
 
+Sim-hosted models and tools are available on paid plans. On the Free plan, add your own provider keys under **Settings → BYOK**; a run that needs a Sim-hosted key fails with an upgrade message instead.
+
 With your own provider keys, you pay the provider directly for those calls. The workflow base charge and unrelated hosted-tool or sandbox usage still apply. Local Ollama or vLLM inference avoids an external model API charge, but still needs infrastructure and any enabled Sim run charge.
 
 For a simple uncached model call, with prices in USD per million tokens:
@@ -86,7 +88,7 @@ Saved-key precedence is resolved separately for each provider:
 
 1. Use that provider's workspace key pool when one is configured.
 2. Otherwise, use its eligible organization key pool.
-3. Otherwise, use the next available configured source, including a Sim-hosted key where supported.
+3. Otherwise, use the next available configured source, including a Sim-hosted key where supported and your plan is paid.
 
 A workspace OpenAI key does not override the organization's Anthropic key. The settings page marks inherited providers so you can inspect inheritance before adding an override. A nonempty workspace pool is exclusive; a corrupt workspace key is not a reason to borrow an organization key.
 

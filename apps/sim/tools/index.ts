@@ -11,12 +11,13 @@ import type { InternalSandboxProfile } from '@/lib/auth/internal'
 import {
   BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
-  resolveWorkspaceBillingPayer,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/attribution'
-import { payerHasPaidAccess } from '@/lib/billing/core/chat-access'
-import type { UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
-import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import {
+  HostedKeyRequiresPaidPlanError,
+  mayUseHostedKey,
+} from '@/lib/billing/core/hosted-key-access'
+import { isHosted } from '@/lib/core/config/env-flags'
 import {
   findDatabaseQueryError,
   getUserFacingErrorMessage,
@@ -119,11 +120,7 @@ import {
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage, redactErrorData } from '@/tools/error-extractors'
-import {
-  HostedKeyRateLimitedError,
-  HostedKeyRequiresPaidPlanError,
-  HostedKeyUnavailableError,
-} from '@/tools/errors'
+import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
 import {
   getOwnEnumerableDataEntries,
   prepareToolRequest,
@@ -586,40 +583,6 @@ async function registerAssistantCredentialSecrets(
   }
 }
 
-/**
- * Refuses a `requiresPaidPlan` hosted key to a run whose payer lacks paid access. The payer is
- * the run's admitted attribution, or the workspace's payer for a surface that carries none; a
- * workspace without a payer, or a free payer whose credit balance cannot be read, is refused.
- */
-async function assertPayerMayUseHostedKey(
-  tool: ToolDefinition,
-  workspaceId: string | undefined,
-  billingAttribution: BillingAttributionSnapshot | undefined
-): Promise<void> {
-  if (!isBillingEnabled) return
-
-  let payer: UsageUpgradePayer | null = billingAttribution ?? null
-  if (!payer && workspaceId) {
-    const workspacePayer = await resolveWorkspaceBillingPayer(workspaceId, {
-      onMissing: 'return-null',
-    })
-    if (workspacePayer) {
-      payer = {
-        billingEntity: workspacePayer.organizationId
-          ? { type: 'organization', id: workspacePayer.organizationId }
-          : { type: 'user', id: workspacePayer.billedAccountUserId },
-        payerSubscription: workspacePayer.payerSubscription,
-      }
-    }
-  }
-
-  if (payer && (await payerHasPaidAccess(payer, { onBalanceUnavailable: 'deny' }))) return
-
-  throw new HostedKeyRequiresPaidPlanError(
-    `${tool.name} with Sim's hosted key is available on paid plans. Upgrade your plan, or add your own API key under Settings > BYOK.`
-  )
-}
-
 /** Result from hosted key injection */
 interface HostedKeyInjectionResult {
   isUsingHostedKey: boolean
@@ -662,7 +625,8 @@ function applyCredentialParams(
 
 /**
  * Inject hosted API key if tool supports it and user didn't provide one.
- * Checks BYOK workspace keys first, then uses the HostedKeyRateLimiter for round-robin key selection.
+ * Checks BYOK workspace keys first, refuses Sim's key to a payer without paid access, then uses the
+ * HostedKeyRateLimiter for round-robin key selection.
  * Returns whether a hosted (billable) key was injected and which env var it came from.
  */
 async function injectHostedKeyIfNeeded(
@@ -701,8 +665,8 @@ async function injectHostedKeyIfNeeded(
     }
   }
 
-  if (tool.hosting.requiresPaidPlan) {
-    await assertPayerMayUseHostedKey(tool, workspaceId, billingAttribution)
+  if (!(await mayUseHostedKey(workspaceId, billingAttribution))) {
+    throw new HostedKeyRequiresPaidPlanError(tool.name)
   }
 
   const rateLimiter = getHostedKeyRateLimiter()
