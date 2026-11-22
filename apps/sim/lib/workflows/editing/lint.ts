@@ -18,6 +18,7 @@ import type { ManualRunEntryIssue } from '@/lib/workflows/triggers/manual-run'
 import { getBlock } from '@/blocks'
 import {
   isTriggerBlockType,
+  isWorkflowBlockType,
   normalizeName,
   REFERENCE,
   SPECIAL_REFERENCE_PREFIXES,
@@ -95,7 +96,14 @@ export interface WorkflowLintFieldIssue extends WorkflowLintBlockRef {
 export interface WorkflowLintUnresolvedReference extends WorkflowLintBlockRef {
   field: string
   value: string | string[]
-  kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+  kind:
+    | 'credential'
+    | 'resource'
+    | 'custom-tool'
+    | 'mcp-tool'
+    | 'skill'
+    | 'block-output'
+    | 'child-result'
   reason: string
 }
 
@@ -582,6 +590,18 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
       'Block output references that will not work as written',
       unresolved
         .filter((ref) => ref.kind === 'block-output')
+        .map(
+          (ref) =>
+            `${blockLabel(ref)}.${ref.field} ${
+              Array.isArray(ref.value) ? ref.value.join(', ') : ref.value
+            } (${ref.reason})`
+        ),
+      '; '
+    ),
+    lintSection(
+      'Child workflow result paths that read nothing (a child that responds returns its Response output, { data, status, headers })',
+      unresolved
+        .filter((ref) => ref.kind === 'child-result')
         .map(
           (ref) =>
             `${blockLabel(ref)}.${ref.field} ${
@@ -1097,6 +1117,124 @@ export function collectUnquotedJsonStringReferences(
         kind: 'block-output',
         reason: `unquoted-json-string: these references resolve to text, which is inserted raw, so the field is not valid JSON at run time unless the text is itself JSON. Quoting, e.g. "${value[0]}", works only for text that never contains a double quote, backslash, line break, or other control character, such as an id. For free text such as a model reply, build the JSON in a Function block, which reads references as values, and set this field to only that block's result reference.`,
       })
+    }
+  }
+  return findings
+}
+
+/** What the lint knows of a workflow a Workflow block calls. */
+export interface WorkflowLintChildWorkflow {
+  name: string
+  /** Whether the child has an active deployment, which a deployed run of the caller calls. */
+  deployed: boolean
+  /**
+   * Whether the child holds an enabled Response block: its run then returns that block's output,
+   * `{ data, status, headers }`, as the caller's `result`.
+   */
+  responds: boolean
+}
+
+/** The workflow a Workflow block statically calls, or `undefined` for a reference or none. */
+function calledWorkflowId(block: BlockState): string | undefined {
+  if (!isWorkflowBlockType(block.type)) return undefined
+  let params: Record<string, unknown>
+  try {
+    params = extractBlockParams(block as Parameters<typeof extractBlockParams>[0])
+  } catch {
+    return undefined
+  }
+  const id = params.workflowId
+  return typeof id === 'string' && id.trim() !== '' && !id.includes('<') ? id.trim() : undefined
+}
+
+/** Every workflow the graph's Workflow blocks statically call. */
+export function collectCalledWorkflowIds(
+  blocks: WorkflowState['blocks'] | Record<string, unknown> | undefined
+): string[] {
+  const ids = new Set<string>()
+  for (const block of Object.values(blocks || {})) {
+    const id = calledWorkflowId(block as BlockState)
+    if (id) ids.add(id)
+  }
+  return [...ids]
+}
+
+/** The output of a child's Response block, which a responding child's run returns. */
+const RESPONSE_OUTPUT_KEYS = ['data', 'status', 'headers'] as const
+
+/** The Workflow block output holding the child's run result. */
+const CHILD_RESULT_OUTPUT = 'result'
+
+/**
+ * Findings about the workflows the graph's Workflow blocks call, judged against what `children`
+ * (by workflow id) knows of each:
+ * - a reference to `<call.result.<key>>` whose key is not `data`, `status` or `headers` while the
+ *   child responds (`child-result`): its result is the Response output, so the key reads nothing,
+ *   and the value meant is almost always `<call.result.data.<key>>`;
+ * - with `deployed`, a child with no active deployment (`resource`): a deployed run of this
+ *   workflow calls each child's deployed version, so it fails at the block.
+ */
+export function collectChildWorkflowFindings(
+  workflowState: Pick<WorkflowState, 'blocks'>,
+  children: ReadonlyMap<string, WorkflowLintChildWorkflow>,
+  { deployed = false }: { deployed?: boolean } = {}
+): WorkflowLintUnresolvedReference[] {
+  const blocks = (workflowState.blocks || {}) as Record<string, BlockState>
+  const childOf = new Map<string, WorkflowLintChildWorkflow & { id: string }>()
+  const findings: WorkflowLintUnresolvedReference[] = []
+  for (const [blockId, block] of Object.entries(blocks)) {
+    const id = calledWorkflowId(block)
+    const child = id ? children.get(id) : undefined
+    if (!id || !child) continue
+    childOf.set(blockId, { ...child, id })
+    if (deployed && !child.deployed) {
+      findings.push({
+        ...blockRef(blockId, block),
+        field: 'workflowId',
+        value: id,
+        kind: 'resource',
+        reason: `Workflow "${child.name}" is not deployed. A deployed run calls the deployed version of each child workflow, so it fails at this block until "${child.name}" is deployed.`,
+      })
+    }
+  }
+  if (childOf.size === 0) return findings
+
+  const targetByKey = referenceTargetIndex(blocks)
+  for (const [blockId, block] of Object.entries(blocks)) {
+    for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
+      const leaves: string[] = []
+      collectStringLeaves((subBlock as { value?: unknown })?.value, leaves)
+      const byTarget = new Map<
+        string,
+        { tokens: Set<string>; keys: Set<string>; meant: string[] }
+      >()
+      for (const leaf of leaves) {
+        for (const token of referenceCandidates(leaf, subBlockId === 'code')) {
+          if (!token || !REF_TOKEN_SHAPE.test(token)) continue
+          const targetId = referenceTarget(token, targetByKey)
+          if (!targetId || !childOf.get(targetId)?.responds) continue
+          const [head, output = '', next, ...rest] = token.split('.')
+          if (output !== CHILD_RESULT_OUTPUT || !next) continue
+          const key = splitLeadingBracketPath(next).property
+          if (!key || (RESPONSE_OUTPUT_KEYS as readonly string[]).includes(key)) continue
+          const group = byTarget.get(targetId) ?? { tokens: new Set(), keys: new Set(), meant: [] }
+          group.tokens.add(`<${token}>`)
+          group.keys.add(key)
+          group.meant.push(`<${[head, output, 'data', next, ...rest].join('.')}>`)
+          byTarget.set(targetId, group)
+        }
+      }
+      for (const [targetId, group] of byTarget) {
+        const target = blocks[targetId]
+        const child = childOf.get(targetId)
+        findings.push({
+          ...blockRef(blockId, block),
+          field: subBlockId,
+          value: [...group.tokens],
+          kind: 'child-result',
+          reason: `Workflow "${child?.name}" responds, so "${target?.name || targetId}".result is its Response output ({ data, status, headers }) and ${quoteList(group.keys)} under result reads nothing. Did you mean ${[...new Set(group.meant)].join(', ')}?`,
+        })
+      }
     }
   }
   return findings

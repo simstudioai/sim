@@ -1,8 +1,13 @@
+import { db } from '@sim/db'
+import { workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getTableById } from '@/lib/table/service'
 import {
+  collectCalledWorkflowIds,
+  collectChildWorkflowFindings,
   collectDanglingBlockOutputReferences,
   collectTableBlockFieldIssues,
   collectUnquotedJsonStringReferences,
@@ -10,6 +15,7 @@ import {
   collectWorkflowTableIds,
   hasWorkflowEntryBlock,
   lintEditedWorkflowState,
+  type WorkflowLintChildWorkflow,
   type WorkflowLintReport,
   type WorkflowLintTableFieldIssue,
   type WorkflowLintTableSchema,
@@ -106,6 +112,57 @@ interface WorkflowLintReportOptions extends AgentToolReferenceValidationOptions 
    * source line (a source apply).
    */
   iterationScope?: boolean
+  /**
+   * The graph is a version a deploy admitted: each child workflow it calls must be deployed too,
+   * since a deployed run calls the child's deployed version.
+   */
+  deployed?: boolean
+}
+
+/**
+ * What the lint checks a call against for each workflow the graph's Workflow blocks call in this
+ * workspace, keyed by id: its name, whether it is deployed, and whether its draft holds an enabled
+ * Response block. A child in another workspace, or archived, is left out: the block's own
+ * reference check reports it.
+ */
+async function loadChildWorkflowsForLint(
+  blocks: Pick<WorkflowState, 'blocks'>['blocks'],
+  workspaceId: string
+): Promise<Map<string, WorkflowLintChildWorkflow>> {
+  const ids = collectCalledWorkflowIds(blocks)
+  const children = new Map<string, WorkflowLintChildWorkflow>()
+  if (ids.length === 0) return children
+  const [rows, responders] = await Promise.all([
+    db
+      .select({ id: workflow.id, name: workflow.name, isDeployed: workflow.isDeployed })
+      .from(workflow)
+      .where(
+        and(
+          inArray(workflow.id, ids),
+          eq(workflow.workspaceId, workspaceId),
+          isNull(workflow.archivedAt)
+        )
+      ),
+    db
+      .selectDistinct({ workflowId: workflowBlocks.workflowId })
+      .from(workflowBlocks)
+      .where(
+        and(
+          inArray(workflowBlocks.workflowId, ids),
+          eq(workflowBlocks.type, 'response'),
+          eq(workflowBlocks.enabled, true)
+        )
+      ),
+  ])
+  const responding = new Set(responders.map((row) => row.workflowId))
+  for (const row of rows) {
+    children.set(row.id, {
+      name: row.name,
+      deployed: row.isDeployed,
+      responds: responding.has(row.id),
+    })
+  }
+  return children
 }
 
 /**
@@ -202,6 +259,26 @@ export async function buildWorkflowLintReport(
           )
         }
       }
+    }
+  }
+
+  try {
+    unresolvedReferences.push(
+      ...collectChildWorkflowFindings(
+        graph,
+        await loadChildWorkflowsForLint(graph.blocks, scope.workspaceId),
+        { deployed: options.deployed }
+      )
+    )
+  } catch (error) {
+    logger.warn('Child workflow lint failed', {
+      workflowId: scope.workflowId,
+      error: getErrorMessage(error),
+    })
+    if (options.requireComplete) {
+      throw new Error(
+        'Workflow child workflow checks could not complete; retry when lookup is available'
+      )
     }
   }
 

@@ -139,7 +139,8 @@ async function lintDeployedVersion(
               deploymentVersionId,
               context.workspaceId
             ),
-            { workflowId: context.workflowId, workspaceId: context.workspaceId, subjectUserId }
+            { workflowId: context.workflowId, workspaceId: context.workspaceId, subjectUserId },
+            { deployed: true }
           )
         ),
       Date.now() + DEPLOYED_VERSION_LINT_BUDGET_MS
