@@ -56,7 +56,7 @@ sim workflows get <workflowId>
 
 API request and response schemas: [getWorkflow](/api-reference/workflows/getWorkflow).
 
-### Create workflow
+### Create a workflow whose draft holds one start block (start_trigger, named Start); connect from it
 
 ```bash
 sim workflows create [options]
@@ -354,6 +354,23 @@ Source handles:
 Renames:
   An edit's {"name":"New name"} also rewrites every <old key.field> reference to the block, in
   other blocks' inputs and in a loop's or parallel's collection and condition.
+Inputs:
+  inputs takes the field ids `sim blocks get <type>` lists (inputSchema, operationInputSchema),
+  or the name a pair of them shares (inputDefinitions: tableId for tableSelector and
+  manualTableId; a string goes to the typed field). Add the type it answers with: `blocks get
+  table` answers table_v2, and an add of legacy table is refused.
+  conditions (condition): [{"title":"if","value":"<start.n> > 3"},{"title":"else if","value":"…"},
+  {"title":"else","value":""}]; the last entry is the else, and ids are assigned.
+  inputFormat (Start): [{"name":"email","type":"string"}]; types string, number, boolean,
+  object, array, file[]; an optional default "value" as text.
+Block settings, beside inputs in an add's or edit's params:
+  "retry":{"enabled":true,"maxTries":3,"waitBetweenTriesMs":1000} retries a failed block; null
+  clears it.
+Outputs:
+  A block that fails outputs {"error":"<message>"}: connect its error handle and read
+  <name.error> there (without one, the run fails). A Workflow block's result is the child's
+  output; a child ending in a Response block gives {data, status, headers}, so read
+  <call.result.data.x>.
 ```
 
 API request and response schemas: [applyWorkflowOperations](/api-reference/workflows/applyWorkflowOperations).
@@ -794,7 +811,7 @@ sim workflows run <workflowId> [options]
 | `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
 | `--from-block <block>` | No | Run manually from this saved workflow block: its id, display name or key. |
 | `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
-| `--stop-after <block>` | No | Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). |
+| `--stop-after <block>` | No | Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty. |
 | `--dir <dir>` | No | This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json. Not with --async or --follow, and not for a run --wait-timeout leaves running. |
 | `--wait-timeout <seconds>` | No | Wait at most this many seconds for a synchronous run (0 waits until it settles). A run still going then continues in the background under async limits: the command prints its run record and exits 4, and `sim workflows runs wait` keeps waiting. Not with --async or --follow. |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
@@ -802,6 +819,12 @@ sim workflows run <workflowId> [options]
 | `--include-tool-calls` | No | Show tool calls while following (requires --follow). |
 
 </CommandTable>
+
+Without --manual (or a flag that implies it) this runs the active deployment; a workflow never deployed has none. --manual runs the saved draft, as the source loop leaves it.
+
+The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the workflow's final output) and blockOutputs (what --select-output named). It has no success field: branch on status, or on the exit code. With --follow it is the stream's final frame instead: success and output.
+
+Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed first, then the error on stderr), or the command failed; 4 still running when --wait-timeout elapsed.
 
 API request and response schemas: [executeWorkflow](/api-reference/workflows/executeWorkflowV2).
 
@@ -1083,7 +1106,7 @@ API request and response schemas: [deleteWorkflowChatDeployment](/api-reference/
 
 ## Export and import
 
-### Print a workflow as a portable JSON document
+### Print a workflow as a portable JSON document. workspace bindings (a table, a child workflow, a knowledge base) print as null unless --include-workspace-bindings, and credentials always do: to read what a block is set to, use sim workflows state get
 
 The export clears credentials, passwords, and table sub-block values, but it is not a general secret scanner. Inspect literal variables and inline configuration before sharing the document.
 
@@ -1361,6 +1384,8 @@ sim workflows source status [options]
 
 </CommandTable>
 
+With --json, `plan` is what applying would do as `apply --dry-run --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
+
 Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 7 the source is too large for the server to read in one dry run; 1 the command failed; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
 
 API request and response schemas: [planWorkflowSource](/api-reference/workflows/planWorkflowSource), [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [getSourceResources](/api-reference/workflows/getSourceResources).
@@ -1529,7 +1554,7 @@ sim workflows source params <builder> [options]
 
 </CommandTable>
 
-Prints a builder's params (required first, with enums and defaults), the gate field that picks which others apply, and its outputs, from the block catalog the last get, create or check cached. No request is made. &lt;builder&gt; is the dotted builder path as source writes it: table.upsertRow, agent, trigger.schedule, slack.sendMessage (slack.tool.sendMessage names the same builder). A namespace (gmail, trigger.gmail) lists its builders; a construct core.d.ts declares (loop, parallel, t, env) prints its declaration. Run it from a workflow or workspace source directory, or pass --dir.
+Prints a builder's params (required first, with enums and defaults), the gate field that picks which others apply, and its outputs, from the block catalog the last get, create or check cached. No request is made. &lt;builder&gt; is the dotted builder path as source writes it: table.upsertRow, agent, trigger.schedule, slack.sendMessage (slack.tool.sendMessage names the same builder). A namespace (gmail, trigger.gmail) lists its builders; a block type prints the builder written for it (function is fn) or lists them (table_v2); a construct core.d.ts declares (loop, parallel, t, env) prints its declaration. Run it from a workflow or workspace source directory, or pass --dir.
 
 Exit codes: 0 printed; 1 no builder or namespace of that name (the closest one is named), or no cached catalog (run a get once).
 
