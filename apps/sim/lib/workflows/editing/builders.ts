@@ -550,11 +550,12 @@ function branchSlots(key: BranchListKey, count: number): string[] {
 }
 
 /**
- * Assigns ids to branch `rows`, keeping stored ids where a row is the same branch. A row takes the
- * id of a stored row with the same non-empty expression first (so a branch keeps its edges when
- * the rows around it are inserted, removed or reordered), else the id of the stored row in its
- * slot, else its canonical id `<blockId>-<slot>`, or a fresh one when a stored row holds that.
- * An `else` row matches only by slot: its expression is ignored and usually empty.
+ * Assigns ids to branch `rows`, keeping stored ids where a row is the same branch, in this order:
+ * an unchanged row (same slot, same expression) keeps its id; then a row takes the id of a stored
+ * row with the same non-empty expression (so a branch keeps its edges when the rows around it are
+ * inserted, removed or reordered); then the id of the stored row in its slot; else its canonical
+ * id `<blockId>-<slot>`, or a fresh one when a stored row holds that. An `else` row matches only
+ * by slot: its expression is ignored and usually empty.
  */
 function assignBranchIds(
   blockId: string,
@@ -564,28 +565,38 @@ function assignBranchIds(
 ): unknown[] {
   const slots = branchSlots(key, rows.length)
   const storedSlots = branchSlots(key, stored.length)
+  const storedInSlot = (index: number) => stored[storedSlots.indexOf(slots[index])]
+  const ids: Array<string | undefined> = rows.map(() => undefined)
   const claimed = new Set<string>()
-  const claim = (id: string | undefined) => {
-    if (id === undefined || claimed.has(id)) return undefined
-    claimed.add(id)
-    return id
+  const claimEach = (pick: (row: Record<string, unknown>, index: number) => string | undefined) => {
+    rows.forEach((row, index) => {
+      if (ids[index] !== undefined || !isRecordLike(row)) return
+      const id = pick(row, index)
+      if (id === undefined || claimed.has(id)) return
+      claimed.add(id)
+      ids[index] = id
+    })
   }
-  const byValue = rows.map((row, index) => {
-    if (!isRecordLike(row) || slots[index] === 'else') return undefined
-    if (typeof row.value !== 'string' || row.value === '') return undefined
-    const match = stored.find(
+
+  claimEach((row, index) => {
+    const same = storedInSlot(index)
+    return same && same.value === row.value ? same.id : undefined
+  })
+  claimEach((row, index) => {
+    if (slots[index] === 'else' || typeof row.value !== 'string' || row.value === '') return
+    return stored.find(
       (candidate, at) =>
         storedSlots[at] !== 'else' && candidate.value === row.value && !claimed.has(candidate.id)
-    )
-    return claim(match?.id)
+    )?.id
   })
+  claimEach((_, index) => storedInSlot(index)?.id)
+
   const taken = new Set(stored.map((row) => row.id))
   return rows.map((row, index) => {
     if (!isRecordLike(row)) return row
-    const slot = slots[index]
-    const kept = byValue[index] ?? claim(stored[storedSlots.indexOf(slot)]?.id)
+    const kept = ids[index]
     if (kept !== undefined) return { ...row, id: kept }
-    const canonical = `${blockId}-${slot}`
+    const canonical = `${blockId}-${slots[index]}`
     const id = taken.has(canonical) ? `${canonical}-${generateShortId(8)}` : canonical
     taken.add(id)
     return { ...row, id }

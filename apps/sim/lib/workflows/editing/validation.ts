@@ -763,7 +763,29 @@ export function validateValueForSubBlockType(
       return { valid: true, value }
     }
 
-    case 'condition-input':
+    case 'condition-input': {
+      const parsedValue = parseArrayInput(value)
+      const malformedAt = Array.isArray(parsedValue)
+        ? parsedValue.findIndex((condition: unknown) => !isPlainRecord(condition))
+        : -1
+      if (!Array.isArray(parsedValue) || malformedAt !== -1) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: Array.isArray(parsedValue)
+              ? `Invalid condition at index ${malformedAt}: expected an object with "title" and "value"`
+              : `Invalid ${type} value for field "${fieldName}" - expected a JSON array`,
+          },
+        }
+      }
+
+      return { valid: true, value }
+    }
+
     case 'knowledge-tag-filters':
     case 'document-tag-entry': {
       const parsedValue = parseArrayInput(value)
@@ -1209,6 +1231,13 @@ export function validateConditionHandle(
     }
   }
 
+  // A row's own id wins over another row's alias: after a reorder, a title or position alias can
+  // spell another row's stored handle.
+  for (const condition of conditions) {
+    if (condition.id)
+      handleToNormalized.set(`condition-${condition.id}`, `condition-${condition.id}`)
+  }
+
   const normalizedHandle = handleToNormalized.get(sourceHandle)
   if (normalizedHandle) {
     return { valid: true, normalizedHandle }
@@ -1304,6 +1333,12 @@ export function validateRouterHandle(
         handleToNormalized.set(`${legacySemanticPrefix}${normalizedTitle}`, normalizedHandle)
       }
     }
+  }
+
+  // A row's own id wins over another row's alias: after a reorder, a title or position alias can
+  // spell another row's stored handle.
+  for (const route of routes) {
+    if (route.id) handleToNormalized.set(`router-${route.id}`, `router-${route.id}`)
   }
 
   const normalizedHandle = handleToNormalized.get(sourceHandle)

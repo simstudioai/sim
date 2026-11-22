@@ -112,13 +112,13 @@ async function seedBranches(
   return { kind, workflowId, branchId, targets }
 }
 
-/** Applies an operations edit that re-sends the branch block's rows and nothing else. */
-function resendBranches(fixture: Fixture, rows: Array<Omit<BranchRow, 'id'>>) {
+/** Applies an operations edit that re-sends the branch block's rows, and `connections` if given. */
+function resendBranches(fixture: Fixture, rows: unknown[], connections?: Record<string, string>) {
   const operations: EditWorkflowOperation[] = [
     {
       operation_type: 'edit',
       block_id: fixture.branchId,
-      params: { inputs: { [KINDS[fixture.kind].key]: rows } },
+      params: { inputs: { [KINDS[fixture.kind].key]: rows }, ...(connections && { connections }) },
     },
   ]
   return withPermissionGroupScope(() =>
@@ -130,8 +130,8 @@ function resendBranches(fixture: Fixture, rows: Array<Omit<BranchRow, 'id'>>) {
 }
 
 /**
- * What the stored workflow routes each branch to, by the branch's expression, plus the edges
- * from the branch block whose handle names no stored row.
+ * What the stored workflow routes each branch to, by the branch's expression and by row
+ * position, plus the edges from the branch block whose handle names no stored row.
  */
 async function storedRouting(fixture: Fixture) {
   const loaded = await loadWorkflowFromNormalizedTables(fixture.workflowId)
@@ -139,15 +139,15 @@ async function storedRouting(fixture: Fixture) {
   const { key, handlePrefix } = KINDS[fixture.kind]
   const rows: BranchRow[] = JSON.parse(String(loaded.blocks[fixture.branchId].subBlocks[key].value))
   const outgoing = loaded.edges.filter((edge) => edge.source === fixture.branchId)
-  const routing: Record<string, string[]> = {}
-  for (const row of rows) {
-    routing[row.value] = outgoing
+  const byPosition = rows.map((row) =>
+    outgoing
       .filter((edge) => edge.sourceHandle === `${handlePrefix}-${row.id}`)
       .map((edge) => edge.target)
-  }
+  )
+  const routing = Object.fromEntries(rows.map((row, index) => [row.value, byPosition[index]]))
   const rowHandles = new Set(rows.map((row) => `${handlePrefix}-${row.id}`))
   const dangling = outgoing.filter((edge) => !rowHandles.has(edge.sourceHandle ?? ''))
-  return { rows, routing, dangling }
+  return { rows, routing, byPosition, dangling }
 }
 
 beforeAll(async () => {
@@ -322,6 +322,50 @@ describe('an edit that re-sends a condition block’s branches', () => {
       '': [fixture.targets['']],
     })
   })
+
+  it('keeps an edited branch connected when its new expression repeats a later branch', async () => {
+    const id = generateId()
+    const fixture = await seedBranches('condition', id, [
+      { id: `${id}-if`, title: 'if', value: 'a' },
+      { id: `${id}-else-if-1763700000000`, title: 'else if', value: 'b' },
+      { id: `${id}-else-if-1763700000001`, title: 'else if', value: 'c' },
+      { id: `${id}-else`, title: 'else', value: '' },
+    ])
+
+    await resendBranches(fixture, [
+      { title: 'if', value: 'a' },
+      { title: 'else if', value: 'c' },
+      { title: 'else if', value: 'c' },
+      { title: 'else', value: '' },
+    ])
+
+    const { byPosition, dangling } = await storedRouting(fixture)
+    expect(dangling).toEqual([])
+    expect(byPosition).toEqual([
+      [fixture.targets.a],
+      [fixture.targets.b],
+      [fixture.targets.c],
+      [fixture.targets['']],
+    ])
+  })
+
+  it('refuses a condition row that is not an object as invalid input and keeps every connection', async () => {
+    const id = generateId()
+    const fixture = await seedBranches('condition', id, [
+      { id: `${id}-if`, title: 'if', value: 'a' },
+      { id: `${id}-else`, title: 'else', value: '' },
+    ])
+
+    await expect(
+      resendBranches(fixture, [null, { title: 'else', value: '' }])
+    ).rejects.toMatchObject({
+      droppedInputs: [expect.objectContaining({ field: 'conditions' })],
+    })
+
+    const { routing, dangling } = await storedRouting(fixture)
+    expect(dangling).toEqual([])
+    expect(routing).toEqual({ a: [fixture.targets.a], '': [fixture.targets['']] })
+  })
 })
 
 describe('an edit that re-sends a router’s routes', () => {
@@ -342,6 +386,29 @@ describe('an edit that re-sends a router’s routes', () => {
     expect(routing).toEqual({
       'billing questions': [fixture.targets['billing questions']],
       'bug reports and crashes': [fixture.targets['bug reports']],
+    })
+  })
+  it('resolves a stored route handle to its own route after the routes were reordered', async () => {
+    const id = generateId()
+    const fixture = await seedBranches('router_v2', id, [
+      { id: `${id}-route1`, title: 'route1', value: 'billing questions' },
+      { id: `${id}-route2`, title: 'route2', value: 'bug reports' },
+    ])
+
+    await resendBranches(
+      fixture,
+      [
+        { title: 'route1', value: 'bug reports' },
+        { title: 'route2', value: 'billing questions' },
+      ],
+      { [`router-${id}-route2`]: fixture.targets['bug reports'] }
+    )
+
+    const { routing, dangling } = await storedRouting(fixture)
+    expect(dangling).toEqual([])
+    expect(routing).toEqual({
+      'bug reports': [fixture.targets['bug reports']],
+      'billing questions': [],
     })
   })
 })
