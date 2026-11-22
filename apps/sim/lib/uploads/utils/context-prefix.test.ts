@@ -22,7 +22,12 @@ describe('tryInferContextFromKey', () => {
   })
 
   it('does not classify a dot-segment key by a prefix it escapes', () => {
-    for (const key of ['og-images/../workspace/ws/a.pdf', 'profile-pictures/./x', 'kb/..']) {
+    for (const key of [
+      'og-images/../workspace/ws/a.pdf',
+      'og-images/..\\workspace\\ws/a.pdf',
+      'profile-pictures/./x',
+      'kb/..',
+    ]) {
       expect(tryInferContextFromKey(key)).toBeNull()
     }
   })

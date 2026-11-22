@@ -1092,12 +1092,13 @@ export function sanitizeStorageMetadata(
 }
 
 /**
- * Whether a storage key has a `.` or `..` path segment. Such a key is never one the platform
- * builds, and URL-based providers (Azure Blob) collapse the segments into a different object,
- * so it must not reach a provider or pass a prefix-based authorization check.
+ * Whether a storage key has a `.` or `..` path segment, splitting on `\` as well as `/`. Such a
+ * key is never one the platform builds, and URL-based providers (Azure Blob) collapse the
+ * segments into a different object, so it must not reach a provider or pass a prefix-based
+ * authorization check.
  */
 export function hasDotSegment(key: string): boolean {
-  return key.split('/').some((segment) => segment === '.' || segment === '..')
+  return key.split(/[/\\]/).some((segment) => segment === '.' || segment === '..')
 }
 
 /**
