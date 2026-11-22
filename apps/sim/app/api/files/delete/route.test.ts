@@ -71,4 +71,15 @@ describe('File Delete API Route', () => {
     expect(filesAuthorizationMockFns.mockVerifyFileAccess).not.toHaveBeenCalled()
     expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
   })
+  it('answers not found for a dot-segment key without checking access or deleting', async () => {
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/og-images/..%2Fworkspace%2Fvictim-ws%2F1234-report.pdf',
+    })
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(404)
+    expect(filesAuthorizationMockFns.mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
+  })
 })
