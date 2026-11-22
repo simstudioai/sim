@@ -1191,6 +1191,7 @@ export type ApplyWorkspaceSourceResponse = {
       id?: string
       held?: true
     }>
+    refuses?: boolean
     applied: Array<{
       kind:
         | 'secret'
@@ -14768,6 +14769,7 @@ export type PlanWorkspaceSourceResponse = {
       id?: string
       held?: true
     }>
+    refuses?: boolean
     applied: Array<{
       kind:
         | 'secret'

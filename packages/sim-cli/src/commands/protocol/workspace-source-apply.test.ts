@@ -1853,6 +1853,67 @@ describe('workspaces source apply', () => {
     }
   )
 
+  it('exits a dry run as refused when the server says it refuses, though its only error names a held change', async () => {
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        refuses: true,
+        plan: [
+          { kind: 'table', key: 'leads', action: 'create' },
+          { kind: 'workflow', key: 'ingest', action: 'create', held: true },
+        ],
+        diagnostics: [
+          {
+            code: 'E_SECRET_MISSING',
+            severity: 'error',
+            message: 'workflows/ingest is held back: it reads the secret OPENAI_API_KEY.',
+            kind: 'workflow',
+            key: 'ingest',
+          },
+        ],
+      })
+    )
+
+    await apply('--dry-run')
+
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('exits a dry run as refused when a delete breaks a workflow it holds back, for a server without refuses, as the apply refuses it', async () => {
+    // E_PLAN_REF_DELETED names the held workflow, but the server records it on the delete (or the
+    // plan), which no hold excuses: the apply would refuse, so the dry run cannot exit 15.
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        plan: [
+          { kind: 'table', key: 'leads', action: 'create' },
+          { kind: 'workflow', key: 'parent', action: 'update', held: true },
+          { kind: 'workflow', key: 'child', action: 'delete' },
+        ],
+        diagnostics: [
+          {
+            code: 'E_SECRET_MISSING',
+            severity: 'error',
+            message: 'workflows/parent is held back: it reads the secret OPENAI_API_KEY.',
+            kind: 'workflow',
+            key: 'parent',
+          },
+          {
+            code: 'E_PLAN_REF_DELETED',
+            severity: 'error',
+            message: 'workflows/parent uses workflow "child", which this apply deletes.',
+            kind: 'workflow',
+            key: 'parent',
+          },
+        ],
+      })
+    )
+
+    await apply('--dry-run', '--allow-delete')
+
+    expect(process.exitCode).toBe(1)
+  })
+
   it('saves the applied answer when the catalog of a workflow it reprinted cannot be fetched, and says its edges are unrecorded', async () => {
     const configDir = mkdtempSync(join(tmpdir(), 'sim-workspace-apply-config-'))
     vi.stubEnv('SIM_CONFIG_DIR', configDir)

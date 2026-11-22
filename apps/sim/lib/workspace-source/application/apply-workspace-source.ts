@@ -78,6 +78,11 @@ export interface ApplyWorkspaceSourceResult {
   dryRun: boolean
   /** Every change the apply plans, no-ops included, in apply order. */
   plan: WorkspaceSourceChange[]
+  /**
+   * Set on a dry run: whether the apply would refuse, for an error outside the changes held back
+   * (those refuse nothing else). Absent on an apply, which a refusal throws instead.
+   */
+  refuses?: boolean
   /** The changes written, in the order they were written. */
   applied: WorkspaceSourceChange[]
   /**
@@ -262,6 +267,7 @@ function planned(
     workspaceId,
     dryRun,
     plan: plan.changes.map((change) => summarize(change)),
+    ...(dryRun && { refuses: plan.refusing.length > 0 }),
     applied: [],
     needBlobs: plan.needBlobs,
     files: {},

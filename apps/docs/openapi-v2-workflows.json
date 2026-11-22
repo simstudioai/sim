@@ -26972,6 +26972,10 @@
                 },
                 "description": "Every planned change, no-ops included, in apply order."
               },
+              "refuses": {
+                "description": "Set on a dry run: whether the apply would refuse. Errors of a change held back (`held`) refuse nothing else; any other error refuses. Absent on an apply.",
+                "type": "boolean"
+              },
               "applied": {
                 "type": "array",
                 "items": {
@@ -28265,6 +28269,10 @@
                   "description": "One planned or applied change."
                 },
                 "description": "Every planned change, no-ops included, in apply order."
+              },
+              "refuses": {
+                "description": "Set on a dry run: whether the apply would refuse. Errors of a change held back (`held`) refuse nothing else; any other error refuses. Absent on an apply.",
+                "type": "boolean"
               },
               "applied": {
                 "type": "array",
