@@ -5,7 +5,7 @@
  * short and flat), so printing the same value twice gives the same bytes.
  */
 import { compareStrings } from '@sim/utils/string'
-import { type Json, printKey, quoteString } from '@sim/workflow-code'
+import { type Json, printKey, printNumber, quoteString } from '@sim/workflow-code'
 import {
   CALL_KEY,
   DECLARATION_SDK_MAJOR,
@@ -17,11 +17,6 @@ import {
 
 /** Lines no longer than this print a short, flat object or array on one line. */
 const INLINE_WIDTH = 80
-
-/** A JSON number as a numeric literal (`String(n)` minus the exponent `+`). */
-function printNumber(value: number): string {
-  return String(value).replace('e+', 'e')
-}
 
 /** A helper call node for {@link printDeclaration}: `call('column.string', { required: true })`. */
 export function call(name: string, ...args: Json[]): Json {

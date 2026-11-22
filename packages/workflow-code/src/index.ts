@@ -115,7 +115,7 @@ export type {
 } from './model'
 export { isResourceKind } from './model'
 export { assignIdentifiers, printWorkflow } from './print'
-export { hasSuspiciousCharacter, printKey, quoteString } from './print/strings'
+export { hasSuspiciousCharacter, printKey, printNumber, quoteString } from './print/strings'
 export { getOwn, invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
 export { respondsOnEveryRun } from './responds'
 export { JS_RESERVED_WORDS, RESPONSE_OUTPUTS, SDK_CORE_EXPORTS } from './sdk'
