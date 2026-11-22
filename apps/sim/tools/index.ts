@@ -100,6 +100,11 @@ import {
   recordServiceCost,
   recordServiceMeteringFailure,
 } from '@/lib/mothership/billing/service-observer'
+import {
+  applySecretMountPolicy,
+  filterSecretNamesByMountPolicy,
+  type SecretMountPolicy,
+} from '@/lib/mothership/secret-mount-policy'
 import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { isFalAICostSource } from '@/lib/tools/falai-pricing'
@@ -189,6 +194,8 @@ interface ToolExecutionScope {
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean
   envReferenceMode?: ToolEnvReferenceMode
+  /** A Copilot turn's secret allowlist; names outside it never resolve into a param. */
+  secretMountPolicy?: SecretMountPolicy
   billingAttribution?: BillingAttributionSnapshot
 }
 
@@ -222,6 +229,7 @@ function resolveToolScope(
       ((executionContext?.copilotToolExecution ?? ctx?.copilotToolExecution)
         ? 'explicit-and-bare'
         : 'off'),
+    secretMountPolicy: ctx?.secretMountPolicy as SecretMountPolicy | undefined,
     billingAttribution: (executionContext?.metadata.billingAttribution ??
       ctx?.billingAttribution) as BillingAttributionSnapshot | undefined,
   }
@@ -462,7 +470,15 @@ async function resolveToolEnvReferences(
     const environmentScope = { userId: scope.userId, workspaceId: scope.workspaceId }
     const { getEffectiveEnvironmentSnapshot } = await import('@/lib/environment/utils')
     const environment = await getEffectiveEnvironmentSnapshot(scope.userId, scope.workspaceId)
-    const envVars = { ...environment.personalDecrypted, ...environment.workspaceDecrypted }
+    const availableEnvVars = {
+      ...environment.personalDecrypted,
+      ...environment.workspaceDecrypted,
+    }
+    const envVars = Object.fromEntries(
+      filterSecretNamesByMountPolicy(Object.keys(availableEnvVars), scope.secretMountPolicy).map(
+        (name) => [name, availableEnvVars[name]]
+      )
+    )
 
     for (const { paramId, value, soft } of pending) {
       const missingKeys: string[] = []
@@ -482,6 +498,9 @@ async function resolveToolEnvReferences(
         // A bare name that matches no variable is treated as the literal
         // credential it probably is; only explicit reference forms error.
         if (soft) continue
+        if (Object.hasOwn(availableEnvVars, missingKeys[0])) {
+          applySecretMountPolicy(missingKeys, scope.secretMountPolicy)
+        }
         const scopeHint = scope.workspaceId
           ? ''
           : ' (no workspace context — only personal variables are available here)'
