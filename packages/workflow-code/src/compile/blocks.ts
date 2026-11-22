@@ -1878,7 +1878,8 @@ function jsonField(value: Value | undefined): Json | undefined {
  * `evaluateWhileCondition`): each reference is replaced by its value and the text runs as
  * `return Boolean(<condition>)`, outside every block.
  * - `W_LOOP_CONDITION_SYNTAX` when that is not valid JavaScript, which fails the run: references
- *   stand in as `0`, so only the text the author wrote around them is judged.
+ *   stand in as `(0)`, a value that member access and calls can follow, so only the text the
+ *   author wrote around them is judged.
  * - `W_REF_OUT_OF_SCOPE` for the loop's own iteration field read by its name (`<w.index>`): the
  *   condition is evaluated outside the loop's body, where a named loop outputs only its results,
  *   so the run fails; only the bare `<loop.index>` reads the iteration there.
@@ -1904,7 +1905,7 @@ function checkLoopCondition(
     ) {
       selfReads.add(field.name)
     }
-    return '0'
+    return '(0)'
   })
   for (const field of selfReads) {
     ctx.reporter.report(

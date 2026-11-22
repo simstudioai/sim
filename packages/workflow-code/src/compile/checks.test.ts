@@ -890,6 +890,7 @@ describe('loop conditions', () => {
     for (const condition of [
       '<loop.index> < 3',
       '<loop.index> < <a.status> && <variable.limit> !== "x"',
+      '<a.text>.length > 0 && <a.items>[0] !== undefined',
       'true',
       '',
     ]) {
