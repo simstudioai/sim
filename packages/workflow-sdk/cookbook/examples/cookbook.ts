@@ -76,6 +76,13 @@ export default workflow('Cookbook', { description: 'One example of each common b
     tableId: table('orders'),
     data: { orderId: start.orderId, status: 'open', risk: check.risk },
   })
+  // Upsert: updates the row whose conflictColumn (a unique column, by name) matches data, else
+  // inserts one. data is keyed by column name, as for insertRow.
+  const touch = table.upsertRow('Touch Order', {
+    tableId: table('orders'),
+    data: { orderId: start.orderId, status: 'seen' },
+    conflictColumn: 'orderId',
+  })
 
   // Knowledge base search: results is the list of matching chunks.
   const docs = knowledge.search('Policy Search', {
@@ -129,13 +136,18 @@ export default workflow('Cookbook', { description: 'One example of each common b
   })
 
   // Response: the API reply body. Wrap an untyped value (fn.result.x) in t`` when it is text.
+  // body is the short form of the editor's JSON mode: { dataMode: 'json', data } as below.
   const reply = response('Respond', { body: { risk: check.risk, id: t`${shape.result.id}` } })
-  const rejected = response('Respond Rejected', { body: { status: 'rejected' } })
+  const rejected = response('Respond Rejected', {
+    dataMode: 'json',
+    data: { status: 'rejected' },
+  })
 
   // Wiring: a.to(b) chains; a block can fan out to several targets.
   start.to(check)
   check.to(save)
-  save.to(route)
+  save.to(touch)
+  touch.to(route)
   route.high.to(alert)
   alert.to(approval)
   approval.to(decided)

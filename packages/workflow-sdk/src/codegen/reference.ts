@@ -25,6 +25,8 @@ export interface BuilderReference {
   operation?: string
   /** An older block version's builder, kept so stored workflows print; write the current one. */
   legacy: boolean
+  /** What `core.d.ts` says of a builder it declares itself (`response`, `fn`), as prose. */
+  doc?: string
   /** The call, as the declarations type it. */
   signature: string
   /** The agent tool form (`slack.tool.sendMessage(…)`), when the builder has one. */
@@ -88,6 +90,7 @@ export function describeBuilder(catalog: BlockCatalog, key: string): BuilderRefe
     summary: types.summary,
     ...(entry.builder.operation ? { operation: entry.builder.operation } : {}),
     legacy: isLegacyBuilder(key),
+    ...(entry.special ? docOf(key) : {}),
     signature,
     tool,
     paramsName: types.paramsName,
@@ -199,6 +202,25 @@ function coreDeclaration(name: string): string {
   return out.slice(0, MAX_CORE_LINES).join('\n')
 }
 
+/** The doc comment above the first declaration of `name` in `core.d.ts`, as one paragraph. */
+function docOf(name: string): Pick<BuilderReference, 'doc'> {
+  const range = coreDeclarationRanges(name)[0]
+  if (!range) return {}
+  const lines = CORE_DTS.split('\n')
+  if (!lines[range.start - 1]?.trim().endsWith('*/')) return {}
+  const comment: string[] = []
+  for (let index = range.start - 1; index >= 0; index--) {
+    comment.unshift(lines[index])
+    if (lines[index].trim().startsWith('/**')) break
+  }
+  const doc = comment
+    .map((line) => line.trim().replace(/^\/\*\*\s?|\s?\*\/$|^\*\s?/g, ''))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return doc ? { doc } : {}
+}
+
 const MAX_SNIPPET_TYPE = 60
 const MAX_SNIPPET_OPTIONAL = 12
 
@@ -300,6 +322,7 @@ export function renderBuilderReference(reference: BuilderReference): string {
   if (reference.legacy) {
     lines.push('Legacy: an older block version. Write the current builder instead.')
   }
+  if (reference.doc) lines.push('', reference.doc)
   lines.push('', reference.signature)
   if (reference.tool) lines.push(`${reference.tool}  (as an agent tool)`)
   const required = reference.params.common.filter((param) => param.required)
