@@ -160,7 +160,8 @@ export const TEST_CATALOG: BlockCatalog = {
         }),
         sub('code', 'code', 'code', { required: true }),
       ],
-      { result: ANY, stdout: TEXT }
+      { result: ANY, stdout: TEXT },
+      { errorOutputs: ['errorMessage'] }
     ),
     note: block(
       'note',

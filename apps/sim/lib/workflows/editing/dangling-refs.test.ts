@@ -2,6 +2,7 @@ import type { Mock } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
 import { createMcpToolOutputSnapshot } from '@/lib/mcp/output-schema'
 import { collectDanglingBlockOutputReferences } from '@/lib/workflows/editing/lint'
+import { FunctionBlock } from '@/blocks/blocks/function'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { getAllBlocks, getBlock, getBlockByToolName, getBlockRegistry } from '@/blocks/registry'
 
@@ -9,7 +10,8 @@ const mockGetBlock = getBlock as Mock
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockGetBlockRegistry = getBlockRegistry as Mock
 const mockGetBlockByToolName = getBlockByToolName as Mock
-mockGetBlock.mockImplementation((type: string) => (type === 'mcp' ? McpBlock : MOCK_BLOCKS[type]))
+const REAL_BLOCKS: Record<string, unknown> = { mcp: McpBlock, function: FunctionBlock }
+mockGetBlock.mockImplementation((type: string) => REAL_BLOCKS[type] ?? MOCK_BLOCKS[type])
 mockGetAllBlocks.mockImplementation(() => Object.values(MOCK_BLOCKS))
 mockGetBlockRegistry.mockImplementation(() => MOCK_BLOCKS)
 mockGetBlockByToolName.mockImplementation(() => undefined)
@@ -244,6 +246,23 @@ describe('collectDanglingBlockOutputReferences', () => {
         })
       )
       expect(findings).toHaveLength(0)
+    })
+
+    it("accepts a block's declared error outputs as it accepts error, and flags them elsewhere", () => {
+      const findings = collectDanglingBlockOutputReferences(
+        graph({
+          b1: { type: 'function', name: 'Guard' },
+          b2: { type: 'api', name: 'Call' },
+          b3: {
+            type: 'function',
+            name: 'Collector',
+            subBlocks: {
+              code: { value: 'return [<guard.errorMessage>, <call.error>, <call.errorMessage>]' },
+            },
+          },
+        })
+      )
+      expect(findings.map((finding) => finding.value)).toEqual([['<call.errorMessage>']])
     })
 
     it('flags a base output on an agent whose responseFormat replaces its outputs', () => {

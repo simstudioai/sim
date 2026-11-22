@@ -258,6 +258,8 @@ export interface NormalizedBlockOutput {
   status?: number
   headers?: Record<string, string>
   error?: string
+  /** A failed Function's thrown message alone, without the line and code `error` leads with. */
+  errorMessage?: string
   childTraceSpans?: TraceSpan[]
   childWorkflowName?: string
   _pauseMetadata?: PauseMetadata

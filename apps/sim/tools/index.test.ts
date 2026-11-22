@@ -2041,7 +2041,8 @@ describe('executeTool Function', () => {
       new Response(
         JSON.stringify({
           success: false,
-          error: `Execution failed with ${secret} via ${runtimeAlias}`,
+          error: `Line 1: \`author-source-line-55a\` - Execution failed with ${secret} via ${runtimeAlias}`,
+          errorMessage: `Execution failed with ${secret} via ${runtimeAlias}`,
           output: { result: null, stdout: 'author-stdout-91c', cost },
           debug: { lineContent: 'author-source-line-55a', stack: 'author-stack-3e1' },
           __resolvedSecretNames: ['API_KEY'],
@@ -2071,6 +2072,8 @@ describe('executeTool Function', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain(secret)
     expect(result.output?.cost).toEqual(cost)
+    /** The thrown message alone reaches the block, masked wherever `error` is. */
+    expect(result.output?.errorMessage).toBe(`Execution failed with ${secret} via ${runtimeAlias}`)
     expect(JSON.stringify(allToolLogCalls())).not.toContain(secret)
     expect(JSON.stringify(allToolLogCalls())).not.toContain(runtimeAlias)
     for (const authorContent of [

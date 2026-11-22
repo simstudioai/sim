@@ -8,7 +8,12 @@ import type { SelectorKey } from '@/lib/selectors/manifest'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import { isTriggerModeSubBlock } from '@/lib/workflows/subblocks/visibility'
-import type { BlockConfig, BlockToolParamsContext, SubBlockConfig } from '@/blocks/types'
+import type {
+  BlockConfig,
+  BlockToolParamsContext,
+  OutputFieldDefinition,
+  SubBlockConfig,
+} from '@/blocks/types'
 import {
   findProviderFromModel,
   getBaseModelProviders,
@@ -31,6 +36,7 @@ import {
   SAVED_CREDENTIAL_OAUTH,
   type SavedCredentialService,
 } from '@/tools/shared/saved-credentials'
+import { IGNORED_COLUMNS_OUTPUT } from '@/tools/table/types'
 
 export const AZURE_MODELS = [
   ...getProviderModels('azure-openai'),
@@ -878,6 +884,19 @@ export const TABLE_OUTPUT_COLUMNS_SUBBLOCK: SubBlockConfig = {
   dependsOn: { any: ['tableSelector', 'manualTableId'] },
   condition: { field: 'operation', value: 'query_rows' },
 }
+
+/**
+ * The `ignoredColumns` output of the Table blocks: present on every operation that writes row
+ * data, which drops a key naming no column instead of failing.
+ */
+export const TABLE_IGNORED_COLUMNS_OUTPUT = {
+  type: 'array',
+  description: IGNORED_COLUMNS_OUTPUT.description,
+  condition: {
+    field: 'operation',
+    value: ['insert_row', 'batch_insert_rows', 'upsert_row', 'update_row', 'update_rows_by_filter'],
+  },
+} satisfies OutputFieldDefinition
 
 /** Block input entry for {@link TABLE_OUTPUT_COLUMNS_SUBBLOCK}. */
 export const TABLE_OUTPUT_COLUMNS_INPUT = {

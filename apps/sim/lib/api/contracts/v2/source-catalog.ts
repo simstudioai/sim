@@ -348,6 +348,12 @@ const catalogBlockSchema = z
       })
       .optional()
       .describe('Present when outputs derive from a param at run time.'),
+    errorOutputs: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'Text outputs the block writes only when it fails into an error edge, beside `error`.'
+      ),
     graph: z
       .object({
         canBeTarget: z.boolean().describe('Whether an edge may connect into the block.'),

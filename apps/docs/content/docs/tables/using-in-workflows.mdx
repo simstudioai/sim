@@ -126,6 +126,8 @@ Use **Get Row by ID** for a point lookup and **Get Schema** for column definitio
 }
 ```
 
+A key that names no column is dropped, and the write still succeeds. Every insert, upsert, and update reports the dropped keys in `<table.ignoredColumns>`, an empty list when every key matched, so a downstream condition can catch a misspelled column. Public v2 API writes reject an unknown column instead.
+
 Upsert requires a unique column. If the table has several, select **Conflict Column** to choose the match target. Unlisted fields remain unchanged in a partial update.
 
 For different results per row, use a sequential Loop and **Update Row by ID**. A filter update applies the same values to every match; with no **Limit**, it walks all matches in batches. The 1,000 maximum applies to an explicitly supplied update limit, not the total for an unlimited filtered update.

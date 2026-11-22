@@ -724,6 +724,13 @@ export interface BlockConfig {
       url: string
     }
   }
+  /**
+   * Text outputs the block writes only when it fails into an error edge, beside the `error`
+   * every failed block writes (`BlockExecutor.handleBlockError`). A reference to one is valid
+   * exactly where `<block.error>` is: a successful run resolves it empty, and workflow source
+   * checks it against the block's `onError` edge as it does `error`.
+   */
+  errorOutputs?: Record<string, { type: 'string'; description: string }>
   hideFromToolbar?: boolean
   /**
    * For published custom blocks only: the bound source workflow's id. Discovery

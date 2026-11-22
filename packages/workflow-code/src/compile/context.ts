@@ -186,8 +186,11 @@ export interface CompileContext {
   dynamicOutputRefs: DynamicOutputRef[]
   /** Literal tags whose head names no block, checked once renames are known (`checkUnresolvedTags`). */
   unresolvedTags: LiteralTag[]
-  /** `x.error` references, checked once the edges are known (`checkErrorOutputRefs`). */
-  errorOutputRefs: Array<Omit<DynamicOutputRef, 'segments'>>
+  /**
+   * References to an output a block writes only on failure (`x.error`, a Function's
+   * `x.errorMessage`), checked once the edges are known (`checkErrorOutputRefs`).
+   */
+  errorOutputRefs: Array<Omit<DynamicOutputRef, 'segments'> & { output: string }>
   /**
    * Branch keys already refused with an error, by block key. Wiring and branch meta that name one
    * stay quiet instead of adding `E_UNKNOWN_BRANCH` for the same mistake.

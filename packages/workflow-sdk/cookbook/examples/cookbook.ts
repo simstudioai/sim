@@ -140,6 +140,9 @@ export default workflow('Cookbook', { description: 'One example of each common b
     dataMode: 'json',
     data: { status: 'rejected' },
   })
+  // Error path: shape.onError(invalid) runs invalid when the code throws. shape.error leads with
+  // the line and code that threw; shape.errorMessage is the thrown message alone, for the caller.
+  const invalid = response('Respond Invalid', { body: { error: shape.errorMessage }, status: 422 })
 
   // Wiring: a.to(b) chains; a block can fan out to several targets.
   start.to(check)
@@ -154,6 +157,7 @@ export default workflow('Cookbook', { description: 'One example of each common b
   docs.to(shape)
   route.else.to(shape)
   shape.to(reply)
+  shape.onError(invalid)
   nightly.to(recent)
   recent.to(each)
   each.to(report)

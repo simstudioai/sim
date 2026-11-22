@@ -182,4 +182,11 @@ try {
       description: `Files the code wrote to ${SANDBOX_OUTPUT_DIR}, ready to attach or upload downstream`,
     },
   },
+  errorOutputs: {
+    errorMessage: {
+      type: 'string',
+      description:
+        'The thrown message alone, without the line and code that error leads with. Use it in a reply to a caller.',
+    },
+  },
 }

@@ -488,6 +488,7 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
   const outputType = plan?.outputExtension
     ? `Omit<${outputRef}, keyof ${plan.outputExtension}> & ${plan.outputExtension}`
     : outputRef
+  const errorOutputs = block.errorOutputs?.length ? union(block.errorOutputs.map(literal)) : ''
   const method = entry.path[entry.path.length - 1]
   const label = entry.builder.operation ? operationLabel(block, entry.builder.operation) : undefined
   const jsdocSummary = [
@@ -501,7 +502,7 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
     ? []
     : [
         ...jsdoc([jsdocSummary], ''),
-        `export function ${method}${typeParameterList(plan, true)}(name: string, params: ${paramsName}${genericArgs}, meta?: BlockMeta): Block<${outputType}>`,
+        `export function ${method}${typeParameterList(plan, true)}(name: string, params: ${paramsName}${genericArgs}, meta?: BlockMeta): Block<${outputType}${errorOutputs ? `, ${errorOutputs}` : ''}>`,
       ]
   const tool =
     !entry.special && hasToolForm(entry.key, entry.builder, block)
@@ -511,7 +512,7 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
         ]
       : null
   const special = entry.special
-    ? `${entry.key}: { params: ${paramsName}; output: ${outputName} }`
+    ? `${entry.key}: { params: ${paramsName}; output: ${outputName}${errorOutputs ? `; errorOutputs: ${errorOutputs}` : ''} }`
     : null
   return {
     params: paramsDeclaration,

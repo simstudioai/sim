@@ -99,7 +99,9 @@ Block settings, beside inputs in an add's or edit's params:
   5xx, not when the host does not resolve or refuses the connection; "retry" covers that.
 Outputs:
   A block that fails outputs {"error":"<message>"}: connect its error handle and read
-  <name.error> there (without one, the run fails). A Workflow block's result is the child's
+  <name.error> there (without one, the run fails). A Function's error leads with the line and
+  code that threw; its <name.errorMessage> is the thrown message alone, the one to reply with.
+  A Workflow block's result is the child's
   output; a child ending in a Response block gives {data, status, headers}, so read
   <call.result.data.x>.`
 /** How to read `sim blocks get` for a `workflows operations apply` edit. */
@@ -111,7 +113,8 @@ Reading it for \`sim workflows operations apply\`:
   inputDefinitions      the block's inputs by name; one a pair of fields shares (tableId for
                         tableSelector and manualTableId) is accepted in place of the pair
   outputs               what it outputs on success; a failed block outputs {"error":"…"}
-                        instead, read on its error path as <name.error>
+                        instead, read on its error path as <name.error> (a Function also
+                        outputs <name.errorMessage>, the thrown message without line or code)
 Block settings such as retry are not fields: \`sim workflows operations apply --help\`.`
 const WORKFLOW_SET_BLOCK_ENABLED_HELP =
   'Blocks to enable or disable, applied after --operations: [{"block_id":"<uuid>","enabled":false}]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined'

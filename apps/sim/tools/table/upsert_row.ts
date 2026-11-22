@@ -2,7 +2,11 @@ import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-se
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { tableSuccess } from '@/tools/table/response'
-import type { TableRowInsertParams, TableUpsertResponse } from '@/tools/table/types'
+import {
+  IGNORED_COLUMNS_OUTPUT,
+  type TableRowInsertParams,
+  type TableUpsertResponse,
+} from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableUpsertResponse> = {
@@ -63,6 +67,7 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
       row: data.row,
       operation: data.operation,
       message: data.message || 'Row upserted successfully',
+      ignoredColumns: data.ignoredColumns ?? [],
     })
   },
 
@@ -70,6 +75,7 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
     success: { type: 'boolean', description: 'Whether row was upserted' },
     row: { type: 'json', description: 'Upserted row data' },
     operation: { type: 'string', description: 'Operation performed: insert or update' },
+    ignoredColumns: IGNORED_COLUMNS_OUTPUT,
     message: { type: 'string', description: 'Status message' },
   },
 }

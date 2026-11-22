@@ -32872,6 +32872,13 @@
                       "required": ["source", "param"],
                       "additionalProperties": false
                     },
+                    "errorOutputs": {
+                      "description": "Text outputs the block writes only when it fails into an error edge, beside `error`.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "graph": {
                       "type": "object",
                       "properties": {
