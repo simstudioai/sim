@@ -84,7 +84,7 @@ import {
   unsupported,
 } from './context'
 import { closest, didYouMean } from './hints'
-import { bracketDepthOverflow } from './parse'
+import { babelMessage, bracketDepthOverflow } from './parse'
 import type { Range } from './report'
 import { compileToolList } from './tools'
 import {
@@ -1933,11 +1933,9 @@ function checkLoopCondition(
     failure = error
   }
   if (failure === null) return
-  const { message: raw } = babelErrorShape(failure)
-  const message = typeof raw === 'string' ? raw : 'Invalid JavaScript'
   ctx.reporter.report(
     'W_LOOP_CONDITION_SYNTAX',
-    `${decl.name}'s condition is not a JavaScript expression (${message.replace(/\s*\(\d+:\d+\)$/, '')}), so the run fails when it evaluates it.`,
+    `${decl.name}'s condition is not a JavaScript expression (${babelMessage(babelErrorShape(failure))}), so the run fails when it evaluates it.`,
     at,
     {
       hint: "Write one JavaScript expression the loop repeats while it is true, e.g. condition: '<loop.index> < 3'.",
