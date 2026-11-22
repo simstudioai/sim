@@ -454,6 +454,32 @@ describe('copilot tool executor fallback', () => {
     )
   })
 
+  it('holds app tools to the turn secret authority over a model-supplied _context', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: {} })
+    const modelContext = {
+      envReferenceMode: 'explicit-and-bare',
+      secretMountPolicy: { secretScope: 'all', mountedSecrets: [] },
+    }
+    const secretMountPolicy = { secretScope: 'selected' as const, mountedSecrets: ['SLACK_TOKEN'] }
+
+    await executeTool(
+      'a2a_send_message',
+      { agentUrl: 'https://agent.example', apiKey: '{{OPENAI_API_KEY}}', _context: modelContext },
+      { userId: 'owner-1', workflowId: '', workspaceId: 'ws-1', secretActorUserId: null }
+    )
+    await executeTool(
+      'a2a_send_message',
+      { agentUrl: 'https://agent.example', apiKey: '{{OPENAI_API_KEY}}', _context: modelContext },
+      { userId: 'user-1', workflowId: '', workspaceId: 'ws-1', secretMountPolicy }
+    )
+
+    const [actorless, attributed] = executeAppTool.mock.calls.map(([, params]) => params._context)
+    expect(actorless).toMatchObject({ envReferenceMode: 'off' })
+    expect(attributed).toMatchObject({ envReferenceMode: undefined, secretMountPolicy })
+  })
+
   it('passes trace provenance out-of-band without exposing it in app tool parameters', async () => {
     isKnownTool.mockReturnValue(false)
     isSimExecuted.mockReturnValue(false)
