@@ -100,8 +100,9 @@ export function describeBuilder(catalog: BlockCatalog, key: string): BuilderRefe
 
 /**
  * Looks `query` up as a builder (`table.upsertRow`, `slack.tool.sendMessage`), a namespace
- * (`gmail`, `trigger`: its builders listed), or a construct `core.d.ts` declares (`loop`, `t`);
- * otherwise reports the closest builder or namespace as a hint.
+ * (`gmail`, `trigger`: its builders listed), a construct `core.d.ts` declares (`loop`, `t`), or a
+ * block type whose builder is named otherwise (`function` is `fn`; `table_v2` lists the `table.*`
+ * builders); otherwise reports the closest builder or namespace as a hint.
  */
 export function lookupBuilder(catalog: BlockCatalog, query: string): BuilderLookup {
   const key = withoutToolSegment(query.trim())
@@ -115,6 +116,16 @@ export function lookupBuilder(catalog: BlockCatalog, query: string): BuilderLook
   const root = key.split('.')[0] ?? key
   if ((SDK_CORE_EXPORTS as readonly string[]).includes(root)) {
     return { kind: 'core', name: key, declaration: coreDeclaration(root) }
+  }
+  const ofBlockType = paths.filter((path) => catalogBuilder(catalog, path)?.type === key)
+  const only = ofBlockType.length === 1 ? describeBuilder(catalog, ofBlockType[0]) : null
+  if (only) return { kind: 'builder', reference: only }
+  if (ofBlockType.length > 1) {
+    return {
+      kind: 'namespace',
+      namespace: key,
+      builders: ofBlockType.map((path) => ({ key: path, summary: summaryOf(catalog, path) })),
+    }
   }
   const hint = suggestBuilder(
     key,

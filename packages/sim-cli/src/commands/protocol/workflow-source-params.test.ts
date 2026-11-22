@@ -106,6 +106,26 @@ describe('sim workflows source params', () => {
     expect(stdoutJson()).toMatchObject({ builder: { key: 'slack.sendMessage' } })
   })
 
+  it('reads a block type as the builder written for it', async () => {
+    cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, FIXTURE_TEXT)
+    writeBase()
+
+    await params('function')
+
+    expect(stdoutJson()).toMatchObject({ builder: { key: 'fn', blockType: 'function' } })
+  })
+
+  it('lists the builders of a block type that has several', async () => {
+    cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, FIXTURE_TEXT)
+    writeBase()
+
+    await params('table_v2')
+
+    const { kind, builders } = stdoutJson() as { kind: string; builders: Array<{ key: string }> }
+    expect(kind).toBe('namespace')
+    expect(builders.map((builder) => builder.key)).toContain('table.upsertRow')
+  })
+
   it('refuses a builder the catalog lacks, naming the closest one', async () => {
     cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, FIXTURE_TEXT)
     writeBase()

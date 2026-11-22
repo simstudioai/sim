@@ -16,8 +16,9 @@ Prints a builder's params (required first, with enums and defaults), the gate fi
 which others apply, and its outputs, from the block catalog the last get, create or check cached.
 No request is made. <builder> is the dotted builder path as source writes it: table.upsertRow,
 agent, trigger.schedule, slack.sendMessage (slack.tool.sendMessage names the same builder). A
-namespace (gmail, trigger.gmail) lists its builders; a construct core.d.ts declares (loop,
-parallel, t, env) prints its declaration. Run it from a workflow or workspace source directory,
+namespace (gmail, trigger.gmail) lists its builders; a block type prints the builder written for
+it (function is fn) or lists them (table_v2); a construct core.d.ts declares (loop, parallel, t,
+env) prints its declaration. Run it from a workflow or workspace source directory,
 or pass --dir.
 
 Exit codes: 0 printed; 1 no builder or namespace of that name (the closest one is named), or no
