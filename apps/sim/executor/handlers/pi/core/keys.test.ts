@@ -67,7 +67,14 @@ describe('resolvePiModelKey', () => {
         workspaceId: 'ws-1',
       })
     ).resolves.toEqual({ apiKey: 'sk-hosted', isBYOK: false })
-    expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith('anthropic', 'claude', 'ws-1', undefined)
+    expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith(
+      'anthropic',
+      'claude',
+      'ws-1',
+      undefined,
+      undefined,
+      undefined
+    )
   })
 
   it('Create PR falls back to a stored workspace key when the field is empty', async () => {
@@ -110,7 +117,14 @@ describe('resolvePiModelKey', () => {
         workspaceId: 'ws-1',
       })
     ).resolves.toEqual({ apiKey: 'sk-hosted', isBYOK: false })
-    expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith('anthropic', 'claude', 'ws-1', undefined)
+    expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith(
+      'anthropic',
+      'claude',
+      'ws-1',
+      undefined,
+      undefined,
+      undefined
+    )
   })
 })
 

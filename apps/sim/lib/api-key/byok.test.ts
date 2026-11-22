@@ -379,12 +379,18 @@ describe('getApiKeyWithBYOK for a payer without paid access', () => {
 
   it("refuses Sim's key with a paid-plan error when the caller has no key of its own", async () => {
     const workspaceId = uniqueWorkspaceId()
+    const attribution = {
+      billingEntity: { type: 'user' as const, id: 'free-payer' },
+      payerSubscription: null,
+    }
 
-    await expect(getApiKeyWithBYOK('anthropic', HOSTED_MODEL, workspaceId)).rejects.toMatchObject({
+    await expect(
+      getApiKeyWithBYOK('anthropic', HOSTED_MODEL, workspaceId, undefined, undefined, attribution)
+    ).rejects.toMatchObject({
       statusCode: 402,
       message: expect.stringContaining('available on paid plans'),
     })
-    expect(mockMayUseHostedKey).toHaveBeenCalledWith(workspaceId)
+    expect(mockMayUseHostedKey).toHaveBeenCalledWith(workspaceId, attribution)
     expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
   })
 
