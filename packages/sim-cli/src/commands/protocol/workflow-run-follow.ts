@@ -586,18 +586,6 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
   }
 }
 
-/**
- * Teaches the generated `workflows run` leaf to stream.
- *
- * `--follow` rides on `run` rather than standing up a sibling command because
- * it is the same operation with a different response encoding: the input,
- * output-selection, and `--async` flags all still apply, and a second command
- * would have to restate every one of them and then drift.
- *
- * Commander offers no way to read the action it already holds, so the existing
- * handler is captured for async execution. Synchronous execution uses the same
- * generated request and result builders with a heartbeat-capable response.
- */
 /** `sim workflows run --help`, after the options: which version runs, what it prints, how it exits. */
 const RUN_HELP = `
 Without --manual (or a flag that implies it) this runs the active deployment; a workflow never
@@ -612,6 +600,18 @@ Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the 
 first, then the error on stderr), or the command failed; ${STILL_RUNNING_EXIT_CODE} still running when --wait-timeout
 elapsed.`
 
+/**
+ * Teaches the generated `workflows run` leaf to stream.
+ *
+ * `--follow` rides on `run` rather than standing up a sibling command because
+ * it is the same operation with a different response encoding: the input,
+ * output-selection, and `--async` flags all still apply, and a second command
+ * would have to restate every one of them and then drift.
+ *
+ * Commander offers no way to read the action it already holds, so the existing
+ * handler is captured for async execution. Synchronous execution uses the same
+ * generated request and result builders with a heartbeat-capable response.
+ */
 export function attachWorkflowRunFollow(workflows: Command): void {
   const run = workflows.commands.find((command) => command.name() === 'run')
   if (!run) {

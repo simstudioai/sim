@@ -140,8 +140,19 @@ export function lookupBuilder(catalog: BlockCatalog, query: string): BuilderLook
 const MAX_CORE_LINES = 80
 
 /** Each top-level declaration of `name` in `core.d.ts` (overloads included): its line range. */
+/** `core.d.ts` by line. */
+const CORE_LINES = CORE_DTS.split('\n')
+
+/** The line the doc comment above line `start` opens on, or `start` when none is there. */
+function docCommentStart(start: number): number {
+  if (!CORE_LINES[start - 1]?.trim().endsWith('*/')) return start
+  let first = start - 1
+  while (first > 0 && !CORE_LINES[first].trim().startsWith('/**')) first--
+  return first
+}
+
 function coreDeclarationRanges(name: string): Array<{ start: number; end: number }> {
-  const lines = CORE_DTS.split('\n')
+  const lines = CORE_LINES
   const start = new RegExp(
     `^export (?:declare )?(?:const|function|namespace|interface|type) ${escapeRegExp(name)}\\b`
   )
@@ -169,7 +180,7 @@ function coreDeclarationRanges(name: string): Array<{ start: number; end: number
  * returns an `Annotation`), one line per overload.
  */
 function coreSignatures(name: string): string {
-  const lines = CORE_DTS.split('\n')
+  const lines = CORE_LINES
   return coreDeclarationRanges(name)
     .map(({ start, end }) =>
       lines
@@ -189,15 +200,10 @@ function coreSignatures(name: string): string {
  * above it, as the file holds it: what a construct the catalog does not generate takes.
  */
 function coreDeclaration(name: string): string {
-  const lines = CORE_DTS.split('\n')
   const out: string[] = []
   for (const { start, end } of coreDeclarationRanges(name)) {
-    let first = start
-    if (lines[start - 1]?.trim().endsWith('*/')) {
-      while (first > 0 && !lines[first].trim().startsWith('/**')) first--
-    }
     if (out.length > 0) out.push('')
-    out.push(...lines.slice(first, end))
+    out.push(...CORE_LINES.slice(docCommentStart(start), end))
   }
   return out.slice(0, MAX_CORE_LINES).join('\n')
 }
@@ -206,14 +212,7 @@ function coreDeclaration(name: string): string {
 function docOf(name: string): Pick<BuilderReference, 'doc'> {
   const range = coreDeclarationRanges(name)[0]
   if (!range) return {}
-  const lines = CORE_DTS.split('\n')
-  if (!lines[range.start - 1]?.trim().endsWith('*/')) return {}
-  const comment: string[] = []
-  for (let index = range.start - 1; index >= 0; index--) {
-    comment.unshift(lines[index])
-    if (lines[index].trim().startsWith('/**')) break
-  }
-  const doc = comment
+  const doc = CORE_LINES.slice(docCommentStart(range.start), range.start)
     .map((line) => line.trim().replace(/^\/\*\*\s?|\s?\*\/$|^\*\s?/g, ''))
     .join(' ')
     .replace(/\s+/g, ' ')

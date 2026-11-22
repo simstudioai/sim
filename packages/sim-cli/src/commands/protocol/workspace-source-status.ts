@@ -247,22 +247,14 @@ function planAsApplied(
 }
 
 /**
- * The dry run's findings the plan counts, as an apply's dry run would report them: all but the
- * server changes the status lists, and none from compiling or linting a workflow folder an apply
- * sends by its base (the server evaluates only a folder sent whole). A plan check about such a
- * folder, such as one using a resource this apply deletes, still refuses the apply, so it stays.
- */
-function workspacePlanFindings(data: PlanData, byBase: ReadonlySet<string>): Diagnostic[] {
-  return dryRunFindings(data, byBase).filter((finding) => !isServerChangeFinding(finding.code))
-}
-
-/**
- * The findings an apply's dry run would report. A workflow folder the apply sends by its base is
- * neither evaluated (no compile or lint findings) nor written, so a server edit to it is drift,
- * never a stale refusal: the status sent it whole to see that edit.
+ * The findings an apply's dry run would report, which the plan counts. A workflow folder the apply
+ * sends by its base is neither evaluated (no compile or lint findings) nor written, so a server
+ * edit to it is drift, never a stale refusal: the status sent it whole to see that edit. A plan
+ * check about such a folder, such as one using a resource this apply deletes, still refuses the
+ * apply, so it stays.
  */
 function dryRunFindings(data: PlanData, byBase: ReadonlySet<string>): Diagnostic[] {
-  return planFindings(data.diagnostics, () => false).filter(
+  return planFindings(data.diagnostics).filter(
     (finding) =>
       !(
         aboutWorkflowSentByBase(finding, byBase) &&
@@ -442,10 +434,10 @@ export function attachWorkspaceSourceStatus(source: Command): void {
                 )
               : []
           )
-          const planned = data ? workspacePlanFindings(data, byBase) : []
-          const plan = data
-            ? planSummary(dryRunFindings(data, byBase), applyPlan, status.conflicts.length)
-            : null
+          const dryRun = data ? dryRunFindings(data, byBase) : []
+          // The server changes are listed by resource, so only the rest are printed as findings.
+          const planned = dryRun.filter((finding) => !isServerChangeFinding(finding.code))
+          const plan = data ? planSummary(dryRun, applyPlan, status.conflicts.length) : null
           const report: StatusReport<WorkspacePlanSummary> & { workspaceId: string | null } = {
             workspaceId,
             dir: options.dir,

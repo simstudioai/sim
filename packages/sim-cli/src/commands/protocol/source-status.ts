@@ -39,7 +39,7 @@ export type ServerCheck = 'checked' | 'unreachable' | 'offline'
  */
 export function planFindings(
   diagnostics: readonly Diagnostic[],
-  listed: (code: Diagnostic['code']) => boolean
+  listed: (code: Diagnostic['code']) => boolean = () => false
 ): Diagnostic[] {
   return diagnostics.filter(
     (finding) =>
