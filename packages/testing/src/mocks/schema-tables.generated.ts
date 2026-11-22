@@ -444,7 +444,6 @@ export const GENERATED_SCHEMA_TABLES = {
     'metadata',
     'lastClosedPeriodStart',
   ],
-  rateLimitBucket: ['key', 'tokens', 'lastRefillAt', 'blockedUntil', 'capacityState', 'updatedAt'],
   chat: [
     'id',
     'workflowId',

@@ -1861,17 +1861,6 @@ export const subscription = pgTable(
   })
 )
 
-// contract-pending(after the release that stops using it is deployed): drop rate_limit_bucket — Redis is required and the Postgres token bucket and provider-capacity store were removed, so no deployed release reads or writes it.
-export const rateLimitBucket = pgTable('rate_limit_bucket', {
-  key: text('key').primaryKey(),
-  tokens: decimal('tokens').notNull(),
-  lastRefillAt: timestamp('last_refill_at').notNull(),
-  blockedUntil: timestamp('blocked_until'),
-  /** Bounded adaptive provider budgets and expiring request leases; ordinary buckets leave it null. */
-  capacityState: jsonb('capacity_state'),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
-
 export const chat = pgTable(
   'chat',
   {
@@ -2027,7 +2016,6 @@ export interface SessionPolicySettings {
   idleTimeoutHours?: number | null
 }
 
-// contract-pending(after the release that stops declaring it is deployed): drop organization.whitelabel_settings — whitelabeling was removed and no code reads or writes it after this release; earlier releases still select it explicitly, so dropping it now would break them mid-rollout
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),

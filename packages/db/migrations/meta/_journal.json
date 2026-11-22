@@ -3284,6 +3284,13 @@
       "when": 1795263216402,
       "tag": "0469_staged_blob_consumed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 470,
+      "version": "7",
+      "when": 1795345308196,
+      "tag": "0470_contract_whitelabel_and_rate_limit_bucket",
+      "breakpoints": true
     }
   ]
 }
