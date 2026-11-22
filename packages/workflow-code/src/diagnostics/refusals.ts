@@ -88,6 +88,9 @@ export interface EditedBlocks {
   paramChanged?(blockKey: string, param: string): boolean
 }
 
+/** A warning code and the error an apply refuses it under. */
+type RefusalRule = [warning: CompileDiagnosticCode, refusal: EditRefusalCode]
+
 /**
  * An iteration field read outside its container (`W_REF_OUT_OF_SCOPE`), or a loop condition that
  * is not a JavaScript expression (`W_LOOP_CONDITION_SYNTAX`), refused in any file on a block the
@@ -96,7 +99,7 @@ export interface EditedBlocks {
 const CHANGED_BLOCK_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_REF_OUT_OF_SCOPE', 'E_APPLY_REF_OUT_OF_SCOPE'],
   ['W_LOOP_CONDITION_SYNTAX', 'E_APPLY_LOOP_CONDITION_SYNTAX'],
-])
+] satisfies RefusalRule[])
 
 /**
  * In `workflow.ts` on a field the edit set ({@link EditedBlocks.paramChanged}) of a block it
@@ -108,7 +111,7 @@ const CHANGED_BLOCK_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
  */
 const PARAM_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_UNKNOWN_OPTION', 'E_APPLY_INVALID_SUBBLOCK_FIELD'],
-])
+] satisfies RefusalRule[])
 
 /**
  * In `workflow.ts` on a block the edit changed: a path no output of the block has, or a literal
@@ -121,7 +124,7 @@ const ENTRY_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_UNRESOLVED_REF', 'E_APPLY_UNRESOLVED_REF'],
   ['W_UNKNOWN_BLOCK_TYPE', 'E_APPLY_INVALID_BLOCK_TYPE'],
   ['W_TYPE_NOT_ADDABLE', 'E_APPLY_TYPE_NOT_ADDABLE'],
-])
+] satisfies RefusalRule[])
 
 /**
  * In a function code file whose text the edit changed: a `$ref` naming no block or variable, or a
@@ -132,23 +135,18 @@ const CODE_FILE_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_UNRESOLVED_REF', 'E_APPLY_UNRESOLVED_REF'],
   ['W_UNKNOWN_OUTPUT_PATH', 'E_APPLY_UNRESOLVED_REF'],
   ['W_CODE_FILE_REF_SYNTAX', 'E_APPLY_CODE_FILE_REF_SYNTAX'],
-])
+] satisfies RefusalRule[])
 
 /**
  * Every warning code {@link refuseEditedFindings} may refuse: the compile keeps one of each code,
  * block and file that its caps leave out (`CompileResult.withheld`), so a cap never hides a
  * refusal.
  */
-export const REFUSABLE_WARNING_CODES: ReadonlySet<CompileDiagnosticCode> = new Set([
-  'W_UNKNOWN_OPTION',
-  'W_REF_OUT_OF_SCOPE',
-  'W_LOOP_CONDITION_SYNTAX',
-  'W_UNKNOWN_OUTPUT_PATH',
-  'W_UNRESOLVED_REF',
-  'W_CODE_FILE_REF_SYNTAX',
-  'W_UNKNOWN_BLOCK_TYPE',
-  'W_TYPE_NOT_ADDABLE',
-])
+export const REFUSABLE_WARNING_CODES: ReadonlySet<string> = new Set(
+  [CHANGED_BLOCK_REFUSALS, PARAM_REFUSALS, ENTRY_REFUSALS, CODE_FILE_REFUSALS].flatMap((rules) => [
+    ...rules.keys(),
+  ])
+)
 
 /** The rules' error codes with the warning each refuses, for help text. */
 export const EDIT_REFUSALS: ReadonlyArray<{
