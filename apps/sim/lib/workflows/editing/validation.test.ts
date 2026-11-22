@@ -382,6 +382,36 @@ describe('validateInputsForBlock', () => {
     })
   })
 
+  describe('canonical param names', () => {
+    it('writes a canonical name into the member it is stored in, as the catalog names it', () => {
+      const result = validateInputsForBlock('canonicalcred', { cred: 'cred_1' }, 'cred-1')
+
+      expect(result.errors).toEqual([])
+      expect(result.validInputs).toEqual({ manualCredential: 'cred_1' })
+    })
+
+    it('refuses a canonical name beside one of its own members', () => {
+      const result = validateInputsForBlock(
+        'canonicalcred',
+        { cred: 'cred_1', credential: 'cred_2' },
+        'cred-1'
+      )
+
+      expect(result.validInputs).toEqual({ credential: 'cred_2' })
+      expect(result.errors).toEqual([
+        expect.objectContaining({ field: 'cred', error: expect.stringContaining('"credential"') }),
+      ])
+    })
+
+    it('still names a key that is neither a field nor a canonical param as unknown', () => {
+      const result = validateInputsForBlock('canonicalcred', { credKey: 'cred_1' }, 'cred-1')
+
+      expect(result.errors).toEqual([
+        expect.objectContaining({ field: 'credKey', error: expect.stringContaining('Unknown') }),
+      ])
+    })
+  })
+
   it('stores input-format rows with legacy or aliased types unchanged', () => {
     const rows = [
       { name: 'payload', type: 'json' },
