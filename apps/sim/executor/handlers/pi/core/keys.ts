@@ -20,6 +20,7 @@
 
 import type { CreateAgentSessionOptions } from '@earendil-works/pi-coding-agent'
 import { getApiKeyWithBYOK, getBYOKKey } from '@/lib/api-key/byok'
+import type { UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
 import { calculateBillableModelCost } from '@/providers/cost-policy'
 import type { PiSupportedProvider } from '@/providers/pi-provider-configs'
 import {
@@ -49,6 +50,7 @@ interface ResolvePiModelKeyParams {
   mode: PiKeyMode
   workspaceId?: string
   apiKey?: string
+  billingAttribution?: UsageUpgradePayer
 }
 
 /** Resolves a usable API key for an already validated provider/model pair. */
@@ -79,7 +81,9 @@ export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promis
     providerId,
     params.model,
     params.workspaceId,
-    undefined
+    undefined,
+    undefined,
+    params.billingAttribution
   )
   return { apiKey, isBYOK }
 }

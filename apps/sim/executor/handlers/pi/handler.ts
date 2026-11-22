@@ -232,6 +232,7 @@ export class PiBlockHandler implements BlockHandler {
       mode,
       workspaceId: ctx.workspaceId,
       apiKey: asRawString(inputs.apiKey),
+      billingAttribution: ctx.metadata.billingAttribution,
     })
 
     const search = await this.resolveSearch(ctx, inputs, mode)

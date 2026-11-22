@@ -542,11 +542,6 @@ export interface ToolHostingConfig<P = Record<string, unknown>> {
   /** BYOK provider ID for workspace key lookup */
   byokProviderId?: BYOKProviderId
   /**
-   * Withholds the hosted key from a free-plan payer without prepaid credits. A workspace BYOK key
-   * or a key the user passes still runs; only Sim's own key is refused.
-   */
-  requiresPaidPlan?: boolean
-  /**
    * Bills the hosted charge again from the provider's exact receipt once it is recorded, for a
    * provider whose receipt arrives after the result. `falai` settles through fal's billing events.
    */

@@ -18,9 +18,9 @@ interface PaidAccessOptions {
 
 /**
  * Whether a payer may use a feature a hosted deployment reserves for paying payers: Chat, and
- * hosted keys a tool marks `requiresPaidPlan`. A hosted deployment that bills withholds these from
- * a payer on the free plan, unless that payer holds prepaid credits, which an admin grants to
- * customers billed outside a subscription.
+ * Sim's hosted provider keys. A hosted deployment that bills withholds these from a payer on the
+ * free plan, unless that payer holds prepaid credits, which an admin grants to customers billed
+ * outside a subscription.
  *
  * The plan is the payer's entitled subscription (active or past due), so a canceled
  * plan reads as free; a blocked payer is refused by the usage check every caller runs next.
