@@ -444,9 +444,13 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_OUTPUT_PATH_UNDECLARED` | A path the block does not declare that the run still accepts: an undeclared `inputFormat` input, or `x.error` with no error edge. Never refused. |
 | `W_JSON_REF_UNTYPED` | A bare ref in a JSON literal whose type nothing declares. |
 | `W_LOOP_CONDITION_SYNTAX` | A while or do-while condition that is not a JavaScript expression once each reference stands in as a value, as the run evaluates it (`return Boolean(<condition>)`): the run fails there. Refused as `E_APPLY_LOOP_CONDITION_SYNTAX` on a loop the edit added or changed. A loop reading its own `index` (or `currentItem`, `items`) by its name in its condition is `W_REF_OUT_OF_SCOPE`: the condition is evaluated outside the loop's body, so only `<loop.index>` reads the iteration there. |
+| `W_REF_OUT_OF_SCOPE` | A loop or parallel iteration field (`index`, `currentItem`, `items`) read from a block outside that container: `lp.index` after the loop, `$ref.loop.index` or `<loop.index>` in a block in no loop. The run fails (or reads nothing) there. Refused as `E_APPLY_REF_OUT_OF_SCOPE` on a block the edit changed. |
+| `W_UNKNOWN_BLOCK_TYPE` | A new block of a type the catalog does not hold; refused as `E_APPLY_INVALID_BLOCK_TYPE`. A block the stored workflow or the lock already holds keeps its type quietly. |
+| `W_TYPE_NOT_ADDABLE` | A new block of a type the catalog keeps only for blocks already using it; refused as `E_APPLY_TYPE_NOT_ADDABLE`. |
 | `E_CODE_FILE_MISSING` | `codeFile()` names a file the request did not send. |
 | `E_CODE_FILE_PATH` | A code file path outside the directory, or with the wrong extension. |
 | `W_CODE_FILE_INLINED` | Print: the code could not round-trip through a file and was inlined. |
+| `W_CODE_FILE_REF_SYNTAX` | `$ref.key.path` or `$env.NAME` in a Python or shell code file, which runs as text; the hint names the `<key.path>` or `{{NAME}}` form. Refused as `E_APPLY_CODE_FILE_REF_SYNTAX` in a file the edit changed. |
 | `W_UNRESOLVED_REF` | Print: a stored `<x.y>` token that resolves to nothing. Compile: a code file `$ref` chain that does. Either is kept as text. |
 | `W_FORWARD_REF_LITERALIZED` | Print: a ref in a cycle printed as text. |
 | `W_COMMENT_MOVED` | A comment hoisted to the nearest anchor. |
@@ -525,7 +529,12 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_APPLY_TRIGGER_REMOVED` | A deleted or retyped block still serves a live webhook, schedule, chat output or MCP tool until the next deploy. |
 | `W_APPLY_CATALOG_MOVED` | Compile failed and the block catalog changed since the read: get the source again. |
 | `E_APPLY_LINT`, `W_APPLY_LINT` | A workflow lint finding, mapped to a source line. |
+| `E_APPLY_UNRESOLVED_REF` | A `$ref` naming no block or variable, or a path no output has, in code or a block the edit changed (`W_UNRESOLVED_REF`, `W_UNKNOWN_OUTPUT_PATH` elsewhere). |
+| `E_APPLY_REF_OUT_OF_SCOPE` | A `W_REF_OUT_OF_SCOPE` iteration reference on a block the edit added, changed or moved. |
+| `E_APPLY_CODE_FILE_REF_SYNTAX` | A `W_CODE_FILE_REF_SYNTAX` in a code file the edit changed. |
+| `E_APPLY_LOOP_CONDITION_SYNTAX` | A `W_LOOP_CONDITION_SYNTAX` on a loop the edit added or changed. |
 | `E_APPLY_BLOCK_DELETE` | The apply deletes blocks the source no longer declares; pass `--allow-delete`. When it also adds blocks of a deleted one's type, it names them as possible renames and says how to keep the ids. |
+| `E_APPLY_VARIABLE_DELETE` | The apply removes workflow variables the source no longer declares; pass `--allow-delete`, as for blocks. |
 | `W_APPLY_PROBABLE_RENAME` | With `--allow-delete`, a deleted block and an added one share a type and parent: a probable rename that gets a new id. |
 | `E_NAME_TAKEN` | The `workflow('…')` name renames the workflow to one another workflow in its folder holds. |
 | `E_WORKFLOW_META_INVALID` | The `workflow('…')` name is empty or over 255 characters, or its description is over 50,000 characters: limits the workflow API holds every workflow to. |
