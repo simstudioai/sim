@@ -535,7 +535,9 @@ describe('workspaces source status', () => {
       { kind: 'table', key: 'leads', server: 'changed' },
       { kind: 'workflow', key: 'ingest', server: 'changed' },
     ])
-    expect(report.plan).toMatchObject({ errors: 0, warnings: 0 })
+    // As its dry run counts them: the server changes left alone warn, and the stale workflow is
+    // one an apply sends by its base, so it refuses nothing.
+    expect(report.plan).toMatchObject({ errors: 0, warnings: 2 })
     expect(report.next).toMatchObject({ command: `sim workspaces source get --dir ${dir}` })
     expect(process.exitCode).toBe(12)
   })
@@ -675,7 +677,7 @@ describe('workspaces source status', () => {
     expect(report.next).toMatchObject({
       command: 'sim workspaces source get --dir <fresh dir>',
     })
-    expect(report.plan).toMatchObject({ conflicts: 1, errors: 0 })
+    expect(report.plan).toMatchObject({ conflicts: 1, errors: 1 })
     expect(process.exitCode).toBe(12)
   })
 
@@ -697,7 +699,7 @@ describe('workspaces source status', () => {
 
     const screen = String(vi.mocked(console.log).mock.calls.at(-1)?.[0])
     expect(screen).toContain(
-      'Applying would be refused as stale (exit 5): 1 conflict(s) above. Without them it would:'
+      'Applying would be refused as stale (exit 5): the 1 conflict(s) above. Its dry run: 0 create, 0 update, 0 delete (1 unchanged); 1 error(s), 0 warning(s).'
     )
   })
 

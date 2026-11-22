@@ -198,7 +198,11 @@ interface WorkspacePlanSummary {
   held: number
   /** Resources changed on both sides: while any stands, an apply is refused as stale. */
   conflicts: number
-  /** Errors other than the server changes the status lists. */
+  /**
+   * The errors and warnings its dry run reports (`apply --dry-run`, with `--allow-delete` when
+   * `next` names it), the server changes the status lists by resource included: a conflict is an
+   * error there (`E_APPLY_STALE`), a resource added on the server a warning (`W_UNDECLARED`).
+   */
   errors: number
   warnings: number
 }
@@ -249,8 +253,21 @@ function planAsApplied(
  * folder, such as one using a resource this apply deletes, still refuses the apply, so it stays.
  */
 function workspacePlanFindings(data: PlanData, byBase: ReadonlySet<string>): Diagnostic[] {
-  return planFindings(data.diagnostics, isServerChangeFinding).filter(
-    (finding) => !(aboutWorkflowSentByBase(finding, byBase) && isFolderEvaluationFinding(finding))
+  return dryRunFindings(data, byBase).filter((finding) => !isServerChangeFinding(finding.code))
+}
+
+/**
+ * The findings an apply's dry run would report. A workflow folder the apply sends by its base is
+ * neither evaluated (no compile or lint findings) nor written, so a server edit to it is drift,
+ * never a stale refusal: the status sent it whole to see that edit.
+ */
+function dryRunFindings(data: PlanData, byBase: ReadonlySet<string>): Diagnostic[] {
+  return planFindings(data.diagnostics, () => false).filter(
+    (finding) =>
+      !(
+        aboutWorkflowSentByBase(finding, byBase) &&
+        (isFolderEvaluationFinding(finding) || finding.code === 'E_APPLY_STALE')
+      )
   )
 }
 
@@ -279,7 +296,7 @@ function planSummary(
 function planLine(plan: WorkspacePlanSummary): string {
   const counts = `${plan.create} create, ${plan.update} update, ${plan.delete} delete (${plan.unchanged} unchanged); ${plan.errors} error(s), ${plan.warnings} warning(s)`
   return plan.conflicts > 0
-    ? `Applying would be refused as stale (exit ${SOURCE_STALE_EXIT_CODE}): ${plan.conflicts} conflict(s) above. Without them it would: ${counts}.`
+    ? `Applying would be refused as stale (exit ${SOURCE_STALE_EXIT_CODE}): the ${plan.conflicts} conflict(s) above. Its dry run: ${counts}.`
     : `Applying would: ${counts}.`
 }
 
@@ -426,7 +443,9 @@ export function attachWorkspaceSourceStatus(source: Command): void {
               : []
           )
           const planned = data ? workspacePlanFindings(data, byBase) : []
-          const plan = data ? planSummary(planned, applyPlan, status.conflicts.length) : null
+          const plan = data
+            ? planSummary(dryRunFindings(data, byBase), applyPlan, status.conflicts.length)
+            : null
           const report: StatusReport<WorkspacePlanSummary> & { workspaceId: string | null } = {
             workspaceId,
             dir: options.dir,
