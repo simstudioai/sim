@@ -24,6 +24,12 @@ describe('builder reference', () => {
     ])
   })
 
+  it('carries what core.d.ts says of a builder it declares, and nothing for a generated one', () => {
+    expect(describeBuilder(CATALOG, 'runWorkflow')?.doc).toContain('`result.data.field`')
+    expect(describeBuilder(CATALOG, 'response')?.doc).toContain("`dataMode: 'json'` with `data`")
+    expect(describeBuilder(CATALOG, 'agent')).not.toHaveProperty('doc')
+  })
+
   it('fills a text, number or boolean param of a snippet with an example value, not its type', () => {
     const snippets = catalogBuilderPaths(CATALOG).flatMap((key) => {
       const reference = describeBuilder(CATALOG, key)
