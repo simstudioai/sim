@@ -11,6 +11,7 @@ import {
   BLOCK_RETRY_MIN_TRIES,
   BLOCK_RETRY_MIN_WAIT_MS,
   type BlockRetryConfig,
+  normalizeWorkflowBlockName,
   type WorkflowBranchKind,
 } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
@@ -1893,13 +1894,14 @@ function checkLoopCondition(
   if (text.trim() === '') return
   const at = rangeOf(ctx, property.value)
   const selfReads = new Set<string>()
+  const ownName = normalizeWorkflowBlockName(decl.name)
   const runnable = text.replace(REFERENCE_CANDIDATE, (match: string, inner: string) => {
     if (!isLikelyWorkflowReferenceSegment(match)) return match
     const segments = parseStoredPath(inner)
     const [head, field] = segments ?? []
     if (
       head?.kind === 'name' &&
-      head.name === decl.key &&
+      normalizeWorkflowBlockName(head.name) === ownName &&
       field?.kind === 'name' &&
       LOOP_PROPERTIES.includes(field.name)
     ) {

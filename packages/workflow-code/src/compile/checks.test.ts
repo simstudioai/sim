@@ -909,4 +909,10 @@ describe('loop conditions', () => {
     ])
     expect(findings(whileLoop('<loop.index> < 3'), 'W_REF_OUT_OF_SCOPE')).toEqual([])
   })
+
+  it("warns on the loop's own iteration field read by its display name, which the run resolves to the loop", () => {
+    expect(findings(whileLoop('<W.index> < 3'), 'W_REF_OUT_OF_SCOPE')).toEqual([
+      expect.objectContaining({ blockKey: 'w' }),
+    ])
+  })
 })
