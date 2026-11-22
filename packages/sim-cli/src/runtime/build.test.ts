@@ -25,7 +25,7 @@ import type { OperationSpec } from './types'
 
 /** `SimClient.requireWorkspace`'s message, verbatim, for the mocked client. */
 const NO_WORKSPACE_FOR_PROFILE =
-  'No workspace set for profile "default". Pass --workspace, or run: sim configure --profile default --set-workspace <id>'
+  'No workspace set for profile "default". Pass -w <workspaceId>, set SIM_WORKSPACE, or run: sim configure --profile default --set-workspace <id>'
 
 const { mockRequest, output, profileState } = vi.hoisted(() => ({
   mockRequest: vi.fn(),

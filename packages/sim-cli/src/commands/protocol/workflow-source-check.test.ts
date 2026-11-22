@@ -607,6 +607,26 @@ describe('sim workflows source check', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('names the column a row write meant when it writes the key of a renamed column', async () => {
+    cacheCatalog()
+    writeWorkspace()
+    const table = join(dir, 'tables/contacts.ts')
+    writeFileSync(
+      table,
+      readFileSync(table, 'utf8').replace(
+        'email: column.string({ required: true })',
+        "email: column.string({ name: 'contact', required: true })"
+      )
+    )
+    const folder = writeWorkflowFolder('notify', workspaceWorkflow())
+
+    await checkIn(folder)
+
+    expect(findingLines()).toContain(
+      'error W_TABLE_UNKNOWN_COLUMN: data writes email, the key of column "contact" of table "contacts": row data is keyed by column name, so the run drops it.\n  hint: Did you mean contact?'
+    )
+  })
+
   it('fails on a broken new block by default, but not on one the lock binds', async () => {
     cacheCatalog()
     writeFileSync(join(dir, 'workflow.ts'), UNKNOWN_METHOD)

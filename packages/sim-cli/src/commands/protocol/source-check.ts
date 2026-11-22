@@ -51,6 +51,7 @@ import { type Diagnostic, findingsOutput } from './source-ui'
 import { blockDigest, readStoredBlockDigests, readStoredEdges } from './stored-edges'
 import { lockRecoveryHint, readSourceFiles } from './workflow-dir'
 import {
+  type DeclaredColumn,
   kindFolders,
   readWorkspaceDeclarations,
   WORKSPACE_TREE,
@@ -362,6 +363,33 @@ function childResultFindings(
 }
 
 /**
+ * `W_TABLE_UNKNOWN_COLUMN` for a row write's `field` that names no column of `table`. A row is
+ * keyed by column name, so a field that is the key of a column `name` renamed points at that name.
+ */
+function unknownColumnFinding(
+  table: string,
+  columns: ReadonlyMap<string, DeclaredColumn>,
+  field: string,
+  block: string,
+  param: string
+): ParamFinding {
+  const finding = { code: 'W_TABLE_UNKNOWN_COLUMN', severity: 'warning', block, param } as const
+  const renamed = [...columns].find(([, column]) => column.key === field)?.[0]
+  if (renamed) {
+    return {
+      ...finding,
+      message: `${param} writes ${field}, the key of column "${renamed}" of table "${table}": row data is keyed by column name, so the run drops it.`,
+      hint: `Did you mean ${renamed}?`,
+    }
+  }
+  return {
+    ...finding,
+    message: `${param} writes ${field}, which is not a column of table "${table}"; the run drops it.`,
+    hint: `${didYouMean(field, columns.keys()) ?? ''} Columns: ${listed(columns.keys())}.`.trimStart(),
+  }
+}
+
+/**
  * The findings a compile cannot make without the workspace's declarations: a resource key the
  * directory does not declare (an apply fails on it), and a table row write naming a column, or a
  * select option, its table does not declare.
@@ -407,14 +435,7 @@ function declarationFindings(
         for (const [field, cell] of Object.entries(row)) {
           const column = columns.get(field)
           if (!column) {
-            findings.push({
-              code: 'W_TABLE_UNKNOWN_COLUMN',
-              severity: 'warning',
-              message: `${param} writes ${field}, which is not a column of table "${table}"; the run drops it.`,
-              hint: `${didYouMean(field, columns.keys()) ?? ''} Columns: ${listed(columns.keys())}.`.trimStart(),
-              block,
-              param,
-            })
+            findings.push(unknownColumnFinding(table, columns, field, block, param))
             continue
           }
           const { options } = column

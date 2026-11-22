@@ -7792,12 +7792,14 @@ Inputs:
   manualTableId; a string goes to the typed field). Add the type it answers with: `blocks get
   table` answers table_v2, and an add of legacy table is refused.
   conditions (condition): [{"title":"if","value":"<start.n> > 3"},{"title":"else if","value":"…"},
-  {"title":"else","value":""}]; the last entry is the else, and ids are assigned.
+  {"title":"else","value":""}]; the last entry is the else. Each entry's id comes from its
+  position (<block id>-if, <block id>-else-if-0, …, <block id>-else): an id you pass is replaced.
   inputFormat (Start): [{"name":"email","type":"string"}]; types string, number, boolean,
   object, array, file[]; an optional default "value" as text.
 Block settings, beside inputs in an add's or edit's params:
   "retry":{"enabled":true,"maxTries":3,"waitBetweenTriesMs":1000} retries a failed block; null
-  clears it.
+  clears it. An api block's retries input repeats the request after a timeout, reset, 429 or
+  5xx, not when the host does not resolve or refuses the connection; "retry" covers that.
 Outputs:
   A block that fails outputs {"error":"<message>"}: connect its error handle and read
   <name.error> there (without one, the run fails). A Workflow block's result is the child's

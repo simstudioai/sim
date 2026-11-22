@@ -63,15 +63,15 @@ ${sharedRules('sim workflows source')}
 
 /** What a rename in a workspace directory rewrites beyond a workflow's own blocks. */
 const WORKSPACE_RENAMES =
-  " A column: change its \`name\`, keep its key (cells stay); Table blocks using the old name are not rewritten (\`W_TABLE_COLUMN_RENAMED_IN_USE\`). A file's key never changes (\`E_KEY_RENAMED\`): rename by \`name\`."
+  " A column: change its \`name\`, keep its key (cells stay). Table blocks (\`data\`, \`conflictColumn\`, filters) use the name, not the key, and keep old names (\`W_TABLE_COLUMN_RENAMED_IN_USE\`). A file's key never changes (\`E_KEY_RENAMED\`): rename by \`name\`."
 
 const WORKSPACE_PRIMER = `# Sim workspace source: primer
 
-This directory is a Sim workspace as files (\`tables/\`, \`workflows/<key>/workflow.ts\`, …); read statically; nothing runs. Commands read the workspace id from \`${SOURCE_BASE_FILE}\`; run them from this directory.
+This directory is a Sim workspace as files (\`tables/\`, \`workflows/<key>/workflow.ts\`, …); nothing in it runs. Commands read the workspace id from \`${SOURCE_BASE_FILE}\`; run them from this directory.
 
 **Edit loop**: edit the files → \`sim workspaces source check --dir .\` (offline; refreshes \`workspace.d.ts\` and \`tsconfig.json\`) → \`${typecheckCommand()}\` → \`sim workspaces source apply --dir . --dry-run\` → \`--yes\`. Rerun each step until it exits 0. Apply rewrites the directory from what it stored: read a file again before the next edit.
 
-- **Deletes**: a removed file (a resource this directory managed), table column, workflow block or workflow variable is deleted only with \`apply --allow-delete\` (else refused), and cannot be undone. A kind is managed only when its folder exists.
+- **Deletes**: a removed file (a resource this directory managed), table column, workflow block or variable is deleted only with \`apply --allow-delete\` and cannot be undone. A kind is managed only when its folder exists.
 - **Deploy**: \`deployments/<workflow key>.ts\` (\`defineDeployment({ live: 'draft' })\`) deploys that workflow on apply, which prints its webhook URLs; without one, apply never deploys.
 - **Promote** (dev → prod): \`sim workspaces source apply --dir . --to <workspaceId> --dry-run\`, then \`--yes\`.
 - **Exit ${SOURCE_HELD_EXIT_CODE}**: written in part; changes using an unset secret or unbound credential were held back: set it, apply again.
