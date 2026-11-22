@@ -13,11 +13,11 @@ import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import {
   applyBlockRetry,
+  applyEditedBranchRows,
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   createSubBlockInputGate,
   gateToolInputValue,
-  normalizeConditionRouterIds,
   normalizeResponseFormat,
   normalizeSubblockValue,
   updateCanonicalModesForInputs,
@@ -356,7 +356,7 @@ function mergeNestedNodesForParent(
           if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) return
           if (!isInputAllowed(key, value)) return
           let sanitizedValue = normalizeSubblockValue(key, value, existingBlock.type)
-          sanitizedValue = normalizeConditionRouterIds(existingId, key, sanitizedValue)
+          sanitizedValue = applyEditedBranchRows(modifiedState, existingId, key, sanitizedValue)
           sanitizedValue = gateToolInputValue(
             { blockId: existingId, blockType: existingBlock.type, key, value, sanitizedValue },
             permissionConfig,
@@ -631,7 +631,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       explicitInputKeys.add(key)
       let sanitizedValue = normalizeSubblockValue(key, value, block.type)
 
-      sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
+      sanitizedValue = applyEditedBranchRows(modifiedState, block_id, key, sanitizedValue)
 
       sanitizedValue = gateToolInputValue(
         { blockId: block_id, blockType: block.type, key, value, sanitizedValue },
@@ -1095,7 +1095,7 @@ export function handleInsertIntoSubflowOperation(
 
         let sanitizedValue = normalizeSubblockValue(key, value, existingBlock.type)
 
-        sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
+        sanitizedValue = applyEditedBranchRows(modifiedState, block_id, key, sanitizedValue)
 
         sanitizedValue = gateToolInputValue(
           { blockId: block_id, blockType: existingBlock.type, key, value, sanitizedValue },
