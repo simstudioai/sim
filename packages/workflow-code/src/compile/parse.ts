@@ -1,9 +1,10 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { File, Node } from '@babel/types'
+import { utf8ByteLength } from '@sim/utils/paste'
 import { type BabelErrorShape, babelErrorShape, childNodes } from '../babel'
 import { codeFileLanguage } from '../code-files'
 import { createJsContextScanner } from '../code-files/lexer'
-import { SOURCE_LIMITS, utf8Bytes } from '../limits'
+import { SOURCE_LIMITS } from '../limits'
 import type { Reporter } from './report'
 
 /** Caps on hostile input. Defaults are the shared `SOURCE_LIMITS` (`limits.ts`). */
@@ -123,7 +124,7 @@ export function parseWorkflowSource(
 ): ParsedSource {
   const parsed: ParsedSource = { ast: null, ...sdkHeader(text) }
 
-  if (utf8Bytes(text, limits.maxTotalBytes) > limits.maxTotalBytes) {
+  if (utf8ByteLength(text, limits.maxTotalBytes) > limits.maxTotalBytes) {
     reporter.report(
       'E_LIMIT_EXCEEDED',
       `The file is larger than ${limits.maxTotalBytes} bytes, the limit for all source files together.`,

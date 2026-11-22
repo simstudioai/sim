@@ -1,8 +1,9 @@
 import { parse } from '@babel/parser'
 import type { Node } from '@babel/types'
+import { utf8ByteLength } from '@sim/utils/paste'
 import { childNodes, literalText } from '../babel'
 import { bracketDepthOverflow, PARSER_OPTIONS } from '../compile/parse'
-import { SOURCE_LIMITS, utf8Bytes } from '../limits'
+import { SOURCE_LIMITS } from '../limits'
 import { SDK_MODULE } from '../sdk'
 
 /** The SDK export a function block's code file is read through. */
@@ -17,7 +18,7 @@ const CODE_FILE_EXPORT = 'codeFile'
  * can (possibly nothing): the server refuses it with the full diagnostics.
  */
 export function codeFileReferences(text: string): string[] {
-  if (utf8Bytes(text, SOURCE_LIMITS.maxTotalBytes) > SOURCE_LIMITS.maxTotalBytes) return []
+  if (utf8ByteLength(text, SOURCE_LIMITS.maxTotalBytes) > SOURCE_LIMITS.maxTotalBytes) return []
   if (bracketDepthOverflow(text, SOURCE_LIMITS.maxDepth) !== -1) return []
   let program: Node
   try {

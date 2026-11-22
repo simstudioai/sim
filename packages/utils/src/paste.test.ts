@@ -3,7 +3,16 @@ import { assessTextPaste, utf8ByteLength } from './paste'
 
 describe('utf8ByteLength', () => {
   it('matches UTF-8 for ASCII, BMP, astral, and malformed UTF-16', () => {
-    for (const value of ['plain text', 'café', '你好', '💡', '\ud800']) {
+    for (const value of [
+      'plain text',
+      'café',
+      '你好',
+      '💡',
+      '\ud800',
+      '\udc00',
+      '\ud800é',
+      '\ud800𐀀',
+    ]) {
       expect(utf8ByteLength(value)).toBe(new TextEncoder().encode(value).byteLength)
     }
   })

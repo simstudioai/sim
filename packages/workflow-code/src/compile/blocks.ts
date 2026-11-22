@@ -1,6 +1,7 @@
 import { parse } from '@babel/parser'
 import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
+import { utf8ByteLength } from '@sim/utils/paste'
 import {
   findWorkflowReferenceTokens,
   isLikelyWorkflowReferenceSegment,
@@ -49,7 +50,7 @@ import { isIdentifierName, LOOP_PROPERTIES, parseStoredPath } from '../code-file
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { type ConfigField, type ContainerForm, loopForm, parallelForm } from '../forms/subflow'
-import { CODE_FILE_EXTENSIONS, isCodeFilePath, SOURCE_CODE_DIR, utf8Bytes } from '../limits'
+import { CODE_FILE_EXTENSIONS, isCodeFilePath, SOURCE_CODE_DIR } from '../limits'
 import { isJson } from '../lock'
 import {
   type AnchorKey,
@@ -423,7 +424,7 @@ function parseCodeFile(
 ): string | null {
   const { limits } = ctx
   const before = ctx.codeFiles.bytes
-  ctx.codeFiles.bytes += utf8Bytes(text, limits.maxTotalBytes)
+  ctx.codeFiles.bytes += utf8ByteLength(text, limits.maxTotalBytes)
   if (ctx.codeFiles.bytes > limits.maxTotalBytes) {
     // Reported once, on the file that crosses the cap; each file after it is skipped silently.
     if (before > limits.maxTotalBytes) return null

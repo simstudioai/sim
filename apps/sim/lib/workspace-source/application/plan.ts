@@ -7,7 +7,7 @@
  */
 
 import { mapWithConcurrency } from '@sim/utils/concurrency'
-import { utf8Bytes } from '@sim/workflow-code/limits'
+import { utf8ByteLength } from '@sim/utils/paste'
 import {
   APPLY_ORDER,
   type BlobEntry,
@@ -227,7 +227,7 @@ function checkLimits(
   const bytes: Record<SourceBudget, number> = { declaration: 0, workflow: 0, rows: 0 }
   for (const [path, text] of Object.entries(files)) {
     const kind = kindOfPath(path)
-    if (kind) bytes[budgetOfPath(KIND_LAYOUTS[kind], path)] += utf8Bytes(text)
+    if (kind) bytes[budgetOfPath(KIND_LAYOUTS[kind], path)] += utf8ByteLength(text)
   }
   const { maxDeclarationBytes, maxRowsBytes, maxWorkflowBytes } = WORKSPACE_SOURCE_LIMITS
   if (bytes.rows > maxRowsBytes) {
