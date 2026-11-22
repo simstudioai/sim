@@ -56,7 +56,7 @@ sim workflows get <workflowId>
 
 API request and response schemas: [getWorkflow](/api-reference/workflows/getWorkflow).
 
-### Create a workflow whose draft holds one start block (start_trigger, named Start); connect from it
+### Create workflow
 
 ```bash
 sim workflows create [options]
@@ -73,6 +73,8 @@ sim workflows create [options]
 | `--folder <value>` | No | Existing folder path (leading / optional); create it first with sim workflows mkdir &lt;path&gt;. |
 
 </CommandTable>
+
+The new workflow's draft holds one Start block (start_trigger, named Start): connect the blocks you add from it.
 
 API request and response schemas: [createWorkflow](/api-reference/workflows/createWorkflowV2).
 
@@ -1106,7 +1108,7 @@ API request and response schemas: [deleteWorkflowChatDeployment](/api-reference/
 
 ## Export and import
 
-### Print a workflow as a portable JSON document. workspace bindings (a table, a child workflow, a knowledge base) print as null unless --include-workspace-bindings, and credentials always do: to read what a block is set to, use sim workflows state get
+### Print a workflow as a portable JSON document
 
 The export clears credentials, passwords, and table sub-block values, but it is not a general secret scanner. Inspect literal variables and inline configuration before sharing the document.
 
@@ -1135,6 +1137,8 @@ sim workflows export <workflowId> [options]
 | `--no-include-workspace-bindings` | No | Send --include-workspace-bindings as false. |
 
 </CommandTable>
+
+Workspace bindings (a table, a child workflow, a knowledge base) print as null unless --include-workspace-bindings, and credentials always do: to read what a block is set to, use `sim workflows state get`.
 
 API request and response schemas: [exportWorkflow](/api-reference/workflows/exportWorkflow).
 

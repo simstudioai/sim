@@ -983,8 +983,9 @@ export const CLI_CONTRACT: CliContract = {
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
   createWorkflow: {
-    describe:
-      'Create a workflow whose draft holds one Start block (start_trigger, named Start); connect from it',
+    helpText: `
+The new workflow's draft holds one Start block (start_trigger, named Start): connect the
+blocks you add from it.`,
     flags: {
       folderPath: {
         ...FOLDER_PATH_FLAG,
@@ -2303,8 +2304,11 @@ export const CLI_CONTRACT: CliContract = {
   // The payload is the artifact: `sim workflows export <id> > wf.json` has to
   // produce something `sim workflows import` accepts back.
   exportWorkflow: {
-    describe:
-      'Print a workflow as a portable JSON document. Workspace bindings (a table, a child workflow, a knowledge base) print as null unless --include-workspace-bindings, and credentials always do: to read what a block is set to, use sim workflows state get',
+    describe: 'Print a workflow as a portable JSON document',
+    helpText: `
+Workspace bindings (a table, a child workflow, a knowledge base) print as null unless
+--include-workspace-bindings, and credentials always do: to read what a block is set to, use
+\`sim workflows state get\`.`,
     flags: {
       includeReferences: {
         boolean: true,
