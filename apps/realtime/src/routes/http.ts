@@ -84,23 +84,10 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
   return async (req: IncomingMessage, res: ServerResponse) => {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow')
 
-    // Health check doesn't require auth
+    // Unauthenticated and publicly reachable, so it reports liveness only.
     if (req.method === 'GET' && req.url === '/health') {
-      try {
-        const connections = await roomManager.getTotalActiveConnections()
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({
-            status: 'ok',
-            timestamp: new Date().toISOString(),
-            connections,
-          })
-        )
-      } catch (error) {
-        logger.error('Error in health check:', error)
-        res.writeHead(503, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ status: 'error', message: 'Health check failed' }))
-      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ status: 'ok' }))
       return
     }
 

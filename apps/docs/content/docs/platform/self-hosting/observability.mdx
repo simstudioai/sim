@@ -12,7 +12,7 @@ Use health checks, container logs, and infrastructure metrics to monitor your de
 | Service | Endpoint | Returns |
 |---|---|---|
 | app | `GET /api/health` | `{"status":"ok","timestamp":"..."}` |
-| realtime | `GET /health` on port 3002 | `{"status":"ok","timestamp":"...","connections":0}` |
+| realtime | `GET /health` on port 3002 | `{"status":"ok"}` |
 
 <Callout type="warn">
   `/api/health` is a **liveness** signal only. It returns `200` as long as the process is serving HTTP — it does not check the database, Redis, or object storage. A healthy response does not mean the app can serve traffic successfully, so do not treat it as a dependency check. Verify dependencies with the [smoke test](/platform/self-hosting/verify) instead.
