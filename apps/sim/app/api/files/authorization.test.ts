@@ -161,6 +161,12 @@ describe('public-context access (profile-pictures / og-images / workspace-logos)
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 
+  it('denies a dot-segment key that only looks like it sits under a public prefix', async () => {
+    const key = 'og-images/../workspace/victim-ws/123-report.pdf'
+    await expect(verifyFileAccess(key, USER_ID, undefined, 'og-images')).resolves.toBe(false)
+    await expect(verifyFileAccess(key, USER_ID)).resolves.toBe(false)
+  })
+
   it('denies a cross-tenant delete that names a workspace key under a public context', async () => {
     await expect(write('workspace/victim-ws/123-report.pdf', 'og-images')).resolves.toBe(false)
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
