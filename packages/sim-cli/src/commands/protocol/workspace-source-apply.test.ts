@@ -1825,6 +1825,34 @@ describe('workspaces source apply', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it.each([
+    ['writes the rest', [{ kind: 'table', key: 'leads', action: 'create' }], 15],
+    ['writes nothing else', [], 1],
+  ])(
+    'exits a dry run that holds a change back as the apply would: %s',
+    async (_case, others, exitCode) => {
+      request.mockResolvedValue(
+        answer({
+          dryRun: true,
+          plan: [...others, { kind: 'workflow', key: 'ingest', action: 'create', held: true }],
+          diagnostics: [
+            {
+              code: 'E_SECRET_MISSING',
+              severity: 'error',
+              message: 'workflows/ingest is held back: it reads the secret OPENAI_API_KEY.',
+              kind: 'workflow',
+              key: 'ingest',
+            },
+          ],
+        })
+      )
+
+      await apply('--dry-run')
+
+      expect(process.exitCode).toBe(exitCode)
+    }
+  )
+
   it('saves the applied answer when the catalog of a workflow it reprinted cannot be fetched, and says its edges are unrecorded', async () => {
     const configDir = mkdtempSync(join(tmpdir(), 'sim-workspace-apply-config-'))
     vi.stubEnv('SIM_CONFIG_DIR', configDir)

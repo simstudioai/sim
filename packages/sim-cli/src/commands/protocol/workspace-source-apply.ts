@@ -141,6 +141,17 @@ function refusesApply(data: ApplyData): boolean {
   )
 }
 
+/**
+ * The exit status of a dry run with errors, as the apply would exit: one that holds changes back
+ * and refuses nothing else writes the rest, so it exits 15 (`SOURCE_HELD_EXIT_CODE`) as that apply does, unless every
+ * change it would write is held (1, nothing written).
+ */
+function previewExitCode(data: ApplyData): number {
+  if (refusesApply(data)) return refusedExitCode(data.diagnostics)
+  const writesSome = data.plan.some((change) => change.action !== 'noop' && !change.held)
+  return writesSome ? SOURCE_HELD_EXIT_CODE : 1
+}
+
 /** What an apply that wrote did, for the plan reprinted after it stopped part-way. */
 type PlanOutcome = Pick<ApplyData, 'applied' | 'failed'>
 
@@ -869,6 +880,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               findings.print(preview.diagnostics)
             },
             refuses: refusesApply,
+            previewExitCode,
             // Without a preview, stage the blobs the base does not hold as they are.
             beforeCommit: (preview) =>
               stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission)),

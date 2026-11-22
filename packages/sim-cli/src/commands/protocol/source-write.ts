@@ -37,6 +37,11 @@ export interface SourceWriteFlow<D extends WriteAnswer> {
   show(preview: D): void
   /** Whether a preview's errors refuse the write, which is then reported and goes no further. */
   refuses(preview: D): boolean
+  /**
+   * The exit status of a preview with errors, as the write it previews would exit: by default the
+   * refusal's ({@link refusedExitCode}).
+   */
+  previewExitCode?(preview: D): number
   /** Prints what a preview that refuses nothing would write, before the plan stop or the question. */
   explain?(preview: D): void
   /** Runs once the write may go ahead, before it is sent (the preview, or `null` with `--yes`). */
@@ -77,7 +82,7 @@ export async function runSourceWrite<D extends WriteAnswer>(
     preview = await flow.preview()
     flow.show(preview)
     if (preview.diagnostics.some((finding) => finding.severity === 'error')) {
-      setSoftExitCode(refusedExitCode(preview.diagnostics))
+      setSoftExitCode(flow.previewExitCode?.(preview) ?? refusedExitCode(preview.diagnostics))
     }
     if (flow.mode === 'dry-run' || flow.refuses(preview)) {
       flow.report(preview)
