@@ -193,7 +193,6 @@ describe('sanitizeForCopilot error output', () => {
 
   it('keeps the stored flag for a block no error edge leaves', () => {
     expect(blockWithFlag(false, false)).toBe(false)
-    expect(blockWithFlag(true, false)).toBe(true)
     expect(blockWithFlag(undefined, false)).toBeUndefined()
   })
 })

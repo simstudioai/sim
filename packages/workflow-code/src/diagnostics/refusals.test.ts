@@ -198,6 +198,22 @@ describe('refuseEditedFindings', () => {
     expect(errors(refuseEditedFindings(compiled, edited('inner')))).toEqual([])
   })
 
+  it('refuses a loop condition the run cannot evaluate on an edited loop, and only there', () => {
+    const compiled = compile([
+      START,
+      "const w = loop.while('W', { condition: '<loop.index> < (3' }, (body) => {",
+      "  const inner = fn('Inner', { code: 'return 1' })",
+      '  body.to(inner)',
+      '})',
+      'start.to(w)',
+    ])
+
+    expect(errors(refuseEditedFindings(compiled, edited('w')))).toEqual([
+      'E_APPLY_LOOP_CONDITION_SYNTAX w',
+    ])
+    expect(errors(refuseEditedFindings(compiled, edited('inner')))).toEqual([])
+  })
+
   it('refuses a path no output has in an edited code file, and only there', () => {
     const compiled = compile(
       [

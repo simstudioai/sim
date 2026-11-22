@@ -299,7 +299,6 @@ function childInputFindings(
     }))
 }
 
-/** Every string inside a value, depth first. */
 function stringLeaves(value: unknown): string[] {
   if (typeof value === 'string') return [value]
   if (Array.isArray(value)) return value.flatMap(stringLeaves)
