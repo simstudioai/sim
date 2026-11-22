@@ -5,7 +5,7 @@
  * the generated declarations' own (`builderTypes`), so the two never disagree.
  */
 
-import { compareStrings } from '@sim/utils/string'
+import { compareStrings, escapeRegExp } from '@sim/utils/string'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { suggestBuilder } from '@sim/workflow-code'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '@sim/workflow-code/catalog/view'
@@ -129,7 +129,7 @@ const MAX_CORE_LINES = 80
 function coreDeclarationRanges(name: string): Array<{ start: number; end: number }> {
   const lines = CORE_DTS.split('\n')
   const start = new RegExp(
-    `^export (?:declare )?(?:const|function|namespace|interface|type) ${name}\\b`
+    `^export (?:declare )?(?:const|function|namespace|interface|type) ${escapeRegExp(name)}\\b`
   )
   const declarations: Array<{ start: number; end: number }> = []
   for (let index = 0; index < lines.length; index++) {

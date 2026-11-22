@@ -769,6 +769,7 @@
         "proper-lockfile": "4.1.2",
       },
       "devDependencies": {
+        "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "@sim/utils": "workspace:*",
         "@sim/workflow-code": "workspace:*",
@@ -944,6 +945,7 @@
         "@sim/workflow-types": "workspace:*",
       },
       "devDependencies": {
+        "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "@types/node": "24.19.2",
         "@xyflow/react": "12.12.1",

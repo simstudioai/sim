@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
 import { describe, expect, it } from 'vitest'
 import { FIXTURE_WORKSPACE } from '../../test/fixtures/workspace'
 import {
@@ -9,7 +10,12 @@ import {
   writeTypecheckProject,
 } from '../../test/typecheck-project'
 import { generateSdkTypes } from './generate'
-import { defaultBlockFiles, fullBlockFiles, referencedBlockTypes } from './layout'
+import {
+  defaultBlockFiles,
+  fullBlockFiles,
+  referencedBlockTypes,
+  referencedBuilders,
+} from './layout'
 import { generateWorkspaceTypes } from './workspace'
 
 function reversedKeys<T>(record: Record<string, T>): Record<string, T> {
@@ -154,6 +160,17 @@ describe('the SDK layout', () => {
     expect(defaults).toContain('blocks/gmail_v2.d.ts')
     expect(defaults).not.toContain('blocks/google_sheets_v2.d.ts')
     expect(fullBlockFiles(catalog, used)).toEqual(['index.d.ts', 'blocks/slack.d.ts'])
+  })
+
+  it.each([
+    ['a long identifier', (n: number) => 'a'.repeat(n)],
+    ['a long dotted chain', (n: number) => '$.'.repeat(n)],
+  ])('scans a source holding %s with no call in linear time', (_, source) => {
+    const catalog = loadCatalog()
+    expectLinearGrowth((n) => {
+      const text = source(n)
+      return () => referencedBuilders(catalog, [text])
+    }, 4_000)
   })
 })
 

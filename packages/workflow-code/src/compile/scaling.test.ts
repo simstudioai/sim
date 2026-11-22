@@ -7,6 +7,7 @@ import { describe, it } from 'vitest'
 import { SOURCE_LIMITS } from '../limits'
 import { TEST_CATALOG } from './catalog.test-helpers'
 import { stronglyConnected } from './edges'
+import { suggestBuilder } from './hints'
 import { compileWorkflow } from './index'
 
 const ENTRY = 'workflows/test.ts'
@@ -66,5 +67,13 @@ describe('compile scaling', () => {
       const envNames = new Set(Array.from({ length: n }, (_, i) => `KNOWN_${i}`))
       return compileReading(n, n, (i) => `$env.MISSING_${i}`, { envNames })
     }, 200)
+  })
+
+  it('splits a long written method that spans lines in linear time', () => {
+    const paths = ['slack.sendMessage', 'slack.getMessage']
+    expectLinearGrowth((n) => {
+      const written = `slack.${'a'.repeat(n)}\n`
+      return () => suggestBuilder(written, paths)
+    }, 4_000)
   })
 })

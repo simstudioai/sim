@@ -5,6 +5,7 @@ import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
 import { encodeFilenameForHeader } from '@/lib/uploads/server/delivery'
+import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -14,8 +15,9 @@ export const revalidate = 0
  * original bytes.
  *
  * What `sim workspaces source get` downloads for each document of a knowledge base. A document
- * whose original is not stored (a connector-synced page) answers `NOT_FOUND`. `headSafe: false`
- * because the read pulls the bytes out of object storage.
+ * whose original is not stored (a connector-synced page) answers `NOT_FOUND`. Nothing parses the
+ * bytes, so any original up to the stored-document limit downloads, not just those under the
+ * text-extraction cap. `headSafe: false` because the read pulls the bytes out of object storage.
  */
 export const GET = defineV2BinaryRoute({
   contract: v2DownloadKnowledgeDocumentContract,
@@ -28,6 +30,7 @@ export const GET = defineV2BinaryRoute({
     knowledgeBaseId: params.knowledgeBaseId,
     documentId: params.documentId,
     assertedWorkspaceId: query.workspaceId,
+    maxBytes: MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
   }),
   useCase: readOriginalKnowledgeDocument,
   present: (document) => {

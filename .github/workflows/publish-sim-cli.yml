@@ -7,7 +7,9 @@ on:
       - 'packages/sim-cli/**'
       # The build bundles its workspace dependencies, so a change there
       # changes what ships. `bun run check:sim-cli-bundle` fails when this
-      # list and the bundle's workspace packages disagree.
+      # list and the bundle's workspace packages disagree. bun.lock is not
+      # watched: nearly every lockfile change leaves the bundle byte-identical,
+      # and the next change to a watched package ships the ones that do not.
       - 'packages/table-cells/**'
       - 'packages/utils/**'
       - 'packages/workflow-code/**'
