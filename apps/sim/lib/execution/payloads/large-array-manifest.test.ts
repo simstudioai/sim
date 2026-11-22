@@ -143,6 +143,49 @@ describe('large array manifests', () => {
     ).rejects.toThrow('Invalid large array manifest')
   })
 
+  describe('forged chunk sizes', () => {
+    const items = [{ id: 1, payload: 'x'.repeat(2048) }]
+    const readOptions = { ...TEST_CONTEXT, maxBytes: 1024 * 1024 }
+
+    /** Repeats one real chunk while declaring 1 byte each; creating it leaves the chunk cached. */
+    async function forgeRepeatedChunkManifest() {
+      const manifest = await createLargeArrayManifest(items, TEST_CONTEXT)
+      const [chunk] = manifest.chunks
+      const repeats = 4
+      const forged = {
+        ...manifest,
+        totalCount: chunk.count * repeats,
+        chunkCount: repeats,
+        byteSize: repeats,
+        chunks: Array.from({ length: repeats }, () => ({
+          ref: { ...chunk.ref, size: 1 },
+          count: chunk.count,
+          byteSize: 1,
+        })),
+      }
+      expect(isLargeArrayManifest(forged)).toBe(true)
+      return forged
+    }
+
+    it('does not download chunks larger than their declared size', async () => {
+      const forged = await forgeRepeatedChunkManifest()
+      clearLargeValueCacheForTests()
+      mockDownloadFile.mockResolvedValue(Buffer.from(JSON.stringify(items), 'utf8'))
+
+      await expect(materializeLargeArrayManifest(forged, readOptions)).rejects.toThrow(
+        'Large array manifest chunk is unavailable'
+      )
+    })
+
+    it('does not serve cached chunks larger than their declared size', async () => {
+      const forged = await forgeRepeatedChunkManifest()
+
+      await expect(materializeLargeArrayManifest(forged, readOptions)).rejects.toThrow(
+        'Large array manifest chunk is unavailable'
+      )
+    })
+  })
+
   it('rejects manifests whose chunk count does not match materialized data', async () => {
     const manifest = await createLargeArrayManifest([{ id: 1 }], TEST_CONTEXT)
     const forgedManifest = {
