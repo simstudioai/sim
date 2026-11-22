@@ -32,9 +32,10 @@ export default workflow('Support', { description: 'Answers an order question.' }
     tools: [customTool('lookup-order')],
     skills: [skill('tone')],
   })
-  const log = table.insertRow('Log Question', {
+  const log = table.upsertRow('Log Question', {
     tableId: table('orders'),
     data: { orderId: start.orderId, status: 'answered' },
+    conflictColumn: 'orderId',
   })
 
   start.to(policy)

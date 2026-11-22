@@ -13,9 +13,10 @@ function loopRows(rows: ReadonlyArray<readonly [string, string]>): string {
 }
 
 /** Where the commands of either group find their workspace. */
-const WORKSPACE_LINE = `Workspace: a command run on a directory reads it from .sim/base.json; any other takes -w <id>
-or SIM_WORKSPACE (export it once, or keep only the ID in a variable: a variable holding
-"--workspace <id>" is one argument, an unknown option alone and the whole ID after -w).`
+const WORKSPACE_LINE = `Workspace: a directory records it (.sim/base.json, or a starter's .sim/starter.json); any other
+command takes -w <id>, SIM_WORKSPACE or the profile's (export SIM_WORKSPACE once, or keep only the
+ID in a variable: one holding "--workspace <id>" is one argument, an unknown option alone and the
+whole ID after -w).`
 
 /** The status line both groups end with, for a directory at `dir`. */
 function statusLine(group: string, dir: string): string {

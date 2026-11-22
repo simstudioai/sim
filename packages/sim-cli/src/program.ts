@@ -28,8 +28,10 @@ Profiles work like the AWS CLI: settings live in ~/.sim/config, keys in
 with -P, --profile, or SIM_PROFILE.
 
 A command targets the profile's workspace unless -w <id> (--workspace <id>) or
-SIM_WORKSPACE names another; a source directory keeps to the workspace its
-.sim/base.json records, and refuses a -w naming another. In a script, export
+SIM_WORKSPACE names another. A source directory records its own: a workflow
+directory acts on the workflow its .sim/base.json names, a workspace directory
+on the workspace its base names (refusing a -w naming another), and a starter
+on the one .sim/starter.json names unless -w names another. In a script, export
 SIM_WORKSPACE=<id> once, or keep only the ID in a variable and write -w "$WS".
 A variable holding "--workspace <id>" is one argument: alone it is an unknown
 option, and after -w all of it is taken as the ID.

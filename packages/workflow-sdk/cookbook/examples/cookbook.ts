@@ -66,21 +66,18 @@ export default workflow('Cookbook', { description: 'One example of each common b
     code: js`return { id: ${start.orderId}, cents: Math.round(${start.amount} * 100) }`,
   })
 
-  // Tables: query rows (each row is { id, data: { column } }) and insert a row.
+  // Tables: query rows (each row is { id, data: { column } }) and write one.
   const recent = table.queryRows('Recent Orders', {
     tableId: table('orders'),
     filterInput: { all: [{ field: 'status', op: 'eq', value: 'open' }] },
     limit: 50,
   })
-  const save = table.insertRow('Save Order', {
+  // Upsert: updates the row whose conflictColumn (a unique column, by name) matches data, else
+  // inserts one, so a second run for the same order updates it. table.insertRow takes the same
+  // data without conflictColumn and adds a row every run.
+  const save = table.upsertRow('Save Order', {
     tableId: table('orders'),
     data: { orderId: start.orderId, status: 'open' },
-  })
-  // Upsert: updates the row whose conflictColumn (a unique column, by name) matches data, else
-  // inserts one. data is keyed by column name, as for insertRow.
-  const touch = table.upsertRow('Touch Order', {
-    tableId: table('orders'),
-    data: { orderId: start.orderId, status: 'answered' },
     conflictColumn: 'orderId',
   })
 
@@ -146,8 +143,7 @@ export default workflow('Cookbook', { description: 'One example of each common b
   // Wiring: a.to(b) chains; a block can fan out to several targets.
   start.to(check)
   check.to(save)
-  save.to(touch)
-  touch.to(route)
+  save.to(route)
   route.high.to(alert)
   alert.to(approval)
   approval.to(decided)
