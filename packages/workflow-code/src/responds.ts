@@ -8,20 +8,22 @@ import {
 } from '@sim/workflow-types/workflow'
 import { storedTitle } from './canonicalize/branches'
 import type { CanonicalBlock, CanonicalWorkflow, Port } from './model'
+import { setOwn } from './records'
 
 /**
  * The branches `block` always takes one of (as `getAlwaysTakenBranchHandles` reads stored
- * blocks): every route of a router, and every row of a condition with an else row (by stored
- * title, as the executor finds it); none for branches never saved.
+ * blocks): every route of a router, and a condition's rows up to its first else row (by stored
+ * title, as the executor finds it); none for a condition without one or branches never saved.
  */
 function alwaysTakenBranches(block: CanonicalBlock): ResponseGraphBlock['branches'] {
   const branches = block.branches
   if (!branches) return undefined
   const rows = branches.rows ?? []
-  const hasElse = rows.some((row, index) =>
+  if (branches.kind === 'router') return rows.map((row) => row.key)
+  const elseAt = rows.findIndex((row, index) =>
     isElseConditionTitle(storedTitle(branches.kind, row, index, rows.length))
   )
-  return branches.kind === 'condition' && !hasElse ? [] : rows.map((row) => row.key)
+  return elseAt === -1 ? [] : rows.slice(0, elseAt + 1).map((row) => row.key)
 }
 
 function portName(port: Port): string {
@@ -37,12 +39,12 @@ export function respondsOnEveryRun(workflow: CanonicalWorkflow): boolean {
   const blocks: Record<string, ResponseGraphBlock> = {}
   for (const [key, block] of Object.entries(workflow.blocks)) {
     const branches = alwaysTakenBranches(block)
-    blocks[key] = {
+    setOwn(blocks, key, {
       type: block.type,
       enabled: block.enabled,
       parentId: block.parent,
       ...(branches !== undefined && { branches }),
-    }
+    })
   }
   return alwaysEndsAtResponse(
     blocks,

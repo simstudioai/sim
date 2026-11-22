@@ -550,15 +550,25 @@ describe('sim workspaces source check', () => {
       )
     )
     writeFile(
+      'workflows/proto/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { q: 'string' } })",
+        "const reply = response('__proto__', { body: { mobile: start.q } })",
+        'start.to(reply)'
+      )
+    )
+    writeFile(
       'workflows/parent/workflow.ts',
       workflowFile(
         "const start = trigger.start('Start', { inputFormat: { q: 'string' } })",
         "const maybe = runWorkflow('Maybe', { workflowId: childWorkflow('branchy'), inputMapping: { q: start.q } })",
         "const always = runWorkflow('Always', { workflowId: childWorkflow('covered'), inputMapping: { q: start.q } })",
-        "const use = fn('Use', { code: js`return [${maybe.result.mobile}, ${always.result.mobile}]` })",
+        "const named = runWorkflow('Named', { workflowId: childWorkflow('proto'), inputMapping: { q: start.q } })",
+        "const use = fn('Use', { code: js`return [${maybe.result.mobile}, ${always.result.mobile}, ${named.result.mobile}]` })",
         'start.to(maybe)',
         'maybe.to(always)',
-        'always.to(use)'
+        'always.to(named)',
+        'named.to(use)'
       )
     )
 
@@ -570,6 +580,9 @@ describe('sim workspaces source check', () => {
     expect(found).toEqual([
       expect.objectContaining({
         message: expect.stringContaining('<always.result.mobile> reads mobile'),
+      }),
+      expect.objectContaining({
+        message: expect.stringContaining('<named.result.mobile> reads mobile'),
       }),
     ])
   })

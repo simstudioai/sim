@@ -134,8 +134,9 @@ export function getDynamicHandleRows(
 
 /**
  * The source handles of the branches `block` always takes one of (as `respondsOnEveryRun` reads
- * canonical blocks): every route of a router, and every row of a condition with an else row (by
- * stored title, as the executor finds it); none for branches never saved. `undefined` for a block
+ * canonical blocks): every route of a router, and a condition's rows up to its first else row (by
+ * stored title, as the executor finds it), which runs when none before it matches; none for a
+ * condition without one or branches never saved. `undefined` for a block
  * without branches.
  */
 export function getAlwaysTakenBranchHandles(
@@ -145,12 +146,14 @@ export function getAlwaysTakenBranchHandles(
   if (subBlockId === null) return undefined
   const stored = parseStructuredValue(block.subBlocks[subBlockId]?.value) ?? []
   if (block.type === 'condition') {
-    const hasElse = stored.some((row) =>
+    const elseAt = stored.findIndex((row) =>
       isElseConditionTitle((row as { title?: unknown } | null)?.title)
     )
-    return stored.length > 0 && hasElse
-      ? getConditionRows(block.id, stored).map((row) => `condition-${row.id}`)
-      : []
+    return elseAt === -1
+      ? []
+      : getConditionRows(block.id, stored)
+          .slice(0, elseAt + 1)
+          .map((row) => `condition-${row.id}`)
   }
   return stored.length > 0 ? getRouterRows(block.id, stored).map((row) => `router-${row.id}`) : []
 }
