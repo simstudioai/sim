@@ -340,7 +340,8 @@ function mergeNestedNodesForParent(
           childBlock.inputs,
           existingId,
           buildSubBlockValues(existingBlock.subBlocks),
-          ctx.enforceToolBindingContract
+          ctx.enforceToolBindingContract,
+          existingBlock.triggerMode === true
         )
         validationErrors.push(...childValidation.errors)
 
@@ -599,7 +600,8 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       params.inputs,
       block_id,
       buildSubBlockValues(block.subBlocks),
-      ctx.enforceToolBindingContract
+      ctx.enforceToolBindingContract,
+      typeof params.triggerMode === 'boolean' ? params.triggerMode : block.triggerMode === true
     )
     validationErrors.push(...validationResult.errors)
 
@@ -1070,7 +1072,8 @@ export function handleInsertIntoSubflowOperation(
         params.inputs,
         block_id,
         buildSubBlockValues(existingBlock.subBlocks ?? {}),
-        ctx.enforceToolBindingContract
+        ctx.enforceToolBindingContract,
+        existingBlock.triggerMode === true
       )
       validationErrors.push(...validationResult.errors)
 

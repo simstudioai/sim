@@ -157,6 +157,9 @@ export function createBlockFromParams(
   enforceToolBindingContract = false
 ): any {
   const blockConfig = getBlock(params.type)
+  const triggerMode = params.triggerMode || false
+  const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+  const effectiveTriggerMode = Boolean(triggerMode && isTriggerCapable)
 
   // Validate inputs against block configuration
   let validatedInputs: Record<string, any> | undefined
@@ -166,18 +169,14 @@ export function createBlockFromParams(
       params.inputs,
       blockId,
       {},
-      enforceToolBindingContract
+      enforceToolBindingContract,
+      effectiveTriggerMode
     )
     validatedInputs = result.validInputs
     if (errorsCollector && result.errors.length > 0) {
       errorsCollector.push(...result.errors)
     }
   }
-
-  // Determine outputs based on trigger mode
-  const triggerMode = params.triggerMode || false
-  const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
-  const effectiveTriggerMode = Boolean(triggerMode && isTriggerCapable)
 
   const blockState: any = {
     id: blockId,
