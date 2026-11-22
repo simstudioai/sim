@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { DIAGNOSTIC_CODES } from '@sim/workflow-code/diagnostics/codes'
 import { describe, expect, it } from 'vitest'
-import { DIAGNOSTIC_CODES } from './codes'
 
-describe('DIAGNOSTIC_CODES', () => {
-  it('each has a row in the SYNTAX.md Diagnostics table, and the table names no other code', () => {
+describe('the Diagnostics table the README points at', () => {
+  it('has a SYNTAX.md row for every diagnostic code, and names no other code', () => {
     const syntax = readFileSync(
-      path.join(import.meta.dirname, '..', 'compile', 'SYNTAX.md'),
+      path.join(import.meta.dirname, '../../workflow-code/src/compile/SYNTAX.md'),
       'utf8'
     )
     const firstCells = [...syntax.matchAll(/^\| (`[EWI]_[A-Z_]+`(?:, `[EWI]_[A-Z_]+`)*) \|/gm)]
