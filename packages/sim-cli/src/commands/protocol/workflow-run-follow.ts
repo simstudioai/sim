@@ -15,6 +15,7 @@ import { buildRequest } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
 import { printRunFailureSite } from './run-source-location'
+import { BLOCK_ID, normalizeBlockName } from './workflow-run-get'
 import {
   parseWaitTimeout,
   type RunSnapshot,
@@ -488,6 +489,23 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
 }
 
 /**
+ * The selection a `--stop-after` run sends when the caller selected nothing: the stop block's
+ * whole output, so `blockOutputs` names the block the run stopped after and holds what it
+ * produced (the run's `output` stays empty: no Response block ran). The block is sent as the
+ * executor compares names ({@link normalizeBlockName}), so a display name with a dot is not read
+ * as a path; an id is sent as it is.
+ */
+function stopBlockSelection(
+  selection: WorkflowRunSelection | undefined,
+  flags: Record<string, unknown>
+): string[] | null {
+  const stopAfter = selection?.stopAfterBlockId
+  if (stopAfter === undefined) return null
+  if (Array.isArray(flags.selectOutput) && flags.selectOutput.length > 0) return null
+  return [BLOCK_ID.test(stopAfter) ? stopAfter : normalizeBlockName(stopAfter)]
+}
+
+/**
  * The handler Commander invokes for the generated `run` leaf, given the handler
  * it is replacing.
  */
@@ -544,6 +562,8 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
         )
       }
       if (flags.async !== true) {
+        const stopBlock = stopBlockSelection(selection, flags)
+        if (stopBlock) command.setOptionValue('selectOutput', stopBlock)
         await runWithResultStream(workflowId, command, waitTimeoutSeconds)
         return
       }
@@ -608,7 +628,7 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option(
       '--stop-after <block>',
-      'Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual)'
+      'Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty'
     )
     .option(
       '--dir <dir>',

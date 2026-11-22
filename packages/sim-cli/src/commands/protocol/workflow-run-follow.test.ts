@@ -348,6 +348,7 @@ describe('sim workflows run --follow', () => {
         entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
         stopAfterBlockId: 'agent-1',
       },
+      selectedOutputs: ['agent-1'],
     })
   })
 
@@ -359,6 +360,7 @@ describe('sim workflows run --follow', () => {
 
     expect(requestRaw.mock.calls[0][1].body).toEqual({
       run: { source: 'manual', stopAfterBlockId: 'agent-1' },
+      selectedOutputs: ['agent-1'],
     })
     expect(requestRaw.mock.calls[1][1].body).toEqual({
       run: {
@@ -366,7 +368,30 @@ describe('sim workflows run --follow', () => {
         entry: { type: 'trigger', blockId: 'start' },
         stopAfterBlockId: 'agent-1',
       },
+      selectedOutputs: ['agent-1'],
     })
+  })
+
+  it('selects the output of the block a --stop-after run stops after, by its key or id', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const blockId = '3f2b7c1e-9a4d-4e8b-8c2a-1d5e6f7a8b9c'
+
+    await run(WORKFLOW_ID, '--stop-after', 'Log v1.2 Total')
+    await run(WORKFLOW_ID, '--stop-after', blockId)
+
+    expect(requestRaw.mock.calls[0][1].body).toMatchObject({
+      run: { stopAfterBlockId: 'Log v1.2 Total' },
+      selectedOutputs: ['logv12total'],
+    })
+    expect(requestRaw.mock.calls[1][1].body.selectedOutputs).toEqual([blockId])
+  })
+
+  it('keeps the outputs a --stop-after run selects itself', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID, '--stop-after', 'agent-1', '--select-output', 'start.input')
+
+    expect(requestRaw.mock.calls[0][1].body.selectedOutputs).toEqual(['start.input'])
   })
 
   it('refuses an empty --stop-after rather than running the whole draft', async () => {
