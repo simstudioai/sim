@@ -150,10 +150,14 @@ export function assertLargeValueRefAccess(
   }
 }
 
+/**
+ * Downloads and parses a durable large value. Callers admit reads by the declared `ref.size`, so
+ * the stored bytes may never exceed it; `bytes` is the measured length for cache accounting.
+ */
 export async function readLargeValueRefFromStorage(
   ref: LargeValueRef,
   options: MaterializeLargeValueOptions = {}
-): Promise<unknown | undefined> {
+): Promise<{ value: unknown; bytes: number } | undefined> {
   const log = getLogger(options)
   if (!isLargeValueRef(ref) || !ref.key || !isValidLargeValueKey(ref)) {
     return undefined
@@ -161,7 +165,7 @@ export async function readLargeValueRefFromStorage(
 
   assertLargeValueRefAccess(ref, options)
   assertInlineMaterializationSize(ref.size, options.maxBytes)
-  const maxBytes = options.maxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES
+  const maxBytes = ref.size
 
   try {
     const { StorageService } = await import('@/lib/uploads')
@@ -177,7 +181,7 @@ export async function readLargeValueRefFromStorage(
         limitBytes: maxBytes,
       })
     }
-    return JSON.parse(buffer.toString('utf8'))
+    return { value: JSON.parse(buffer.toString('utf8')), bytes: buffer.length }
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
       throw new ExecutionResourceLimitError({
