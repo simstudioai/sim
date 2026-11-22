@@ -90,7 +90,7 @@ export function planNamedUndeclared<K extends NamedKindName, S>(
 }
 
 /** The top-level declaration fields whose canonical values differ. */
-function changedFields(before: Json, after: Json): string[] {
+export function changedFields(before: Json, after: Json): string[] {
   if (!isRecordLike(before) || !isRecordLike(after)) return []
   return Object.keys(after).filter(
     (field) => fingerprintOf(after[field] as Json) !== fingerprintOf(before[field] as Json)

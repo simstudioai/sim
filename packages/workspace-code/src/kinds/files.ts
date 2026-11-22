@@ -6,8 +6,8 @@
  * A path is refused when no workspace file could hold it or when two paths would land on one file
  * on a case-insensitive disk, so a directory always round-trips through a get on any machine.
  */
+import { utf8ByteLength } from '@sim/utils/paste'
 import { hasSuspiciousCharacter, type Json } from '@sim/workflow-code'
-import { utf8Bytes } from '@sim/workflow-code/limits'
 import type { ResourceFingerprint } from '../base'
 import {
   diagnostic,
@@ -51,7 +51,7 @@ export function filePathProblem(key: string): string | null {
     if (segment.startsWith('.')) return `"${segment}" starts with a dot`
     if (/[ .]$/.test(segment)) return `"${segment}" ends with a space or a dot`
     if (RESERVED_NAME.test(segment)) return `"${segment}" is a reserved device name`
-    if (utf8Bytes(segment) > MAX_SEGMENT_BYTES) {
+    if (utf8ByteLength(segment) > MAX_SEGMENT_BYTES) {
       return `"${segment.slice(0, 32)}…" is over ${MAX_SEGMENT_BYTES} bytes`
     }
   }

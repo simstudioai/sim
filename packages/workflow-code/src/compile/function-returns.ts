@@ -13,7 +13,7 @@
 
 import { parse } from '@babel/parser'
 import type { Expression, Node, ObjectExpression, PatternLike } from '@babel/types'
-import { childNodes } from '../babel'
+import { childNodes, memberName } from '../babel'
 import { parseStoredPath } from '../code-files/ref-path'
 import { toCodeFile } from '../code-files/to-file'
 import type { BlockKey, CanonicalBlock } from '../model'
@@ -204,13 +204,6 @@ function merge(a: JsKind | undefined, b: JsKind | undefined): JsKind | undefined
   if (a === undefined || b === undefined) return undefined
   if (a === b) return a
   return a !== 'string' && b !== 'string' ? 'typed' : undefined
-}
-
-/** The member name a non-computed (or string-keyed) member expression or call reads. */
-function memberName(node: Node): string | null {
-  if (node.type !== 'MemberExpression' && node.type !== 'OptionalMemberExpression') return null
-  if (!node.computed && node.property.type === 'Identifier') return node.property.name
-  return node.property.type === 'StringLiteral' ? node.property.value : null
 }
 
 /** Infers expression kinds over one program's bindings, guarding against self-reference. */

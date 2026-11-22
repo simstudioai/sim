@@ -17,6 +17,7 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { Expression, Node, ObjectExpression } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
+import { utf8ByteLength } from '@sim/utils/paste'
 import { containsNulCharacter, toWellFormed } from '@sim/utils/string'
 import {
   babelErrorShape,
@@ -27,7 +28,6 @@ import {
   type SourceSpan,
   sdkHeader,
 } from '@sim/workflow-code'
-import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   diagnostic,
   findingLimitReached,
@@ -167,7 +167,7 @@ export function readDeclaration(
   const nodeAt = (node: Node) => at(node.start ?? 0, node.end ?? node.start ?? 0)
   const fail = (): ReadDeclaration => ({ spans, diagnostics })
 
-  const bytes = utf8Bytes(text, WORKSPACE_SOURCE_LIMITS.maxDeclarationBytes)
+  const bytes = utf8ByteLength(text, WORKSPACE_SOURCE_LIMITS.maxDeclarationBytes)
   if (bytes > WORKSPACE_SOURCE_LIMITS.maxDeclarationBytes) {
     diagnostics.push(
       diagnostic(

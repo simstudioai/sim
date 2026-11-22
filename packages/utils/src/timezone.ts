@@ -120,7 +120,7 @@ export function assertValidTimezone(timezone: string): void {
  * Every IANA timezone identifier the runtime knows, for populating a picker;
  * falls back to a curated common set on runtimes without `Intl.supportedValuesOf`.
  */
-export function getSupportedTimezones(): string[] {
+function getSupportedTimezones(): string[] {
   const zones =
     typeof Intl.supportedValuesOf === 'function'
       ? Intl.supportedValuesOf('timeZone')
@@ -220,21 +220,6 @@ export function getWallClockParts(instant: Date, timeZone?: string): WallClockPa
 export function zonedWallClock(instant: Date, timeZone: string): string {
   const wall = getWallClockParts(instant, timeZone)
   return `${formatIsoYear(wall.year)}-${pad(wall.month)}-${pad(wall.day)}T${pad(wall.hour)}:${pad(wall.minute)}`
-}
-
-/**
- * A `Date` whose device-local fields (year…minute) equal the wall-clock time of
- * `instant` in `timeZone`. It deliberately does NOT represent the same instant —
- * it is a positioning coordinate that lets naive-local layout code (the calendar
- * grid, {@link zonedWallClock}-free pixel offsets) render in `timeZone` without
- * itself being timezone-aware. Never read its `getTime()` as a real timestamp;
- * the true instant always lives alongside it (e.g. a task's `runAt`).
- */
-export function zonedClockDate(instant: Date, timeZone: string): Date {
-  const [datePart, timePart] = zonedWallClock(instant, timeZone).split('T')
-  const [year, month, day] = datePart.split('-').map(Number)
-  const [hour, minute] = timePart.split(':').map(Number)
-  return new Date(year, month - 1, day, hour, minute)
 }
 
 /** The UTC offset (ms, east-positive) of `timeZone` at a given instant. */

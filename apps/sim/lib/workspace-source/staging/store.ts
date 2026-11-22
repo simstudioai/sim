@@ -15,6 +15,7 @@ import { db } from '@sim/db'
 import { workspace, workspaceSourceStagedBlob } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, asc, eq, gt, inArray, isNull, lt, lte, notInArray, sql } from 'drizzle-orm'
@@ -49,6 +50,9 @@ export const STAGED_BLOB_RESTAGE_MARGIN_MS = 60 * 60 * 1000
 const SWEEP_BATCH = 500
 
 const STORAGE_CONTEXT = 'workspace' as const
+
+/** Blob uploads one staging request runs at once; the bytes are already in memory. */
+const UPLOAD_CONCURRENCY = 4
 
 const QUOTA_UNAVAILABLE = 'Could not check the storage quota for staging; retry shortly.'
 
@@ -268,7 +272,9 @@ export async function stageBlobs(
       : null,
   ])
   try {
-    for (const blob of fresh) {
+    // A failed upload starts no more, and throws once those running have settled, so every object
+    // written is in `keys` by the time `finally` removes the ones no row recorded.
+    await mapWithConcurrency(fresh, UPLOAD_CONCURRENCY, async (blob) => {
       const key = newStorageKey(target, blob.sha256)
       await uploadFile({
         file: blob.bytes,
@@ -280,7 +286,7 @@ export async function stageBlobs(
         persistMetadata: false,
       })
       keys.set(blob.sha256, key)
-    }
+    })
     recorded = await db.transaction(async (tx) => {
       await acquireAdvisoryXactLock(
         tx,

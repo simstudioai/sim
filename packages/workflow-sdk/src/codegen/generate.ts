@@ -526,7 +526,7 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
 }
 
 function stripComments(text: string): string {
-  return text.replace(/\/\*\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  return text.replace(/\/\*\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
 }
 
 function coreImports(text: string): string {

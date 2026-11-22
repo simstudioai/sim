@@ -49,7 +49,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
    sim workflows source check --dir ./support-triage
    ```
 
-   It exits 1 on an error, and on a missing required field, an unknown option or output path, a wrong value kind, an out-of-range value, an unwired condition or router branch or a literal secret in a block you added since the get (`--strict` fails on these in every block, except an unwired branch on a block the get printed, which the stored workflow may hold; `--no-strict` never fails on a warning). It also adds the blocks the workflow now uses to `tsconfig.json`. Your editor type-checks the file against the generated declarations, and `bunx -p typescript@7.0.2 tsc -p ./support-triage` checks it from the command line with the TypeScript release the declarations are built for; `-p ./support-triage/tsconfig.full.json` type-checks against every block.
+   It exits 1 on an error, and on the warnings `sim workflows source check --help` lists (a missing required field, an unknown option, an unwired condition or router branch, a literal secret and more) in a block you added since the get (`--strict` fails on these in every block, except an unwired branch on a block the get printed, which the stored workflow may hold; `--no-strict` never fails on a warning). It also adds the blocks the workflow now uses to `tsconfig.json`. Your editor type-checks the file against the generated declarations, and `bunx -p typescript@7.0.2 tsc -p ./support-triage` checks it from the command line with the TypeScript release the declarations are built for; `-p ./support-triage/tsconfig.full.json` type-checks against every block.
 
 3. See what changed, and whether someone changed the workflow since your `get`:
 

@@ -178,12 +178,19 @@ export function sourceStatus(
   local: readonly LocalResourceChange[],
   server: readonly ServerResourceChange[]
 ): SourceStatus {
+  const firstOfResource = new Map<string, LocalResourceChange>()
+  const firstOfKind = new Map<string, LocalResourceChange>()
+  for (const entry of local) {
+    const address = `${entry.kind}:${entry.key}`
+    if (!firstOfResource.has(address)) firstOfResource.set(address, entry)
+    if (!firstOfKind.has(entry.kind)) firstOfKind.set(entry.kind, entry)
+  }
   const conflicts: ConflictingChange[] = []
   const drift: ServerResourceChange[] = []
   for (const change of server) {
-    const mine = local.find(
-      (entry) => entry.kind === change.kind && (entry.key === change.key || isFileKind(entry.kind))
-    )
+    const mine = isFileKind(change.kind)
+      ? firstOfKind.get(change.kind)
+      : firstOfResource.get(`${change.kind}:${change.key}`)
     if (mine) conflicts.push({ ...change, change: mine.change })
     else drift.push(change)
   }

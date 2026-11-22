@@ -5,8 +5,7 @@
  * `cookbook/examples/*.ts` as `COOKBOOK_EXAMPLES` (the example workflows), the workspace declaration SDK
  * `src/workspace/*.d.ts` as `WORKSPACE_SDK_DTS`, and the example workspace directory
  * `cookbook/workspace/**` as `WORKSPACE_COOKBOOK`. The output is written as generated (biome
- * skips these files), so `--check` compares it byte for byte; `core-text.test.ts`,
- * `cookbook-text.test.ts` and `workspace-text.test.ts` also fail when any drifts.
+ * skips these files), so `--check` (run by `check:audits`) compares it byte for byte.
  *
  *   bun run generate:workflow-sdk-embedded-text
  *   bun run check:workflow-sdk-embedded-text
