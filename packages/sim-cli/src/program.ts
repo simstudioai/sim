@@ -27,6 +27,11 @@ Profiles work like the AWS CLI: settings live in ~/.sim/config, keys in
 ~/.sim/credentials (0600), or under SIM_CONFIG_DIR when it is set. Select one
 with -P, --profile, or SIM_PROFILE.
 
+A command targets the profile's workspace unless -w <id> (--workspace <id>) or
+SIM_WORKSPACE names another. In a script, export SIM_WORKSPACE=<id> once, or
+write -w "$WS": a variable holding "--workspace <id>" reaches the CLI as one
+argument, which it refuses.
+
 Workflow, knowledge-base and workspace IDs are bare UUIDs. Table IDs carry a
 tbl_ prefix and file IDs a wf_ one, so wf_ never names a workflow. An audit-log
 or custom-tool ID can open with a dash, which reads as a flag; put -- in front

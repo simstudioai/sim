@@ -12,6 +12,11 @@ function loopRows(rows: ReadonlyArray<readonly [string, string]>): string {
   return rows.map(([command, what]) => `  ${command.padEnd(width)}${what}`.trimEnd()).join('\n')
 }
 
+/** Where the commands of either group find their workspace. */
+const WORKSPACE_LINE = `Workspace: a command run on a directory reads it from .sim/base.json; any other takes -w <id>
+or SIM_WORKSPACE (export it once: a shell variable holding "--workspace <id>" arrives as one
+argument, which is refused).`
+
 /** The status line both groups end with, for a directory at `dir`. */
 function statusLine(group: string, dir: string): string {
   return `\`${group} status --dir ${dir}\` shows what applying would do and
@@ -33,6 +38,7 @@ ${loopRows([
 A new workflow: \`sim workflows source create --dir ./new --workspace <workspaceId>\` writes a
 starter that records its workspace; edit and check it, then \`create --dir ./new --yes\` creates the
 workflow there, and the loop above goes on from there.
+${WORKSPACE_LINE}
 
 Flags the loop needs: --allow-delete (apply: an edit that removes a block or variable is refused
 without it), --deploy (apply, create: also deploy the saved draft), --force (get: replace another
@@ -52,6 +58,7 @@ ${loopRows([
 ])}
 Promote dev to prod: \`sim workspaces source apply --dir ./ws --to <workspaceId> --dry-run\`, then
 --yes.
+${WORKSPACE_LINE}
 
 Flags the loop needs: --allow-delete (apply: removing a resource, a column, rows or a document,
 or a workflow's block or variable, is refused without it), --force (get: replace edits no apply
