@@ -53,6 +53,7 @@ import {
   type DiffReport,
   destructiveChanges,
   type FileDiff,
+  givenFilterPath,
   loginCommand,
   type NextStep,
   nextStep,
@@ -492,9 +493,7 @@ function filteredKinds(filters: readonly string[]): WorkspaceKind[] | undefined 
   const kinds = new Set<WorkspaceKind>()
   for (const filter of filters) {
     const named = filter.split(':', 1)[0]
-    const kind = isWorkspaceKind(named)
-      ? named
-      : kindOfPath(filter.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, ''))
+    const kind = isWorkspaceKind(named) ? named : kindOfPath(givenFilterPath(filter))
     if (kind === null) return undefined
     kinds.add(kind)
   }

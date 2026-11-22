@@ -834,6 +834,25 @@ describe('workspaces source diff', () => {
     expect((printed().files as unknown[]).length).toBe(1)
   })
 
+  it('asks the server for the kind of a filter written with repeated ./ alone', async () => {
+    write('tables/leads.ts', `${LEADS}// edited\n`)
+    mockRequest.mockResolvedValue(served({ 'tables/leads.ts': LEADS }))
+
+    await run('diff', '--server', './././tables/leads.ts')
+
+    expect(mockRequest.mock.calls[0][1]).toMatchObject({ query: { kinds: 'table' } })
+  })
+
+  it('reads a filter with a long run of slashes before its last segment in linear time', async () => {
+    mockRequest.mockResolvedValue(served({ 'tables/leads.ts': LEADS }))
+    const started = Date.now()
+
+    await expect(run('diff', '--server', `tables${'/'.repeat(100_000)}leads.ts`)).rejects.toThrow(
+      'selects no file'
+    )
+    expect(Date.now() - started).toBeLessThan(2_000)
+  })
+
   it('reports a binary file by its sizes', async () => {
     const sha256 = createHash('sha256').update(NOTES).digest('hex')
     write('files/notes.bin', Buffer.concat([NOTES, Buffer.from(' and two')]))

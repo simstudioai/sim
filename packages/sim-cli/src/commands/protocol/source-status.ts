@@ -344,6 +344,11 @@ function realPath(path: string): string {
   }
 }
 
+/** A relative filter as given, with `/` separators and its leading `./` and trailing `/` dropped. */
+export function givenFilterPath(filter: string): string {
+  return stripTrailingSlashes(filter.replace(/\\/g, '/').replace(/^(\.\/)+/, ''))
+}
+
 /**
  * The directory-relative forms of one filter: as given (`./` and a trailing `/` dropped, an empty
  * one meaning the whole directory) and resolved from the current directory, so both
@@ -353,7 +358,7 @@ function realPath(path: string): string {
 function filterForms(filter: string, dir: string): string[] {
   const forms = new Set<string>()
   if (!isAbsolute(filter)) {
-    const given = stripTrailingSlashes(filter.replace(/\\/g, '/').replace(/^(\.\/)+/, ''))
+    const given = givenFilterPath(filter)
     forms.add(given === '' ? '.' : given)
   }
   const resolved = relative(realPath(resolve(dir)), realPath(resolve(filter)))
