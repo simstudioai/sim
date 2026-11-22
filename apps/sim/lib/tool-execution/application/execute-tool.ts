@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -359,6 +360,21 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     const userId = principalUserId(principal)
     if (!userId) {
       throw new OrchestrationError('forbidden', 'Tool execution requires an acting user')
+    }
+
+    // The executor authorizes credentials with no workflow, so only this ties the credential
+    // to the workspace whose allowedIntegrations and deniedTools govern the call.
+    if (input.credentialId) {
+      const access = await authorizeCredentialUseForAuth(
+        { success: true, userId },
+        { credentialId: input.credentialId, workspaceId: context.workspaceId }
+      )
+      if (!access.ok) {
+        throw new OrchestrationError(
+          'forbidden',
+          'credentialId is not a credential you can use in this workspace'
+        )
+      }
     }
 
     const registry = mustClassifyContent(principal)
