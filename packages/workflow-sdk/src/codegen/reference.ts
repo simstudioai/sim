@@ -139,8 +139,6 @@ export function lookupBuilder(catalog: BlockCatalog, query: string): BuilderLook
 
 const MAX_CORE_LINES = 80
 
-/** Each top-level declaration of `name` in `core.d.ts` (overloads included): its line range. */
-/** `core.d.ts` by line. */
 const CORE_LINES = CORE_DTS.split('\n')
 
 /** The line the doc comment above line `start` opens on, or `start` when none is there. */
@@ -151,6 +149,7 @@ function docCommentStart(start: number): number {
   return first
 }
 
+/** Each top-level declaration of `name` in `core.d.ts` (overloads included): its line range. */
 function coreDeclarationRanges(name: string): Array<{ start: number; end: number }> {
   const lines = CORE_LINES
   const start = new RegExp(

@@ -116,13 +116,13 @@ function isContainerBlockType(blockType: string): blockType is 'loop' | 'paralle
 function withCanonicalNamesResolved(
   subBlocks: readonly SubBlockConfig[],
   subBlockMap: ReadonlyMap<string, SubBlockConfig[]>,
-  inputs: Record<string, any>,
+  inputs: Record<string, unknown>,
   refuse: (key: string, error: string) => void
-): Record<string, any> {
+): Record<string, unknown> {
   if (Object.keys(inputs).every((key) => subBlockMap.has(key))) return inputs
   // canonical-index-unscoped: maps written names to member ids and reads no values.
   const { groupsById } = buildCanonicalIndex(subBlocks)
-  const resolved: Record<string, any> = {}
+  const resolved: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(inputs)) {
     const group = subBlockMap.has(key) ? undefined : groupsById[key]
     if (!group) {

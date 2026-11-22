@@ -143,8 +143,8 @@ function refusesApply(data: ApplyData): boolean {
 
 /**
  * The exit status of a dry run with errors, as the apply would exit: one that holds changes back
- * and refuses nothing else writes the rest, so it exits 15 (`SOURCE_HELD_EXIT_CODE`) as that apply does, unless every
- * change it would write is held (1, nothing written).
+ * and refuses nothing else writes the rest, so it exits `SOURCE_HELD_EXIT_CODE` as that apply
+ * does, unless every change it would write is held (1, nothing written).
  */
 function previewExitCode(data: ApplyData): number {
   if (refusesApply(data)) return refusedExitCode(data.diagnostics)
