@@ -206,6 +206,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             platformCredential.workspaceId
           )
 
+        // Before any access check, so an unsupported credential reads the same as an unknown id.
+        if (
+          platformCredential.type !== 'service_account' &&
+          (platformCredential.type !== 'oauth' || !platformCredential.accountId)
+        ) {
+          return NextResponse.json({ credentials: [] }, { status: 200 })
+        }
+
         // A workflowId only pins the credential's workspace; membership is checked on every lookup.
         if (
           workflowId &&
@@ -244,10 +252,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             },
             { status: 200 }
           )
-        }
-
-        if (platformCredential.type !== 'oauth' || !platformCredential.accountId) {
-          return NextResponse.json({ credentials: [] }, { status: 200 })
         }
 
         // permission-group-enforced: integrations.manage — the credentialId path carries its own workspace scope

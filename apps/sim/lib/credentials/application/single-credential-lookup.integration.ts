@@ -175,6 +175,14 @@ describe('GET /api/auth/oauth/credentials by credentialId', () => {
     })
   })
 
+  it('answers a non-member about an unsupported credential exactly as about an unknown id', async () => {
+    const unknown = await lookupOAuth(outsiderId, { credentialId: generateId(), workflowId })
+    expect(unknown).toEqual({ status: 200, names: [] })
+    expect(
+      await lookupOAuth(outsiderId, { credentialId: personalEnvCredentialId, workflowId })
+    ).toEqual(unknown)
+  })
+
   it.each([
     ['a credential member', memberId],
     ['a workspace admin', adminId],
