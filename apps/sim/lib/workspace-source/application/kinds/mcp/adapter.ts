@@ -23,8 +23,7 @@
 import { createLogger } from '@sim/logger'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
-import { didYouMean, type Json, type SourceSpan } from '@sim/workflow-code'
+import { didYouMean, type SourceSpan } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import {
   type BaseResource,
@@ -75,6 +74,7 @@ import {
   resolveStoredHeaders,
   storedFingerprint,
 } from '@/lib/workspace-source/application/kinds/mcp/stored'
+import { changedFields } from '@/lib/workspace-source/application/kinds/named'
 import {
   holdsIn,
   refuseUnreadAdopt,
@@ -123,15 +123,6 @@ function serverIdOf(ctx: SourceContext, url: string): string {
 }
 
 /** The top-level declaration fields whose canonical values differ. */
-function changedFields(before: McpServerDecl, after: McpServerDecl): string[] {
-  const a = mcpCodec.canonical(before)
-  const b = mcpCodec.canonical(after)
-  if (!isRecordLike(a) || !isRecordLike(b)) return []
-  return Object.keys(b).filter(
-    (field) => fingerprintOf(b[field] as Json) !== fingerprintOf(a[field] as Json)
-  )
-}
-
 function baseOf(record: StoredServer): BaseResource {
   return { id: record.id, fingerprint: storedFingerprint(record.state) }
 }
@@ -243,7 +234,7 @@ async function planServer(
     }
   }
   const record = planned.stored
-  const changed = changedFields(declOf(record.state), decl)
+  const changed = changedFields(mcpCodec.canonical(declOf(record.state)), mcpCodec.canonical(decl))
   if (planned.action === 'adopt' && !resumed) {
     const refused = refuseUnreadAdopt(change, record, changed)
     if (refused) return refused
