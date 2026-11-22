@@ -13,6 +13,12 @@ import { compileWorkflow } from './index'
 const ENTRY = 'workflows/test.ts'
 
 /**
+ * The growth check is a ratio, so it holds on a slow runner, but a case near `maxBlocks` takes
+ * seconds of wall clock and would otherwise fail on vitest's 5s default under machine load.
+ */
+const LARGE_CASE_TIMEOUT_MS = 30_000
+
+/**
  * `n` api blocks and a function whose code file reads `refs` references `reference(i)` writes,
  * nearly all of them findings past the warning caps.
  */
@@ -53,14 +59,18 @@ describe('compile scaling', () => {
     }, 5_000)
   })
 
-  it('computes no former-block hint for a reference past the caps', () => {
-    // Many references per block, so the hint's scan of every block outweighs compiling them.
-    const knownKeys = new Set(['start', 'gone'])
-    expectLinearGrowth(
-      (n) => compileReading(n, n * 80, () => '$ref.gone.x', { knownKeys }),
-      Math.floor((SOURCE_LIMITS.maxBlocks - 40) / 8)
-    )
-  })
+  it(
+    'computes no former-block hint for a reference past the caps',
+    () => {
+      // Many references per block, so the hint's scan of every block outweighs compiling them.
+      const knownKeys = new Set(['start', 'gone'])
+      expectLinearGrowth(
+        (n) => compileReading(n, n * 80, () => '$ref.gone.x', { knownKeys }),
+        Math.floor((SOURCE_LIMITS.maxBlocks - 40) / 8)
+      )
+    },
+    LARGE_CASE_TIMEOUT_MS
+  )
 
   it('computes no did-you-mean for an env name past the caps', () => {
     expectLinearGrowth((n) => {
