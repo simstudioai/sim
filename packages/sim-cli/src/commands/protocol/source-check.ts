@@ -677,7 +677,6 @@ export async function checkWorkflowDir(
     ),
     ...compiled.diagnostics.filter(exempt),
   ]
-  // A lock every apply and status refuses fails the check too, however clean the source is.
   const lockFindings = lockProblems.map(
     (problem): CheckFinding => ({
       code: problem.code,

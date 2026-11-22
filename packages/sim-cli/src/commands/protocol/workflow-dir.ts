@@ -141,7 +141,6 @@ export function lockRecoveryHint(get: string = WORKFLOW_GET): string {
   return `Restore ${SOURCE_LOCK_FILE} from version control, or write the source into a fresh directory (${get}) and carry your edits across.`
 }
 
-/** A lock problem as one line: its path in the lock, then what is wrong. */
 function lockProblem(finding: { path?: string; message: string }): string {
   return `${finding.path ? `${finding.path}: ` : ''}${finding.message}`
 }

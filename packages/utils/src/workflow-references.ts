@@ -107,8 +107,8 @@ export function findWorkflowReferenceTokens(source: string): WorkflowReferenceTo
 }
 
 /**
- * Collects every string leaf in a nested value — the shared walk for reference/env-token
- * audits over block inputs, shared by the server lint and the CLI's offline check.
+ * Collects every string leaf in a nested value: the walk the reference and env-token audits over
+ * block inputs share.
  */
 export function collectStringLeaves(value: unknown, out: string[]): void {
   if (typeof value === 'string') out.push(value)
