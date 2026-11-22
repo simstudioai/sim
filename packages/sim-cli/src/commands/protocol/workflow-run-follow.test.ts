@@ -54,7 +54,7 @@ function sse(...frames: unknown[]): ReadableStream<Uint8Array> {
   return bodyOf(frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`))
 }
 
-function _streamResponse(body: ReadableStream<Uint8Array>): Response {
+function streamResponse(body: ReadableStream<Uint8Array>): Response {
   return {
     body,
     status: 200,
@@ -384,6 +384,21 @@ describe('sim workflows run --follow', () => {
       selectedOutputs: ['logv12total'],
     })
     expect(requestRaw.mock.calls[1][1].body.selectedOutputs).toEqual([blockId])
+  })
+
+  it('selects the stop block of a --stop-after run it follows, so the final frame holds its output', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    requestRaw.mockResolvedValue(
+      streamResponse(sse({ event: 'final', data: { success: true, output: {} } }))
+    )
+
+    await run(WORKFLOW_ID, '--stop-after', 'agent-1', '--follow')
+
+    expect(requestRaw.mock.calls[0][1].body).toMatchObject({
+      run: { stopAfterBlockId: 'agent-1' },
+      selectedOutputs: ['agent-1'],
+      stream: true,
+    })
   })
 
   it('keeps the outputs a --stop-after run selects itself', async () => {

@@ -491,9 +491,9 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
 
 /**
  * The selection a `--stop-after` run sends when the caller selected nothing: the stop block's
- * whole output, so `blockOutputs` names the block the run stopped after and holds what it
- * produced (the run's `output` stays empty: no Response block ran). The block is sent as the
- * executor compares names ({@link normalizeBlockName}), so a display name with a dot is not read
+ * whole output, so `blockOutputs` (with `--follow`, the final frame's `output`) names the block
+ * the run stopped after and holds what it produced (no Response block ran). The block is sent as
+ * the executor compares names ({@link normalizeBlockName}), so a display name with a dot is not read
  * as a path; an id is sent as it is.
  */
 function stopBlockSelection(
@@ -541,6 +541,8 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
     const selection = resolveWorkflowRunSelection(initialFlags)
     if (selection) command.setOptionValue('run', selection)
     const flags = command.optsWithGlobals() as Record<string, unknown>
+    const stopBlock = stopBlockSelection(selection, flags)
+    if (stopBlock) command.setOptionValue('selectOutput', stopBlock)
 
     if (flags.follow !== true) {
       // A queued run has produced nothing to select from, so the server would
@@ -563,8 +565,6 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
         )
       }
       if (flags.async !== true) {
-        const stopBlock = stopBlockSelection(selection, flags)
-        if (stopBlock) command.setOptionValue('selectOutput', stopBlock)
         await runWithResultStream(workflowId, command, waitTimeoutSeconds)
         return
       }
