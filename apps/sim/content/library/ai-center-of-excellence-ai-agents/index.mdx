@@ -94,7 +94,7 @@ An AI CoE should prioritize agent use cases by repeatable value, implementation 
 A useful intake record contains:
 
 1. The current process and its measurable baseline
-2. The user or team experiencing the problem
+2. The team experiencing the problem
 3. The systems and data the agent must access
 4. The actions the agent may take
 5. The cost of an incorrect action
@@ -113,7 +113,7 @@ An AI CoE should choose a shared agent platform by testing how quickly different
 The evaluation should cover:
 
 - Accessibility for both technical and semi-technical builders
-- Support for required models, tools, APIs, and data systems
+- Support for required models, tools, application programming interfaces (APIs), and data systems
 - Reusable workflow and integration patterns
 - Workspace separation and access control
 - Credential management and environment separation
@@ -123,7 +123,7 @@ The evaluation should cover:
 - Portability, extensibility, and exit risk
 - Administration and total operating cost at the expected scale
 
-A credible enterprise shortlist can include Sim and [n8n](https://docs.n8n.io/), which combines AI features with workflow automation, before the CoE applies its own evidence-based criteria. Teams comparing the broader market can use [Enterprise AI Agent Platforms in 2026: SSO, SCIM, RBAC, and Audit Logs](https://www.sim.ai/library/best-ai-agent-platforms-for-enterprise-teams-2026), while the general head-term comparison belongs in [AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+A credible enterprise shortlist can include Sim and [n8n](https://docs.n8n.io/), which combines AI features with workflow automation, before the CoE applies its own evidence-based criteria. Teams comparing the broader market can use [Enterprise AI Agent Platforms in 2026](https://www.sim.ai/library/best-ai-agent-platforms-for-enterprise-teams-2026), which covers company sign-in, automatic account provisioning, role-based access control, and audit logs. The general head-term comparison belongs in [AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
 
 The AI CoE should test finalists with two or three representative use cases instead of relying on feature checklists. [How to Pilot an AI Agent Platform Through Security Review](https://www.sim.ai/library/pilot-ai-agent-platform-security-review) provides the focused vendor-evaluation process.
 
@@ -133,7 +133,7 @@ A shared agent workspace can support an AI CoE by giving central and departmenta
 
 Sim supports this operating model through its visual workflow builder and team workspaces. The CoE can maintain approved reference workflows, assign separate workspaces to teams, and use shared patterns to reduce repeated setup work.
 
-As of October 2026, [Sim Enterprise](https://docs.sim.ai/platform/enterprise) includes SSO, SCIM, permission groups, access requests, audit logs, data retention, and session policies. [Credential Groups](https://docs.sim.ai/platform/connected-accounts) and [workspace forks](https://docs.sim.ai/platform/enterprise/forks) can further support centralized administration while allowing departments to work in governed spaces. The CoE should still define who administers each workspace, who can deploy agents, how credentials are assigned, and which changes require review.
+As of October 2026, [Sim Enterprise](https://docs.sim.ai/platform/enterprise) includes single sign-on (SSO) for company sign-in, System for Cross-domain Identity Management (SCIM) for automatic account provisioning, permission groups, access requests, audit logs, data retention, and session policies. [Credential Groups](https://docs.sim.ai/platform/connected-accounts) and [workspace forks](https://docs.sim.ai/platform/enterprise/forks) can further support centralized administration while allowing departments to work in governed spaces. The CoE should still define who administers each workspace, who can deploy agents, how credentials are assigned, and which changes require review.
 
 Reusable patterns should include more than a workflow diagram. Each approved pattern should carry an owner, intended use, required inputs, test cases, risk tier, escalation behavior, deployment notes, and success metric.
 
@@ -183,7 +183,7 @@ A balanced measurement framework can include:
 | Dimension | Example measures |
 |---|---|
 | Business value | Hours saved, cycle-time reduction, revenue influenced, errors prevented, or service-level improvement |
-| Adoption | Active users, repeated use, departmental coverage, and retention after launch |
+| Adoption | Active teams, repeated use, departmental coverage, and retention after launch |
 | Delivery speed | Time from intake to pilot and time from pilot to production |
 | Reuse | Percentage of new agents using approved patterns, integrations, or evaluation sets |
 | Reliability | Successful run rate, exception rate, retry rate, and incident count |
