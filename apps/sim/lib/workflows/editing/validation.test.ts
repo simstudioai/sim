@@ -399,7 +399,11 @@ describe('validateInputsForBlock', () => {
 
       expect(result.validInputs).toEqual({ credential: 'cred_2' })
       expect(result.errors).toEqual([
-        expect.objectContaining({ field: 'cred', error: expect.stringContaining('"credential"') }),
+        expect.objectContaining({
+          field: 'cred',
+          error:
+            '"cred" is the shared name of "credential" (basic mode) and "manualCredential" (advanced mode), and this edit also sets "credential": set one of them, not both',
+        }),
       ])
     })
 
@@ -407,7 +411,10 @@ describe('validateInputsForBlock', () => {
       const result = validateInputsForBlock('canonicalcred', { credKey: 'cred_1' }, 'cred-1')
 
       expect(result.errors).toEqual([
-        expect.objectContaining({ field: 'credKey', error: expect.stringContaining('Unknown') }),
+        expect.objectContaining({
+          field: 'credKey',
+          error: 'Unknown input field "credKey" for block type "canonicalcred"',
+        }),
       ])
     })
   })

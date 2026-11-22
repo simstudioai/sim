@@ -134,9 +134,16 @@ function withCanonicalNamesResolved(
     )
     const written = members.filter((id) => Object.hasOwn(inputs, id))
     if (written.length > 0) {
+      const named = members.map((id) =>
+        id === group.basicId
+          ? group.advancedIds.length > 0
+            ? `"${id}" (basic mode)`
+            : `"${id}"`
+          : `"${id}" (advanced mode)`
+      )
       refuse(
         key,
-        `"${key}" is stored in ${written.map((id) => `"${id}"`).join(', ')}, which this edit also sets: write one of them`
+        `"${key}" is the shared name of ${named.join(' and ')}, and this edit also sets ${written.map((id) => `"${id}"`).join(' and ')}: set one of them, not both`
       )
       continue
     }
