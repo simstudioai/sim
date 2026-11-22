@@ -262,6 +262,7 @@ export async function copyPromoteUnmappedResources(params: {
   const containerDocMap = result.idMap.get('knowledge_document') ?? new Map<string, string>()
   const mappedKbDocs = await planForkMappedKbDocumentCopies({
     tx,
+    sourceWorkspaceId,
     resolver,
     referencedDocumentIds,
     alreadyCopiedSourceDocIds: new Set(containerDocMap.keys()),
