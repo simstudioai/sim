@@ -29,13 +29,22 @@ pushes_head=false
 while read -r _local_ref local_sha _remote_ref _remote_sha; do
   [ "$local_sha" = "$zero" ] && continue
   if [ "$local_sha" != "$head" ]; then
-    # These checks read the working tree, which holds HEAD, not this commit.
     echo "pre-push: $local_sha is not the checked-out commit; leaving it to CI"
     continue
   fi
   pushes_head=true
 done
 [ "$pushes_head" = true ] || exit 0
+
+# Lint and type-check read the working tree, so they judge the pushed commit only when nothing they
+# read differs from it: no uncommitted change to a tracked file and no untracked file the type-check
+# could read (TypeScript, JavaScript under `allowJs`, JSON under `resolveJsonModule`). Otherwise
+# they could fail a sound commit or pass a broken one.
+if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard -- \
+  '*.ts' '*.tsx' '*.mts' '*.cts' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json')" ]; then
+  echo "pre-push: uncommitted changes or untracked source files; leaving lint, type-check and generated artifacts to CI"
+  exit 0
+fi
 
 base=$(git merge-base HEAD origin/staging 2>/dev/null || true)
 if [ -z "$base" ]; then
