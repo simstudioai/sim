@@ -7,7 +7,11 @@
  * until its form is stated.
  */
 
-import { DEFAULT_LOOP_ITERATIONS, effectiveBatchSize } from '../canonicalize/subflows'
+import {
+  DEFAULT_LOOP_ITERATIONS,
+  DEFAULT_PARALLEL_COUNT,
+  effectiveBatchSize,
+} from '../canonicalize/subflows'
 import type { Json, LoopSpec, LoopType, ParallelSpec, ParallelType } from '../model'
 
 /** A spec's config fields: everything but its kind and type. */
@@ -39,9 +43,6 @@ type ConfigEntry<S> = {
 
 /** A container type's config keys, in print order. */
 export type ContainerForm<S> = Readonly<Record<string, ConfigEntry<S>>>
-
-/** `data.count || 5` in `convertParallelBlockToParallel`. */
-const DEFAULT_PARALLEL_COUNT = 5
 
 /**
  * The parallel type the executor runs when storage has none: the loader reads a missing
