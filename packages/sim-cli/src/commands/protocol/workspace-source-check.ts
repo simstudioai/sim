@@ -125,12 +125,11 @@ export function attachWorkspaceSourceCheck(source: Command): void {
         await withSourceDirLock(options.dir, async () => {
           const catalog =
             cachedCatalog(workspaceId) ?? (await fetchedCatalog(connect, workspaceId, options.dir))
-          const workflows = await workspaceWorkflows(options.dir, catalog)
-          const declarations = {
-            ...(await readWorkspaceDeclarations(options.dir)),
-            workflowInputs: workflows.inputs,
-            respondingWorkflows: workflows.responding,
-          }
+          const [declared, workflows] = await Promise.all([
+            readWorkspaceDeclarations(options.dir),
+            workspaceWorkflows(options.dir, catalog),
+          ])
+          const declarations = { ...declared, ...workflows }
           const keys = await workspaceWorkflowKeys(options.dir)
           const findings: CheckFinding[] = []
           const unlisted = { errors: 0, warnings: 0 }
@@ -169,7 +168,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
           }
           await refreshWorkspaceTypes(
             options.dir,
-            withWorkflowInputs(declarations.local, workflows.inputs)
+            withWorkflowInputs(declarations.local, declarations.workflowInputs)
           )
           await refreshWorkspaceTsconfigs(options.dir, workspaceId)
           reportCheck(

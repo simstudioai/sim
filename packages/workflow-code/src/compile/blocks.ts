@@ -22,6 +22,7 @@ import {
   PARALLEL_BATCH_MAX,
   SUBFLOW_DATA_KEYS,
 } from '../canonicalize/subflows'
+import { REFERENCE_CANDIDATE } from '../canonicalize/values'
 import { canonicalActivityInputs, isInactive, withStoredValue } from '../catalog/activity'
 import { editorDefaults } from '../catalog/defaults'
 import {
@@ -1872,9 +1873,6 @@ function jsonField(value: Value | undefined): Json | undefined {
   return isJson(value) ? value : undefined
 }
 
-/** The executor's reference candidate pattern (`createReferencePattern`); each is then vetted. */
-const CONDITION_REFERENCE = /<([^<>]+)>/g
-
 /**
  * A while or do-while condition checked as the run evaluates it (`LoopOrchestrator`
  * `evaluateWhileCondition`): each reference is replaced by its value and the text runs as
@@ -1894,7 +1892,7 @@ function checkLoopCondition(
   if (text.trim() === '') return
   const at = rangeOf(ctx, property.value)
   const selfReads = new Set<string>()
-  const runnable = text.replace(CONDITION_REFERENCE, (match: string, inner: string) => {
+  const runnable = text.replace(REFERENCE_CANDIDATE, (match: string, inner: string) => {
     if (!isLikelyWorkflowReferenceSegment(match)) return match
     const segments = parseStoredPath(inner)
     const [head, field] = segments ?? []

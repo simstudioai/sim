@@ -400,8 +400,8 @@ export class WorkflowBlockHandler implements BlockHandler {
       if (useDeployed && !isCustomBlock) {
         const deployment = await this.readChildDeployment(workflowId, workflowReadDelegationOrigin)
         if (!deployment.deployed) {
-          const child = deployment.name ? `"${deployment.name}" (${workflowId})` : workflowId
           if (deployment.name) childWorkflowName = deployment.name
+          const child = deployment.name ? `"${deployment.name}" (${workflowId})` : workflowId
           throw new Error(
             `Child workflow ${child} is not deployed. A deployed run calls the deployed version of each child workflow: deploy ${child}, then run again.`
           )

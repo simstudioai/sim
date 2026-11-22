@@ -13,7 +13,7 @@ import { setOwn } from '../records'
 import type { CanonContext } from './context'
 
 /** The executor's candidate pattern (`createReferencePattern`); each match is then vetted. */
-const REFERENCE_CANDIDATE = /<([^<>]+)>/g
+export const REFERENCE_CANDIDATE = /<([^<>]+)>/g
 const VARIABLE_PREFIX = 'variable'
 
 /**

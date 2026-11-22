@@ -230,6 +230,23 @@ export async function buildWorkflowLintReport(
     ...collectUnquotedJsonStringReferences(graph)
   )
 
+  // Started before the reference collectors so its lookup overlaps theirs.
+  const childFindings = loadChildWorkflowsForLint(graph.blocks, scope.workspaceId).then(
+    (children) => collectChildWorkflowFindings(graph, children, { deployed: options.deployed }),
+    (error: unknown) => {
+      logger.warn('Child workflow lint failed', {
+        workflowId: scope.workflowId,
+        error: getErrorMessage(error),
+      })
+      if (options.requireComplete) {
+        throw new Error(
+          'Workflow child workflow checks could not complete; retry when lookup is available'
+        )
+      }
+      return []
+    }
+  )
+
   if (scope.subjectUserId) {
     for (const collect of [collectUnresolvedReferences, collectUnresolvedAgentToolReferences]) {
       try {
@@ -262,25 +279,7 @@ export async function buildWorkflowLintReport(
     }
   }
 
-  try {
-    unresolvedReferences.push(
-      ...collectChildWorkflowFindings(
-        graph,
-        await loadChildWorkflowsForLint(graph.blocks, scope.workspaceId),
-        { deployed: options.deployed }
-      )
-    )
-  } catch (error) {
-    logger.warn('Child workflow lint failed', {
-      workflowId: scope.workflowId,
-      error: getErrorMessage(error),
-    })
-    if (options.requireComplete) {
-      throw new Error(
-        'Workflow child workflow checks could not complete; retry when lookup is available'
-      )
-    }
-  }
+  unresolvedReferences.push(...(await childFindings))
 
   /** Standalone diagnostics have already read tables under application authorization. */
   let tableFieldIssues: WorkflowLintTableFieldIssue[] = options.tables?.tableFieldIssues ?? []

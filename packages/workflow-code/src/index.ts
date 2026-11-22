@@ -33,8 +33,10 @@ export {
 export {
   checkCodeFileBijection,
   createJsContextScanner,
+  formatStoredPath,
   fromCodeFile,
   isIdentifierName,
+  parseStoredPath,
 } from './code-files'
 export { type CompileResult, compileWorkflow, type StoredEdgeRef } from './compile'
 export { codePointLabel, scriptName } from './compile/characters'
@@ -115,7 +117,7 @@ export { isResourceKind } from './model'
 export { assignIdentifiers, printWorkflow } from './print'
 export { hasSuspiciousCharacter, printKey, quoteString } from './print/strings'
 export { getOwn, invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
-export { JS_RESERVED_WORDS, SDK_CORE_EXPORTS } from './sdk'
+export { JS_RESERVED_WORDS, RESPONSE_BLOCK_TYPE, RESPONSE_OUTPUTS, SDK_CORE_EXPORTS } from './sdk'
 export { holdsSecret, withoutAuthScheme } from './secrets'
 export {
   mapAnchorIds,

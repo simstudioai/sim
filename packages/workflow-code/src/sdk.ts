@@ -30,6 +30,12 @@ export const RESPONSE_BLOCK_TYPE = 'response'
 export const RESPONSE_BODY_KEYS = ['body', 'status', 'headers'] as const
 
 /**
+ * The outputs of a response block: what a child workflow call's `result` holds when the child
+ * responds, so a field of its body is `result.data.<field>`.
+ */
+export const RESPONSE_OUTPUTS: readonly string[] = ['data', 'status', 'headers']
+
+/**
  * The SDK's tagged templates (`js\`...\``), each a core export. The printer and the
  * compiler's template check both read this list.
  */

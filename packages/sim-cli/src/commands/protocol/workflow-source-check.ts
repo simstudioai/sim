@@ -96,15 +96,13 @@ export function attachWorkflowSourceCheck(source: Command): void {
             ? `\`sim workspaces source get --dir ${workspace.root}\``
             : `\`sim workflows source get <workflowId> --dir ${options.dir}\` (or \`create\`)`
         )
-        const workflows = workspace ? await workspaceWorkflows(workspace.root, catalog) : undefined
-        const declarations =
-          workspace && workflows
-            ? {
-                ...(await readWorkspaceDeclarations(workspace.root)),
-                workflowInputs: workflows.inputs,
-                respondingWorkflows: workflows.responding,
-              }
-            : undefined
+        const [declared, workflows] = workspace
+          ? await Promise.all([
+              readWorkspaceDeclarations(workspace.root),
+              workspaceWorkflows(workspace.root, catalog),
+            ])
+          : []
+        const declarations = declared && workflows ? { ...declared, ...workflows } : undefined
         const { findings, entry, unlisted } = await checkWorkflowDir(options.dir, catalog, {
           strict: strictMode(options),
           ...(declarations ? { declarations } : {}),

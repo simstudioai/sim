@@ -534,6 +534,10 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
   const unresolved = lint.unresolvedReferences ?? []
   const renderRef = (ref: WorkflowLintUnresolvedReference) =>
     `${blockLabel(ref)}.${ref.field} (${ref.reason})`
+  const renderRefWithValue = (ref: WorkflowLintUnresolvedReference) =>
+    `${blockLabel(ref)}.${ref.field} ${
+      Array.isArray(ref.value) ? ref.value.join(', ') : ref.value
+    } (${ref.reason})`
 
   return [
     lintSection(
@@ -588,26 +592,12 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
     ),
     lintSection(
       'Block output references that will not work as written',
-      unresolved
-        .filter((ref) => ref.kind === 'block-output')
-        .map(
-          (ref) =>
-            `${blockLabel(ref)}.${ref.field} ${
-              Array.isArray(ref.value) ? ref.value.join(', ') : ref.value
-            } (${ref.reason})`
-        ),
+      unresolved.filter((ref) => ref.kind === 'block-output').map(renderRefWithValue),
       '; '
     ),
     lintSection(
       'Child workflow result paths that read nothing (a child that responds returns its Response output, { data, status, headers })',
-      unresolved
-        .filter((ref) => ref.kind === 'child-result')
-        .map(
-          (ref) =>
-            `${blockLabel(ref)}.${ref.field} ${
-              Array.isArray(ref.value) ? ref.value.join(', ') : ref.value
-            } (${ref.reason})`
-        ),
+      unresolved.filter((ref) => ref.kind === 'child-result').map(renderRefWithValue),
       '; '
     ),
     lintSection(
@@ -1148,22 +1138,19 @@ function calledWorkflowId(block: BlockState): string | undefined {
 }
 
 /** Every workflow the graph's Workflow blocks statically call. */
-export function collectCalledWorkflowIds(
-  blocks: WorkflowState['blocks'] | Record<string, unknown> | undefined
-): string[] {
+export function collectCalledWorkflowIds(blocks: WorkflowState['blocks']): string[] {
   const ids = new Set<string>()
-  for (const block of Object.values(blocks || {})) {
-    const id = calledWorkflowId(block as BlockState)
+  for (const block of Object.values(blocks)) {
+    const id = calledWorkflowId(block)
     if (id) ids.add(id)
   }
   return [...ids]
 }
 
-/** The output of a child's Response block, which a responding child's run returns. */
-const RESPONSE_OUTPUT_KEYS = ['data', 'status', 'headers'] as const
-
-/** The Workflow block output holding the child's run result. */
-const CHILD_RESULT_OUTPUT = 'result'
+/** The outputs of a Response block: what a responding child's run returns as `result`. */
+function responseOutputKeys(): ReadonlySet<string> {
+  return new Set(Object.keys(getBlock('response')?.outputs ?? {}))
+}
 
 /**
  * Findings about the workflows the graph's Workflow blocks call, judged against what `children`
@@ -1180,13 +1167,13 @@ export function collectChildWorkflowFindings(
   { deployed = false }: { deployed?: boolean } = {}
 ): WorkflowLintUnresolvedReference[] {
   const blocks = (workflowState.blocks || {}) as Record<string, BlockState>
-  const childOf = new Map<string, WorkflowLintChildWorkflow & { id: string }>()
+  const childOf = new Map<string, WorkflowLintChildWorkflow>()
   const findings: WorkflowLintUnresolvedReference[] = []
   for (const [blockId, block] of Object.entries(blocks)) {
     const id = calledWorkflowId(block)
     const child = id ? children.get(id) : undefined
     if (!id || !child) continue
-    childOf.set(blockId, { ...child, id })
+    childOf.set(blockId, child)
     if (deployed && !child.deployed) {
       findings.push({
         ...blockRef(blockId, block),
@@ -1200,13 +1187,14 @@ export function collectChildWorkflowFindings(
   if (childOf.size === 0) return findings
 
   const targetByKey = referenceTargetIndex(blocks)
+  const responseKeys = responseOutputKeys()
   for (const [blockId, block] of Object.entries(blocks)) {
     for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
       const leaves: string[] = []
       collectStringLeaves((subBlock as { value?: unknown })?.value, leaves)
       const byTarget = new Map<
         string,
-        { tokens: Set<string>; keys: Set<string>; meant: string[] }
+        { tokens: Set<string>; keys: Set<string>; meant: Set<string> }
       >()
       for (const leaf of leaves) {
         for (const token of referenceCandidates(leaf, subBlockId === 'code')) {
@@ -1214,25 +1202,30 @@ export function collectChildWorkflowFindings(
           const targetId = referenceTarget(token, targetByKey)
           if (!targetId || !childOf.get(targetId)?.responds) continue
           const [head, output = '', next, ...rest] = token.split('.')
-          if (output !== CHILD_RESULT_OUTPUT || !next) continue
+          if (output !== 'result' || !next) continue
           const key = splitLeadingBracketPath(next).property
-          if (!key || (RESPONSE_OUTPUT_KEYS as readonly string[]).includes(key)) continue
-          const group = byTarget.get(targetId) ?? { tokens: new Set(), keys: new Set(), meant: [] }
+          if (!key || responseKeys.has(key)) continue
+          const group = byTarget.get(targetId) ?? {
+            tokens: new Set(),
+            keys: new Set(),
+            meant: new Set(),
+          }
           group.tokens.add(`<${token}>`)
           group.keys.add(key)
-          group.meant.push(`<${[head, output, 'data', next, ...rest].join('.')}>`)
+          group.meant.add(`<${[head, output, 'data', next, ...rest].join('.')}>`)
           byTarget.set(targetId, group)
         }
       }
       for (const [targetId, group] of byTarget) {
         const target = blocks[targetId]
         const child = childOf.get(targetId)
+        if (!target || !child) continue
         findings.push({
           ...blockRef(blockId, block),
           field: subBlockId,
           value: [...group.tokens],
           kind: 'child-result',
-          reason: `Workflow "${child?.name}" responds, so "${target?.name || targetId}".result is its Response output ({ data, status, headers }) and ${quoteList(group.keys)} under result reads nothing. Did you mean ${[...new Set(group.meant)].join(', ')}?`,
+          reason: `Workflow "${child.name}" responds, so "${target.name || targetId}".result is its Response output ({ data, status, headers }) and ${quoteList(group.keys)} under result reads nothing. Did you mean ${[...group.meant].join(', ')}?`,
         })
       }
     }
