@@ -106,6 +106,13 @@ const COMPILE_SCOPE_CODES = [
    * directory), so it has no inputs to map and no entry point to run from.
    */
   'W_CHILD_NO_START',
+  /**
+   * A reference to a child workflow call's `result.<key>` whose child holds a Response block (an
+   * offline check of a workspace directory), where `<key>` is not `data`, `status` or `headers`:
+   * the child's result is its Response output, so the path reads nothing. The value meant is
+   * almost always `result.data.<key>`.
+   */
+  'W_CHILD_RESULT_PATH',
   /** `p.<prop>` not in the loop/parallel resolvers' `KNOWN_PROPERTIES`. */
   'E_UNKNOWN_SUBFLOW_PROPERTY',
   /** A ref to a block declared later; it resolves, but the order is unusual. */
@@ -269,6 +276,12 @@ const COMPILE_CATALOG_CODES = [
    * (typed), so a string value would break the JSON (`json-fields.ts`).
    */
   'W_JSON_REF_UNTYPED',
+  /**
+   * A while or do-while condition that is not a JavaScript expression once its references stand
+   * in as values, which fails the run when it evaluates it. Refused as
+   * `E_APPLY_LOOP_CONDITION_SYNTAX` on a loop the edit added or changed.
+   */
+  'W_LOOP_CONDITION_SYNTAX',
 ] as const
 
 /** Function-code files. */
@@ -520,6 +533,8 @@ const APPLY_DIAGNOSTIC_CODES = [
   'E_APPLY_REF_OUT_OF_SCOPE',
   /** A `W_CODE_FILE_REF_SYNTAX` in a code file the edit changed, which breaks the code at run time. */
   'E_APPLY_CODE_FILE_REF_SYNTAX',
+  /** A `W_LOOP_CONDITION_SYNTAX` on a loop the edit added or changed, which fails at run time. */
+  'E_APPLY_LOOP_CONDITION_SYNTAX',
   /** A non-blocking workflow lint finding, mapped to a source line. */
   'W_APPLY_LINT',
   /** A table row write (insert, upsert, update) with a key that is not a column of its table. */

@@ -17,8 +17,8 @@ import {
   strictFlags,
   strictMode,
   withWorkflowInputs,
-  workspaceWorkflowInputs,
   workspaceWorkflowKeys,
+  workspaceWorkflows,
 } from './source-check'
 import {
   absoluteDirOption,
@@ -125,10 +125,11 @@ export function attachWorkspaceSourceCheck(source: Command): void {
         await withSourceDirLock(options.dir, async () => {
           const catalog =
             cachedCatalog(workspaceId) ?? (await fetchedCatalog(connect, workspaceId, options.dir))
-          const workflowInputs = await workspaceWorkflowInputs(options.dir, catalog)
+          const workflows = await workspaceWorkflows(options.dir, catalog)
           const declarations = {
             ...(await readWorkspaceDeclarations(options.dir)),
-            workflowInputs,
+            workflowInputs: workflows.inputs,
+            respondingWorkflows: workflows.responding,
           }
           const keys = await workspaceWorkflowKeys(options.dir)
           const findings: CheckFinding[] = []
@@ -168,7 +169,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
           }
           await refreshWorkspaceTypes(
             options.dir,
-            withWorkflowInputs(declarations.local, workflowInputs)
+            withWorkflowInputs(declarations.local, workflows.inputs)
           )
           await refreshWorkspaceTsconfigs(options.dir, workspaceId)
           reportCheck(

@@ -130,15 +130,28 @@ export async function readBase(
   return base
 }
 
+/** The command that writes a fresh copy of a workflow source directory, for {@link lockRecoveryHint}. */
+const WORKFLOW_GET = `\`sim workflows source get <workflowId> --dir <new dir>\`, with the id from ${SOURCE_BASE_FILE}`
+
+/**
+ * How to recover from a lock no apply accepts: the CLI writes the lock, so the fix is a copy it
+ * wrote, not an edit. `get` is the command that writes a fresh directory.
+ */
+export function lockRecoveryHint(get: string = WORKFLOW_GET): string {
+  return `Restore ${SOURCE_LOCK_FILE} from version control, or write the source into a fresh directory (${get}) and carry your edits across.`
+}
+
+/** A lock problem as one line: its path in the lock, then what is wrong. */
+function lockProblem(finding: { path?: string; message: string }): string {
+  return `${finding.path ? `${finding.path}: ` : ''}${finding.message}`
+}
+
 /** The directory's lock, refused with every problem the lock parser finds. */
 export async function readLock(directory: string): Promise<WorkflowLockV1> {
   const parsed = parseWorkflowLock(await readJson(directory, SOURCE_LOCK_FILE, GET_HINT))
   if (parsed.lock) return parsed.lock
-  const problems = parsed.diagnostics.map(
-    (finding) => `${finding.path === '' ? '' : `${finding.path}: `}${finding.message}`
-  )
   throw new SourceDirError(
-    `${SOURCE_LOCK_FILE} in ${directory} is not a valid lock: ${problems.join('; ')}`
+    `${SOURCE_LOCK_FILE} in ${directory} is not a valid lock: ${parsed.diagnostics.map(lockProblem).join('; ')}. ${lockRecoveryHint()}`
   )
 }
 

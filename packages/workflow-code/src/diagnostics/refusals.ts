@@ -64,6 +64,7 @@ export const refusalClass = refusalClassifier()
 export type EditRefusalCode =
   | 'E_APPLY_UNRESOLVED_REF'
   | 'E_APPLY_REF_OUT_OF_SCOPE'
+  | 'E_APPLY_LOOP_CONDITION_SYNTAX'
   | 'E_APPLY_CODE_FILE_REF_SYNTAX'
   | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
   | 'E_APPLY_INVALID_BLOCK_TYPE'
@@ -88,11 +89,13 @@ export interface EditedBlocks {
 }
 
 /**
- * An iteration field read outside its container (`W_REF_OUT_OF_SCOPE`), refused in any file on a
- * block the edit changed, or in a code file the edit changed.
+ * An iteration field read outside its container (`W_REF_OUT_OF_SCOPE`), or a loop condition that
+ * is not a JavaScript expression (`W_LOOP_CONDITION_SYNTAX`), refused in any file on a block the
+ * edit changed, or in a code file the edit changed.
  */
 const CHANGED_BLOCK_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
   ['W_REF_OUT_OF_SCOPE', 'E_APPLY_REF_OUT_OF_SCOPE'],
+  ['W_LOOP_CONDITION_SYNTAX', 'E_APPLY_LOOP_CONDITION_SYNTAX'],
 ])
 
 /**
@@ -139,6 +142,7 @@ const CODE_FILE_REFUSALS: ReadonlyMap<string, EditRefusalCode> = new Map([
 export const REFUSABLE_WARNING_CODES: ReadonlySet<CompileDiagnosticCode> = new Set([
   'W_UNKNOWN_OPTION',
   'W_REF_OUT_OF_SCOPE',
+  'W_LOOP_CONDITION_SYNTAX',
   'W_UNKNOWN_OUTPUT_PATH',
   'W_UNRESOLVED_REF',
   'W_CODE_FILE_REF_SYNTAX',

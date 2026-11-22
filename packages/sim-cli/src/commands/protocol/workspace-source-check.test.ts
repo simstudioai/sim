@@ -395,7 +395,7 @@ describe('sim workspaces source check', () => {
   function workflowFile(...lines: string[]): string {
     return [
       '// @sim-sdk 1',
-      "import { agent, childWorkflow, env, runWorkflow, skill, trigger, workflow } from '@sim/workflow-sdk'",
+      "import { agent, childWorkflow, env, fn, js, response, runWorkflow, skill, t, trigger, workflow } from '@sim/workflow-sdk'",
       "export default workflow('W', {}, () => {",
       ...lines.map((line) => `  ${line}`),
       '})',
@@ -468,6 +468,57 @@ describe('sim workspaces source check', () => {
         hint: expect.stringContaining('Did you mean question?'),
       }),
       expect.objectContaining({ code: 'W_CHILD_NO_START', severity: 'warning', line: 7 }),
+    ])
+  })
+
+  it("warns on a child call's result.<key> when the child responds, naming result.data.<key>", async () => {
+    writeFile(
+      'workflows/responder/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { q: 'string' } })",
+        "const reply = response('Reply', { body: { mobile: start.q } })",
+        'start.to(reply)'
+      )
+    )
+    writeFile(
+      'workflows/silent/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { q: 'string' } })",
+        "const echo = fn('Echo', { code: js`return { mobile: ${start.q} }` })",
+        'start.to(echo)'
+      )
+    )
+    writeFile(
+      'workflows/parent/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { q: 'string' } })",
+        "const call = runWorkflow('Call', { workflowId: childWorkflow('responder'), inputMapping: { q: start.q } })",
+        "const other = runWorkflow('Other', { workflowId: childWorkflow('silent'), inputMapping: { q: start.q } })",
+        "const use = fn('Use', { code: js`return [${call.result.mobile}, ${call.result.data.mobile}, ${other.result.mobile}]` })",
+        "const reply = response('Reply', { body: { mobile: t`${call.result.mobile}`, ok: t`${call.result.status}` } })",
+        'start.to(call)',
+        'call.to(other)',
+        'other.to(use)',
+        'use.to(reply)'
+      )
+    )
+
+    await check()
+
+    const found = (stdoutJson().diagnostics as Array<Record<string, unknown>>).filter(
+      (finding) => finding.code === 'W_CHILD_RESULT_PATH'
+    )
+    expect(found).toEqual([
+      expect.objectContaining({
+        code: 'W_CHILD_RESULT_PATH',
+        file: 'workflows/parent/workflow.ts',
+        line: 7,
+        message: expect.stringContaining(
+          '<call.result.mobile> reads mobile from the result of workflow "responder"'
+        ),
+        hint: expect.stringContaining('Did you mean <call.result.data.mobile>?'),
+      }),
+      expect.objectContaining({ code: 'W_CHILD_RESULT_PATH', line: 8 }),
     ])
   })
 

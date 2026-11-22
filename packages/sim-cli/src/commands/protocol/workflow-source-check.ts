@@ -13,7 +13,7 @@ import {
   strictFlags,
   strictMode,
   withWorkflowInputs,
-  workspaceWorkflowInputs,
+  workspaceWorkflows,
 } from './source-check'
 import {
   absoluteDirOption,
@@ -96,12 +96,15 @@ export function attachWorkflowSourceCheck(source: Command): void {
             ? `\`sim workspaces source get --dir ${workspace.root}\``
             : `\`sim workflows source get <workflowId> --dir ${options.dir}\` (or \`create\`)`
         )
-        const declarations = workspace
-          ? {
-              ...(await readWorkspaceDeclarations(workspace.root)),
-              workflowInputs: await workspaceWorkflowInputs(workspace.root, catalog),
-            }
-          : undefined
+        const workflows = workspace ? await workspaceWorkflows(workspace.root, catalog) : undefined
+        const declarations =
+          workspace && workflows
+            ? {
+                ...(await readWorkspaceDeclarations(workspace.root)),
+                workflowInputs: workflows.inputs,
+                respondingWorkflows: workflows.responding,
+              }
+            : undefined
         const { findings, entry, unlisted } = await checkWorkflowDir(options.dir, catalog, {
           strict: strictMode(options),
           ...(declarations ? { declarations } : {}),
