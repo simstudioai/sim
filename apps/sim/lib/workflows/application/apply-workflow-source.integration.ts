@@ -1126,7 +1126,12 @@ check('a new block of an unknown type is one error, at its source line', async (
 
   const errors = result.diagnostics.filter((d) => d.severity === 'error')
   expect(errors.map((d) => d.code)).toEqual(['E_APPLY_INVALID_BLOCK_TYPE'])
-  expect(errors[0]).toMatchObject({ file: 'workflow.ts', blockKey: 'ghost' })
+  const ghostLine =
+    files['workflow.ts']
+      .split('\n')
+      .findIndex((line) => line.includes("block('qa_nonexistent_type'")) + 1
+  expect(ghostLine).toBeGreaterThan(0)
+  expect(errors[0]).toMatchObject({ file: 'workflow.ts', line: ghostLine, blockKey: 'ghost' })
   expect(errors[0]?.message).toContain('qa_nonexistent_type')
   expect(result.applied).toBe(false)
 })

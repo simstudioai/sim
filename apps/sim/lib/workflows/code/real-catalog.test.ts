@@ -56,7 +56,6 @@ const COOKBOOK_WORKSPACE: WorkspaceManifest = {
       columns: {
         orderId: { type: 'string' },
         status: { type: 'string' },
-        risk: { type: 'string' },
       },
     },
     leads: {

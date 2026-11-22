@@ -74,13 +74,13 @@ export default workflow('Cookbook', { description: 'One example of each common b
   })
   const save = table.insertRow('Save Order', {
     tableId: table('orders'),
-    data: { orderId: start.orderId, status: 'open', risk: check.risk },
+    data: { orderId: start.orderId, status: 'open' },
   })
   // Upsert: updates the row whose conflictColumn (a unique column, by name) matches data, else
   // inserts one. data is keyed by column name, as for insertRow.
   const touch = table.upsertRow('Touch Order', {
     tableId: table('orders'),
-    data: { orderId: start.orderId, status: 'seen' },
+    data: { orderId: start.orderId, status: 'answered' },
     conflictColumn: 'orderId',
   })
 
