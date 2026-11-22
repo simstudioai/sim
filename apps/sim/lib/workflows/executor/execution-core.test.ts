@@ -1082,7 +1082,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         expect(result.success).toBe(true)
         expect(executorExecuteMock).toHaveBeenCalledOnce()
         expect(downloadFileMock).toHaveBeenCalledWith(
-          expect.objectContaining({ key: manifest.chunks[0].ref.key, maxBytes: 64 * 1024 * 1024 })
+          expect.objectContaining({ key: manifest.chunks[0].ref.key, maxBytes: sourceBytes.length })
         )
         expect(uploadFileMock).toHaveBeenCalledWith(
           expect.objectContaining({

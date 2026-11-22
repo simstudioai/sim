@@ -270,19 +270,20 @@ describe('hydrateUserFilesWithBase64', () => {
       type: 'text/plain',
       context: 'execution',
     }
+    const storedValue = Buffer.from(JSON.stringify({ file }), 'utf8')
     const ref = {
       __simLargeValueRef: true,
       version: 1,
       id: 'lv_ABCDEFGHIJKL',
       kind: 'object',
-      size: 256,
+      size: storedValue.length,
       key: 'execution/workspace/workflow/source-execution/large-value-lv_ABCDEFGHIJKL.json',
       executionId: 'source-execution',
     }
 
     mockDownloadFile.mockImplementation(async ({ key }) => {
       if (key.includes('large-value')) {
-        return Buffer.from(JSON.stringify({ file }), 'utf8')
+        return storedValue
       }
       return Buffer.from('hello', 'utf8')
     })
