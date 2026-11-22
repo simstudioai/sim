@@ -4,6 +4,7 @@ import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
 import { CLI_CONTRACT } from '../../contract/commands'
 import { embedStore } from '../../embed-context'
+import { STILL_RUNNING_EXIT_CODE } from '../../exit-codes'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
@@ -597,6 +598,20 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
  * handler is captured for async execution. Synchronous execution uses the same
  * generated request and result builders with a heartbeat-capable response.
  */
+/** `sim workflows run --help`, after the options: which version runs, what it prints, how it exits. */
+const RUN_HELP = `
+Without --manual (or a flag that implies it) this runs the active deployment; a workflow never
+deployed has none. --manual runs the saved draft, as the source loop leaves it.
+
+The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the
+workflow's final output) and blockOutputs (what --select-output named). It has no success field:
+branch on status, or on the exit code. With --follow it is the stream's final frame
+instead: success and output.
+
+Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed
+first, then the error on stderr), or the command failed; ${STILL_RUNNING_EXIT_CODE} still running when --wait-timeout
+elapsed.`
+
 export function attachWorkflowRunFollow(workflows: Command): void {
   const run = workflows.commands.find((command) => command.name() === 'run')
   if (!run) {
@@ -644,5 +659,6 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option('--include-thinking', 'Show model reasoning while following (requires --follow)')
     .option('--include-tool-calls', 'Show tool calls while following (requires --follow)')
+    .addHelpText('after', RUN_HELP)
     .action(followOrDelegate(previous))
 }
