@@ -5808,8 +5808,6 @@
   "packages/sim-cli/src/commands/protocol/logs-follow.ts#FollowStatus",
   "packages/sim-cli/src/commands/protocol/logs-follow.ts#MAX_CELL_WIDTH",
   "packages/sim-cli/src/commands/protocol/logs-follow.ts#followStatus",
-  "packages/sim-cli/src/commands/protocol/workflow-run-follow.ts#CommentaryWriter",
-  "packages/sim-cli/src/commands/protocol/workflow-run-follow.ts#resolveWorkflowRunSelection",
   "packages/sim-cli/src/commands/search.ts#searchCommand",
   "packages/sim-cli/src/config/index.ts#DEFAULT_ENDPOINT",
   "packages/sim-cli/src/config/index.ts#PROFILE_NAME_PATTERN",
@@ -5895,6 +5893,5 @@
   "packages/sim-setup/src/setup-status.ts#SetupStatusSource",
   "packages/sim-setup/src/twins.ts#getConfiguredMailProvider",
   "packages/sim-setup/src/wizard.ts#WizardMode",
-  "packages/utils/src/timezone.ts#getSupportedTimezones",
   "packages/workflow-renderer/src/note/search-highlight.ts#NOTE_SEARCH_MARK_INDEX_PROPERTY"
 ]

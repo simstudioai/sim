@@ -44,7 +44,7 @@ const WORKFLOW_RESULT_STREAM_CONTENT_TYPE = 'application/x-ndjson'
 const DONE_SENTINEL = '[DONE]'
 
 /** The sink live commentary is written to; `process.stderr` satisfies it. */
-export interface CommentaryWriter {
+interface CommentaryWriter {
   write(text: string): unknown
 }
 
@@ -63,7 +63,7 @@ type WorkflowRunSelection = {
 }
 
 /** Projects friendly CLI flags into the API's strict nested run selector. */
-export function resolveWorkflowRunSelection(
+function resolveWorkflowRunSelection(
   flags: Record<string, unknown>
 ): WorkflowRunSelection | undefined {
   const trigger = typeof flags.trigger === 'string' ? flags.trigger : undefined
