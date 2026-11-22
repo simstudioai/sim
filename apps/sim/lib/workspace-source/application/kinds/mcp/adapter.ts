@@ -122,7 +122,6 @@ function serverIdOf(ctx: SourceContext, url: string): string {
   return generateMcpServerId(ctx.workspace.workspaceId, url)
 }
 
-/** The top-level declaration fields whose canonical values differ. */
 function baseOf(record: StoredServer): BaseResource {
   return { id: record.id, fingerprint: storedFingerprint(record.state) }
 }

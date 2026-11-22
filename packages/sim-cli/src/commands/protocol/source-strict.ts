@@ -3,6 +3,8 @@
  * names is broken. One table, so `check --help` and the directory guides name the same findings.
  */
 
+import type { DiagnosticCode } from '@sim/workflow-code/diagnostics/codes'
+
 /** Each strict warning code with what it finds, as the guides phrase it. */
 export const STRICT_FINDINGS: ReadonlyMap<string, string> = new Map([
   ['W_REQUIRED_MISSING', 'a missing required field'],
@@ -18,7 +20,7 @@ export const STRICT_FINDINGS: ReadonlyMap<string, string> = new Map([
   ['W_UNRESOLVED_REF', 'a reference that names nothing'],
   ['W_REF_OUT_OF_SCOPE', 'an iteration field read outside its loop or parallel'],
   ['W_LOOP_CONDITION_SYNTAX', 'a loop condition that is not a JavaScript expression'],
-])
+] satisfies Array<[DiagnosticCode, string]>)
 
 const phrases = [...STRICT_FINDINGS.values()]
 
