@@ -107,6 +107,8 @@ interface WorkflowPlanSummary {
   blocksModified: number
   edgesAdded: number
   edgesRemoved: number
+  /** Removed variables: like removed blocks, applying them needs `--allow-delete`. */
+  variablesRemoved: number
   /** Errors other than `E_APPLY_STALE`, which the status lists as drift or a conflict. */
   errors: number
   warnings: number
@@ -127,13 +129,15 @@ function planSummary(data: PlanData): WorkflowPlanSummary {
     blocksModified: data.diff.blocks.modified.length,
     edgesAdded: data.diff.edges.added,
     edgesRemoved: data.diff.edges.removed,
+    variablesRemoved: data.diff.variables.removed.length,
     errors: findings('error'),
     warnings: findings('warning'),
   }
 }
 
 function planLine(plan: WorkflowPlanSummary): string {
-  return `Applying would: blocks +${plan.blocksAdded} -${plan.blocksRemoved} ~${plan.blocksModified}, connections +${plan.edgesAdded} -${plan.edgesRemoved}; ${plan.errors} error(s), ${plan.warnings} warning(s).`
+  const variables = plan.variablesRemoved > 0 ? `, variables -${plan.variablesRemoved}` : ''
+  return `Applying would: blocks +${plan.blocksAdded} -${plan.blocksRemoved} ~${plan.blocksModified}, connections +${plan.edgesAdded} -${plan.edgesRemoved}${variables}; ${plan.errors} error(s), ${plan.warnings} warning(s).`
 }
 
 interface StatusOptions {
@@ -238,7 +242,7 @@ export function attachWorkflowSourceStatus(source: Command): void {
           getArgs: `${workflowId} `,
           server,
           errors: plan?.errors ?? 0,
-          deletes: (plan?.blocksRemoved ?? 0) > 0,
+          deletes: (plan?.blocksRemoved ?? 0) + (plan?.variablesRemoved ?? 0) > 0,
           scope: '',
           login,
         }),

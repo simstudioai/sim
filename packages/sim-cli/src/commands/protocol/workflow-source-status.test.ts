@@ -148,6 +148,7 @@ describe('workflows source status', () => {
         blocksModified: 0,
         edgesAdded: 0,
         edgesRemoved: 0,
+        variablesRemoved: 0,
         errors: 0,
         warnings: 0,
       },
@@ -243,6 +244,19 @@ describe('workflows source status', () => {
     ])
     expect(report.next).toMatchObject({ command: `sim workflows source apply --dir ${root} --yes` })
     expect(process.exitCode).toBe(11)
+  })
+
+  it('names --allow-delete in the apply it recommends when the edit removes a variable', async () => {
+    write(root, 'workflow.ts', `${ENTRY}// edited\n`)
+    const plan = dryRun([], 1)
+    plan.data.diff.variables.removed = ['threshold'] as never[]
+    mockRequest.mockResolvedValue(plan)
+
+    await run(root, 'status')
+
+    expect(printed().next).toMatchObject({
+      command: `sim workflows source apply --dir ${root} --yes --allow-delete`,
+    })
   })
 
   it('leaves out a function file no codeFile() names, which applying never sends, and says so', async () => {
