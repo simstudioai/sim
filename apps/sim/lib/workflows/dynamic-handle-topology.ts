@@ -1,3 +1,4 @@
+import { isElseConditionTitle, type WorkflowBranchKind } from '@sim/workflow-types/workflow'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export interface ConditionRow {
@@ -37,6 +38,15 @@ export function getDynamicHandleSubblockId(
   if (blockType === 'condition') return 'conditions'
   if (blockType === 'router_v2') return 'routes'
   return null
+}
+
+/** The branch kind of a block whose branches are rows: `condition`, or `router` for router_v2. */
+export function getDynamicHandleBranchKind(
+  blockType: string | undefined
+): WorkflowBranchKind | undefined {
+  if (blockType === 'condition') return 'condition'
+  if (blockType === 'router_v2') return 'router'
+  return undefined
 }
 
 export function getDynamicHandleSubblockType(
@@ -120,6 +130,29 @@ export function getDynamicHandleRows(
     }))
   }
   return []
+}
+
+/**
+ * The source handles of the branches `block` always takes one of (as `respondsOnEveryRun` reads
+ * canonical blocks): every route of a router, and every row of a condition with an else row (by
+ * stored title, as the executor finds it); none for branches never saved. `undefined` for a block
+ * without branches.
+ */
+export function getAlwaysTakenBranchHandles(
+  block: Pick<BlockState, 'id' | 'type'> & { subBlocks: Record<string, { value: unknown }> }
+): string[] | undefined {
+  const subBlockId = getDynamicHandleSubblockId(block.type)
+  if (subBlockId === null) return undefined
+  const stored = parseStructuredValue(block.subBlocks[subBlockId]?.value) ?? []
+  if (block.type === 'condition') {
+    const hasElse = stored.some((row) =>
+      isElseConditionTitle((row as { title?: unknown } | null)?.title)
+    )
+    return stored.length > 0 && hasElse
+      ? getConditionRows(block.id, stored).map((row) => `condition-${row.id}`)
+      : []
+  }
+  return stored.length > 0 ? getRouterRows(block.id, stored).map((row) => `router-${row.id}`) : []
 }
 
 export function getDynamicHandleTopologySignature(block: BlockState): string | null {

@@ -698,6 +698,80 @@ export function isKnownWorkflowTriggerBlock(block: WorkflowTriggerCapableBlock):
   return block.triggerMode === true || block.type === LEGACY_STARTER_BLOCK_TYPE
 }
 
+/** The Response block's type: a run that reaches one returns its output. */
+export const RESPONSE_BLOCK_TYPE = 'response'
+
+/** Whether a stored condition title names the else branch, as the executor finds it. */
+export function isElseConditionTitle(title: unknown): boolean {
+  return typeof title === 'string' && title.trim().toLowerCase() === 'else'
+}
+
+/** One block as {@link alwaysEndsAtResponse} reads it. */
+export interface ResponseGraphBlock {
+  type: string
+  enabled: boolean
+  /** The enclosing loop or parallel, or `null` at the root. */
+  parentId: string | null
+  /**
+   * Set on a condition or router block: the branches a run always takes one of, empty when a run
+   * can take none (a condition without an else branch, or branches never saved).
+   */
+  branches?: readonly string[]
+}
+
+/**
+ * One edge as {@link alwaysEndsAtResponse} reads it, by the port it leaves through: `out`,
+ * `subflowEnd`, `branch:<branch>` for a condition or router branch, or any other port.
+ */
+export interface ResponseGraphEdge {
+  source: string
+  target: string
+  port: string
+}
+
+/**
+ * Whether every run of a workflow ends at an enabled Response block at its root, so a caller's
+ * `result` is always that block's output (`{ data, status, headers }`) rather than the output of
+ * whichever block the run ended at. True when there is a root Response and every other root block
+ * that runs always goes on to one that runs (its out edge, a container's end edge, or an edge from
+ * every branch it always takes one of): the root graph is acyclic, so every run then ends at a
+ * Response.
+ */
+export function alwaysEndsAtResponse(
+  blocks: Readonly<Record<string, ResponseGraphBlock>>,
+  edges: readonly ResponseGraphEdge[]
+): boolean {
+  const runs = (id: string) => {
+    const block = Object.hasOwn(blocks, id) ? blocks[id] : undefined
+    return block?.enabled === true && !isWorkflowAnnotationOnlyBlockType(block.type)
+  }
+  const portsBySource = new Map<string, Set<string>>()
+  for (const edge of edges) {
+    if (!runs(edge.source) || !runs(edge.target)) continue
+    const ports = portsBySource.get(edge.source) ?? new Set<string>()
+    ports.add(edge.port)
+    portsBySource.set(edge.source, ports)
+  }
+  let responds = false
+  for (const [id, block] of Object.entries(blocks)) {
+    if (!runs(id) || block.parentId !== null) continue
+    if (block.type === RESPONSE_BLOCK_TYPE) {
+      responds = true
+      continue
+    }
+    const ports = portsBySource.get(id)
+    if (block.branches !== undefined) {
+      const { branches } = block
+      if (branches.length === 0 || !branches.every((branch) => ports?.has(`branch:${branch}`))) {
+        return false
+      }
+    } else if (!ports?.has(isSubflowType(block.type) ? 'subflowEnd' : 'out')) {
+      return false
+    }
+  }
+  return responds
+}
+
 /**
  * Names reserved for reference-path prefixes (`<loop.index>`, `<parallel.currentItem>`,
  * `<variable.x>`) — a block cannot take one of these as its (normalized) name.

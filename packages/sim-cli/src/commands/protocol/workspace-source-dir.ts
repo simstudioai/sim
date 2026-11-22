@@ -315,8 +315,8 @@ export interface WorkspaceDeclarations {
    */
   workflowInputs?: ReadonlyMap<string, readonly WorkflowInput[] | null>
   /**
-   * The keys of the workflows that compiled holding an enabled Response block, whose `result` is
-   * that block's output; set by a check, which compiles them.
+   * The keys of the workflows that compiled and end at a Response block on every run, whose
+   * `result` is that block's output; set by a check, which compiles them.
    */
   respondingWorkflows?: ReadonlySet<string>
 }

@@ -22,11 +22,11 @@ import {
   parseJsonField,
   parseStoredPath,
   parseWorkflowLock,
-  RESPONSE_BLOCK_TYPE,
   RESPONSE_OUTPUTS,
   raisedMessage,
   refuseEditedFindings,
   refusesEdited,
+  respondsOnEveryRun,
   scriptName,
   startInputs,
   type Value,
@@ -306,8 +306,10 @@ function childInputFindings(
 
 /**
  * `W_CHILD_RESULT_PATH` for each reference to `<call.result.<key>>` whose call runs a workflow of
- * this directory that responds, when `<key>` is not one of the Response block's outputs: the
- * child's `result` is then `{ data, status, headers }`, so the path reads nothing at run time.
+ * this directory that ends at a Response block on every run, when `<key>` is not one of the
+ * Response block's outputs: the child's `result` is then `{ data, status, headers }`, so the path
+ * reads nothing at run time. A child that can end elsewhere returns the output of the block it
+ * ends at, which the path may read, so its calls are not judged.
  */
 function childResultFindings(
   workflow: CanonicalWorkflow,
@@ -482,8 +484,8 @@ async function compileWorkflowDir(
  * The workspace directory `root`'s declarations, with what a child workflow call is checked
  * against from compiling each of its workflows: the inputs of each workflow that compiles
  * (`startInputs`, `null` without a Start trigger), which `workspace.d.ts` also types
- * `inputMapping` with, and the keys of those holding an enabled response block, whose `result` is
- * that block's output.
+ * `inputMapping` with, and the keys of those that end at a Response block on every run, whose
+ * `result` is that block's output.
  */
 export async function readCheckDeclarations(
   root: string,
@@ -503,10 +505,7 @@ async function compileWorkspaceWorkflows(root: string, catalog: BlockCatalog) {
     const { compiled } = await compileWorkflowDir(join(root, KIND_DIRS.workflow, key), catalog)
     if (!compiled.workflow) continue
     workflowInputs.set(key, startInputs(compiled.workflow))
-    const blocks = Object.values(compiled.workflow.blocks)
-    if (blocks.some((block) => block.type === RESPONSE_BLOCK_TYPE && block.enabled !== false)) {
-      respondingWorkflows.add(key)
-    }
+    if (respondsOnEveryRun(compiled.workflow)) respondingWorkflows.add(key)
   }
   return { workflowInputs, respondingWorkflows }
 }

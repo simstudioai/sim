@@ -107,10 +107,10 @@ const COMPILE_SCOPE_CODES = [
    */
   'W_CHILD_NO_START',
   /**
-   * A reference to a child workflow call's `result.<key>` whose child holds a Response block (an
-   * offline check of a workspace directory), where `<key>` is not `data`, `status` or `headers`:
-   * the child's result is its Response output, so the path reads nothing. The value meant is
-   * almost always `result.data.<key>`.
+   * A reference to a child workflow call's `result.<key>` whose child ends at a Response block on
+   * every run (an offline check of a workspace directory), where `<key>` is not `data`, `status`
+   * or `headers`: the child's result is its Response output, so the path reads nothing. The value
+   * meant is almost always `result.data.<key>`.
    */
   'W_CHILD_RESULT_PATH',
   /** `p.<prop>` not in the loop/parallel resolvers' `KNOWN_PROPERTIES`. */

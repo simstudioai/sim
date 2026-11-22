@@ -7,6 +7,12 @@ import {
   type ScopeNode,
 } from '@sim/workflow-code'
 import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
+import {
+  alwaysEndsAtResponse,
+  normalizeWorkflowEdgeSourceHandle,
+  parseWorkflowSourceHandle,
+  type ResponseGraphBlock,
+} from '@sim/workflow-types/workflow'
 import { MCP_STRUCTURED_CONTENT_OUTPUT } from '@/lib/mcp/output-schema'
 import {
   collectPredicateFieldNames,
@@ -18,6 +24,10 @@ import {
   getMcpStructuredContentOutputs,
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/outputs'
+import {
+  getAlwaysTakenBranchHandles,
+  getDynamicHandleBranchKind,
+} from '@/lib/workflows/dynamic-handle-topology'
 import { quotedBlockLabel } from '@/lib/workflows/labels'
 import { getWorkflowInvocationTarget } from '@/lib/workflows/streaming/nested-output-options'
 import type { ManualRunEntryIssue } from '@/lib/workflows/triggers/manual-run'
@@ -1122,10 +1132,63 @@ export interface WorkflowLintChildWorkflow {
   /** Whether the child has an active deployment, which a deployed run of the caller calls. */
   deployed: boolean
   /**
-   * Whether the child holds an enabled Response block: its run then returns that block's output,
+   * Whether every run of the child ends at an enabled Response block
+   * ({@link alwaysEndsAtResponseBlock}): it then returns that block's output,
    * `{ data, status, headers }`, as the caller's `result`.
    */
   responds: boolean
+}
+
+/** The parts of a stored graph {@link alwaysEndsAtResponseBlock} reads. */
+export interface WorkflowResponseGraph {
+  blocks: Record<
+    string,
+    {
+      type: string
+      enabled?: boolean
+      data?: { parentId?: unknown } | null
+      subBlocks?: Record<string, { value: unknown }>
+    }
+  >
+  edges: ReadonlyArray<{ source: string; target: string; sourceHandle?: string | null }>
+}
+
+/**
+ * Whether every run of the stored graph ends at an enabled Response block at its root, so a
+ * Workflow block calling it reads that block's output as its `result`
+ * ({@link alwaysEndsAtResponse}).
+ */
+export function alwaysEndsAtResponseBlock(graph: WorkflowResponseGraph): boolean {
+  const blocks: Record<string, ResponseGraphBlock> = {}
+  for (const [id, block] of Object.entries(graph.blocks)) {
+    const branches = getAlwaysTakenBranchHandles({
+      id,
+      type: block.type,
+      subBlocks: block.subBlocks ?? {},
+    })
+    const parentId = block.data?.parentId
+    blocks[id] = {
+      type: block.type,
+      enabled: block.enabled !== false,
+      parentId: typeof parentId === 'string' && parentId !== '' ? parentId : null,
+      ...(branches !== undefined && { branches }),
+    }
+  }
+  const edges = graph.edges.map((edge) => {
+    const sourceType = graph.blocks[edge.source]?.type
+    const handle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle)
+    const port = parseWorkflowSourceHandle(
+      handle,
+      sourceType,
+      getDynamicHandleBranchKind(sourceType)
+    )
+    return {
+      source: edge.source,
+      target: edge.target,
+      port: port.kind === 'branch' ? `branch:${port.handle}` : port.kind,
+    }
+  })
+  return alwaysEndsAtResponse(blocks, edges)
 }
 
 /**

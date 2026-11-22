@@ -5024,7 +5024,6 @@
   "apps/sim/lib/workflows/deployment-outbox.ts#PrepareDeploymentWebhooksInput",
   "apps/sim/lib/workflows/diff/types.ts#EdgeDiffStatus",
   "apps/sim/lib/workflows/diff/types.ts#FieldDiffStatus",
-  "apps/sim/lib/workflows/dynamic-handle-topology.ts#getDynamicHandleSubblockId",
   "apps/sim/lib/workflows/editing/block-enablement.ts#findDescendants",
   "apps/sim/lib/workflows/editing/engine.ts#topologicalSortInserts",
   "apps/sim/lib/workflows/editing/lint.ts#WorkflowLintEmptyOutgoingPort",

@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { COOKBOOK_EXAMPLES, WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -395,7 +396,7 @@ describe('sim workspaces source check', () => {
   function workflowFile(...lines: string[]): string {
     return [
       '// @sim-sdk 1',
-      "import { agent, childWorkflow, env, fn, js, response, runWorkflow, skill, t, trigger, workflow } from '@sim/workflow-sdk'",
+      "import { agent, childWorkflow, condition, env, fn, js, response, runWorkflow, skill, t, trigger, workflow } from '@sim/workflow-sdk'",
       "export default workflow('W', {}, () => {",
       ...lines.map((line) => `  ${line}`),
       '})',
@@ -520,6 +521,71 @@ describe('sim workspaces source check', () => {
       }),
       expect.objectContaining({ code: 'W_CHILD_RESULT_PATH', line: 8 }),
     ])
+  })
+
+  it("judges a child's result.<key> only when every run of the child ends at a Response block", async () => {
+    // Gate.else ends the run at Echo, which returns { mobile }: result.mobile reads it then.
+    writeFile(
+      'workflows/branchy/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { q: 'string' } })",
+        "const gate = condition('Gate', { yes: js`${start.q} === 'y'`, else: true })",
+        "const reply = response('Reply', { body: { mobile: start.q } })",
+        "const echo = fn('Echo', { code: js`return { mobile: ${start.q} }` })",
+        'start.to(gate)',
+        'gate.yes.to(reply)',
+        'gate.else.to(echo)'
+      )
+    )
+    writeFile(
+      'workflows/covered/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { q: 'string' } })",
+        "const gate = condition('Gate', { yes: js`${start.q} === 'y'`, else: true })",
+        "const reply = response('Reply', { body: { mobile: start.q } })",
+        "const other = response('Other', { body: { mobile: 'none' } })",
+        'start.to(gate)',
+        'gate.yes.to(reply)',
+        'gate.else.to(other)'
+      )
+    )
+    writeFile(
+      'workflows/parent/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { q: 'string' } })",
+        "const maybe = runWorkflow('Maybe', { workflowId: childWorkflow('branchy'), inputMapping: { q: start.q } })",
+        "const always = runWorkflow('Always', { workflowId: childWorkflow('covered'), inputMapping: { q: start.q } })",
+        "const use = fn('Use', { code: js`return [${maybe.result.mobile}, ${always.result.mobile}]` })",
+        'start.to(maybe)',
+        'maybe.to(always)',
+        'always.to(use)'
+      )
+    )
+
+    await check()
+
+    const found = (stdoutJson().diagnostics as Array<Record<string, unknown>>).filter(
+      (finding) => finding.code === 'W_CHILD_RESULT_PATH'
+    )
+    expect(found).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining('<always.result.mobile> reads mobile'),
+      }),
+    ])
+  })
+
+  it("checks the cookbook example's table writes clean against the cookbook workspace's tables", async () => {
+    for (const [path, text] of Object.entries(WORKSPACE_COOKBOOK)) writeFile(path, text)
+    writeFile('workflows/cookbook/workflow.ts', COOKBOOK_EXAMPLES['cookbook.ts'])
+
+    await check()
+
+    const tableFindings = (stdoutJson().diagnostics as Array<Record<string, unknown>>).filter(
+      (finding) =>
+        finding.file === 'workflows/cookbook/workflow.ts' &&
+        ['W_TABLE_UNKNOWN_COLUMN', 'W_UNKNOWN_OPTION'].includes(String(finding.code))
+    )
+    expect(tableFindings).toEqual([])
   })
 
   it('points an unknown env name at secrets.ts', async () => {

@@ -13,8 +13,8 @@ import {
 } from '@sim/emcn'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { isElseConditionTitle } from '@sim/workflow-types/workflow'
 import Editor from 'react-simple-code-editor'
-import { isElseConditionTitle } from '@/lib/workflows/conditions'
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,

@@ -20,9 +20,6 @@ export const GENERIC_BUILDER = 'block'
 /** The stored type of a workspace custom tool entry (the tool picker's `type: 'custom-tool'`). */
 export const CUSTOM_TOOL_TYPE = 'custom-tool'
 
-/** The response block type, which also takes the `response(name, { body, ... })` form. */
-export const RESPONSE_BLOCK_TYPE = 'response'
-
 /**
  * The keys of the `response(name, { body, status?, headers? })` form. Writing `body` selects it;
  * without `body` the params are the block's own (`dataMode`, `builderData`, `data`, ...).

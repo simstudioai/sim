@@ -1,11 +1,13 @@
 import { db } from '@sim/db'
-import { workflow, workflowBlocks } from '@sim/db/schema'
+import { workflow, workflowBlocks, workflowDeploymentVersion, workflowEdges } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { type AnyColumn, and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { getTableById } from '@/lib/table/service'
+import { getDynamicHandleSubblockId } from '@/lib/workflows/dynamic-handle-topology'
 import {
+  alwaysEndsAtResponseBlock,
   collectChildWorkflowFindings,
   collectDanglingBlockOutputReferences,
   collectTableBlockFieldIssues,
@@ -19,6 +21,7 @@ import {
   type WorkflowLintTableFieldIssue,
   type WorkflowLintTableSchema,
   type WorkflowLintUnresolvedReference,
+  type WorkflowResponseGraph,
 } from '@/lib/workflows/editing/lint'
 import {
   type AgentToolReferenceValidationOptions,
@@ -119,20 +122,120 @@ interface WorkflowLintReportOptions extends AgentToolReferenceValidationOptions 
   deployed?: boolean
 }
 
+/** Joins a child's graph rows to its `workflow` row while that is live in `workspaceId`. */
+function liveChildOf(workflowIdColumn: AnyColumn, workspaceId: string) {
+  return and(
+    eq(workflow.id, workflowIdColumn),
+    eq(workflow.workspaceId, workspaceId),
+    isNull(workflow.archivedAt)
+  )
+}
+
+/**
+ * The draft graph of each child in `ids`, by workflow id: only what
+ * {@link alwaysEndsAtResponseBlock} reads (each block's type, flag, parent and branch rows, each
+ * edge's ends and handle), in one query per table.
+ */
+async function loadChildDraftGraphs(
+  ids: string[],
+  workspaceId: string
+): Promise<Map<string, WorkflowResponseGraph>> {
+  const [blocks, edges] = await Promise.all([
+    db
+      .select({
+        workflowId: workflowBlocks.workflowId,
+        id: workflowBlocks.id,
+        type: workflowBlocks.type,
+        enabled: workflowBlocks.enabled,
+        parentId: sql<string | null>`${workflowBlocks.data}->>'parentId'`,
+        branchRows: sql<unknown>`coalesce(${workflowBlocks.subBlocks}->'conditions'->'value', ${workflowBlocks.subBlocks}->'routes'->'value')`,
+      })
+      .from(workflowBlocks)
+      .innerJoin(workflow, liveChildOf(workflowBlocks.workflowId, workspaceId))
+      .where(inArray(workflowBlocks.workflowId, ids)),
+    db
+      .select({
+        workflowId: workflowEdges.workflowId,
+        source: workflowEdges.sourceBlockId,
+        target: workflowEdges.targetBlockId,
+        sourceHandle: workflowEdges.sourceHandle,
+      })
+      .from(workflowEdges)
+      .innerJoin(workflow, liveChildOf(workflowEdges.workflowId, workspaceId))
+      .where(inArray(workflowEdges.workflowId, ids)),
+  ])
+  const graphs = new Map<
+    string,
+    { blocks: WorkflowResponseGraph['blocks']; edges: WorkflowResponseGraph['edges'][number][] }
+  >()
+  const graphOf = (workflowId: string) => {
+    const graph = graphs.get(workflowId) ?? { blocks: {}, edges: [] }
+    graphs.set(workflowId, graph)
+    return graph
+  }
+  for (const { workflowId, id, type, enabled, parentId, branchRows } of blocks) {
+    const branchField = getDynamicHandleSubblockId(type)
+    graphOf(workflowId).blocks[id] = {
+      type,
+      enabled,
+      data: { parentId },
+      subBlocks: branchField ? { [branchField]: { value: branchRows } } : {},
+    }
+  }
+  for (const { workflowId, ...edge } of edges) graphOf(workflowId).edges.push(edge)
+  return graphs
+}
+
+/**
+ * The graph of each child in `ids` with an active deployment, by workflow id: the blocks and edges
+ * of that deployment's snapshot, which a deployed run of the caller calls, in one query.
+ */
+async function loadChildDeployedGraphs(
+  ids: string[],
+  workspaceId: string
+): Promise<Map<string, WorkflowResponseGraph>> {
+  const versions = await db
+    .select({
+      workflowId: workflowDeploymentVersion.workflowId,
+      blocks: sql<
+        WorkflowResponseGraph['blocks'] | null
+      >`${workflowDeploymentVersion.state}->'blocks'`,
+      edges: sql<
+        WorkflowResponseGraph['edges'] | null
+      >`${workflowDeploymentVersion.state}->'edges'`,
+    })
+    .from(workflowDeploymentVersion)
+    .innerJoin(workflow, liveChildOf(workflowDeploymentVersion.workflowId, workspaceId))
+    .where(
+      and(
+        inArray(workflowDeploymentVersion.workflowId, ids),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+  return new Map(
+    versions.map(({ workflowId, blocks, edges }) => [
+      workflowId,
+      { blocks: blocks ?? {}, edges: edges ?? [] },
+    ])
+  )
+}
+
 /**
  * What the lint checks a call against for each workflow the graph's Workflow blocks call in this
- * workspace, keyed by id: its name, whether it is deployed, and whether its draft holds an enabled
- * Response block. A child in another workspace, or archived, is left out: the block's own
- * reference check reports it.
+ * workspace, keyed by id: its name, whether it is deployed, and whether every run of it ends at a
+ * Response block, judged on the version a run of the caller calls (`deployed`: the child's active
+ * deployment; else its draft). A child in another workspace, or archived, is left out: the block's
+ * own reference check reports it.
  */
 async function loadChildWorkflowsForLint(
   graph: Pick<WorkflowState, 'blocks' | 'edges'>,
-  workspaceId: string
+  workspaceId: string,
+  deployed: boolean
 ): Promise<Map<string, WorkflowLintChildWorkflow>> {
   const ids = collectReferencedWorkflowIds([graph])
   const children = new Map<string, WorkflowLintChildWorkflow>()
   if (ids.length === 0) return children
-  const [rows, responders] = await Promise.all([
+  const [rows, graphs] = await Promise.all([
     db
       .select({ id: workflow.id, name: workflow.name, isDeployed: workflow.isDeployed })
       .from(workflow)
@@ -143,23 +246,14 @@ async function loadChildWorkflowsForLint(
           isNull(workflow.archivedAt)
         )
       ),
-    db
-      .selectDistinct({ workflowId: workflowBlocks.workflowId })
-      .from(workflowBlocks)
-      .where(
-        and(
-          inArray(workflowBlocks.workflowId, ids),
-          eq(workflowBlocks.type, 'response'),
-          eq(workflowBlocks.enabled, true)
-        )
-      ),
+    deployed ? loadChildDeployedGraphs(ids, workspaceId) : loadChildDraftGraphs(ids, workspaceId),
   ])
-  const responding = new Set(responders.map((row) => row.workflowId))
   for (const row of rows) {
+    const childGraph = graphs.get(row.id)
     children.set(row.id, {
       name: row.name,
       deployed: row.isDeployed,
-      responds: responding.has(row.id),
+      responds: childGraph !== undefined && alwaysEndsAtResponseBlock(childGraph),
     })
   }
   return children
@@ -230,21 +324,17 @@ export async function buildWorkflowLintReport(
     ...collectUnquotedJsonStringReferences(graph)
   )
 
-  // Started before the reference collectors so its lookup overlaps theirs.
-  const childFindings = loadChildWorkflowsForLint(graph, scope.workspaceId).then(
-    (children) =>
-      collectChildWorkflowFindings(graph, children, { deployed: options.deployed === true }),
+  // Started before the reference collectors so its lookup overlaps theirs. It settles to `null`
+  // rather than rejecting, so a collector below that throws first leaves no rejection unhandled.
+  const deployed = options.deployed === true
+  const childFindings = loadChildWorkflowsForLint(graph, scope.workspaceId, deployed).then(
+    (children) => collectChildWorkflowFindings(graph, children, { deployed }),
     (error: unknown) => {
       logger.warn('Child workflow lint failed', {
         workflowId: scope.workflowId,
         error: getErrorMessage(error),
       })
-      if (options.requireComplete) {
-        throw new Error(
-          'Workflow child workflow checks could not complete; retry when lookup is available'
-        )
-      }
-      return []
+      return null
     }
   )
 
@@ -280,7 +370,13 @@ export async function buildWorkflowLintReport(
     }
   }
 
-  unresolvedReferences.push(...(await childFindings))
+  const children = await childFindings
+  if (children === null && options.requireComplete) {
+    throw new Error(
+      'Workflow child workflow checks could not complete; retry when lookup is available'
+    )
+  }
+  unresolvedReferences.push(...(children ?? []))
 
   /** Standalone diagnostics have already read tables under application authorization. */
   let tableFieldIssues: WorkflowLintTableFieldIssue[] = options.tables?.tableFieldIssues ?? []
