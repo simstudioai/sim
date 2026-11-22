@@ -32,7 +32,7 @@ vi.mock('fs/promises', () => ({
   stat: vi.fn().mockResolvedValue({ isFile: () => true }),
 }))
 
-import { createMockRequest } from '@sim/testing'
+import { createMockRequest, createRouteContext } from '@sim/testing'
 import { POST } from '@/app/api/files/delete/route'
 
 idMockFns.mockGenerateId.mockReturnValue('test-uuid')
@@ -76,7 +76,7 @@ describe('File Delete API Route', () => {
       filePath: '/api/files/serve/og-images/..%2Fworkspace%2Fvictim-ws%2F1234-report.pdf',
     })
 
-    const response = await POST(req)
+    const response = await POST(req, createRouteContext({}))
 
     expect(response.status).toBe(404)
     expect(filesAuthorizationMockFns.mockVerifyFileAccess).not.toHaveBeenCalled()
