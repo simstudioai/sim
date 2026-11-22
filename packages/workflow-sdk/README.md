@@ -23,9 +23,9 @@ have the CLI confirm the directory holds that workflow.
 2. **Edit** `workflow.ts`. Declare blocks with `const x = builder('Name', params)` and wire them
    with `x.to(y)`. Then run `sim workflows source check --dir ./wf`: it compiles with the server's
    compiler against the cached catalog, without a request, in milliseconds, and catches what `tsc`
-   cannot (duplicate names, cycles, literal secrets). It exits 1 on errors and on a missing
-   required field, an unknown option or output path, a wrong value kind, an out-of-range value or
-   a literal secret in a block the lock does not bind yet (`--strict`: in every block; `--no-strict`: never on a
+   cannot (duplicate names, cycles, literal secrets). It exits 1 on errors and on the warnings
+   `sim workflows source check --help` lists (a missing required field, an unknown option, a
+   literal secret and more) in a block the lock does not bind yet (`--strict`: in every block; `--no-strict`: never on a
    warning). It also adds the blocks the source now uses to `tsconfig.json`. Then always run
    `bunx -p typescript@7.0.2 tsc -p ./wf` after an edit and fix what it reports: it takes about a
    second and catches what check and the dry run do not, such as a reference to a start input the
@@ -71,7 +71,7 @@ command with `--yes` to write it. `--dry-run` never asks.
 | `.sim/sdk/blocks/{type}.d.ts` | One block type's builders with their params and outputs, for the blocks the source uses and the core builders' (`check` adds a block an edit starts using). `sim workflows source params` prints one builder rather than a file whole. |
 | `.sim/sdk/index.d.ts` | Names the catalog and generator the declarations come from, and imports the blocks the directory holds. |
 | `~/.sim/cache/source-catalog/<hash>/sdk-<generator>/` | Every block's declarations and the full `INDEX.md`, generated once per catalog and shared by every directory; `tsconfig.full.json` includes its `index.d.ts` (every current block). |
-| `.sim/sdk/workspace.d.ts` | This workspace's tables (with columns), knowledge bases, credentials, workflows (with inputs), skills, custom tools and env var names, so `table('tickets')`, `credential('support-slack')`, `skill('triage')` and `env.X` are checked. |
+| `.sim/sdk/workspace.d.ts` | This workspace's tables (with columns), knowledge bases, credentials, workflows (with inputs), skills, custom tools, MCP servers (with tools) and env var names, so `table('tickets')`, `credential('support-slack')`, `skill('triage')` and `env.X` are checked. |
 | `tsconfig.json` | Resolves `@sim/workflow-sdk` to `.sim/sdk` and type-checks `workflow.ts` with the blocks it uses (from the source and the server's `blockTypes`) and the core builders' blocks: a few dozen files for `tsc` instead of every block. |
 | `tsconfig.full.json` | The same with every current block (the cached index, an absolute path on this machine), plus any legacy-only block the workflow uses. |
 | `.sim/AGENTS.md` | The authoring guide for agents: the primer `get` prints (edit loop, identity, references, deletes, deploy, exit codes, and a snippet for each builder the source calls), then a reference linking [the docs](https://docs.sim.ai/workflows/code). A top-level `AGENTS.md` of your own is never touched. |
