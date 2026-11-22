@@ -1,0 +1,237 @@
+---
+slug: ai-acceptable-use-policy-template
+title: 'AI Acceptable Use Policy Template for IT and Security Teams'
+seoTitle: 'AI Acceptable Use Policy Template for IT Teams'
+description: 'Copy an AI acceptable use policy template covering approved tools, data, credentials, agent actions, human approval, logging, exceptions, and enforcement.'
+date: 2026-11-22
+updated: 2026-11-22
+authors:
+  - andrew
+readingTime: 10
+tags: [AI Governance, AI Security, AI Agents, Sim]
+ogImage: /library/ai-acceptable-use-policy-template/cover.jpg
+draft: false
+faq:
+  - q: "Is an AI acceptable use policy the same as an AI governance framework?"
+    a: "An AI acceptable use policy is one enforceable component of an AI governance framework, while the broader framework also assigns decision rights, risk tiers, assessments, model oversight, incident processes, and reporting responsibilities."
+  - q: "Does an AI acceptable use policy apply to both ChatGPT-style tools and autonomous agents?"
+    a: "An AI acceptable use policy should apply to both ChatGPT-style tools and autonomous agents because both can expose data, while agents create additional risk by accessing systems and taking actions."
+  - q: "Should IT ban every unapproved AI tool?"
+    a: "IT should prohibit unapproved business use of AI tools while providing a practical request path, because a ban without usable approved alternatives often pushes adoption outside governed systems."
+  - q: "How often should an AI acceptable use policy be reviewed?"
+    a: "An AI acceptable use policy should be reviewed on a defined schedule, commonly at least annually, and whenever a material incident, legal change, vendor change, or new high-risk use case affects its assumptions."
+  - q: "Should contractors and vendors follow the same AI usage policy as employees?"
+    a: "Contractors and vendors should follow the AI usage policy whenever they access organizational data, systems, credentials, or accounts, with contractual terms addressing any responsibilities that differ from those of employees."
+  - q: "Does an AI acceptable use policy apply to Sim and n8n?"
+    a: "An AI acceptable use policy can apply to both Sim and n8n, but IT must map each policy clause to the access, credential, approval, and logging controls actually configured in the chosen deployment."
+  - q: "Can an AI acceptable use policy template replace legal review?"
+    a: "An AI acceptable use policy template cannot replace legal review because applicable privacy, employment, intellectual-property, sector, contractual, and jurisdictional requirements differ by organization."
+  - q: "What should happen when an AI agent cannot obtain required human approval?"
+    a: "An AI agent should stop safely without performing the protected action when required human approval is denied, expires, or cannot be obtained."
+  - q: "Who is responsible when an employee uses AI-generated output?"
+    a: "The employee and the organization remain responsible for how AI-generated output is reviewed, approved, communicated, and used, even when an approved AI tool produced it."
+  - q: "How should IT handle an exception to the AI usage policy?"
+    a: "IT should require a documented, time-limited exception with a business justification, risk owner, affected data and systems, compensating controls, approval, and expiration date."
+---
+
+## TL;DR
+
+An AI acceptable use policy defines how employees, contractors, AI tools, and AI agents may use company data and systems. IT and Security should jointly own the policy, with Legal, Privacy, HR, and business leaders reviewing the rules that affect their areas.
+
+Use the copy-ready template below as a starting point, then adapt it to your organization’s risk profile, systems, and regulatory obligations. Legal counsel should review the final policy before adoption.
+
+## What is an AI acceptable use policy, and who owns it?
+
+An AI acceptable use policy is an organization’s enforceable rulebook for approved AI tools, permitted data, credentials, agent actions, human oversight, logging, exceptions, and violations.
+
+The policy should cover both generative AI tools that produce content and AI agents that can call tools, access systems, or take actions. A policy limited to chatbot prompts leaves a material gap when agents can update records, send messages, change permissions, approve transactions, or trigger other workflows.
+
+IT and Security should be accountable for the policy because they can connect written requirements to identity, access, credential, approval, and monitoring controls. Other stakeholders should have defined review roles:
+
+- **Legal and Privacy:** Applicable laws, contracts, confidentiality, intellectual property, and privacy obligations.
+- **HR:** Employee notice, training, disciplinary procedures, and workforce use cases.
+- **Data owners:** Permitted uses of specific data classes and systems.
+- **Business leaders:** Risk acceptance and approval for department-specific use cases.
+- **Procurement:** Vendor assessment and approved-tool records.
+
+## What should an AI acceptable use policy include?
+
+An AI acceptable use policy should define who and what is covered, which tools are approved, what data may be used, how credentials are handled, which actions require human approval, what must be logged, and how exceptions are governed.
+
+At minimum, the policy should answer these operational questions:
+
+1. Which employees, contractors, vendors, AI tools, models, agents, and environments are in scope?
+2. How does a user confirm that an AI tool is approved?
+3. How can a team request a new tool or use case?
+4. Which data classes may or may not be entered, retrieved, generated, or retained?
+5. How must API keys, OAuth grants, service accounts, and other credentials be managed?
+6. Which agent actions require approval before execution?
+7. Which events and decisions must be logged?
+8. Who reviews usage, and how often?
+9. How are exceptions approved and documented?
+10. What happens when a user or system violates the policy?
+
+Organizations should pair this document with a process for identifying unsanctioned tools. The [shadow AI guide for IT leaders](https://www.sim.ai/library/shadow-ai-detection-governance-it-leaders) covers discovery and risk assessment, while this template governs approved and prohibited use.
+
+## How can IT copy and adapt this AI usage policy template?
+
+This AI usage policy template gives IT and Security a vendor-neutral policy that can be copied into an internal policy system and customized by replacing the bracketed fields.
+
+### AI acceptable use policy
+
+**Policy owner:** [IT and Security]
+
+**Approver:** [Executive, risk, or governance committee]
+
+**Effective date:** [Date]
+
+**Review date:** [Date]
+
+**Applies to:** [Employees, contractors, temporary workers, vendors, and other authorized users]
+
+**1. Purpose and scope**
+
+[Organization Name] permits responsible use of approved artificial intelligence tools and AI agents when that use supports legitimate business purposes and complies with security, privacy, legal, contractual, and records-management requirements.
+
+This policy applies to generative AI applications, embedded AI features, AI assistants, models, AI agent platforms, autonomous or semi-autonomous agents, and workflows that use AI to access data, generate outputs, call tools, or take actions on behalf of a user or the organization.
+
+**2. Approved tools and requests for new tools**
+
+[Organization Name] requires users to access AI only through tools, accounts, models, integrations, and environments listed in [Approved AI Tool Register].
+
+Users must not create business accounts, connect company systems, install integrations, or purchase AI services without approval through [Request Process]. A request must identify the business owner, intended users, data involved, connected systems, model or provider, expected actions, retention requirements, and proposed oversight.
+
+IT, Security, Privacy, Legal, Procurement, and the relevant data owner may review requests according to risk. Approval for one use case does not authorize unrelated uses or additional data sources.
+
+**3. Data that may and may not be used**
+
+[Organization Name] permits AI systems to process only the data classes explicitly approved for the applicable tool and use case.
+
+Users may use [Public Data] and [Approved Internal Data] when the approved tool’s configuration, contract, access controls, and retention settings meet organizational requirements.
+
+Users must not enter, upload, retrieve, expose, or use the following data unless the use case has written approval from the relevant data owner and control functions:
+
+- Authentication secrets, passwords, private keys, access tokens, or recovery codes.
+- Regulated personal, health, financial, biometric, or government-identification data.
+- Customer or employee data classified as restricted.
+- Confidential legal advice, privileged material, or litigation information.
+- Non-public source code, security findings, system configurations, or architecture classified as restricted.
+- Trade secrets, merger information, unreleased financial results, or other highly confidential business information.
+- Third-party information whose contract prohibits the proposed processing.
+
+Users must minimize data, remove unnecessary identifiers, and use synthetic or de-identified information when it can satisfy the business need.
+
+**4. Credentials and API keys**
+
+[Organization Name] requires AI tools and agents to use organization-managed credentials with least-privilege permissions and an identifiable owner.
+
+Users must not paste credentials into prompts, workflow instructions, source files, logs, or unapproved secret stores. Personal credentials must not be shared among users or embedded in shared agents. API keys, OAuth grants, service accounts, and other secrets must be stored and rotated through [Approved Credential System].
+
+Credentials must be scoped to the minimum systems, records, actions, and duration required. Owners must revoke credentials when an agent is retired, an integration is removed, a user changes roles, or unauthorized access is suspected.
+
+For implementation detail, use the [AI agent identity, credential management, and audit trails guide](https://www.sim.ai/library/ai-agent-identity-credentials-audit-trails-enterprise-guide).
+
+**5. AI agents that take actions and when human approval is required**
+
+[Organization Name] requires a human decision before an AI agent performs a high-risk, irreversible, externally binding, or privilege-changing action.
+
+Human approval is required before an agent:
+
+- Sends an external communication that creates a commitment or represents the organization in a sensitive matter.
+- Executes or approves a payment, refund, purchase, financial transfer, or contract.
+- Creates, disables, or changes a user account, role, permission, or security policy.
+- Deletes production data or performs an action that cannot be reliably reversed.
+- Makes or executes a consequential decision affecting employment, credit, healthcare, legal rights, safety, or access to essential services.
+- Changes production infrastructure, security controls, or regulated records.
+- Publishes material publicly under the organization’s name.
+- Takes another action classified as high risk in [Risk Standard].
+
+The approval request must show the proposed action, relevant inputs, affected system, expected effect, and available alternatives. Approval must be attributable to an authorized person. An agent must fail safely if approval is denied, expires, or cannot be obtained.
+
+The [guide to human approval workflows](https://www.sim.ai/library/best-ai-agent-builders-for-human-approval-workflows) explains how platforms can place review gates before consequential actions.
+
+**6. Logging and monitoring**
+
+[Organization Name] requires sufficient logging to identify who initiated an AI interaction or agent run, which approved system acted, what resources it accessed, what action it proposed or completed, and whether a human approved the action.
+
+Logs must follow [Logging Standard], [Retention Schedule], and access restrictions. Sensitive prompt or response content should not be collected merely because logging is available; logging must be proportionate to the risk and must avoid exposing secrets or restricted data.
+
+Security may monitor for unapproved tools, unusual access, repeated policy failures, credential misuse, unexpected data movement, and actions outside an agent’s approved scope. Material incidents must follow [Incident Response Process].
+
+**7. Accuracy, review, and user responsibility**
+
+[Organization Name] treats AI output as unverified until it receives the level of review appropriate to its intended use and potential impact.
+
+Users remain responsible for work they submit, decisions they make, and actions they authorize with AI assistance. Users must check material facts, citations, calculations, code, recommendations, and generated records before relying on them. AI output must not be represented as professionally reviewed when the required qualified reviewer has not assessed it.
+
+**8. Review cadence**
+
+[Organization Name] reviews this policy and its approved-tool register at least [quarterly/annually] and after material changes to technology, regulation, incidents, vendors, or business use.
+
+Each approved high-risk use case must have a named owner, scheduled access review, control test, and documented decision to continue, modify, suspend, or retire it. Tool owners must remove integrations and credentials that are no longer required.
+
+**9. Exceptions**
+
+[Organization Name] permits exceptions only when an authorized risk owner documents the business need, affected systems and data, duration, compensating controls, and expiration date.
+
+Silence or delayed review does not constitute approval. Exceptions must be time-limited and reapproved before expiration. Emergency exceptions must be reviewed after use under [Emergency Change Process].
+
+**10. Enforcement and reporting**
+
+[Organization Name] may restrict or revoke AI access, disconnect integrations, rotate credentials, suspend an agent, require remediation, or apply disciplinary measures when this policy is violated.
+
+Users must report suspected data exposure, unsafe agent behavior, credential compromise, unauthorized tools, and unintended actions through [Security Reporting Channel]. Good-faith reporting must not be discouraged or penalized.
+
+**11. Legal review**
+
+[Organization Name] requires Legal, Privacy, and other appropriate specialists to review this policy before adoption and when legal or regulatory obligations materially change.
+
+This template is operational guidance and does not replace legal advice tailored to the organization, jurisdiction, industry, contracts, and workforce.
+
+## Which platform controls enforce each AI acceptable use policy clause?
+
+Platform controls enforce an AI acceptable use policy by converting written rules into access restrictions, credential boundaries, approval gates, logs, and recurring evidence.
+
+| Policy clause | Platform control | Evidence IT should retain |
+|---|---|---|
+| Approved tools | Tool allowlist, procurement approval, integration restrictions | Approved-tool register and approval record |
+| Permitted data | Data-source permissions, environment separation, scoped retrieval | Data-owner approval and access configuration |
+| Credentials | Managed secrets, credential groups, scoped service accounts, rotation | Credential owner, scope, rotation date, and revocation record |
+| Agent actions | Tool permissions and action-level restrictions | Approved action inventory and permission review |
+| Human approval | Pause-before-action gate with an attributable decision | Request, approver, decision, timestamp, and resulting action |
+| Logging | Audit logs and protected log access | Audit record, retention configuration, and review history |
+| Monitoring | Alerts and periodic control reviews | Alert disposition and review report |
+| Exceptions | Time-limited exception workflow | Risk owner, compensating controls, and expiration date |
+| Enforcement | Access revocation, integration removal, and credential rotation | Incident ticket and remediation record |
+
+A written clause is not an effective control by itself. IT should test whether the configured platform prevents or records the prohibited behavior rather than relying only on user training.
+
+## How does Sim enforce an AI acceptable use policy?
+
+Sim supports policy enforcement through permission groups, Credential Groups, organization audit logs, and workflow-level human approval patterns in the open-source AI workspace.
+
+On billing-enabled deployments, permission groups and organization audit logs require Enterprise. On billing-disabled deployments, administrators must enable the relevant feature settings; permission groups also require an organization-owned workspace. See the setup instructions for [permission groups](https://docs.sim.ai/platform/enterprise/access-control) and [organization audit logs](https://docs.sim.ai/platform/enterprise/audit-logs).
+
+In Sim, IT teams can use permission groups to restrict models, blocks, tools, and platform actions. Credential Groups can manage organization account connections and control which integrations each workspace may use. Organization audit logs record actors, times, and affected resources for configuration and security events. The [enterprise workspace governance guide](https://www.sim.ai/library/govern-ai-agents-multiple-teams-enterprise-workspace) explains how these controls support teams managing agents in a shared environment.
+
+For approval-sensitive actions, Sim’s Human in the Loop block pauses a workflow and resumes it with submitted form fields. An approve-or-reject choice is a form field, so a downstream Condition must inspect that value and route the workflow accordingly. IT should place the approval and Condition before the consequential action, not after it.
+
+Sim does not make a weak policy effective automatically. IT must still define approved use cases, scope credentials, configure access, place approval gates correctly, review audit evidence, and revoke access when a use case ends.
+
+The same policy can govern other approved platforms, including n8n, but IT should map each clause to the controls actually enabled in that deployment instead of assuming equivalent behavior across products. For example, n8n documents [role-based access controls for workflows and credentials](https://docs.n8n.io/administer/manage-users-and-access/set-permissions-and-roles-rbac), with feature availability varying by deployment and plan.
+
+## How should IT roll out an AI acceptable use policy?
+
+IT should roll out an AI acceptable use policy as a controlled operating process rather than a document employees acknowledge once and forget.
+
+1. Inventory current AI tools, agents, integrations, accounts, and data connections.
+2. Assign owners to every approved tool and high-risk use case.
+3. Classify permitted and prohibited data for each use case.
+4. Map every policy clause to a technical control and responsible team.
+5. Pilot the controls with representative users before broad access.
+6. Train users with examples of allowed, prohibited, and approval-required behavior.
+7. Publish a clear request process for new tools and exceptions.
+8. Monitor usage, investigate violations, and review access on a defined cadence.
+9. Update the policy after incidents, platform changes, or new legal requirements.
+
+The [AI agent platform security review pilot](https://www.sim.ai/library/pilot-ai-agent-platform-security-review) provides a practical process for testing a platform before approving wider use.
