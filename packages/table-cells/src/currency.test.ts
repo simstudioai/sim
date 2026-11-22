@@ -3,6 +3,7 @@
  * filters and sorts cast a currency cell to `numeric`, so anything it lets
  * through unparsed would break every query against the column.
  */
+import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
 import { describe, expect, it } from 'vitest'
 import { parseCurrencyInput } from './currency'
 
@@ -245,5 +246,21 @@ describe('parseCurrencyInput', () => {
     expect(parseCurrencyInput('1.234.567')).toBe(1234567)
     expect(parseCurrencyInput('1,234,567.89')).toBe(1234567.89)
     expect(parseCurrencyInput('12,34,567')).toBe(1234567)
+  })
+
+  it.each([
+    ['whitespace where a leading marker would start', (n: number) => `(${' '.repeat(n)}#)`],
+    ['whitespace where a trailing marker would start', (n: number) => `a${'\t'.repeat(n)}!`],
+    ['digits before a stray character', (n: number) => `${'0'.repeat(n)}#`],
+    ['digits and separators before a stray character', (n: number) => `${'0.'.repeat(n)}!`],
+  ])('rejects a long run of %s in linear time', (_shape, make) => {
+    // Table imports and coercion parse every cell on the server, so a parser
+    // that backtracks quadratically lets one crafted cell stall the event loop.
+    expectLinearGrowth((n) => {
+      const input = make(n)
+      return () => {
+        expect(parseCurrencyInput(input)).toBeNull()
+      }
+    }, 2000)
   })
 })

@@ -82,13 +82,20 @@ function isCurrencyMarkerLetters(letters: string): boolean {
  * A leading currency marker: up to three letters and/or a symbol, optionally
  * behind a sign. The sign is captured so `-$12.50` keeps it, and the letters
  * are captured so {@link isCurrencyMarkerLetters} can vet them.
+ *
+ * The sign and the whitespace after it form one optional group, so a
+ * whitespace run splits only one way and a failed match backtracks in linear
+ * time. `\s` already covers U+00A0 and U+202F.
  */
-const CURRENCY_MARKER_PREFIX =
-  /^[\s\u00a0\u202f]*([+-]?)[\s\u00a0\u202f]*(?:\p{Sc}\p{L}{0,3}|(\p{L}{1,3})(\p{Sc})?)[\s\u00a0\u202f]*/u
+const CURRENCY_MARKER_PREFIX = /^\s*(?:([+-])\s*)?(?:\p{Sc}\p{L}{0,3}|(\p{L}{1,3})(\p{Sc})?)\s*/u
 
-/** The same, trailing. */
-const CURRENCY_MARKER_SUFFIX =
-  /[\s\u00a0\u202f]*(?:\p{Sc}\p{L}{0,3}|(\p{L}{1,3})(\p{Sc})?)\.?[\s\u00a0\u202f]*$/u
+/**
+ * The same, trailing, matched against a right-trimmed string. It has no
+ * leading whitespace run, so each start position costs at most the marker's
+ * length; the whitespace before the marker survives the strip and is removed
+ * with every other space afterwards.
+ */
+const CURRENCY_MARKER_SUFFIX = /(?:\p{Sc}\p{L}{0,3}|(\p{L}{1,3})(\p{Sc})?)\.?$/u
 
 /**
  * Whether a matched marker may be stripped. A marker carrying a currency
@@ -100,8 +107,12 @@ function isStrippableMarker(letters: string | undefined, symbol: string | undefi
   return isCurrencyMarkerLetters(letters)
 }
 
-/** Only digits and separators, with at least one digit. */
-const AMOUNT_SHAPE = /^[+-]?[\d.,]*\d[\d.,]*$/
+/**
+ * Only digits and separators, with at least one digit. The run before the
+ * first digit admits only separators, so no character can be claimed by both
+ * runs and a failed match backtracks in linear time.
+ */
+const AMOUNT_SHAPE = /^[+-]?[.,]*\d[\d.,]*$/
 
 /**
  * Whether `text` is validly grouped by `separator`: a first group of 1-3 digits
@@ -251,14 +262,16 @@ export function parseCurrencyInput(raw: unknown, currencyCode?: string): number 
   const withoutPrefix = body.replace(CURRENCY_MARKER_PREFIX, (match, sign, letters, symbol) => {
     if (!isStrippableMarker(letters, symbol)) return match
     hadMarker = true
-    return sign
+    return sign ?? ''
   })
-  const withoutMarkers = withoutPrefix.replace(CURRENCY_MARKER_SUFFIX, (match, letters, symbol) => {
-    if (!isStrippableMarker(letters, symbol)) return match
-    hadMarker = true
-    return ''
-  })
-  const cleaned = withoutMarkers.replace(/[\s\u00a0\u202f\u2019']/gu, '')
+  const withoutMarkers = withoutPrefix
+    .trimEnd()
+    .replace(CURRENCY_MARKER_SUFFIX, (match, letters, symbol) => {
+      if (!isStrippableMarker(letters, symbol)) return match
+      hadMarker = true
+      return ''
+    })
+  const cleaned = withoutMarkers.replace(/[\s\u2019']/gu, '')
   // What remains must be ONLY digits and separators. Anything else — a
   // US-format date, leftover prose — is not an amount.
   if (!AMOUNT_SHAPE.test(cleaned)) return null
