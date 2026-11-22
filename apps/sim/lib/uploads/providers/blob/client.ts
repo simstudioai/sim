@@ -1,5 +1,8 @@
 import type { Readable } from 'node:stream'
-import type { BlobServiceClient as BlobServiceClientType } from '@azure/storage-blob'
+import type {
+  BlobServiceClient as BlobServiceClientType,
+  ContainerClient,
+} from '@azure/storage-blob'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import {
@@ -20,7 +23,7 @@ import type {
   MultipartCompletionPolicy,
   StoredObjectInfo,
 } from '@/lib/uploads/shared/types'
-import { sanitizeStorageMetadata } from '@/lib/uploads/utils/file'
+import { hasDotSegment, sanitizeStorageMetadata } from '@/lib/uploads/utils/file'
 import { sanitizeFileName } from '@/executor/constants'
 
 const logger = createLogger('BlobClient')
@@ -43,6 +46,18 @@ function isBlobCreateConflict(error: unknown): boolean {
     record.code === 'BlobAlreadyExists' ||
     record.code === 'ConditionNotMet'
   )
+}
+
+/**
+ * The SDK writes the blob name into the URL path, whose parser collapses `.`/`..` segments, so
+ * `og-images/../workspace/x` would address `workspace/x` (or a sibling container). Every blob
+ * client is built here so no such key reaches Azure.
+ */
+function blockBlobClientIn(containerClient: ContainerClient, key: string) {
+  if (hasDotSegment(key)) {
+    throw new Error('Path traversal detected in blob key')
+  }
+  return containerClient.getBlockBlobClient(key)
 }
 
 /**
@@ -157,7 +172,7 @@ export async function uploadToBlob(
 
   const blobServiceClient = await getBlobServiceClient()
   const containerClient = blobServiceClient.getContainerClient(config.containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(uniqueKey)
+  const blockBlobClient = blockBlobClientIn(containerClient, uniqueKey)
 
   const blobMetadata: Record<string, string> = {
     originalName: encodeURIComponent(fileName), // Encode filename to prevent invalid characters in HTTP headers
@@ -235,7 +250,7 @@ export async function getPresignedUrlWithConfig(
   }
 
   const containerClient = tempBlobServiceClient.getContainerClient(customConfig.containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
+  const blockBlobClient = blockBlobClientIn(containerClient, key)
 
   const sasOptions = {
     containerName: customConfig.containerName,
@@ -369,7 +384,7 @@ export async function downloadFromBlob(
   }
 
   const containerClient = blobServiceClient.getContainerClient(containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
+  const blockBlobClient = blockBlobClientIn(containerClient, key)
 
   const downloadBlockBlobResponse = await blockBlobClient.download(0, undefined, {
     abortSignal: signal,
@@ -440,7 +455,7 @@ export async function downloadFromBlobStream(
   }
 
   const containerClient = blobServiceClient.getContainerClient(containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
+  const blockBlobClient = blockBlobClientIn(containerClient, key)
 
   const downloadBlockBlobResponse = range
     ? await blockBlobClient.download(range.start, range.end - range.start + 1)
@@ -485,7 +500,7 @@ export async function headBlobObject(
   }
 
   const containerClient = blobServiceClient.getContainerClient(containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
+  const blockBlobClient = blockBlobClientIn(containerClient, key)
 
   try {
     const properties = await blockBlobClient.getProperties()
@@ -568,7 +583,7 @@ export async function deleteFromBlob(
   }
 
   const containerClient = blobServiceClient.getContainerClient(containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
+  const blockBlobClient = blockBlobClientIn(containerClient, key)
 
   signal?.throwIfAborted()
   await blockBlobClient.deleteIfExists(...(signal ? [{ abortSignal: signal }] : []))
@@ -667,7 +682,7 @@ export async function getMultipartPartUrls(
   }
 
   const containerClient = blobServiceClient.getContainerClient(containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
+  const blockBlobClient = blockBlobClientIn(containerClient, key)
 
   return partNumbers.map((partNumber) => {
     const blockId = deriveBlobBlockId(partNumber)
@@ -736,7 +751,7 @@ async function getBlockBlobClientFor(key: string, customConfig?: BlobConfig) {
     containerName = BLOB_CONFIG.containerName
   }
 
-  return blobServiceClient.getContainerClient(containerName).getBlockBlobClient(key)
+  return blockBlobClientIn(blobServiceClient.getContainerClient(containerName), key)
 }
 
 /**
@@ -828,7 +843,7 @@ export async function completeMultipartUpload(
   }
 
   const containerClient = blobServiceClient.getContainerClient(containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
+  const blockBlobClient = blockBlobClientIn(containerClient, key)
 
   const sortedBlockIds = parts
     .sort((a, b) => a.partNumber - b.partNumber)
@@ -922,7 +937,7 @@ export async function abortMultipartUpload(
   }
 
   const containerClient = blobServiceClient.getContainerClient(containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
+  const blockBlobClient = blockBlobClientIn(containerClient, key)
 
   try {
     const properties = await blockBlobClient.getProperties()

@@ -662,6 +662,9 @@ export const fileUtilsMockFns = {
     }
     return sanitized
   }),
+  mockHasDotSegment: vi.fn((key: string) =>
+    key.split('/').some((segment) => segment === '.' || segment === '..')
+  ),
   mockSanitizeFileKey: vi.fn((key: string) => {
     if (!key.includes('/')) {
       throw new Error('File key must include a context prefix (e.g., kb/, workspace/, execution/)')
@@ -756,6 +759,7 @@ export const fileUtilsMock = {
   processFilesToUserFiles: fileUtilsMockFns.mockProcessFilesToUserFiles,
   sanitizeFilenameForMetadata: fileUtilsMockFns.mockSanitizeFilenameForMetadata,
   sanitizeStorageMetadata: fileUtilsMockFns.mockSanitizeStorageMetadata,
+  hasDotSegment: fileUtilsMockFns.mockHasDotSegment,
   sanitizeFileKey: fileUtilsMockFns.mockSanitizeFileKey,
   extractCleanFilename: fileUtilsMockFns.mockExtractCleanFilename,
   extractWorkspaceIdFromExecutionKey: fileUtilsMockFns.mockExtractWorkspaceIdFromExecutionKey,

@@ -17,7 +17,7 @@ import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/f
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
-import { inferContextFromKey } from '@/lib/uploads/utils/file'
+import { hasDotSegment, inferContextFromKey } from '@/lib/uploads/utils/file'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FileAuthorization')
@@ -118,6 +118,8 @@ export async function verifyFileAccess(
   context?: StorageContext | 'general',
   options?: { requireWrite?: boolean; knowledgeAccess?: KnowledgeFileAccess }
 ): Promise<boolean> {
+  /** Prefix-based context checks below would read `og-images/../workspace/...` as public. */
+  if (hasDotSegment(cloudKey)) return false
   /** Organization images require the Principal-aware Assistant application resolver. */
   if (
     cloudKey.startsWith('assistant/') ||
