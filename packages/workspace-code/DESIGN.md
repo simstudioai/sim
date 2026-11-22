@@ -299,7 +299,8 @@ blobs its writes need against the staging area once, before any write: a missing
 staged, expired, or staged at another size) refuses the whole apply with `E_BLOB_MISSING`, and a
 dry run lists such paths in `needBlobs` instead. Writes then read each blob from staging one at a
 time (rechecking its hash). An apply never deletes what it read: staged blobs are reclaimed only
-by expiry, a day after their last use (staging, asking for, or planning with them). Deleting them
+by expiry, a day after each was last staged (asking for or planning with a blob never extends
+it). Deleting them
 when an apply finished would take bytes from a concurrent apply by the same caller that planned
 with the same blob and has not written it yet, and no point in an apply can tell that no other one
 still needs them; leaving them also means a retry, or the next apply of the same bytes, uploads
@@ -308,7 +309,7 @@ nothing. The server plans once per apply, whatever the directory's size.
 Staging (`apps/sim/lib/workspace-source/staging/store.ts`, use cases in
 `application/stage-blobs.ts`) is scoped to the workspace and the caller (a person's credentials
 share one scope; a workspace API key has its own), capped per scope at `maxStagedBlobs` and
-`maxStagedBytes`, and expires a day after a blob was last staged, asked for or planned with; an
+`maxStagedBytes`, and expires a day after a blob was last staged; an
 hourly cron (`/api/cron/cleanup-source-staging`) deletes expired rows and objects. Both staging
 calls need write access, as the apply does, and draw on their own rate bucket. A manifest entry
 never carries bytes: the contract refuses `blobs[].content`.
