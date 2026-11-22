@@ -661,7 +661,7 @@ export class SimClient {
     const workspaceId = explicit ?? this.profile.workspaceId
     if (!workspaceId) {
       throw new SimApiError(
-        `No workspace set for profile "${this.profile.name}". Pass --workspace, or run: sim configure --profile ${this.profile.name} --set-workspace <id>`,
+        `No workspace set for profile "${this.profile.name}". Pass -w <workspaceId>, set SIM_WORKSPACE, or run: sim configure --profile ${this.profile.name} --set-workspace <id>`,
         0
       )
     }

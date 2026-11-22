@@ -605,7 +605,7 @@ export async function coerce(
  * floor rather than the wording a caller sees.
  */
 const NO_WORKSPACE_FALLBACK =
-  'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
+  'No workspace set. Pass -w <workspaceId>, set SIM_WORKSPACE, or run: sim configure --set-workspace <id>'
 
 export interface BuiltRequest {
   /** The values filling the operation's `[param]` path segments, encoded when routed. */

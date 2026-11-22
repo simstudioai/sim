@@ -281,7 +281,9 @@ const CHECKED_REFERENCE_KINDS: readonly WorkspaceKind[] = [
 ]
 
 /** A table column as a workflow's row writes name it. */
-interface DeclaredColumn {
+export interface DeclaredColumn {
+  /** Its key in `tables/<key>.ts`, which differs from the name row writes use once `name` is set. */
+  key: string
   /** The option names of a `select` column. */
   options?: readonly string[]
   /** A `select` column whose cells hold several options. */
@@ -482,6 +484,7 @@ function declaredColumns(decl: TableDecl): ReadonlyMap<string, DeclaredColumn> {
     Object.entries(decl.columns).map(([columnKey, column]) => [
       columnName(columnKey, column),
       {
+        key: columnKey,
         ...(column.options ? { options: column.options } : {}),
         ...(column.multiple ? { multiple: true } : {}),
       },

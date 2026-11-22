@@ -13,7 +13,11 @@ import { callsOperations } from './called-operations'
 import { BULK_OUTCOME_CHECKS, executeOperation } from './execute'
 import type { OperationSpec } from './types'
 
-const { request, output } = vi.hoisted(() => ({ request: vi.fn(), output: { format: 'json' } }))
+const { request, output, workspaceSource } = vi.hoisted(() => ({
+  request: vi.fn(),
+  output: { format: 'json' },
+  workspaceSource: { value: 'config' },
+}))
 
 vi.mock('../context', () => ({
   clientFrom: () => ({
@@ -24,6 +28,7 @@ vi.mock('../context', () => ({
       name: 'default',
       apiKey: 'k',
       endpoint: 'https://sim.example',
+      sources: { workspaceId: workspaceSource.value },
     },
   }),
 }))
@@ -119,6 +124,7 @@ function invoke(
 
 beforeEach(() => {
   output.format = 'json'
+  workspaceSource.value = 'config'
 })
 
 const PUBLISH_CHAT: OperationSpec = {
@@ -292,6 +298,52 @@ describe('a list whose contract caps its page below the CLI default', () => {
 
     expect(request).toHaveBeenCalledTimes(2)
     expect(request.mock.calls.map(([, options]) => options.query.limit)).toEqual([25, 25])
+  })
+})
+
+describe('a resource the resolved workspace does not hold', () => {
+  const notFound = () => new SimApiError('Table not found', 404, 'NOT_FOUND')
+
+  it('names the workspace a paged list searched, and that it came from the profile', async () => {
+    request.mockRejectedValueOnce(notFound())
+
+    await expect(
+      executeOperation(
+        'listTableRows',
+        CLI_CONTRACT.listTableRows ?? {},
+        V2_OPERATIONS.listTableRows,
+        ['tbl_1', {}, leaf('listTableRows')]
+      )
+    ).rejects.toMatchObject({
+      message:
+        'Table not found (searched workspace ws_local, the workspace of profile "default"; pass -w <workspaceId> or set SIM_WORKSPACE to search another)',
+      status: 404,
+      code: 'NOT_FOUND',
+    })
+  })
+
+  it('names the workspace a single read searched, and that SIM_WORKSPACE set it', async () => {
+    workspaceSource.value = 'env'
+    request.mockRejectedValueOnce(notFound())
+
+    await expect(
+      executeOperation('getTable', CLI_CONTRACT.getTable ?? {}, V2_OPERATIONS.getTable, [
+        'tbl_1',
+        {},
+        leaf('getTable'),
+      ])
+    ).rejects.toMatchObject({
+      message:
+        'Table not found (searched workspace ws_local, from SIM_WORKSPACE; pass -w <workspaceId> to search another)',
+    })
+  })
+
+  it('leaves a not-found answer alone when the request names no workspace', async () => {
+    request.mockRejectedValueOnce(new SimApiError('Workflow not found', 404, 'NOT_FOUND'))
+
+    await expect(invoke('executeWorkflow', EXECUTE_WORKFLOW, 'wf_1')).rejects.toMatchObject({
+      message: 'Workflow not found',
+    })
   })
 })
 

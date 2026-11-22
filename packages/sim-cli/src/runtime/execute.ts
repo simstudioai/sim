@@ -8,6 +8,7 @@ import {
   waitWorkspaceOperation,
   workspaceWaitTimeout,
 } from '../commands/protocol/workspace-operation-wait'
+import type { ResolvedProfile } from '../config/index'
 import type { CommandSpec } from '../contract/types'
 import type { GetWorkspaceOperationResponse, V2OperationName } from '../generated/v2-api'
 import { assertCursorAdvances, pageProgress, SimApiError, type V2Page } from '../http/client'
@@ -393,6 +394,31 @@ function foldOtherSpellings(
   }
 }
 
+/**
+ * A 404 from a request scoped to the resolved workspace, stating which workspace was searched and
+ * where that came from: a table or file that lives in another workspace answers only "not found",
+ * and a workspace taken from the profile or `SIM_WORKSPACE` is not on the command line to check.
+ */
+function withSearchedWorkspace(error: unknown, profile: ResolvedProfile): unknown {
+  if (!(error instanceof SimApiError) || error.status !== 404 || !profile.workspaceId) return error
+  const source = profile.sources.workspaceId
+  const from =
+    source === 'env'
+      ? ', from SIM_WORKSPACE; pass -w <workspaceId> to search another'
+      : source === 'config'
+        ? `, the workspace of profile "${safeOneLine(profile.name)}"; pass -w <workspaceId> or set SIM_WORKSPACE to search another`
+        : ''
+  const searched = `searched workspace ${safeOneLine(profile.workspaceId)}${from}`
+  return new SimApiError(
+    `${error.message} (${searched})`,
+    error.status,
+    error.code,
+    error.details,
+    error.exitCode,
+    error.requestId
+  )
+}
+
 /** Executes a parsed generated command, including cursor pagination. */
 export async function executeOperation(
   operation: V2OperationName,
@@ -544,6 +570,8 @@ export async function executeOperation(
         cursor = page.nextCursor
         if (cursor && rows.length < limit) progress.advance(rows.length)
       } while (cursor && rows.length < limit)
+    } catch (error) {
+      throw needsWorkspace ? withSearchedWorkspace(error, profile) : error
     } finally {
       progress.finish()
     }
@@ -588,7 +616,7 @@ export async function executeOperation(
         failure.requestId
       )
     }
-    throw error
+    throw needsWorkspace ? withSearchedWorkspace(error, profile) : error
   }
   let payload = result?.data ?? result
   if (
