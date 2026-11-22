@@ -205,7 +205,7 @@ export const POST = withRouteHandler(async (req: Request) => {
               )
               .limit(1)
           : Promise.resolve([]),
-        isSenderAllowed(fromEmail, senderAuthenticated, result.id),
+        senderAuthenticated ? isSenderAllowed(fromEmail, result.id) : false,
         getRecentTaskCount(result.id),
         inReplyTo
           ? db
@@ -350,11 +350,12 @@ function organizationalDomain(domain: string): string | null {
   return getDomain(domain, { allowPrivateDomains: true })
 }
 
-async function isSenderAllowed(
-  email: string,
-  senderAuthenticated: boolean,
-  workspaceId: string
-): Promise<boolean> {
+/**
+ * Whether `email` is a workspace member or allow-listed. Only meaningful once
+ * {@link isSenderAuthenticated} holds: without it, an allowlist entry is as
+ * forgeable as a member's address.
+ */
+async function isSenderAllowed(email: string, workspaceId: string): Promise<boolean> {
   const [allowedSenderResult, memberResult] = await Promise.all([
     db
       .select({ id: mothershipInboxAllowedSender.id })
@@ -366,20 +367,18 @@ async function isSenderAllowed(
         )
       )
       .limit(1),
-    senderAuthenticated
-      ? db
-          .select({ userId: permissions.userId })
-          .from(permissions)
-          .innerJoin(user, eq(permissions.userId, user.id))
-          .where(
-            and(
-              eq(permissions.entityType, 'workspace'),
-              eq(permissions.entityId, workspaceId),
-              sql`lower(${user.email}) = ${email}`
-            )
-          )
-          .limit(1)
-      : [],
+    db
+      .select({ userId: permissions.userId })
+      .from(permissions)
+      .innerJoin(user, eq(permissions.userId, user.id))
+      .where(
+        and(
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, workspaceId),
+          sql`lower(${user.email}) = ${email}`
+        )
+      )
+      .limit(1),
   ])
 
   return !!(allowedSenderResult[0] || memberResult[0])

@@ -385,9 +385,10 @@ async function resolveWorkspaceChatId(
 /**
  * Resolve the execution and raw-secret actors independently. Workspace members
  * whose address the provider authenticated execute and mount secrets as
- * themselves; an unauthenticated message naming a member is external. External
- * senders retain the existing owner execution fallback but receive no raw-secret
- * actor.
+ * themselves; any other admitted sender is external. The webhook already rejects
+ * unauthenticated senders, so the verdict check here is defense in depth: a task
+ * without it never runs as the member its From names. External senders retain
+ * the existing owner execution fallback but receive no raw-secret actor.
  *
  * The owner fallback exists because billing attribution and workspace reads need
  * a real user, not because an unknown sender should act as the owner. A null

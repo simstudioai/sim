@@ -40,7 +40,7 @@ Manage **Allowed senders** in **Settings** → **Inbox**:
 
 An external email sender is different from an external workspace member. The latter has access to Sim according to their workspace role without joining the organization; an email-only sender has no such membership.
 
-Emails from unauthorized senders are rejected. Automated senders, rate limits, or loss of plan entitlement can also prevent a task from being accepted.
+Emails from unauthorized senders are rejected. A member or allowed address is only recognized when the message passes SPF, DKIM, or DMARC for that address's domain, so mail from a domain that publishes none of these is rejected. Automated senders, rate limits, or loss of plan entitlement can also prevent a task from being accepted.
 
 ## Select secret access
 
