@@ -210,6 +210,8 @@ A written clause is not an effective control by itself. IT should test whether t
 
 Sim supports policy enforcement through permission groups, Credential Groups, organization audit logs, and workflow-level human approval patterns in the open-source AI workspace.
 
+On billing-enabled deployments, permission groups and organization audit logs require Enterprise. On billing-disabled deployments, administrators must enable the relevant feature settings; permission groups also require an organization-owned workspace. See the setup instructions for [permission groups](https://docs.sim.ai/platform/enterprise/access-control) and [organization audit logs](https://docs.sim.ai/platform/enterprise/audit-logs).
+
 In Sim, IT teams can use permission groups to restrict models, blocks, tools, and platform actions. Credential Groups can manage organization account connections and control which integrations each workspace may use. Organization audit logs record actors, times, and affected resources for configuration and security events. The [enterprise workspace governance guide](https://www.sim.ai/library/govern-ai-agents-multiple-teams-enterprise-workspace) explains how these controls support teams managing agents in a shared environment.
 
 For approval-sensitive actions, Sim’s Human in the Loop block pauses a workflow and resumes it with submitted form fields. An approve-or-reject choice is a form field, so a downstream Condition must inspect that value and route the workflow accordingly. IT should place the approval and Condition before the consequential action, not after it.
