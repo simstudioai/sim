@@ -9,6 +9,7 @@ import { CliUsageError, SourceDirError } from './local-errors'
 import {
   type CheckFinding,
   checkWorkflowDir,
+  readCheckDeclarations,
   refreshWorkspaceTsconfigs,
   reportCheck,
   requireCachedCatalog,
@@ -18,7 +19,6 @@ import {
   strictMode,
   withWorkflowInputs,
   workspaceWorkflowKeys,
-  workspaceWorkflows,
 } from './source-check'
 import {
   absoluteDirOption,
@@ -30,7 +30,7 @@ import {
 import { credentialRefused, unreachableReason } from './source-status'
 import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
 import { verboseFlag } from './source-ui'
-import { assertWorkspaceDir, readWorkspaceDeclarations } from './workspace-source-dir'
+import { assertWorkspaceDir } from './workspace-source-dir'
 
 const CHECK_HELP = `
 Compiles every workflows/<key>/workflow.ts (and the function files each names) with the compiler
@@ -125,11 +125,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
         await withSourceDirLock(options.dir, async () => {
           const catalog =
             cachedCatalog(workspaceId) ?? (await fetchedCatalog(connect, workspaceId, options.dir))
-          const [declared, workflows] = await Promise.all([
-            readWorkspaceDeclarations(options.dir),
-            workspaceWorkflows(options.dir, catalog),
-          ])
-          const declarations = { ...declared, ...workflows }
+          const declarations = await readCheckDeclarations(options.dir, catalog)
           const keys = await workspaceWorkflowKeys(options.dir)
           const findings: CheckFinding[] = []
           const unlisted = { errors: 0, warnings: 0 }

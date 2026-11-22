@@ -1391,10 +1391,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowId,
         state: 'deployed',
       })
-      return {
-        deployed: definition.state !== null,
-        ...(definition.workflow.name ? { name: definition.workflow.name } : {}),
-      }
+      return { deployed: definition.state !== null, name: definition.workflow.name || undefined }
     } catch (error) {
       if (error instanceof DelegatedWorkspaceAuthorizationError) {
         throw childReadError(error, workflowId)

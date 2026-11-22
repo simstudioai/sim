@@ -116,7 +116,7 @@ interface WorkflowPlanSummary {
 
 /** The dry run's findings the plan counts: all but `E_APPLY_STALE`, which the status lists. */
 function workflowPlanFindings(data: PlanData): Diagnostic[] {
-  return planFindings(data.diagnostics, (code) => code === 'E_APPLY_STALE')
+  return planFindings(data.diagnostics).filter((finding) => finding.code !== 'E_APPLY_STALE')
 }
 
 function planSummary(data: PlanData): WorkflowPlanSummary {

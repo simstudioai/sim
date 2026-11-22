@@ -6,7 +6,6 @@ import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getTableById } from '@/lib/table/service'
 import {
-  collectCalledWorkflowIds,
   collectChildWorkflowFindings,
   collectDanglingBlockOutputReferences,
   collectTableBlockFieldIssues,
@@ -27,6 +26,7 @@ import {
   collectUnresolvedReferences,
   UNRESOLVABLE_AT_LINT_NOTE,
 } from '@/lib/workflows/editing/validation'
+import { collectReferencedWorkflowIds } from '@/lib/workflows/streaming/nested-output-options'
 import {
   type ManualRunEntryIssue,
   resolveManualRunEntry,
@@ -126,10 +126,10 @@ interface WorkflowLintReportOptions extends AgentToolReferenceValidationOptions 
  * reference check reports it.
  */
 async function loadChildWorkflowsForLint(
-  blocks: Pick<WorkflowState, 'blocks'>['blocks'],
+  graph: Pick<WorkflowState, 'blocks' | 'edges'>,
   workspaceId: string
 ): Promise<Map<string, WorkflowLintChildWorkflow>> {
-  const ids = collectCalledWorkflowIds(blocks)
+  const ids = collectReferencedWorkflowIds([graph])
   const children = new Map<string, WorkflowLintChildWorkflow>()
   if (ids.length === 0) return children
   const [rows, responders] = await Promise.all([
@@ -231,8 +231,9 @@ export async function buildWorkflowLintReport(
   )
 
   // Started before the reference collectors so its lookup overlaps theirs.
-  const childFindings = loadChildWorkflowsForLint(graph.blocks, scope.workspaceId).then(
-    (children) => collectChildWorkflowFindings(graph, children, { deployed: options.deployed }),
+  const childFindings = loadChildWorkflowsForLint(graph, scope.workspaceId).then(
+    (children) =>
+      collectChildWorkflowFindings(graph, children, { deployed: options.deployed === true }),
     (error: unknown) => {
       logger.warn('Child workflow lint failed', {
         workflowId: scope.workflowId,

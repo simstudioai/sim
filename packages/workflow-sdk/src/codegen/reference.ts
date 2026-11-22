@@ -151,21 +151,21 @@ function docCommentStart(start: number): number {
 
 /** Each top-level declaration of `name` in `core.d.ts` (overloads included): its line range. */
 function coreDeclarationRanges(name: string): Array<{ start: number; end: number }> {
-  const lines = CORE_LINES
   const start = new RegExp(
     `^export (?:declare )?(?:const|function|namespace|interface|type) ${escapeRegExp(name)}\\b`
   )
   const declarations: Array<{ start: number; end: number }> = []
-  for (let index = 0; index < lines.length; index++) {
-    if (!start.test(lines[index])) continue
+  for (let index = 0; index < CORE_LINES.length; index++) {
+    if (!start.test(CORE_LINES[index])) continue
     let depth = 0
     let end = index
-    for (; end < lines.length; end++) {
-      for (const char of lines[end]) {
+    for (; end < CORE_LINES.length; end++) {
+      for (const char of CORE_LINES[end]) {
         if ('({['.includes(char)) depth++
         else if (')}]'.includes(char)) depth--
       }
-      const continues = /[=:,|&]\s*$/.test(lines[end]) || /^\s+[?:|&]/.test(lines[end + 1] ?? '')
+      const continues =
+        /[=:,|&]\s*$/.test(CORE_LINES[end]) || /^\s+[?:|&]/.test(CORE_LINES[end + 1] ?? '')
       if (depth <= 0 && !continues) break
     }
     declarations.push({ start: index, end: end + 1 })
@@ -179,11 +179,9 @@ function coreDeclarationRanges(name: string): Array<{ start: number; end: number
  * returns an `Annotation`), one line per overload.
  */
 function coreSignatures(name: string): string {
-  const lines = CORE_LINES
   return coreDeclarationRanges(name)
     .map(({ start, end }) =>
-      lines
-        .slice(start, end)
+      CORE_LINES.slice(start, end)
         .join(' ')
         .replace(/^export (?:declare )?function /, '')
         .replace(/\s+/g, ' ')

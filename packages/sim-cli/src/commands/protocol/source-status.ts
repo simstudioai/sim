@@ -33,20 +33,15 @@ type WorkspacePlanChange = ApplyWorkspaceSourceResponse['data']['plan'][number]
 export type ServerCheck = 'checked' | 'unreachable' | 'offline'
 
 /**
- * The dry run's findings a status's plan shows: its errors and warnings, less those `listed`
- * says the status reports as a change of its own (a stale base is drift or a conflict), and the
- * info `I_FINDINGS_TRUNCATED` that says the list is incomplete (counted as neither).
+ * The dry run's findings a status's plan shows: its errors and warnings, and the info
+ * `I_FINDINGS_TRUNCATED` that says the list is incomplete (counted as neither).
  */
-export function planFindings(
-  diagnostics: readonly Diagnostic[],
-  listed: (code: Diagnostic['code']) => boolean = () => false
-): Diagnostic[] {
+export function planFindings(diagnostics: readonly Diagnostic[]): Diagnostic[] {
   return diagnostics.filter(
     (finding) =>
-      (finding.severity === 'error' ||
-        finding.severity === 'warning' ||
-        finding.code === 'I_FINDINGS_TRUNCATED') &&
-      !listed(finding.code)
+      finding.severity === 'error' ||
+      finding.severity === 'warning' ||
+      finding.code === 'I_FINDINGS_TRUNCATED'
   )
 }
 
