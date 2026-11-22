@@ -6,6 +6,7 @@
 
 import { join } from 'node:path'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { collectStringLeaves, findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import {
   type BlockCatalog,
   type CanonicalWorkflow,
@@ -16,12 +17,16 @@ import {
   didYouMean,
   EDIT_REFUSALS,
   encodeAnchor,
+  formatStoredPath,
   getOwn,
   parseJsonField,
+  parseStoredPath,
   parseWorkflowLock,
+  RESPONSE_OUTPUTS,
   raisedMessage,
   refuseEditedFindings,
   refusesEdited,
+  respondsOnEveryRun,
   scriptName,
   startInputs,
   type Value,
@@ -35,7 +40,7 @@ import type { Command } from 'commander'
 import { setSoftExitCode } from '../../embed-context'
 import { SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
-import { digest, readFolderWritten, readSourceJson, readSourceText } from './source-dir'
+import { digest, readFolderWritten, readSourceText } from './source-dir'
 import {
   cachedCatalog,
   cachedSourceCatalog,
@@ -44,8 +49,13 @@ import {
 } from './source-tree'
 import { type Diagnostic, findingsOutput } from './source-ui'
 import { blockDigest, readStoredBlockDigests, readStoredEdges } from './stored-edges'
-import { readSourceFiles } from './workflow-dir'
-import { kindFolders, WORKSPACE_TREE, type WorkspaceDeclarations } from './workspace-source-dir'
+import { lockRecoveryHint, readSourceFiles } from './workflow-dir'
+import {
+  kindFolders,
+  readWorkspaceDeclarations,
+  WORKSPACE_TREE,
+  type WorkspaceDeclarations,
+} from './workspace-source-dir'
 
 /**
  * A finding only the server can decide: `stored()` keeps a secret the stored workflow holds, and
@@ -66,9 +76,11 @@ const STRICT_CODES: ReadonlySet<string> = new Set([
   'W_LITERAL_SECRET',
   'W_TABLE_UNKNOWN_COLUMN',
   'W_CHILD_INPUT_UNKNOWN',
+  'W_CHILD_RESULT_PATH',
   'W_BRANCH_UNWIRED',
   'W_UNRESOLVED_REF',
   'W_REF_OUT_OF_SCOPE',
+  'W_LOOP_CONDITION_SYNTAX',
 ])
 
 /**
@@ -241,6 +253,13 @@ function inputMappingOf(canonical: CanonicalWorkflow['blocks'][string]): Record<
   return toRecord(value)
 }
 
+/** The workflow a child workflow call names by key, or `null` for an id, a reference or none. */
+function calledWorkflowKey(canonical: CanonicalWorkflow['blocks'][string]): string | null {
+  const ref = canonical.params.workflowId
+  const child = ref?.kind === 'value' ? resourceNode(ref.value) : null
+  return child?.kind === 'workflow' ? child.key : null
+}
+
 /**
  * A child workflow call checked against the child's own `workflow.ts` in this directory: a child
  * without a Start trigger (`W_CHILD_NO_START`), and an `inputMapping` key its Start trigger does
@@ -251,22 +270,21 @@ function childInputFindings(
   canonical: CanonicalWorkflow['blocks'][string],
   declarations: WorkspaceDeclarations
 ): ParamFinding[] {
-  const ref = canonical.params.workflowId
-  const child = ref?.kind === 'value' ? resourceNode(ref.value) : null
-  if (child?.kind !== 'workflow') return []
-  const inputs = declarations.workflowInputs?.get(child.key)
+  const childKey = calledWorkflowKey(canonical)
+  if (childKey === null) return []
+  const inputs = declarations.workflowInputs?.get(childKey)
   if (inputs === undefined) return []
-  const entry = `${KIND_DIRS.workflow}/${child.key}/${SOURCE_ENTRY_FILE}`
+  const entry = `${KIND_DIRS.workflow}/${childKey}/${SOURCE_ENTRY_FILE}`
   if (inputs === null) {
     return [
       {
         code: 'W_CHILD_NO_START',
         severity: 'warning',
-        message: `Workflow "${child.key}" has no Start trigger, so it takes no inputs and a call cannot run it.`,
+        message: `Workflow "${childKey}" has no Start trigger, so it takes no inputs and a call cannot run it.`,
         hint: `Add trigger.start('Start', { inputFormat: { … } }) to ${entry}, or call a workflow that has one.`,
         block,
         param: 'workflowId',
-        names: child.key,
+        names: childKey,
       },
     ]
   }
@@ -276,7 +294,7 @@ function childInputFindings(
     .map((field) => ({
       code: 'W_CHILD_INPUT_UNKNOWN',
       severity: 'warning',
-      message: `inputMapping sets ${field}, which is not an input of workflow "${child.key}"; the child never receives it.`,
+      message: `inputMapping sets ${field}, which is not an input of workflow "${childKey}"; the child never receives it.`,
       hint:
         names.length > 0
           ? `${didYouMean(field, names) ?? ''} Inputs (the Start trigger's inputFormat in ${entry}): ${listed(names)}.`.trimStart()
@@ -284,6 +302,63 @@ function childInputFindings(
       block,
       param: 'inputMapping',
     }))
+}
+
+/**
+ * `W_CHILD_RESULT_PATH` for each reference to `<call.result.<key>>` whose call runs a workflow of
+ * this directory that ends at a Response block on every run, when `<key>` is not one of the
+ * Response block's outputs: the child's `result` is then `{ data, status, headers }`, so the path
+ * reads nothing at run time. A child that can end elsewhere returns the output of the block it
+ * ends at, which the path may read, so its calls are not judged.
+ */
+function childResultFindings(
+  workflow: CanonicalWorkflow,
+  declarations: WorkspaceDeclarations
+): ParamFinding[] {
+  const responding = declarations.respondingWorkflows
+  if (!responding || responding.size === 0) return []
+  const calls = new Map<string, string>()
+  for (const [key, block] of Object.entries(workflow.blocks)) {
+    const child = calledWorkflowKey(block)
+    if (child !== null && responding.has(child)) calls.set(key, child)
+  }
+  if (calls.size === 0) return []
+  const findings: ParamFinding[] = []
+  for (const [block, canonical] of Object.entries(workflow.blocks)) {
+    for (const [param, value] of Object.entries(canonical.params)) {
+      if (value.kind !== 'value') continue
+      const reported = new Set<string>()
+      const leaves: string[] = []
+      collectStringLeaves(value.value, leaves)
+      for (const text of leaves) {
+        for (const token of findWorkflowReferenceTokens(text)) {
+          if (token.kind !== 'workflow' || reported.has(token.value)) continue
+          const segments = parseStoredPath(token.value.slice(1, -1))
+          const [head, output, field, ...rest] = segments ?? []
+          const child = head?.kind === 'name' ? calls.get(head.name) : undefined
+          if (child === undefined || output?.kind !== 'name' || output.name !== 'result') continue
+          if (field?.kind !== 'name' || RESPONSE_OUTPUTS.includes(field.name)) continue
+          reported.add(token.value)
+          const meant = formatStoredPath([
+            head,
+            output,
+            { kind: 'name', name: 'data' },
+            field,
+            ...rest,
+          ])
+          findings.push({
+            code: 'W_CHILD_RESULT_PATH',
+            severity: 'warning',
+            message: `${token.value} reads ${field.name} from the result of workflow "${child}", which responds: its result is the Response output ({ data, status, headers }), so the path reads nothing.`,
+            hint: `Did you mean <${meant}>? A field of the child's Response data is result.data.${field.name}.`,
+            block,
+            param,
+          })
+        }
+      }
+    }
+  }
+  return findings
 }
 
 /**
@@ -358,6 +433,7 @@ function declarationFindings(
       }
     }
   }
+  findings.push(...childResultFindings(workflow, declarations))
   return findings
 }
 
@@ -372,7 +448,9 @@ async function compileWorkflowDir(
   workspaceCatalog: BlockCatalog,
   declarations?: WorkspaceDeclarations
 ) {
-  const { lock } = parseWorkflowLock(await readSourceJson(dir, SOURCE_LOCK_FILE))
+  const lockText = await readSourceText(dir, SOURCE_LOCK_FILE)
+  const parsedLock = lockText === null ? null : parseWorkflowLock(lockText)
+  const lock = parsedLock?.lock
   const [files, storedEdges, storedBlocks, printedWith] = await Promise.all([
     readSourceFiles(dir, lock ?? null),
     readStoredEdges(dir),
@@ -391,24 +469,45 @@ async function compileWorkflowDir(
     ...(storedEdges ? { storedUnreadEdges: storedEdges } : {}),
     ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
   })
-  return { lock, files, compiled, storedBlocks, printedWith, catalog }
+  return {
+    lock,
+    lockProblems: parsedLock?.diagnostics ?? [],
+    files,
+    compiled,
+    storedBlocks,
+    printedWith,
+    catalog,
+  }
 }
 
 /**
- * The inputs of each workflow of the workspace directory `root` that compiles (`startInputs`,
- * `null` for one without a Start trigger), by key: what a child workflow call is checked against
- * and what `workspace.d.ts` types its `inputMapping` with.
+ * The workspace directory `root`'s declarations, with what a child workflow call is checked
+ * against from compiling each of its workflows: the inputs of each workflow that compiles
+ * (`startInputs`, `null` without a Start trigger), which `workspace.d.ts` also types
+ * `inputMapping` with, and the keys of those that end at a Response block on every run, whose
+ * `result` is that block's output.
  */
-export async function workspaceWorkflowInputs(
+export async function readCheckDeclarations(
   root: string,
   catalog: BlockCatalog
-): Promise<Map<string, WorkflowInput[] | null>> {
-  const inputs = new Map<string, WorkflowInput[] | null>()
+): Promise<WorkspaceDeclarations & Awaited<ReturnType<typeof compileWorkspaceWorkflows>>> {
+  const [declared, workflows] = await Promise.all([
+    readWorkspaceDeclarations(root),
+    compileWorkspaceWorkflows(root, catalog),
+  ])
+  return { ...declared, ...workflows }
+}
+
+async function compileWorkspaceWorkflows(root: string, catalog: BlockCatalog) {
+  const workflowInputs = new Map<string, WorkflowInput[] | null>()
+  const respondingWorkflows = new Set<string>()
   for (const key of await workspaceWorkflowKeys(root)) {
     const { compiled } = await compileWorkflowDir(join(root, KIND_DIRS.workflow, key), catalog)
-    if (compiled.workflow) inputs.set(key, startInputs(compiled.workflow))
+    if (!compiled.workflow) continue
+    workflowInputs.set(key, startInputs(compiled.workflow))
+    if (respondsOnEveryRun(compiled.workflow)) respondingWorkflows.add(key)
   }
-  return inputs
+  return { workflowInputs, respondingWorkflows }
 }
 
 /**
@@ -439,7 +538,7 @@ export async function checkWorkflowDir(
   options: { declarations?: WorkspaceDeclarations; strict: StrictMode; prefix?: string }
 ): Promise<{ findings: CheckFinding[]; entry: string; unlisted: UnlistedCounts }> {
   const compiledDir = await compileWorkflowDir(dir, catalog, options.declarations)
-  const { lock, files, compiled, storedBlocks, printedWith } = compiledDir
+  const { lock, lockProblems, files, compiled, storedBlocks, printedWith } = compiledDir
   const entryText = files[SOURCE_ENTRY_FILE]
   const locate = (block: string, param: string, names: string | undefined) => {
     const prefix = encodeAnchor({ kind: 'param', block, param: '' })
@@ -577,6 +676,20 @@ export async function checkWorkflowDir(
     ),
     ...compiled.diagnostics.filter(exempt),
   ]
+  const lockFindings = lockProblems.map(
+    (problem): CheckFinding => ({
+      code: problem.code,
+      severity: 'error',
+      message: `${problem.message} Every apply and status refuses this lock.`,
+      hint: lockRecoveryHint(
+        options.declarations
+          ? '`sim workspaces source get --dir <new dir>`, from the workspace directory'
+          : undefined
+      ),
+      file: `${prefix}${SOURCE_LOCK_FILE}`,
+      ...(problem.path ? { path: problem.path } : {}),
+    })
+  )
   const findings = [
     ...refused.filter((diagnostic) => reported(diagnostic.code, diagnostic.blockKey)),
     ...declared,
@@ -629,7 +742,7 @@ export async function checkWorkflowDir(
     if (isRefused || (!varies && fails(code, blockKey))) unlisted.errors += count
     else unlisted.warnings += count
   }
-  return { findings, entry: entryText, unlisted }
+  return { findings: [...lockFindings, ...findings], entry: entryText, unlisted }
 }
 
 /** Findings a check counts but does not list: those the compile's caps left out. */

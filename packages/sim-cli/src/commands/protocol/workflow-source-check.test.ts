@@ -284,6 +284,57 @@ describe('sim workflows source check', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('fails on a lock every apply refuses, a block cap over its limit included, saying how to recover', async () => {
+    cacheCatalog()
+    writeFileSync(join(dir, 'workflow.ts'), CLEAN)
+    const blocks = Object.fromEntries(
+      Array.from({ length: 2001 }, (_, index) => [
+        `b${index}`,
+        { id: `id-${index}`, parent: null, ident: `b${index}`, order: index },
+      ])
+    )
+    writeFileSync(
+      join(dir, '.sim/lock.json'),
+      JSON.stringify({ version: 1, blocks, variables: {} })
+    )
+
+    await check()
+
+    expect(result()).toMatchObject({ errors: 1 })
+    expect(result().diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'E_LOCK_SHAPE',
+        severity: 'error',
+        file: '.sim/lock.json',
+        path: '/blocks',
+        message: 'Expected at most 2000 entries. Every apply and status refuses this lock.',
+        hint: expect.stringContaining(
+          'Restore .sim/lock.json from version control, or write the source into a fresh directory (`sim workflows source get <workflowId> --dir <new dir>`'
+        ),
+      }),
+    ])
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('fails on a lock that is not JSON, and passes with no lock at all', async () => {
+    cacheCatalog()
+    writeFileSync(join(dir, 'workflow.ts'), CLEAN)
+    writeFileSync(join(dir, '.sim/lock.json'), '{ "version": 1,')
+
+    await check()
+
+    expect(result()).toMatchObject({ errors: 1 })
+    expect(findingLines()).toContain('error E_LOCK_JSON')
+    expect(process.exitCode).toBe(1)
+
+    process.exitCode = undefined
+    vi.mocked(console.log).mockClear()
+    rmSync(join(dir, '.sim/lock.json'))
+    await check()
+    expect(result()).toMatchObject({ errors: 0 })
+    expect(process.exitCode).toBeUndefined()
+  })
+
   it('refuses a codeFile() path holding a NUL byte by its code, reading no such file', async () => {
     cacheCatalog()
     writeFileSync(

@@ -4,9 +4,11 @@ import {
   generateParallelBlocks,
 } from '@sim/workflow-persistence/subflow-helpers'
 import {
+  collectErrorSourceBlockIds,
   getWorkflowBranchHandleRowId,
   isSubflowType,
   normalizeWorkflowEdgeSourceHandle,
+  resolveEffectiveErrorEnabled,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
@@ -550,6 +552,7 @@ export function sanitizeForCopilot(
 ): CopilotWorkflowState {
   const sanitizedBlocks: Record<string, CopilotBlockState> = {}
   const processedBlocks = new Set<string>()
+  const errorSourceBlockIds = collectErrorSourceBlockIds(state.edges)
 
   // Helper to find child blocks of a parent (loop/parallel container)
   const findChildBlocks = (parentId: string): string[] => {
@@ -651,7 +654,10 @@ export function sanitizeForCopilot(
     if (connections) result.connections = connections
     if (Object.keys(nestedNodes).length > 0) result.nestedNodes = nestedNodes
     if (block.advancedMode !== undefined) result.advancedMode = block.advancedMode
-    if (block.errorEnabled !== undefined) result.errorEnabled = block.errorEnabled
+    // The executor takes the error path whenever an error edge leaves the block, whatever the
+    // flag says, so the flag is shown as the editor draws the port: on with such an edge.
+    const errorEnabled = resolveEffectiveErrorEnabled(block, blockId, errorSourceBlockIds)
+    if (block.errorEnabled !== undefined || errorEnabled) result.errorEnabled = errorEnabled
     if (block.retry !== undefined) result.retry = block.retry
     if (block.triggerMode !== undefined) result.triggerMode = block.triggerMode
 

@@ -301,6 +301,12 @@ const applyDataSchema = z
     workspaceId: z.string().describe('Workspace id.'),
     dryRun: z.boolean().describe('True when nothing was written because `dryRun` was set.'),
     plan: z.array(changeSchema).describe('Every planned change, no-ops included, in apply order.'),
+    refuses: z
+      .boolean()
+      .optional()
+      .describe(
+        'Set on a dry run: whether the apply would refuse. Errors of a change held back (`held`) refuse nothing else; any other error refuses. Absent on an apply.'
+      ),
     applied: z.array(changeSchema).describe('The changes written, in order.'),
     failed: z
       .object({

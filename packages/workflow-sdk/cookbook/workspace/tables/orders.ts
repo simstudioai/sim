@@ -7,7 +7,7 @@ export default defineTable({
   name: 'orders',
   description: 'Order questions the support workflow answered',
   columns: {
-    orderId: column.string({ required: true }),
+    orderId: column.string({ required: true, unique: true }),
     status: column.select({ options: ['open', 'answered'] }),
     total: column.number(),
   },

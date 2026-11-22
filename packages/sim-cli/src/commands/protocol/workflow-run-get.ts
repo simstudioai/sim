@@ -19,7 +19,7 @@ import type { OperationSpec } from '../../runtime/types'
  * The same test the run resource applies (`isValidUuid`) before deciding a
  * selector head is a name it cannot resolve.
  */
-const BLOCK_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export const BLOCK_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const SELECT_OUTPUT_FLAG = 'select-output'
 
@@ -34,7 +34,7 @@ const SELECT_OUTPUT_FLAG = 'select-output'
  * imported because this package ships standalone and carries no workspace
  * dependency.
  */
-function normalizeBlockName(name: string): string {
+export function normalizeBlockName(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '').replace(/\./g, '')
 }
 

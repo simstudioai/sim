@@ -66,15 +66,19 @@ export default workflow('Cookbook', { description: 'One example of each common b
     code: js`return { id: ${start.orderId}, cents: Math.round(${start.amount} * 100) }`,
   })
 
-  // Tables: query rows (each row is { id, data: { column } }) and insert a row.
+  // Tables: query rows (each row is { id, data: { column } }) and write one.
   const recent = table.queryRows('Recent Orders', {
     tableId: table('orders'),
     filterInput: { all: [{ field: 'status', op: 'eq', value: 'open' }] },
     limit: 50,
   })
-  const save = table.insertRow('Save Order', {
+  // Upsert: updates the row whose conflictColumn (a unique column, by name) matches data, else
+  // inserts one, so a second run for the same order updates it. table.insertRow takes the same
+  // data without conflictColumn and adds a row every run.
+  const save = table.upsertRow('Save Order', {
     tableId: table('orders'),
-    data: { orderId: start.orderId, status: 'open', risk: check.risk },
+    data: { orderId: start.orderId, status: 'open' },
+    conflictColumn: 'orderId',
   })
 
   // Knowledge base search: results is the list of matching chunks.
@@ -129,8 +133,12 @@ export default workflow('Cookbook', { description: 'One example of each common b
   })
 
   // Response: the API reply body. Wrap an untyped value (fn.result.x) in t`` when it is text.
+  // body is the short form of the editor's JSON mode: { dataMode: 'json', data } as below.
   const reply = response('Respond', { body: { risk: check.risk, id: t`${shape.result.id}` } })
-  const rejected = response('Respond Rejected', { body: { status: 'rejected' } })
+  const rejected = response('Respond Rejected', {
+    dataMode: 'json',
+    data: { status: 'rejected' },
+  })
 
   // Wiring: a.to(b) chains; a block can fan out to several targets.
   start.to(check)

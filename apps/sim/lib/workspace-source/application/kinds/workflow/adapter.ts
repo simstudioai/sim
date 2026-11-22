@@ -272,6 +272,21 @@ function diffFields(diff: SourceDiffSummary): string[] {
   return fields
 }
 
+/**
+ * What an update deletes from the stored workflow: its removed blocks and variables, counted as a
+ * table update counts its dropped columns, so the plan, its summary and a status's next step all
+ * see a delete that needs `--allow-delete`. A removed block takes its stored identity with it
+ * (run history keyed to it, a trigger's webhook URL), which applying an older copy does not bring
+ * back.
+ */
+function deletedFrom(diff: SourceDiffSummary): Pick<WorkflowChange, 'destructive'> {
+  const counts: Record<string, number> = {}
+  if (diff.blocks.removed.length > 0) counts.blocks = diff.blocks.removed.length
+  if (diff.variables.removed.length > 0) counts.variables = diff.variables.removed.length
+  if (Object.keys(counts).length === 0) return {}
+  return { destructive: { what: counts.blocks ? 'blocks' : 'variables', counts } }
+}
+
 /** The folder's lock, or the findings that refuse it, pinned to `.sim/lock.json`. */
 function readLock(
   key: string,
@@ -452,6 +467,7 @@ async function planUpdate(
     action: result.diff.noop && !metaOnly ? 'noop' : 'update',
     storedId: update.workflowId,
     fields: metaOnly ? ['names, order or comments'] : diffFields(result.diff),
+    ...deletedFrom(result.diff),
     refs: sourceRefs(result),
     ...blocksOf(result),
     detail: {

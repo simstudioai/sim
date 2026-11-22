@@ -1,15 +1,21 @@
+import { parse } from '@babel/parser'
 import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
-import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
+import {
+  findWorkflowReferenceTokens,
+  isLikelyWorkflowReferenceSegment,
+} from '@sim/utils/workflow-references'
 import {
   BLOCK_RETRY_MAX_TRIES,
   BLOCK_RETRY_MAX_WAIT_MS,
   BLOCK_RETRY_MIN_TRIES,
   BLOCK_RETRY_MIN_WAIT_MS,
   type BlockRetryConfig,
+  normalizeWorkflowBlockName,
   type WorkflowBranchKind,
 } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
+import { babelErrorShape } from '../babel'
 import { isBranchExtraField } from '../canonicalize/branches'
 import {
   DEFAULT_LOOP_ITERATIONS,
@@ -17,6 +23,7 @@ import {
   PARALLEL_BATCH_MAX,
   SUBFLOW_DATA_KEYS,
 } from '../canonicalize/subflows'
+import { REFERENCE_CANDIDATE } from '../canonicalize/values'
 import { canonicalActivityInputs, isInactive, withStoredValue } from '../catalog/activity'
 import { editorDefaults } from '../catalog/defaults'
 import {
@@ -38,7 +45,7 @@ import {
   codeFileLanguage,
   fromCodeFile,
 } from '../code-files'
-import { isIdentifierName, parseStoredPath } from '../code-files/ref-path'
+import { isIdentifierName, LOOP_PROPERTIES, parseStoredPath } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { type ConfigField, type ContainerForm, loopForm, parallelForm } from '../forms/subflow'
@@ -1868,6 +1875,77 @@ function jsonField(value: Value | undefined): Json | undefined {
 }
 
 /**
+ * A while or do-while condition checked as the run evaluates it (`LoopOrchestrator`
+ * `evaluateWhileCondition`): each reference is replaced by its value and the text runs as
+ * `return Boolean(<condition>)`, outside every block.
+ * - `W_LOOP_CONDITION_SYNTAX` when that is not valid JavaScript, which fails the run: references
+ *   stand in as `(0)`, a value that member access and calls can follow, so only the text the
+ *   author wrote around them is judged.
+ * - `W_REF_OUT_OF_SCOPE` for the loop's own iteration field read by its name (`<w.index>`): the
+ *   condition is evaluated outside the loop's body, where a named loop outputs only its results,
+ *   so the run fails; only the bare `<loop.index>` reads the iteration there.
+ */
+function checkLoopCondition(
+  ctx: CompileContext,
+  decl: BlockDecl,
+  text: string,
+  property: ObjectProperty
+): void {
+  if (text.trim() === '') return
+  const at = rangeOf(ctx, property.value)
+  const selfReads = new Set<string>()
+  const ownName = normalizeWorkflowBlockName(decl.name)
+  const runnable = text.replace(REFERENCE_CANDIDATE, (match: string, inner: string) => {
+    if (!isLikelyWorkflowReferenceSegment(match)) return match
+    const segments = parseStoredPath(inner)
+    const [head, field] = segments ?? []
+    if (
+      head?.kind === 'name' &&
+      normalizeWorkflowBlockName(head.name) === ownName &&
+      field?.kind === 'name' &&
+      LOOP_PROPERTIES.includes(field.name)
+    ) {
+      selfReads.add(field.name)
+    }
+    return '(0)'
+  })
+  for (const field of selfReads) {
+    ctx.reporter.report(
+      'W_REF_OUT_OF_SCOPE',
+      `${decl.name}'s condition reads its own ${field} by the loop's name. The run evaluates the condition outside the loop's body, where the loop outputs only results, so the run fails.`,
+      at,
+      {
+        hint: `Write <loop.${field}>: the bare loop prefix reads the iteration the condition is evaluated for.`,
+        blockKey: decl.key,
+      }
+    )
+  }
+  let failure: unknown = null
+  try {
+    const file = parse(`return Boolean(${runnable})`, {
+      sourceType: 'script',
+      allowReturnOutsideFunction: true,
+      errorRecovery: true,
+    })
+    failure = file.errors?.[0] ?? null
+  } catch (error) {
+    failure = error
+  }
+  if (failure === null) return
+  const { message: raw } = babelErrorShape(failure)
+  const message = typeof raw === 'string' ? raw : 'Invalid JavaScript'
+  ctx.reporter.report(
+    'W_LOOP_CONDITION_SYNTAX',
+    `${decl.name}'s condition is not a JavaScript expression (${message.replace(/\s*\(\d+:\d+\)$/, '')}), so the run fails when it evaluates it.`,
+    at,
+    {
+      hint: "Write one JavaScript expression the loop repeats while it is true, e.g. condition: '<loop.index> < 3'.",
+      blockKey: decl.key,
+    }
+  )
+}
+
+/**
  * `loop.<type>(name, config, body, meta?)` / `parallel[.<type>](...)`. Config holds the fields
  * the type uses; apply keeps the other types' fields from the stored workflow. `meta.extra` holds
  * the container's stored params, and `meta.subflowData` the subflow keys of `block.data`
@@ -1910,6 +1988,11 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
       ...(doWhileCondition !== undefined && { doWhileCondition }),
     }
     reportUnreadConfig(ctx, decl, form, written, loop)
+    for (const field of ['whileCondition', 'doWhileCondition'] as const) {
+      const text = loop[field]
+      const property = written.get(field)
+      if (text !== undefined && property) checkLoopCondition(ctx, decl, text, property)
+    }
     subflow = loop
   } else {
     const { fields } = compileConfig(ctx, site, 'parallel', parallelForm(builder.method), config)

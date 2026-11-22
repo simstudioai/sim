@@ -332,6 +332,32 @@ describe('WorkflowBlockHandler', () => {
     })
   })
 
+  describe('deployed runs', () => {
+    it('names the undeployed child a deployed run cannot call, and says to deploy it', async () => {
+      mockReadWorkflowDefinitionAsExecutor.mockResolvedValueOnce({
+        workflow: { id: 'child-workflow-id', name: 'Score', variables: {} },
+        workspaceId: 'test-workspace-id',
+        state: null,
+      })
+
+      const failure = await handler
+        .execute({ ...mockContext, isDeployedContext: true }, mockBlock, {
+          workflowId: 'child-workflow-id',
+        })
+        .then(
+          () => null,
+          (error: unknown) => error
+        )
+
+      expect(failure).toMatchObject({
+        childWorkflowName: 'Score',
+        message:
+          '"Score" failed: Child workflow "Score" (child-workflow-id) is not deployed. A deployed run calls the deployed version of each child workflow: deploy "Score" (child-workflow-id), then run again.',
+      })
+      expect(mockExecutorExecute).not.toHaveBeenCalled()
+    })
+  })
+
   describe('workspace containment', () => {
     const inputs = { workflowId: 'child-workflow-id' }
 

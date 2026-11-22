@@ -56,12 +56,22 @@ export function positionalKeys(kind: CanonicalBranches['kind'], count: number): 
   })
 }
 
-/** The title the canvas shows (condition-input.tsx). */
-export function positionalTitle(
+/**
+ * The title a branch row is stored with: its override, else the positional one, or none for a row
+ * stored without a title.
+ */
+export function storedTitle(
   kind: CanonicalBranches['kind'],
+  row: CanonicalBranchRow,
   index: number,
   count: number
-): string {
+): string | undefined {
+  if (row.titleOverride !== undefined) return row.titleOverride
+  return row.titleMissing ? undefined : positionalTitle(kind, index, count)
+}
+
+/** The title the canvas shows (condition-input.tsx). */
+function positionalTitle(kind: CanonicalBranches['kind'], index: number, count: number): string {
   if (kind === 'router') return `Route ${index + 1}`
   if (index === 0) return 'if'
   if (index === count - 1) return 'else'

@@ -25,6 +25,8 @@ export interface BuilderReference {
   operation?: string
   /** An older block version's builder, kept so stored workflows print; write the current one. */
   legacy: boolean
+  /** What `core.d.ts` says of a builder it declares itself (`response`, `fn`), as prose. */
+  doc?: string
   /** The call, as the declarations type it. */
   signature: string
   /** The agent tool form (`slack.tool.sendMessage(…)`), when the builder has one. */
@@ -88,6 +90,7 @@ export function describeBuilder(catalog: BlockCatalog, key: string): BuilderRefe
     summary: types.summary,
     ...(entry.builder.operation ? { operation: entry.builder.operation } : {}),
     legacy: isLegacyBuilder(key),
+    ...(entry.special ? docOf(key) : {}),
     signature,
     tool,
     paramsName: types.paramsName,
@@ -100,8 +103,9 @@ export function describeBuilder(catalog: BlockCatalog, key: string): BuilderRefe
 
 /**
  * Looks `query` up as a builder (`table.upsertRow`, `slack.tool.sendMessage`), a namespace
- * (`gmail`, `trigger`: its builders listed), or a construct `core.d.ts` declares (`loop`, `t`);
- * otherwise reports the closest builder or namespace as a hint.
+ * (`gmail`, `trigger`: its builders listed), a construct `core.d.ts` declares (`loop`, `t`), or a
+ * block type whose builder is named otherwise (`function` is `fn`; `table_v2` lists the `table.*`
+ * builders); otherwise reports the closest builder or namespace as a hint.
  */
 export function lookupBuilder(catalog: BlockCatalog, query: string): BuilderLookup {
   const key = withoutToolSegment(query.trim())
@@ -116,6 +120,16 @@ export function lookupBuilder(catalog: BlockCatalog, query: string): BuilderLook
   if ((SDK_CORE_EXPORTS as readonly string[]).includes(root)) {
     return { kind: 'core', name: key, declaration: coreDeclaration(root) }
   }
+  const ofBlockType = paths.filter((path) => catalogBuilder(catalog, path)?.type === key)
+  const only = ofBlockType.length === 1 ? describeBuilder(catalog, ofBlockType[0]) : null
+  if (only) return { kind: 'builder', reference: only }
+  if (ofBlockType.length > 1) {
+    return {
+      kind: 'namespace',
+      namespace: key,
+      builders: ofBlockType.map((path) => ({ key: path, summary: summaryOf(catalog, path) })),
+    }
+  }
   const hint = suggestBuilder(
     key,
     paths.filter((path) => !isLegacyBuilder(path))
@@ -125,23 +139,33 @@ export function lookupBuilder(catalog: BlockCatalog, query: string): BuilderLook
 
 const MAX_CORE_LINES = 80
 
+const CORE_LINES = CORE_DTS.split('\n')
+
+/** The line the doc comment above line `start` opens on, or `start` when none is there. */
+function docCommentStart(start: number): number {
+  if (!CORE_LINES[start - 1]?.trim().endsWith('*/')) return start
+  let first = start - 1
+  while (first > 0 && !CORE_LINES[first].trim().startsWith('/**')) first--
+  return first
+}
+
 /** Each top-level declaration of `name` in `core.d.ts` (overloads included): its line range. */
 function coreDeclarationRanges(name: string): Array<{ start: number; end: number }> {
-  const lines = CORE_DTS.split('\n')
   const start = new RegExp(
     `^export (?:declare )?(?:const|function|namespace|interface|type) ${escapeRegExp(name)}\\b`
   )
   const declarations: Array<{ start: number; end: number }> = []
-  for (let index = 0; index < lines.length; index++) {
-    if (!start.test(lines[index])) continue
+  for (let index = 0; index < CORE_LINES.length; index++) {
+    if (!start.test(CORE_LINES[index])) continue
     let depth = 0
     let end = index
-    for (; end < lines.length; end++) {
-      for (const char of lines[end]) {
+    for (; end < CORE_LINES.length; end++) {
+      for (const char of CORE_LINES[end]) {
         if ('({['.includes(char)) depth++
         else if (')}]'.includes(char)) depth--
       }
-      const continues = /[=:,|&]\s*$/.test(lines[end]) || /^\s+[?:|&]/.test(lines[end + 1] ?? '')
+      const continues =
+        /[=:,|&]\s*$/.test(CORE_LINES[end]) || /^\s+[?:|&]/.test(CORE_LINES[end + 1] ?? '')
       if (depth <= 0 && !continues) break
     }
     declarations.push({ start: index, end: end + 1 })
@@ -155,11 +179,9 @@ function coreDeclarationRanges(name: string): Array<{ start: number; end: number
  * returns an `Annotation`), one line per overload.
  */
 function coreSignatures(name: string): string {
-  const lines = CORE_DTS.split('\n')
   return coreDeclarationRanges(name)
     .map(({ start, end }) =>
-      lines
-        .slice(start, end)
+      CORE_LINES.slice(start, end)
         .join(' ')
         .replace(/^export (?:declare )?function /, '')
         .replace(/\s+/g, ' ')
@@ -175,17 +197,24 @@ function coreSignatures(name: string): string {
  * above it, as the file holds it: what a construct the catalog does not generate takes.
  */
 function coreDeclaration(name: string): string {
-  const lines = CORE_DTS.split('\n')
   const out: string[] = []
   for (const { start, end } of coreDeclarationRanges(name)) {
-    let first = start
-    if (lines[start - 1]?.trim().endsWith('*/')) {
-      while (first > 0 && !lines[first].trim().startsWith('/**')) first--
-    }
     if (out.length > 0) out.push('')
-    out.push(...lines.slice(first, end))
+    out.push(...CORE_LINES.slice(docCommentStart(start), end))
   }
   return out.slice(0, MAX_CORE_LINES).join('\n')
+}
+
+/** The doc comment above the first declaration of `name` in `core.d.ts`, as one paragraph. */
+function docOf(name: string): Pick<BuilderReference, 'doc'> {
+  const range = coreDeclarationRanges(name)[0]
+  if (!range) return {}
+  const doc = CORE_LINES.slice(docCommentStart(range.start), range.start)
+    .map((line) => line.trim().replace(/^\/\*\*\s?|\s?\*\/$|^\*\s?/g, ''))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return doc ? { doc } : {}
 }
 
 const MAX_SNIPPET_TYPE = 60
@@ -289,6 +318,7 @@ export function renderBuilderReference(reference: BuilderReference): string {
   if (reference.legacy) {
     lines.push('Legacy: an older block version. Write the current builder instead.')
   }
+  if (reference.doc) lines.push('', reference.doc)
   lines.push('', reference.signature)
   if (reference.tool) lines.push(`${reference.tool}  (as an agent tool)`)
   const required = reference.params.common.filter((param) => param.required)

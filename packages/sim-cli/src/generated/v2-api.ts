@@ -669,7 +669,14 @@ type ApplyWorkflowOperationsResponseRef2 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    kind:
+      | 'credential'
+      | 'resource'
+      | 'custom-tool'
+      | 'mcp-tool'
+      | 'skill'
+      | 'block-output'
+      | 'child-result'
     reason: string
   }>
   tableFieldIssues: Array<{
@@ -844,6 +851,7 @@ export type ApplyWorkflowSourceResponse = {
         | 'W_ENV_UNKNOWN'
         | 'W_CHILD_INPUT_UNKNOWN'
         | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
         | 'E_UNKNOWN_SUBFLOW_PROPERTY'
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
@@ -886,6 +894,7 @@ export type ApplyWorkflowSourceResponse = {
         | 'W_UNKNOWN_OUTPUT_PATH'
         | 'W_OUTPUT_PATH_UNDECLARED'
         | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
         | 'E_CODE_FILE_MISSING'
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
@@ -965,6 +974,7 @@ export type ApplyWorkflowSourceResponse = {
         | 'E_APPLY_UNRESOLVED_REF'
         | 'E_APPLY_REF_OUT_OF_SCOPE'
         | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
@@ -1181,6 +1191,7 @@ export type ApplyWorkspaceSourceResponse = {
       id?: string
       held?: true
     }>
+    refuses?: boolean
     applied: Array<{
       kind:
         | 'secret'
@@ -1344,6 +1355,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_ENV_UNKNOWN'
         | 'W_CHILD_INPUT_UNKNOWN'
         | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
         | 'E_UNKNOWN_SUBFLOW_PROPERTY'
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
@@ -1386,6 +1398,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_UNKNOWN_OUTPUT_PATH'
         | 'W_OUTPUT_PATH_UNDECLARED'
         | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
         | 'E_CODE_FILE_MISSING'
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
@@ -1464,6 +1477,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_UNRESOLVED_REF'
         | 'E_APPLY_REF_OUT_OF_SCOPE'
         | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
@@ -1637,6 +1651,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_ENV_UNKNOWN'
         | 'W_CHILD_INPUT_UNKNOWN'
         | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
         | 'E_UNKNOWN_SUBFLOW_PROPERTY'
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
@@ -1679,6 +1694,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_UNKNOWN_OUTPUT_PATH'
         | 'W_OUTPUT_PATH_UNDECLARED'
         | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
         | 'E_CODE_FILE_MISSING'
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
@@ -1757,6 +1773,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_UNRESOLVED_REF'
         | 'E_APPLY_REF_OUT_OF_SCOPE'
         | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
@@ -5310,6 +5327,7 @@ export type CreateWorkflowFromSourceResponse = {
         | 'W_ENV_UNKNOWN'
         | 'W_CHILD_INPUT_UNKNOWN'
         | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
         | 'E_UNKNOWN_SUBFLOW_PROPERTY'
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
@@ -5352,6 +5370,7 @@ export type CreateWorkflowFromSourceResponse = {
         | 'W_UNKNOWN_OUTPUT_PATH'
         | 'W_OUTPUT_PATH_UNDECLARED'
         | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
         | 'E_CODE_FILE_MISSING'
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
@@ -5431,6 +5450,7 @@ export type CreateWorkflowFromSourceResponse = {
         | 'E_APPLY_UNRESOLVED_REF'
         | 'E_APPLY_REF_OUT_OF_SCOPE'
         | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
@@ -6591,7 +6611,14 @@ type DeployWorkflowResponseRef4 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    kind:
+      | 'credential'
+      | 'resource'
+      | 'custom-tool'
+      | 'mcp-tool'
+      | 'skill'
+      | 'block-output'
+      | 'child-result'
     reason: string
   }>
   tableFieldIssues: Array<{
@@ -10418,6 +10445,7 @@ export type GetWorkflowSourceResponse = {
         | 'W_ENV_UNKNOWN'
         | 'W_CHILD_INPUT_UNKNOWN'
         | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
         | 'E_UNKNOWN_SUBFLOW_PROPERTY'
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
@@ -10460,6 +10488,7 @@ export type GetWorkflowSourceResponse = {
         | 'W_UNKNOWN_OUTPUT_PATH'
         | 'W_OUTPUT_PATH_UNDECLARED'
         | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
         | 'E_CODE_FILE_MISSING'
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
@@ -10539,6 +10568,7 @@ export type GetWorkflowSourceResponse = {
         | 'E_APPLY_UNRESOLVED_REF'
         | 'E_APPLY_REF_OUT_OF_SCOPE'
         | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
@@ -11112,6 +11142,7 @@ export type GetWorkspaceSourceResponse = {
         | 'W_ENV_UNKNOWN'
         | 'W_CHILD_INPUT_UNKNOWN'
         | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
         | 'E_UNKNOWN_SUBFLOW_PROPERTY'
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
@@ -11154,6 +11185,7 @@ export type GetWorkspaceSourceResponse = {
         | 'W_UNKNOWN_OUTPUT_PATH'
         | 'W_OUTPUT_PATH_UNDECLARED'
         | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
         | 'E_CODE_FILE_MISSING'
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
@@ -11232,6 +11264,7 @@ export type GetWorkspaceSourceResponse = {
         | 'E_APPLY_UNRESOLVED_REF'
         | 'E_APPLY_REF_OUT_OF_SCOPE'
         | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
@@ -14441,6 +14474,7 @@ export type PlanWorkflowSourceResponse = {
         | 'W_ENV_UNKNOWN'
         | 'W_CHILD_INPUT_UNKNOWN'
         | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
         | 'E_UNKNOWN_SUBFLOW_PROPERTY'
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
@@ -14483,6 +14517,7 @@ export type PlanWorkflowSourceResponse = {
         | 'W_UNKNOWN_OUTPUT_PATH'
         | 'W_OUTPUT_PATH_UNDECLARED'
         | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
         | 'E_CODE_FILE_MISSING'
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
@@ -14562,6 +14597,7 @@ export type PlanWorkflowSourceResponse = {
         | 'E_APPLY_UNRESOLVED_REF'
         | 'E_APPLY_REF_OUT_OF_SCOPE'
         | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
@@ -14733,6 +14769,7 @@ export type PlanWorkspaceSourceResponse = {
       id?: string
       held?: true
     }>
+    refuses?: boolean
     applied: Array<{
       kind:
         | 'secret'
@@ -14896,6 +14933,7 @@ export type PlanWorkspaceSourceResponse = {
         | 'W_ENV_UNKNOWN'
         | 'W_CHILD_INPUT_UNKNOWN'
         | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
         | 'E_UNKNOWN_SUBFLOW_PROPERTY'
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
@@ -14938,6 +14976,7 @@ export type PlanWorkspaceSourceResponse = {
         | 'W_UNKNOWN_OUTPUT_PATH'
         | 'W_OUTPUT_PATH_UNDECLARED'
         | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
         | 'E_CODE_FILE_MISSING'
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
@@ -15016,6 +15055,7 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_APPLY_UNRESOLVED_REF'
         | 'E_APPLY_REF_OUT_OF_SCOPE'
         | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
@@ -15189,6 +15229,7 @@ export type PlanWorkspaceSourceResponse = {
         | 'W_ENV_UNKNOWN'
         | 'W_CHILD_INPUT_UNKNOWN'
         | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
         | 'E_UNKNOWN_SUBFLOW_PROPERTY'
         | 'W_FORWARD_REF'
         | 'W_REF_NOT_NORMALIZED'
@@ -15231,6 +15272,7 @@ export type PlanWorkspaceSourceResponse = {
         | 'W_UNKNOWN_OUTPUT_PATH'
         | 'W_OUTPUT_PATH_UNDECLARED'
         | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
         | 'E_CODE_FILE_MISSING'
         | 'E_CODE_FILE_PATH'
         | 'W_CODE_FILE_INLINED'
@@ -15309,6 +15351,7 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_APPLY_UNRESOLVED_REF'
         | 'E_APPLY_REF_OUT_OF_SCOPE'
         | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
@@ -17243,7 +17286,14 @@ type ReplaceWorkflowStateResponseRef0 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    kind:
+      | 'credential'
+      | 'resource'
+      | 'custom-tool'
+      | 'mcp-tool'
+      | 'skill'
+      | 'block-output'
+      | 'child-result'
     reason: string
   }>
   tableFieldIssues: Array<{

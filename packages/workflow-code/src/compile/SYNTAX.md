@@ -403,6 +403,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known); the hint has a did-you-mean. An offline check in a workspace directory knows only the names `secrets.ts` declares, so there the finding says `secrets.ts` does not declare it, and the hint points there. |
 | `W_CHILD_INPUT_UNKNOWN` | A child workflow call's `inputMapping` sets an input the child's Start trigger does not declare (`sim workspaces source check`, with the child in the same directory); the hint names the nearest input. |
 | `W_CHILD_NO_START` | A child workflow call names a workflow of the same directory that has no Start trigger (`sim workspaces source check`). |
+| `W_CHILD_RESULT_PATH` | A reference to a child workflow call's `result.<key>` whose child (in the same directory) ends at a Response block on every run, where `<key>` is not `data`, `status` or `headers`: the child's result is its Response output, so the path reads nothing (`sim workspaces source check`); the hint names `result.data.<key>`. The dry run reports the same reference as a `W_APPLY_LINT` warning. |
 | `E_UNKNOWN_SUBFLOW_PROPERTY` | `p.<prop>` that a loop or parallel does not have. |
 | `W_FORWARD_REF` | A ref to a block declared later; it resolves. |
 | `W_REF_NOT_NORMALIZED` | Hand-written `<Name.path>` text that is not in key form. |
@@ -442,6 +443,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_UNKNOWN_OUTPUT_PATH` | A ref path the block's outputs do not have; the hint has a did-you-mean or lists the outputs. |
 | `W_OUTPUT_PATH_UNDECLARED` | A path the block does not declare that the run still accepts: an undeclared `inputFormat` input, or `x.error` with no error edge. Never refused. |
 | `W_JSON_REF_UNTYPED` | A bare ref in a JSON literal whose type nothing declares. |
+| `W_LOOP_CONDITION_SYNTAX` | A while or do-while condition that is not a JavaScript expression once each reference stands in as a value, as the run evaluates it (`return Boolean(<condition>)`): the run fails there. Refused as `E_APPLY_LOOP_CONDITION_SYNTAX` on a loop the edit added or changed. A loop reading its own `index` (or `currentItem`, `items`) by its name in its condition is `W_REF_OUT_OF_SCOPE`: the condition is evaluated outside the loop's body, so only `<loop.index>` reads the iteration there. |
 | `E_CODE_FILE_MISSING` | `codeFile()` names a file the request did not send. |
 | `E_CODE_FILE_PATH` | A code file path outside the directory, or with the wrong extension. |
 | `W_CODE_FILE_INLINED` | Print: the code could not round-trip through a file and was inlined. |

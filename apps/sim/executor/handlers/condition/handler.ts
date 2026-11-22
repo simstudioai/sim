@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isElseConditionTitle } from '@sim/workflow-types/workflow'
 import { adoptToolFailure, markFailureKind } from '@/lib/core/errors/failure-log'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import {
   isNonRetryableExecutionError,
   NonRetryableExecutionError,
 } from '@/lib/execution/non-retryable-error'
-import { isElseConditionTitle } from '@/lib/workflows/conditions'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'

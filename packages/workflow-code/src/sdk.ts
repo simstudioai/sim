@@ -20,14 +20,17 @@ export const GENERIC_BUILDER = 'block'
 /** The stored type of a workspace custom tool entry (the tool picker's `type: 'custom-tool'`). */
 export const CUSTOM_TOOL_TYPE = 'custom-tool'
 
-/** The response block type, which also takes the `response(name, { body, ... })` form. */
-export const RESPONSE_BLOCK_TYPE = 'response'
-
 /**
  * The keys of the `response(name, { body, status?, headers? })` form. Writing `body` selects it;
  * without `body` the params are the block's own (`dataMode`, `builderData`, `data`, ...).
  */
 export const RESPONSE_BODY_KEYS = ['body', 'status', 'headers'] as const
+
+/**
+ * The outputs of a response block: what a child workflow call's `result` holds when the child
+ * responds, so a field of its body is `result.data.<field>`.
+ */
+export const RESPONSE_OUTPUTS: readonly string[] = ['data', 'status', 'headers']
 
 /**
  * The SDK's tagged templates (`js\`...\``), each a core export. The printer and the

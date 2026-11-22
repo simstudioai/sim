@@ -124,21 +124,41 @@ function failedExitCode(failed: NonNullable<ApplyData['failed']>): number {
     : refusedExitCode([{ code: failed.code, severity: 'error' }])
 }
 
-/** Whether `finding` is about a change the plan holds back, which refuses nothing else. */
+/**
+ * Whether `finding` is about a change the plan holds back, which refuses nothing else: one naming
+ * that change. For a server that predates `refuses` only; `E_PLAN_REF_DELETED` names the workflow
+ * that uses what a delete removes but sits on the delete or the plan, so no hold excuses it.
+ */
 function isHeldFinding(
   plan: readonly Change[],
   finding: ApplyData['diagnostics'][number]
 ): boolean {
-  return plan.some(
-    (change) => change.held && change.kind === finding.kind && change.key === finding.key
+  return (
+    finding.code !== 'E_PLAN_REF_DELETED' &&
+    plan.some((change) => change.held && change.kind === finding.kind && change.key === finding.key)
   )
 }
 
-/** Whether a dry run's errors refuse the apply: any error but those of changes held back. */
+/**
+ * Whether a dry run's errors refuse the apply: the server's answer (`refuses`), or for a server
+ * that predates it, any error but those of changes held back.
+ */
 function refusesApply(data: ApplyData): boolean {
+  if (data.refuses !== undefined) return data.refuses
   return data.diagnostics.some(
     (finding) => finding.severity === 'error' && !isHeldFinding(data.plan, finding)
   )
+}
+
+/**
+ * The exit status of a dry run with errors, as the apply would exit: one that holds changes back
+ * and refuses nothing else writes the rest, so it exits `SOURCE_HELD_EXIT_CODE` as that apply
+ * does, unless every change it would write is held (1, nothing written).
+ */
+function previewExitCode(data: ApplyData): number {
+  if (refusesApply(data)) return refusedExitCode(data.diagnostics)
+  const writesSome = data.plan.some((change) => change.action !== 'noop' && !change.held)
+  return writesSome ? SOURCE_HELD_EXIT_CODE : 1
 }
 
 /** What an apply that wrote did, for the plan reprinted after it stopped part-way. */
@@ -869,6 +889,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               findings.print(preview.diagnostics)
             },
             refuses: refusesApply,
+            previewExitCode,
             // Without a preview, stage the blobs the base does not hold as they are.
             beforeCommit: (preview) =>
               stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission)),

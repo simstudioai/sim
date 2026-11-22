@@ -105,3 +105,14 @@ export function findWorkflowReferenceTokens(source: string): WorkflowReferenceTo
 
   return tokens.sort((left, right) => left.start - right.start)
 }
+
+/**
+ * Collects every string leaf in a nested value: the walk the reference and env-token audits over
+ * block inputs share.
+ */
+export function collectStringLeaves(value: unknown, out: string[]): void {
+  if (typeof value === 'string') out.push(value)
+  else if (Array.isArray(value)) for (const item of value) collectStringLeaves(item, out)
+  else if (typeof value === 'object' && value !== null)
+    for (const item of Object.values(value)) collectStringLeaves(item, out)
+}

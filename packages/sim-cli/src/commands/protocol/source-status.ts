@@ -33,20 +33,15 @@ type WorkspacePlanChange = ApplyWorkspaceSourceResponse['data']['plan'][number]
 export type ServerCheck = 'checked' | 'unreachable' | 'offline'
 
 /**
- * The dry run's findings a status's plan shows: its errors and warnings, less those `listed`
- * says the status reports as a change of its own (a stale base is drift or a conflict), and the
- * info `I_FINDINGS_TRUNCATED` that says the list is incomplete (counted as neither).
+ * The dry run's findings a status's plan shows: its errors and warnings, and the info
+ * `I_FINDINGS_TRUNCATED` that says the list is incomplete (counted as neither).
  */
-export function planFindings(
-  diagnostics: readonly Diagnostic[],
-  listed: (code: Diagnostic['code']) => boolean
-): Diagnostic[] {
+export function planFindings(diagnostics: readonly Diagnostic[]): Diagnostic[] {
   return diagnostics.filter(
     (finding) =>
-      (finding.severity === 'error' ||
-        finding.severity === 'warning' ||
-        finding.code === 'I_FINDINGS_TRUNCATED') &&
-      !listed(finding.code)
+      finding.severity === 'error' ||
+      finding.severity === 'warning' ||
+      finding.code === 'I_FINDINGS_TRUNCATED'
   )
 }
 
@@ -68,8 +63,12 @@ export interface StatusReport<Plan> extends SourceStatus {
   next: NextStep | null
 }
 
-/** The status exit codes, each documented in the commands' help. */
+/** What a status prints and its exit codes, documented in the commands' help. */
 export const STATUS_EXIT_CODES_HELP = `
+With --json, \`plan\` is what applying would do as \`apply --dry-run --allow-delete\` reports it
+(its errors and warnings counted the same, a conflict as an error), and \`next\` the command to
+run (with --allow-delete only when the plan deletes something).
+
 Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was
 read); ${SOURCE_LOCAL_CHANGES_EXIT_CODE} local changes only (applying writes them); ${SOURCE_DRIFT_EXIT_CODE} the server changed since the
 directory was read: drift (a resource edited, added or deleted there that the directory leaves

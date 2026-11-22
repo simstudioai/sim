@@ -1,4 +1,4 @@
-import { positionalKeys, positionalTitle } from '../canonicalize/branches'
+import { positionalKeys, storedTitle } from '../canonicalize/branches'
 import type { BranchKey, CanonicalBranches, CanonicalBranchRow } from '../model'
 import { getOwn, setOwn } from '../records'
 import type { MaterializeContext } from './context'
@@ -49,8 +49,8 @@ export function writeBranches(
     used.add(id)
     setOwn(ids, row.key, id)
     const entry: Record<string, unknown> = { id }
-    if (row.titleOverride !== undefined) entry.title = row.titleOverride
-    else if (!row.titleMissing) entry.title = positionalTitle(branches.kind, index, rows.length)
+    const title = storedTitle(branches.kind, row, index, rows.length)
+    if (title !== undefined) entry.title = title
     entry.value = row.value
     if (row.key !== defaults[index]) entry.key = row.key
     for (const [field, value] of Object.entries(row.extra ?? {})) setOwn(entry, field, value)

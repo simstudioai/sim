@@ -6,12 +6,13 @@
 
 import type { Node, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
+import { RESPONSE_BLOCK_TYPE } from '@sim/workflow-types/workflow'
 import { type CompileContext, rangeOf, unsupported } from '../compile/context'
 import { didYouMean } from '../compile/hints'
 import { compileJsonField, compileValue, objectEntries, type ValueSite } from '../compile/values'
 import type { CanonicalBlock, CanonicalParam, SubBlockId, Value } from '../model'
 import { getOwn, setOwn } from '../records'
-import { RESPONSE_BLOCK_TYPE, RESPONSE_BODY_KEYS } from '../sdk'
+import { RESPONSE_BODY_KEYS } from '../sdk'
 import { holdsSecret } from '../secrets'
 
 /** The stored params the form carries: the editor's JSON mode and its three fields. */

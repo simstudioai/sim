@@ -10,6 +10,7 @@ import { compareStrings } from '@sim/utils/string'
 import {
   isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
+  RESPONSE_BLOCK_TYPE,
 } from '@sim/workflow-types/workflow'
 import { SUBFLOW_DATA_KEYS, SUPERSEDED_CONTAINER_PARAMS } from '../canonicalize/subflows'
 import { builderPins } from '../catalog/surface'
@@ -23,13 +24,7 @@ import { SOURCE_ENTRY_FILE } from '../limits'
 import type { SourceHintBlock, SourceHints } from '../lock'
 import type { AnchorKey, BlockKey, CanonicalBlock, Json } from '../model'
 import { getOwn, setOwn } from '../records'
-import {
-  type BlockMetaKey,
-  GENERIC_BUILDER,
-  RESPONSE_BLOCK_TYPE,
-  SDK_MODULE,
-  type TemplateTag,
-} from '../sdk'
+import { type BlockMetaKey, GENERIC_BUILDER, SDK_MODULE, type TemplateTag } from '../sdk'
 import { type AttachedComments, anchors, withComments } from './comments'
 import type { PrintContext } from './context'
 import { createPrintContext, type PrintInput } from './context'

@@ -6,6 +6,7 @@ import { CliUsageError } from './local-errors'
 import {
   cachedOrRefuse,
   checkWorkflowDir,
+  readCheckDeclarations,
   refreshWorkspaceTsconfigs,
   reportCheck,
   STRICT_HELP,
@@ -13,7 +14,6 @@ import {
   strictFlags,
   strictMode,
   withWorkflowInputs,
-  workspaceWorkflowInputs,
 } from './source-check'
 import {
   absoluteDirOption,
@@ -31,7 +31,6 @@ import {
 } from './source-tree'
 import { verboseFlag } from './source-ui'
 import { requireEntry, WORKFLOW_TREE } from './workflow-dir'
-import { readWorkspaceDeclarations } from './workspace-source-dir'
 
 const CHECK_HELP = `
 Compiles workflow.ts (and the function files it names) with the compiler the server runs, against
@@ -97,10 +96,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
             : `\`sim workflows source get <workflowId> --dir ${options.dir}\` (or \`create\`)`
         )
         const declarations = workspace
-          ? {
-              ...(await readWorkspaceDeclarations(workspace.root)),
-              workflowInputs: await workspaceWorkflowInputs(workspace.root, catalog),
-            }
+          ? await readCheckDeclarations(workspace.root, catalog)
           : undefined
         const { findings, entry, unlisted } = await checkWorkflowDir(options.dir, catalog, {
           strict: strictMode(options),

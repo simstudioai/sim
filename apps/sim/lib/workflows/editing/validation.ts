@@ -33,6 +33,7 @@ import {
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
+  buildCanonicalIndexForSurface,
   buildSubBlockValues,
   getCanonicalSubBlocksForSurface,
 } from '@/lib/workflows/subblocks/visibility'
@@ -105,15 +106,69 @@ function isContainerBlockType(blockType: string): blockType is 'loop' | 'paralle
 }
 
 /**
+ * `inputs` with each key that names a `canonicalParamId` instead of a subBlock (`tableId` for the
+ * table block's `tableSelector` / `manualTableId`) written under the member that param is stored
+ * in, as the catalog (`sim blocks get`) and source both name it. A param with one member is that
+ * member. For a basic/advanced pair, a string (an id, a `<block.output>` reference) goes to the
+ * advanced member, the free-text field that takes either, and anything else to the basic one, as
+ * source compiles a literal; the caller then records the mode the written member implies. A
+ * canonical name written beside one of its own members is refused: the two would compete. Names
+ * resolve on the block's active surface (`triggerSurface`), so a trigger-mode block's name never
+ * lands on a dormant action member that shares it.
+ */
+function withCanonicalNamesResolved(
+  subBlocks: SubBlockConfig[],
+  subBlockMap: ReadonlyMap<string, SubBlockConfig[]>,
+  inputs: Record<string, unknown>,
+  triggerSurface: boolean,
+  refuse: (key: string, error: string) => void
+): Record<string, unknown> {
+  if (Object.keys(inputs).every((key) => subBlockMap.has(key))) return inputs
+  const { groupsById } = buildCanonicalIndexForSurface(subBlocks, triggerSurface)
+  const resolved: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(inputs)) {
+    const group = subBlockMap.has(key) ? undefined : groupsById[key]
+    if (!group) {
+      resolved[key] = value
+      continue
+    }
+    const members = [group.basicId, ...group.advancedIds].filter(
+      (id): id is string => id !== undefined
+    )
+    const written = members.filter((id) => Object.hasOwn(inputs, id))
+    if (written.length > 0) {
+      const paired = isCanonicalPair(group)
+      const named = members.map((id) => {
+        if (!paired) return `"${id}"`
+        return `"${id}" (${id === group.basicId ? 'basic' : 'advanced'} mode)`
+      })
+      refuse(
+        key,
+        `"${key}" is the shared name of ${named.join(' and ')}, and this edit also sets ${written.map((id) => `"${id}"`).join(' and ')}: set one of them, not both`
+      )
+      continue
+    }
+    const member =
+      typeof value === 'string'
+        ? (group.advancedIds[0] ?? group.basicId)
+        : (group.basicId ?? group.advancedIds[0])
+    if (member !== undefined) resolved[member] = value
+  }
+  return resolved
+}
+
+/**
  * Validates and filters inputs against a block's subBlock configuration
- * Returns valid inputs and any validation errors encountered
+ * Returns valid inputs and any validation errors encountered. `triggerSurface` is whether the
+ * block runs in trigger mode, the surface a canonical param name resolves on.
  */
 export function validateInputsForBlock(
   blockType: string,
   inputs: Record<string, any>,
   blockId: string,
   existingValues: Record<string, unknown> = {},
-  enforceToolBindingContract = false
+  enforceToolBindingContract = false,
+  triggerSurface = false
 ): ValidationResult {
   const errors: ValidationError[] = []
 
@@ -171,13 +226,21 @@ export function validateInputsForBlock(
 
   const validatedInputs: Record<string, any> = {}
   const subBlockMap = new Map<string, SubBlockConfig[]>()
-  const conditionValues = { ...existingValues, ...inputs }
 
   for (const subBlock of blockConfig.subBlocks) {
     const variants = subBlockMap.get(subBlock.id) ?? []
     variants.push(subBlock)
     subBlockMap.set(subBlock.id, variants)
   }
+
+  inputs = withCanonicalNamesResolved(
+    blockConfig.subBlocks,
+    subBlockMap,
+    inputs,
+    triggerSurface,
+    (key, error) => errors.push({ blockId, blockType, field: key, value: inputs[key], error })
+  )
+  const conditionValues = { ...existingValues, ...inputs }
 
   for (const [key, value] of Object.entries(inputs)) {
     // Skip runtime subblock IDs

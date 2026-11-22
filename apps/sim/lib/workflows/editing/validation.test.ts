@@ -120,6 +120,18 @@ const canonicalCredBlockConfig = {
   ],
 }
 
+// Mirrors webflow: the action pair and the trigger field share the canonical param siteId.
+const dualSurfaceBlockConfig = {
+  type: 'dualsurface',
+  name: 'DualSurface',
+  outputs: {},
+  subBlocks: [
+    { id: 'siteSelector', type: 'project-selector', canonicalParamId: 'siteId', mode: 'basic' },
+    { id: 'manualSiteId', type: 'short-input', canonicalParamId: 'siteId', mode: 'advanced' },
+    { id: 'triggerSiteId', type: 'short-input', canonicalParamId: 'siteId', mode: 'trigger' },
+  ],
+}
+
 // Mirrors video_generator_v3: routes provider -> tool; only video_falai has hosting.
 const videoBlockConfig = {
   type: 'video_generator_v3',
@@ -244,6 +256,7 @@ const blockConfigsByType: Record<string, unknown> = {
   huggingface: huggingfaceBlockConfig,
   knowledge: knowledgeBlockConfig,
   canonicalcred: canonicalCredBlockConfig,
+  dualsurface: dualSurfaceBlockConfig,
   video_generator_v3: videoBlockConfig,
   custom_key_block: customKeyBlockConfig,
   image_generator_v2: imageBlockConfig,
@@ -379,6 +392,59 @@ describe('validateInputsForBlock', () => {
       expect(validate(single, stored)).toEqual({ valid: true, value: stored })
       expect(validate(single, [stored]).valid).toBe(false)
       expect(validate(single, []).valid).toBe(false)
+    })
+  })
+
+  describe('canonical param names', () => {
+    it('writes a canonical name into the member it is stored in, as the catalog names it', () => {
+      const result = validateInputsForBlock('canonicalcred', { cred: 'cred_1' }, 'cred-1')
+
+      expect(result.errors).toEqual([])
+      expect(result.validInputs).toEqual({ manualCredential: 'cred_1' })
+    })
+
+    it('refuses a canonical name beside one of its own members', () => {
+      const result = validateInputsForBlock(
+        'canonicalcred',
+        { cred: 'cred_1', credential: 'cred_2' },
+        'cred-1'
+      )
+
+      expect(result.validInputs).toEqual({ credential: 'cred_2' })
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          field: 'cred',
+          error:
+            '"cred" is the shared name of "credential" (basic mode) and "manualCredential" (advanced mode), and this edit also sets "credential": set one of them, not both',
+        }),
+      ])
+    })
+
+    it("writes a canonical name on a trigger-mode block into the trigger's member, not a dormant action one", () => {
+      const trigger = validateInputsForBlock(
+        'dualsurface',
+        { siteId: 'site_1' },
+        'b',
+        {},
+        false,
+        true
+      )
+      const action = validateInputsForBlock('dualsurface', { siteId: 'site_1' }, 'b')
+
+      expect(trigger.errors).toEqual([])
+      expect(trigger.validInputs).toEqual({ triggerSiteId: 'site_1' })
+      expect(action.validInputs).toEqual({ manualSiteId: 'site_1' })
+    })
+
+    it('still names a key that is neither a field nor a canonical param as unknown', () => {
+      const result = validateInputsForBlock('canonicalcred', { credKey: 'cred_1' }, 'cred-1')
+
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          field: 'credKey',
+          error: 'Unknown input field "credKey" for block type "canonicalcred"',
+        }),
+      ])
     })
   })
 

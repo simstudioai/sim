@@ -753,8 +753,9 @@ export declare function human<const F extends InputFields = Record<never, never>
 >
 
 /**
- * A response's body, status and headers: the editor's JSON mode. An object or array `body` is
- * JSON whose references keep their types; a template or reference is the body text as written.
+ * A response's body, status and headers: the editor's JSON mode, `body` standing for
+ * `{ dataMode: 'json', data }`. An object or array `body` is JSON whose references keep their
+ * types; a template or reference is the body text as written.
  */
 export interface ResponseBody {
   body: JsonWithRefs
@@ -765,8 +766,9 @@ export interface ResponseBody {
 }
 
 /**
- * Ends the workflow with an API response: `response('Reply', { body: { ok: true }, status: 201 })`,
- * or the block's own params (`dataMode`, `builderData`, ...) when the body is built field by field.
+ * Ends the workflow with an API response: `response('Reply', { body: { ok: true }, status: 201 })`
+ * (`body` is short for `dataMode: 'json'` with `data`), or the block's own params (`dataMode`,
+ * `builderData`, ...) when the body is built field by field.
  */
 export declare function response(
   name: string,

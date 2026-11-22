@@ -324,11 +324,13 @@ describe('workspace source: secrets and credentials', () => {
       const missing = dryRun.diagnostics.find((finding) => finding.code === 'E_SECRET_MISSING')
       expect(missing?.hint).toContain('sim secrets set OPENAI_API_KEY --scope workspace')
       expect(held(dryRun.plan)).toEqual(['workflow:ask'])
+      expect(dryRun.refuses).toBe(false)
 
       const result = await apply(workspaceId, files)
       expect(result.failed).toBeUndefined()
       expect(actions(result.applied)).toEqual(['create workflow:plain'])
       expect(held(result.plan)).toEqual(['workflow:ask'])
+      expect(result.refuses).toBeUndefined()
       expect(await liveWorkflowNames(workspaceId)).toEqual(['Plain'])
       expect(result.base.resources['workflow:ask']).toBeUndefined()
 
@@ -353,16 +355,21 @@ describe('workspace source: secrets and credentials', () => {
       )
 
       // The edit drops the child for an agent reading a secret the workspace lacks: it is held.
+      const edited = {
+        ...withoutChild,
+        'secrets.ts': SECRETS(),
+        'workflows/parent/workflow.ts': ASK.replace("'Ask'", "'Parent'"),
+      }
+      // The dry run says the apply refuses, though the finding names the held workflow.
+      const preview = await apply(workspaceId, edited, {
+        base: created.base,
+        allowDelete: true,
+        dryRun: true,
+      })
+      expect(held(preview.plan)).toEqual(['workflow:parent'])
+      expect(preview.refuses).toBe(true)
       const refused = await refusal(
-        apply(
-          workspaceId,
-          {
-            ...withoutChild,
-            'secrets.ts': SECRETS(),
-            'workflows/parent/workflow.ts': ASK.replace("'Ask'", "'Parent'"),
-          },
-          { base: created.base, allowDelete: true }
-        )
+        apply(workspaceId, edited, { base: created.base, allowDelete: true })
       )
       expect(findings(refused.diagnostics)).toContain('E_SECRET_MISSING workflow:parent')
       expect(findings(refused.diagnostics)).toContain('E_PLAN_REF_DELETED workflow:parent')

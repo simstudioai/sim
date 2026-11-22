@@ -130,15 +130,27 @@ export async function readBase(
   return base
 }
 
+/** The command that writes a fresh copy of a workflow source directory, for {@link lockRecoveryHint}. */
+const WORKFLOW_GET = `\`sim workflows source get <workflowId> --dir <new dir>\`, with the id from ${SOURCE_BASE_FILE}`
+
+/**
+ * How to recover from a lock no apply accepts: the CLI writes the lock, so the fix is a copy it
+ * wrote, not an edit. `get` is the command that writes a fresh directory.
+ */
+export function lockRecoveryHint(get: string = WORKFLOW_GET): string {
+  return `Restore ${SOURCE_LOCK_FILE} from version control, or write the source into a fresh directory (${get}) and carry your edits across.`
+}
+
+function lockProblem(finding: { path?: string; message: string }): string {
+  return `${finding.path ? `${finding.path}: ` : ''}${finding.message}`
+}
+
 /** The directory's lock, refused with every problem the lock parser finds. */
 export async function readLock(directory: string): Promise<WorkflowLockV1> {
   const parsed = parseWorkflowLock(await readJson(directory, SOURCE_LOCK_FILE, GET_HINT))
   if (parsed.lock) return parsed.lock
-  const problems = parsed.diagnostics.map(
-    (finding) => `${finding.path === '' ? '' : `${finding.path}: `}${finding.message}`
-  )
   throw new SourceDirError(
-    `${SOURCE_LOCK_FILE} in ${directory} is not a valid lock: ${problems.join('; ')}`
+    `${SOURCE_LOCK_FILE} in ${directory} is not a valid lock: ${parsed.diagnostics.map(lockProblem).join('; ')}. ${lockRecoveryHint()}`
   )
 }
 
@@ -208,7 +220,7 @@ The primer above is enough to edit; read a section here when a step needs it.
 
 ## Edit loop in detail
 
-1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`${SOURCE_EXAMPLES_DIR}/\` holds correct examples to copy from: \`cookbook.ts\` (agent with structured output, condition, function, table query and insert, knowledge search, Slack, human in the loop, loop, response), \`integrations.ts\` (webhook trigger, weekday cron schedule, HTTP request with headers, table update by row id, Gmail, an error path) and \`agents.ts\` (router, agent tools: custom tool, MCP tool, integration operation, child workflow; run a child workflow; parallel). Their resource keys are examples; this workspace's are in \`${WORKSPACE_TYPES_FILE}\`.
+1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`${SOURCE_EXAMPLES_DIR}/\` holds correct examples to copy from: \`cookbook.ts\` (agent with structured output, condition, function, table query and upsert, knowledge search, Slack, human in the loop, loop, response), \`integrations.ts\` (webhook trigger, weekday cron schedule, HTTP request with headers, table update by row id, Gmail, an error path) and \`agents.ts\` (router, agent tools: custom tool, MCP tool, integration operation, child workflow; run a child workflow; parallel). Their resource keys are examples; this workspace's are in \`${WORKSPACE_TYPES_FILE}\`.
 2. \`sim workflows source check --dir .\`: compiles offline with the server's compiler, in milliseconds. It catches what \`tsc\` cannot (duplicate names, cycles, literal secrets), and fails (exit 1) on a missing required field, an unknown option or output path, a wrong value kind, an out-of-range value, an unwired condition or router branch or a literal secret in a block you added (\`--strict\`: in every block). It also adds the blocks the source now uses to \`tsconfig.json\`.
 3. \`${typecheckCommand()}\`: about a second; catches what step 2 and the dry run do not (such as a reference to a start input the trigger does not declare). It runs the TypeScript release the declarations are built for (the directory has no \`package.json\`; plain \`bunx tsc\` would run whatever version it finds). \`tsconfig.json\` includes only the blocks the source used at the last check, get or apply: a builder from another block fails with \`has no exported member\` until you run step 2 (or use \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). The dry run is the authority: a printed line you did not edit that \`tsc\` flags and the dry run accepts is fine.
 4. \`sim workflows source status --dir .\`: the files you changed (\`sim workflows source diff --dir .\` shows the edits), whether the workflow changed on the server since the get, and the command to run next (\`--offline\`: skip the server). Then \`sim workflows source apply --dir . --dry-run\` until it exits 0.

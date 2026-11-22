@@ -4,6 +4,7 @@ import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
 import { CLI_CONTRACT } from '../../contract/commands'
 import { embedStore } from '../../embed-context'
+import { STILL_RUNNING_EXIT_CODE } from '../../exit-codes'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
@@ -15,6 +16,7 @@ import { buildRequest } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
 import { printRunFailureSite } from './run-source-location'
+import { BLOCK_ID, normalizeBlockName } from './workflow-run-get'
 import {
   parseWaitTimeout,
   type RunSnapshot,
@@ -488,6 +490,23 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
 }
 
 /**
+ * The selection a `--stop-after` run sends when the caller selected nothing: the stop block's
+ * whole output, so `blockOutputs` (with `--follow`, the final frame's `output`) names the block
+ * the run stopped after and holds what it produced (no Response block ran). The block is sent as
+ * the executor compares names ({@link normalizeBlockName}), so a display name with a dot is not read
+ * as a path; an id is sent as it is.
+ */
+function stopBlockSelection(
+  selection: WorkflowRunSelection | undefined,
+  flags: Record<string, unknown>
+): string[] | null {
+  const stopAfter = selection?.stopAfterBlockId
+  if (stopAfter === undefined) return null
+  if (Array.isArray(flags.selectOutput) && flags.selectOutput.length > 0) return null
+  return [BLOCK_ID.test(stopAfter) ? stopAfter : normalizeBlockName(stopAfter)]
+}
+
+/**
  * The handler Commander invokes for the generated `run` leaf, given the handler
  * it is replacing.
  */
@@ -522,6 +541,8 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
     const selection = resolveWorkflowRunSelection(initialFlags)
     if (selection) command.setOptionValue('run', selection)
     const flags = command.optsWithGlobals() as Record<string, unknown>
+    const stopBlock = stopBlockSelection(selection, flags)
+    if (stopBlock) command.setOptionValue('selectOutput', stopBlock)
 
     if (flags.follow !== true) {
       // A queued run has produced nothing to select from, so the server would
@@ -564,6 +585,20 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
     await followRun(workflowId, command)
   }
 }
+
+/** `sim workflows run --help`, after the options: which version runs, what it prints, how it exits. */
+const RUN_HELP = `
+Without --manual (or a flag that implies it) this runs the active deployment; a workflow never
+deployed has none. --manual runs the saved draft, as the source loop leaves it.
+
+The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the
+workflow's final output) and blockOutputs (what --select-output named). It has no success field:
+branch on status, or on the exit code. With --follow it is the stream's final frame
+instead: success and output.
+
+Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed
+first, then the error on stderr), or the command failed; ${STILL_RUNNING_EXIT_CODE} still running when --wait-timeout
+elapsed.`
 
 /**
  * Teaches the generated `workflows run` leaf to stream.
@@ -608,7 +643,7 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option(
       '--stop-after <block>',
-      'Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual)'
+      'Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty'
     )
     .option(
       '--dir <dir>',
@@ -624,5 +659,6 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option('--include-thinking', 'Show model reasoning while following (requires --follow)')
     .option('--include-tool-calls', 'Show tool calls while following (requires --follow)')
+    .addHelpText('after', RUN_HELP)
     .action(followOrDelegate(previous))
 }

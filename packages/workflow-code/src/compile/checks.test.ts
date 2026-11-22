@@ -858,3 +858,61 @@ describe('an options object passed to .to()', () => {
     )
   })
 })
+
+describe('loop conditions', () => {
+  /** A while (or do-while) loop around one block, its condition written as `condition`. */
+  function whileLoop(condition: string, method: 'while' | 'doWhile' = 'while') {
+    return run(
+      [
+        START,
+        `const w = loop.${method}('W', { condition: ${JSON.stringify(condition)} }, (p) => {`,
+        "  const a = api('A', { url: 'https://x' })",
+        '  p.to(a)',
+        '})',
+        'start.to(w)',
+      ].join('\n')
+    )
+  }
+
+  it('warns on a condition the run cannot evaluate as JavaScript, at the condition', () => {
+    for (const method of ['while', 'doWhile'] as const) {
+      const result = whileLoop('<loop.index> < (3', method)
+      const [syntax] = findings(result, 'W_LOOP_CONDITION_SYNTAX')
+      expect(syntax?.message).toMatch(
+        /^W's condition is not a JavaScript expression \(.+\), so the run fails/
+      )
+      expect(syntax?.span.line).toBe(6)
+      expect(syntax?.blockKey).toBe('w')
+    }
+  })
+
+  it('judges only the text around references, which stand in as values', () => {
+    for (const condition of [
+      '<loop.index> < 3',
+      '<loop.index> < <a.status> && <variable.limit> !== "x"',
+      '<a.text>.length > 0 && <a.items>[0] !== undefined',
+      'true',
+      '',
+    ]) {
+      expect(findings(whileLoop(condition), 'W_LOOP_CONDITION_SYNTAX')).toEqual([])
+    }
+  })
+
+  it("warns on the loop's own iteration field read by its name, naming <loop.…>", () => {
+    const result = whileLoop('<w.index> < 3')
+    expect(findings(result, 'W_REF_OUT_OF_SCOPE')).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("W's condition reads its own index by the loop's name"),
+        hint: expect.stringContaining('Write <loop.index>'),
+        blockKey: 'w',
+      }),
+    ])
+    expect(findings(whileLoop('<loop.index> < 3'), 'W_REF_OUT_OF_SCOPE')).toEqual([])
+  })
+
+  it("warns on the loop's own iteration field read by its display name, which the run resolves to the loop", () => {
+    expect(findings(whileLoop('<W.index> < 3'), 'W_REF_OUT_OF_SCOPE')).toEqual([
+      expect.objectContaining({ blockKey: 'w' }),
+    ])
+  })
+})

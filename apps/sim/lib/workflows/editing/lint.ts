@@ -1,7 +1,18 @@
 import { toRecordOrNull } from '@sim/utils/object'
-import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
-import { didYouMean, readsIterationOutOfScope, type ScopeNode } from '@sim/workflow-code'
+import { collectStringLeaves, findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
+import {
+  didYouMean,
+  RESPONSE_OUTPUTS,
+  readsIterationOutOfScope,
+  type ScopeNode,
+} from '@sim/workflow-code'
 import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
+import {
+  alwaysEndsAtResponse,
+  normalizeWorkflowEdgeSourceHandle,
+  parseWorkflowSourceHandle,
+  type ResponseGraphBlock,
+} from '@sim/workflow-types/workflow'
 import { MCP_STRUCTURED_CONTENT_OUTPUT } from '@/lib/mcp/output-schema'
 import {
   collectPredicateFieldNames,
@@ -13,7 +24,12 @@ import {
   getMcpStructuredContentOutputs,
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/outputs'
+import {
+  getAlwaysTakenBranchHandles,
+  getDynamicHandleBranchKind,
+} from '@/lib/workflows/dynamic-handle-topology'
 import { quotedBlockLabel } from '@/lib/workflows/labels'
+import { getWorkflowInvocationTarget } from '@/lib/workflows/streaming/nested-output-options'
 import type { ManualRunEntryIssue } from '@/lib/workflows/triggers/manual-run'
 import { getBlock } from '@/blocks'
 import {
@@ -23,7 +39,6 @@ import {
   SPECIAL_REFERENCE_PREFIXES,
 } from '@/executor/constants'
 import { isPathInSchema } from '@/executor/utils/block-reference'
-import { collectStringLeaves } from '@/executor/utils/reference-validation'
 import { splitLeadingBracketPath } from '@/executor/variables/resolvers/reference'
 import {
   collectBlockFieldIssues,
@@ -95,7 +110,14 @@ export interface WorkflowLintFieldIssue extends WorkflowLintBlockRef {
 export interface WorkflowLintUnresolvedReference extends WorkflowLintBlockRef {
   field: string
   value: string | string[]
-  kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+  kind:
+    | 'credential'
+    | 'resource'
+    | 'custom-tool'
+    | 'mcp-tool'
+    | 'skill'
+    | 'block-output'
+    | 'child-result'
   reason: string
 }
 
@@ -526,6 +548,10 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
   const unresolved = lint.unresolvedReferences ?? []
   const renderRef = (ref: WorkflowLintUnresolvedReference) =>
     `${blockLabel(ref)}.${ref.field} (${ref.reason})`
+  const renderRefWithValue = (ref: WorkflowLintUnresolvedReference) =>
+    `${blockLabel(ref)}.${ref.field} ${
+      Array.isArray(ref.value) ? ref.value.join(', ') : ref.value
+    } (${ref.reason})`
 
   return [
     lintSection(
@@ -580,14 +606,12 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
     ),
     lintSection(
       'Block output references that will not work as written',
-      unresolved
-        .filter((ref) => ref.kind === 'block-output')
-        .map(
-          (ref) =>
-            `${blockLabel(ref)}.${ref.field} ${
-              Array.isArray(ref.value) ? ref.value.join(', ') : ref.value
-            } (${ref.reason})`
-        ),
+      unresolved.filter((ref) => ref.kind === 'block-output').map(renderRefWithValue),
+      '; '
+    ),
+    lintSection(
+      'Child workflow result paths that read nothing (a child that responds returns its Response output, { data, status, headers })',
+      unresolved.filter((ref) => ref.kind === 'child-result').map(renderRefWithValue),
       '; '
     ),
     lintSection(
@@ -1097,6 +1121,157 @@ export function collectUnquotedJsonStringReferences(
         kind: 'block-output',
         reason: `unquoted-json-string: these references resolve to text, which is inserted raw, so the field is not valid JSON at run time unless the text is itself JSON. Quoting, e.g. "${value[0]}", works only for text that never contains a double quote, backslash, line break, or other control character, such as an id. For free text such as a model reply, build the JSON in a Function block, which reads references as values, and set this field to only that block's result reference.`,
       })
+    }
+  }
+  return findings
+}
+
+/** What the lint knows of a workflow a Workflow block calls. */
+export interface WorkflowLintChildWorkflow {
+  name: string
+  /** Whether the child has an active deployment, which a deployed run of the caller calls. */
+  deployed: boolean
+  /**
+   * Whether every run of the child ends at an enabled Response block
+   * ({@link alwaysEndsAtResponseBlock}): it then returns that block's output,
+   * `{ data, status, headers }`, as the caller's `result`.
+   */
+  responds: boolean
+}
+
+/** The parts of a stored graph {@link alwaysEndsAtResponseBlock} reads. */
+export interface WorkflowResponseGraph {
+  blocks: Record<
+    string,
+    {
+      type: string
+      enabled?: boolean
+      data?: { parentId?: unknown } | null
+      subBlocks?: Record<string, { value: unknown }>
+    }
+  >
+  edges: ReadonlyArray<{ source: string; target: string; sourceHandle?: string | null }>
+}
+
+/**
+ * Whether every run of the stored graph ends at an enabled Response block at its root, so a
+ * Workflow block calling it reads that block's output as its `result`
+ * ({@link alwaysEndsAtResponse}).
+ */
+export function alwaysEndsAtResponseBlock(graph: WorkflowResponseGraph): boolean {
+  const blocks: Record<string, ResponseGraphBlock> = {}
+  for (const [id, block] of Object.entries(graph.blocks)) {
+    const branches = getAlwaysTakenBranchHandles({
+      id,
+      type: block.type,
+      subBlocks: block.subBlocks ?? {},
+    })
+    const parentId = block.data?.parentId
+    blocks[id] = {
+      type: block.type,
+      enabled: block.enabled !== false,
+      parentId: typeof parentId === 'string' && parentId !== '' ? parentId : null,
+      ...(branches !== undefined && { branches }),
+    }
+  }
+  const edges = graph.edges.map((edge) => {
+    const sourceType = graph.blocks[edge.source]?.type
+    const handle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle)
+    const port = parseWorkflowSourceHandle(
+      handle,
+      sourceType,
+      getDynamicHandleBranchKind(sourceType)
+    )
+    return {
+      source: edge.source,
+      target: edge.target,
+      port: port.kind === 'branch' ? `branch:${port.handle}` : port.kind,
+    }
+  })
+  return alwaysEndsAtResponse(blocks, edges)
+}
+
+/**
+ * Findings about the workflows the graph's Workflow blocks call, judged against what `children`
+ * (by workflow id) knows of each:
+ * - a reference to `<call.result.<key>>` whose key is not `data`, `status` or `headers` while the
+ *   child responds (`child-result`): its result is the Response output, so the key reads nothing,
+ *   and the value meant is almost always `<call.result.data.<key>>`;
+ * - with `deployed`, a child with no active deployment (`resource`): a deployed run of this
+ *   workflow calls each child's deployed version, so it fails at the block.
+ */
+export function collectChildWorkflowFindings(
+  workflowState: Pick<WorkflowState, 'blocks'>,
+  children: ReadonlyMap<string, WorkflowLintChildWorkflow>,
+  { deployed }: { deployed: boolean }
+): WorkflowLintUnresolvedReference[] {
+  const blocks = (workflowState.blocks || {}) as Record<string, BlockState>
+  const childOf = new Map<string, WorkflowLintChildWorkflow>()
+  const findings: WorkflowLintUnresolvedReference[] = []
+  for (const [blockId, stored] of Object.entries(workflowState.blocks || {})) {
+    const id = getWorkflowInvocationTarget(stored)
+    const child = id ? children.get(id) : undefined
+    if (!id || !child) continue
+    const block = blocks[blockId]
+    childOf.set(blockId, child)
+    if (deployed && !child.deployed) {
+      findings.push({
+        ...blockRef(blockId, block),
+        field: 'workflowId',
+        value: id,
+        kind: 'resource',
+        reason: `Workflow "${child.name}" is not deployed. A deployed run calls the deployed version of each child workflow, so it fails at this block until "${child.name}" is deployed.`,
+      })
+    }
+  }
+  if (childOf.size === 0) return findings
+
+  const targetByKey = referenceTargetIndex(blocks)
+  for (const [blockId, block] of Object.entries(blocks)) {
+    for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
+      const leaves: string[] = []
+      collectStringLeaves((subBlock as { value?: unknown })?.value, leaves)
+      const byTarget = new Map<
+        string,
+        {
+          child: WorkflowLintChildWorkflow
+          tokens: Set<string>
+          keys: Set<string>
+          meant: Set<string>
+        }
+      >()
+      for (const leaf of leaves) {
+        for (const token of referenceCandidates(leaf, subBlockId === 'code')) {
+          if (!token || !REF_TOKEN_SHAPE.test(token)) continue
+          const targetId = referenceTarget(token, targetByKey)
+          const child = targetId ? childOf.get(targetId) : undefined
+          if (!targetId || !child?.responds) continue
+          const [head, output = '', next, ...rest] = token.split('.')
+          if (output !== 'result' || !next) continue
+          const key = splitLeadingBracketPath(next).property
+          if (!key || RESPONSE_OUTPUTS.includes(key)) continue
+          const group = byTarget.get(targetId) ?? {
+            child,
+            tokens: new Set(),
+            keys: new Set(),
+            meant: new Set(),
+          }
+          group.tokens.add(`<${token}>`)
+          group.keys.add(key)
+          group.meant.add(`<${[head, output, 'data', next, ...rest].join('.')}>`)
+          byTarget.set(targetId, group)
+        }
+      }
+      for (const [targetId, { child, ...group }] of byTarget) {
+        const target = blocks[targetId]
+        findings.push({
+          ...blockRef(blockId, block),
+          field: subBlockId,
+          value: [...group.tokens],
+          kind: 'child-result',
+          reason: `Workflow "${child.name}" responds, so "${target?.name || targetId}".result is its Response output ({ data, status, headers }) and ${quoteList(group.keys)} under result reads nothing. Did you mean ${[...group.meant].join(', ')}?`,
+        })
+      }
     }
   }
   return findings

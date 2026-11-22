@@ -2281,6 +2281,35 @@ export default workflow('Probe', {}, () => {
     expect(await tableSnapshot(workspaceId)).toEqual(before)
   })
 
+  check('counts the blocks an edited workflow removes as a delete in its plan entry', async () => {
+    const workspaceId = await newWorkspace()
+    await apply(workspaceId, STARTER)
+    const read = await get(workspaceId)
+    const entry = 'workflows/ingest/workflow.ts'
+    const files = {
+      ...read.files,
+      [entry]: `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Ingest', {}, () => {
+  trigger.start('Start', { inputFormat: { email: 'string' } })
+})
+`,
+    }
+
+    const planned = await apply(workspaceId, files, {
+      base: read.base,
+      dryRun: true,
+      allowDelete: true,
+    })
+
+    expect(planned.plan.find((change) => change.key === 'ingest')).toMatchObject({
+      action: 'update',
+      fields: expect.arrayContaining(['blocks -1']),
+      destructive: { what: 'blocks', counts: { blocks: 1 } },
+    })
+  })
+
   check(
     'renames a workflow its folder renames, and refuses a name another workflow holds',
     async () => {

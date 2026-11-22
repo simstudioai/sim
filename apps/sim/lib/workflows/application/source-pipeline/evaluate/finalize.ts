@@ -1,4 +1,5 @@
 import type {
+  Diagnostic,
   LocatedDiagnostic,
   LockIdentity,
   WorkflowLockBlock,
@@ -136,6 +137,60 @@ function withoutCompiledReferences(
 }
 
 /**
+ * Refusals the compile makes at the source line, with its own wording and hint, that a server gate
+ * makes again for the same block: a field value (`E_APPLY_INVALID_SUBBLOCK_FIELD`, per field), and
+ * a block type the workspace cannot place (per block).
+ */
+const COMPILED_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  'E_APPLY_INVALID_SUBBLOCK_FIELD',
+  'E_APPLY_INVALID_BLOCK_TYPE',
+  'E_APPLY_TYPE_NOT_ADDABLE',
+])
+
+function refusalKey(code: string, blockKey: string, param: string | undefined): string {
+  const field = code === 'E_APPLY_INVALID_SUBBLOCK_FIELD' ? (param ?? '') : ''
+  return `${code}\u0000${blockKey}\u0000${field}`
+}
+
+/**
+ * `findings` without the refusals that repeat one already made, so one mistake is one error: a
+ * {@link COMPILED_REFUSAL_CODES} refusal the compile made for the same block (and field), and the
+ * state check's `E_APPLY_INVALID_STATE` on a block whose type is refused as unregistered, which
+ * says only that again.
+ */
+function withoutRepeatedRefusals(
+  findings: readonly Diagnostic[],
+  compiled: readonly LocatedDiagnostic[],
+  keyOf: (id: string) => string | undefined
+): Diagnostic[] {
+  const blockKeyOf = (finding: Diagnostic) =>
+    finding.blockKey ?? (finding.blockId === undefined ? undefined : keyOf(finding.blockId))
+  const compiledRefusals = new Set(
+    compiled.flatMap((finding) =>
+      COMPILED_REFUSAL_CODES.has(finding.code) && finding.blockKey !== undefined
+        ? [refusalKey(finding.code, finding.blockKey, finding.param)]
+        : []
+    )
+  )
+  const unregistered = new Set(
+    [...compiled, ...findings].flatMap((finding) =>
+      finding.code === 'E_APPLY_INVALID_BLOCK_TYPE' ? (blockKeyOf(finding) ?? []) : []
+    )
+  )
+  return findings.filter((finding) => {
+    const blockKey = blockKeyOf(finding)
+    if (finding.code === 'E_APPLY_INVALID_STATE') {
+      return blockKey === undefined || !unregistered.has(blockKey)
+    }
+    return (
+      !COMPILED_REFUSAL_CODES.has(finding.code) ||
+      blockKey === undefined ||
+      !compiledRefusals.has(refusalKey(finding.code, blockKey, finding.param))
+    )
+  })
+}
+
+/**
  * The post-materialize lock `mergeSourceMetaFromLock` re-keys onto: every bound key with its id,
  * and the submitted lock's ident and order for a block the file does not state them for.
  */
@@ -211,31 +266,19 @@ export async function finalizePlan(
     pending,
     keyOf: keyOfId,
   })
-  // A field the compile already refused (with its span and options) needs no second refusal from
-  // the value gate.
-  const refusedFields = new Set(
-    compileDiagnostics.flatMap((finding) =>
-      finding.code === 'E_APPLY_INVALID_SUBBLOCK_FIELD'
-        ? [`${finding.blockKey}\u0000${finding.param}`]
-        : []
-    )
-  )
-  const refusedAgain = (finding: { code: string; blockId?: string; param?: string }) =>
-    finding.code === 'E_APPLY_INVALID_SUBBLOCK_FIELD' &&
-    finding.blockId !== undefined &&
-    refusedFields.has(`${keyOfId(finding.blockId)}\u0000${finding.param}`)
+  const serverFindings = [
+    ...resolved.keptDiagnostics,
+    ...resolved.materializeDiagnostics,
+    ...refusals.sourceRefusals,
+    ...refusals.renameWarnings,
+    ...gated.gateFindings,
+    ...normalized.diagnostics,
+    ...foreignIds,
+    ...lintDiagnostics(compiledLint, changedIds, keyOfId),
+  ]
   const diagnostics = [
     ...compileDiagnostics,
-    ...[
-      ...resolved.keptDiagnostics,
-      ...resolved.materializeDiagnostics,
-      ...refusals.sourceRefusals,
-      ...refusals.renameWarnings,
-      ...gated.gateFindings,
-      ...normalized.diagnostics,
-      ...foreignIds,
-      ...lintDiagnostics(compiledLint, changedIds, keyOfId),
-    ].filter((finding) => !refusedAgain(finding)),
+    ...withoutRepeatedRefusals(serverFindings, compileDiagnostics, keyOfId),
   ].map(locate)
   if (hasErrors(diagnostics)) {
     return {

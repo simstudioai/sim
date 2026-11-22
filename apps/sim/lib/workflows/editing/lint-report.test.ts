@@ -1,3 +1,5 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -94,6 +96,35 @@ describe('buildWorkflowLintReport notes', () => {
       await expect(buildWorkflowLintReport(graph, scope)).resolves.toMatchObject({ notes: [] })
     }
   )
+
+  it('a complete diagnostic whose reference and child workflow lookups both fail rejects once, leaving no rejection unhandled', async () => {
+    resetDbChainMock()
+    const unhandled: unknown[] = []
+    const onUnhandled = (reason: unknown) => unhandled.push(reason)
+    process.on('unhandledRejection', onUnhandled)
+    try {
+      const call = block('call', 'workflow_input')
+      call.subBlocks = { workflowId: { id: 'workflowId', type: 'short-input', value: 'child-1' } }
+      mocks.collectUnresolvedReferences.mockRejectedValueOnce(new Error('lookup down'))
+      dbChainMockFns.where.mockImplementationOnce(() => {
+        throw new Error('child lookup down')
+      })
+
+      await expect(
+        buildWorkflowLintReport(
+          { blocks: { start: block('start', 'starter'), call }, edges: [edge('start', 'call')] },
+          scope,
+          { requireComplete: true }
+        )
+      ).rejects.toThrow('Workflow reference checks could not complete')
+      await flushMacrotask()
+
+      expect(unhandled).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+      resetDbChainMock()
+    }
+  })
 
   /**
    * `--blocks '{}' --edges '[]'` used to lint perfectly clean, so a dry run gave

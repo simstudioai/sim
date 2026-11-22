@@ -54,7 +54,7 @@ function sse(...frames: unknown[]): ReadableStream<Uint8Array> {
   return bodyOf(frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`))
 }
 
-function _streamResponse(body: ReadableStream<Uint8Array>): Response {
+function streamResponse(body: ReadableStream<Uint8Array>): Response {
   return {
     body,
     status: 200,
@@ -348,6 +348,7 @@ describe('sim workflows run --follow', () => {
         entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
         stopAfterBlockId: 'agent-1',
       },
+      selectedOutputs: ['agent-1'],
     })
   })
 
@@ -359,6 +360,7 @@ describe('sim workflows run --follow', () => {
 
     expect(requestRaw.mock.calls[0][1].body).toEqual({
       run: { source: 'manual', stopAfterBlockId: 'agent-1' },
+      selectedOutputs: ['agent-1'],
     })
     expect(requestRaw.mock.calls[1][1].body).toEqual({
       run: {
@@ -366,7 +368,45 @@ describe('sim workflows run --follow', () => {
         entry: { type: 'trigger', blockId: 'start' },
         stopAfterBlockId: 'agent-1',
       },
+      selectedOutputs: ['agent-1'],
     })
+  })
+
+  it('selects the output of the block a --stop-after run stops after, by its key or id', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const blockId = '3f2b7c1e-9a4d-4e8b-8c2a-1d5e6f7a8b9c'
+
+    await run(WORKFLOW_ID, '--stop-after', 'Log v1.2 Total')
+    await run(WORKFLOW_ID, '--stop-after', blockId)
+
+    expect(requestRaw.mock.calls[0][1].body).toMatchObject({
+      run: { stopAfterBlockId: 'Log v1.2 Total' },
+      selectedOutputs: ['logv12total'],
+    })
+    expect(requestRaw.mock.calls[1][1].body.selectedOutputs).toEqual([blockId])
+  })
+
+  it('selects the stop block of a --stop-after run it follows, so the final frame holds its output', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    requestRaw.mockResolvedValue(
+      streamResponse(sse({ event: 'final', data: { success: true, output: {} } }))
+    )
+
+    await run(WORKFLOW_ID, '--stop-after', 'agent-1', '--follow')
+
+    expect(requestRaw.mock.calls[0][1].body).toMatchObject({
+      run: { stopAfterBlockId: 'agent-1' },
+      selectedOutputs: ['agent-1'],
+      stream: true,
+    })
+  })
+
+  it('keeps the outputs a --stop-after run selects itself', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID, '--stop-after', 'agent-1', '--select-output', 'start.input')
+
+    expect(requestRaw.mock.calls[0][1].body.selectedOutputs).toEqual(['start.input'])
   })
 
   it('refuses an empty --stop-after rather than running the whole draft', async () => {

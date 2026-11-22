@@ -1020,6 +1020,122 @@ check('a dry run with a compile error answers with line-pinned diagnostics', asy
   expect(result.diff.noop).toBe(false)
 })
 
+check(
+  "a responding child's result.<key> is a warning naming result.data.<key>, not a refusal",
+  async () => {
+    const childId = generateId()
+    const childStartId = generateId()
+    const replyId = generateId()
+    const now = new Date()
+    await db.insert(workflow).values({
+      id: childId,
+      userId: ownerId,
+      workspaceId,
+      name: `Responder ${childId}`,
+      lastSynced: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const child = await saveWorkflowToNormalizedTables(childId, {
+      blocks: {
+        [childStartId]: {
+          id: childStartId,
+          type: 'start_trigger',
+          name: 'Start',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+        },
+        [replyId]: {
+          id: replyId,
+          type: 'response',
+          name: 'Reply',
+          position: { x: 400, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+        },
+      },
+      edges: [{ id: generateId(), source: childStartId, target: replyId }],
+      loops: {},
+      parallels: {},
+    })
+    if (!child.success) throw new Error(`Seeding the child failed: ${child.error}`)
+    const seeded = await seedWorkflow()
+    const callId = generateId()
+    const stored = await loadWorkflowFromNormalizedTables(seeded.workflowId)
+    if (!stored) throw new Error('The seeded workflow did not load')
+    const saved = await saveWorkflowToNormalizedTables(seeded.workflowId, {
+      ...stored,
+      blocks: {
+        ...stored.blocks,
+        [callId]: {
+          id: callId,
+          type: 'workflow_input',
+          name: 'Call',
+          position: { x: 200, y: 40 },
+          subBlocks: {
+            workflowId: { id: 'workflowId', type: 'workflow-selector', value: childId },
+          },
+          outputs: {},
+          enabled: true,
+        },
+      },
+      edges: [
+        { id: generateId(), source: seeded.startId, target: callId },
+        { id: seeded.edgeId, source: callId, target: seeded.scoreId },
+      ],
+    })
+    if (!saved.success) throw new Error(`Adding the call failed: ${saved.error}`)
+    const source = await getSource(seeded.workflowId)
+
+    const result = await apply(
+      source,
+      edit(source.files, SCORE_CODE, 'return $ref.call.result.mobile'),
+      {
+        dryRun: true,
+      }
+    )
+
+    expect(result.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'W_APPLY_LINT',
+        blockKey: 'score',
+        message: expect.stringContaining('Did you mean <call.result.data.mobile>?'),
+      })
+    )
+  }
+)
+
+check('a new block of an unknown type is one error, at its source line', async () => {
+  const seeded = await seedWorkflow()
+  const source = await getSource(seeded.workflowId)
+  const added = edit(
+    source.files,
+    '  start.to(score)',
+    "  const ghost = block('qa_nonexistent_type', 'Ghost', {})\n  start.to(score)\n  score.to(ghost)"
+  )
+  const files = {
+    ...added,
+    'workflow.ts': added['workflow.ts'].replace(/import \{ /, 'import { block, '),
+  }
+
+  const result = await apply(source, files, { dryRun: true })
+
+  const errors = result.diagnostics.filter((d) => d.severity === 'error')
+  expect(errors.map((d) => d.code)).toEqual(['E_APPLY_INVALID_BLOCK_TYPE'])
+  const ghostLine =
+    files['workflow.ts']
+      .split('\n')
+      .findIndex((line) => line.includes("block('qa_nonexistent_type'")) + 1
+  expect(ghostLine).toBeGreaterThan(0)
+  expect(errors[0]).toMatchObject({ file: 'workflow.ts', line: ghostLine, blockKey: 'ghost' })
+  expect(errors[0]?.message).toContain('qa_nonexistent_type')
+  expect(result.applied).toBe(false)
+})
+
 /** The realtime server's subblock write: one block's `sub_blocks` under the held row lock. */
 async function canvasSubBlockWrite(tx: DbOrTx, blockId: string, code: string) {
   const [row] = await tx

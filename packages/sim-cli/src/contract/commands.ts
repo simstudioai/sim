@@ -82,7 +82,35 @@ Source handles:
   parallel-start-source, parallel-end-source  the same for a parallel
 Renames:
   An edit's {"name":"New name"} also rewrites every <old key.field> reference to the block, in
-  other blocks' inputs and in a loop's or parallel's collection and condition.`
+  other blocks' inputs and in a loop's or parallel's collection and condition.
+Inputs:
+  inputs takes the field ids \`sim blocks get <type>\` lists (inputSchema, operationInputSchema),
+  or the name a pair of them shares (inputDefinitions: tableId for tableSelector and
+  manualTableId; a string goes to the typed field). Add the type it answers with: \`blocks get
+  table\` answers table_v2, and an add of legacy table is refused.
+  conditions (condition): [{"title":"if","value":"<start.n> > 3"},{"title":"else if","value":"…"},
+  {"title":"else","value":""}]; the last entry is the else, and ids are assigned.
+  inputFormat (Start): [{"name":"email","type":"string"}]; types string, number, boolean,
+  object, array, file[]; an optional default "value" as text.
+Block settings, beside inputs in an add's or edit's params:
+  "retry":{"enabled":true,"maxTries":3,"waitBetweenTriesMs":1000} retries a failed block; null
+  clears it.
+Outputs:
+  A block that fails outputs {"error":"<message>"}: connect its error handle and read
+  <name.error> there (without one, the run fails). A Workflow block's result is the child's
+  output; a child ending in a Response block gives {data, status, headers}, so read
+  <call.result.data.x>.`
+/** How to read `sim blocks get` for a `workflows operations apply` edit. */
+const BLOCK_DETAIL_GUIDE = `
+Reading it for \`sim workflows operations apply\`:
+  id                    the type to add: \`blocks get table\` answers table_v2 (an add of legacy
+                        table is refused)
+  inputSchema           the field ids inputs takes; operationInputSchema, an operation's own
+  inputDefinitions      the block's inputs by name; one a pair of fields shares (tableId for
+                        tableSelector and manualTableId) is accepted in place of the pair
+  outputs               what it outputs on success; a failed block outputs {"error":"…"}
+                        instead, read on its error path as <name.error>
+Block settings such as retry are not fields: \`sim workflows operations apply --help\`.`
 const WORKFLOW_SET_BLOCK_ENABLED_HELP =
   'Blocks to enable or disable, applied after --operations: [{"block_id":"<uuid>","enabled":false}]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined'
 const WORKFLOW_VARIABLE_OPERATIONS_HELP =
@@ -697,6 +725,7 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows state replace',
     confirm: 'This replaces the entire draft graph and cannot be undone.',
   },
+  getBlock: { helpText: BLOCK_DETAIL_GUIDE },
   applyWorkflowOperations: {
     command: 'workflows operations apply',
     describe: 'Edit a workflow’s blocks, connections and settings with a batch of operations',
@@ -954,6 +983,9 @@ export const CLI_CONTRACT: CliContract = {
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
   createWorkflow: {
+    helpText: `
+The new workflow's draft holds one Start block (start_trigger, named Start): connect the
+blocks you add from it.`,
     flags: {
       folderPath: {
         ...FOLDER_PATH_FLAG,
@@ -2273,6 +2305,10 @@ export const CLI_CONTRACT: CliContract = {
   // produce something `sim workflows import` accepts back.
   exportWorkflow: {
     describe: 'Print a workflow as a portable JSON document',
+    helpText: `
+Workspace bindings (a table, a child workflow, a knowledge base) print as null unless
+--include-workspace-bindings, and credentials always do: to read what a block is set to, use
+\`sim workflows state get\`.`,
     flags: {
       includeReferences: {
         boolean: true,

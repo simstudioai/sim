@@ -459,13 +459,21 @@ const v2WorkflowLintSchema = z
             .union([z.string(), z.array(z.string())])
             .describe('The reference, or references, that did not resolve.'),
           kind: z
-            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill', 'block-output'])
+            .enum([
+              'credential',
+              'resource',
+              'custom-tool',
+              'mcp-tool',
+              'skill',
+              'block-output',
+              'child-result',
+            ])
             .describe('What kind of entity the reference was expected to name.'),
           reason: z.string().describe('Why the reference does not resolve.'),
         })
       )
       .describe(
-        'Credential, resource, tool, and skill references that do not resolve; `block-output` references that will not work as written: a block that does not exist, or an output field the block does not have (reason `unknown-field`); and text outputs written unquoted in a JSON field (reason `unquoted-json-string`), which leave the field invalid JSON at run time unless the text is itself JSON. These values are still persisted; they are reported, not dropped.'
+        'Credential, resource, tool, and skill references that do not resolve; `block-output` references that will not work as written: a block that does not exist, or an output field the block does not have (reason `unknown-field`); and text outputs written unquoted in a JSON field (reason `unquoted-json-string`), which leave the field invalid JSON at run time unless the text is itself JSON; `child-result` references to the `result.<key>` of a Workflow block whose child responds, so its result is the Response output (`{ data, status, headers }`) and the key reads nothing (the value meant is `result.data.<key>`). A deploy also reports, as `resource`, a called child workflow that is not deployed, which a deployed run cannot call. These values are still persisted; they are reported, not dropped.'
       ),
     tableFieldIssues: z
       .array(

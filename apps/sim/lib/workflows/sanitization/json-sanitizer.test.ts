@@ -161,6 +161,42 @@ describe('sanitizeForCopilot condition rows', () => {
   })
 })
 
+describe('sanitizeForCopilot error output', () => {
+  // The executor takes an error edge whatever the stored flag says (an operations edit that wires
+  // one leaves the flag false), so the read view must not report the error output as off.
+  function blockWithFlag(errorEnabled: boolean | undefined, errorEdge: boolean) {
+    const fn = (id: string) => ({
+      id,
+      type: 'function',
+      name: id,
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {},
+      ...(id === 'risky' && errorEnabled !== undefined ? { errorEnabled } : {}),
+    })
+    const state = {
+      blocks: { risky: fn('risky'), handler: fn('handler') },
+      edges: errorEdge
+        ? [{ id: 'e1', source: 'risky', target: 'handler', sourceHandle: 'error' }]
+        : [],
+      loops: {},
+      parallels: {},
+    } as unknown as WorkflowState
+    return sanitizeForCopilot(state).blocks.risky.errorEnabled
+  }
+
+  it('reports the error output on for a block an error edge leaves, whatever its flag', () => {
+    expect(blockWithFlag(false, true)).toBe(true)
+    expect(blockWithFlag(undefined, true)).toBe(true)
+  })
+
+  it('keeps the stored flag for a block no error edge leaves', () => {
+    expect(blockWithFlag(false, false)).toBe(false)
+    expect(blockWithFlag(undefined, false)).toBeUndefined()
+  })
+})
+
 describe('sanitizeForCopilot server-only block inputs', () => {
   it('omits Sim Chat secret-mount policy while retaining model-visible inputs', () => {
     const result = sanitizeForCopilot(
