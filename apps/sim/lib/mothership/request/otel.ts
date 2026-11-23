@@ -51,7 +51,7 @@ function isGenAIMessageCaptureEnabled(): boolean {
 //
 //   - Plain-string reject value: `controller.abort('user_stop:...')`
 //     rejects fetch() with the reason STRING directly. Matches
-//     `isExplicitStopReason()` exactly (UserStop / RedisPoller).
+//     `isExplicitStopReason()` exactly (any reason it accepts).
 //   - DOMException / Error object: `controller.abort()` with no arg
 //     (or older runtimes) rejects with an AbortError whose `.cause`
 //     or `.message` may carry the reason. We inspect both.
