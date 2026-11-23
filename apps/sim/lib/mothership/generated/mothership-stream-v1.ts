@@ -340,3 +340,42 @@ export const MothershipStreamV1ToolOutcome = {
   skipped: "skipped",
   rejected: "rejected",
 } as const satisfies { [K in MothershipStreamV1ToolOutcome]: K };
+
+// The replay-end control frame (D117, D121). POST /api/streams/replay ends a leg short of the run's
+// terminal with this one `run` frame. It is deliberately NOT a member of
+// `MothershipStreamV1EventEnvelope` and its kind is NOT in `MothershipStreamV1RunKind`: Sim's live
+// reader accepts exactly that const's kinds, so a replay_end arriving on a live stream is rejected,
+// and only Sim's replay reader, which checks for this frame before its v1 validation, accepts it.
+
+export const MothershipStreamV1ReplayEndKind = "replay_end";
+
+/**
+ * Why a replay leg ended before the run's terminal. `parked`: the run waits on tool results the
+ * owner's leg handed Sim. `cap`: the connection reached its length cap; replay again. `stalled`: no
+ * instance drives the run (stale heartbeat, not parked); replay again later, once a takeover can
+ * have resumed it.
+ */
+export type MothershipStreamV1ReplayEndReason = "parked" | "cap" | "stalled";
+
+export const MothershipStreamV1ReplayEndReason = {
+  parked: "parked",
+  cap: "cap",
+  stalled: "stalled",
+} as const satisfies { [K in MothershipStreamV1ReplayEndReason]: K };
+
+/**
+ * `textLength` is the main text this leg's log reached — diagnostic only. A later replay sends
+ * Sim's OWN received length as `receivedTextChars`, never this value: the log trails live text, and
+ * resending from the durable end is what exposes divergence. Replayed tool activity is presentation
+ * only (`replay: true`) and never authorizes execution.
+ */
+export interface MothershipStreamV1ReplayEndPayload {
+  kind: typeof MothershipStreamV1ReplayEndKind;
+  reason: MothershipStreamV1ReplayEndReason;
+  textLength: number;
+}
+
+export type MothershipStreamV1ReplayEndEnvelope = MothershipStreamV1Envelope<
+  typeof MothershipStreamV1EventType.run,
+  MothershipStreamV1ReplayEndPayload
+>;

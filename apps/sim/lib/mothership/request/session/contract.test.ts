@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { MothershipStreamV1RunKind } from '@/lib/mothership/generated/mothership-stream-v1'
+import {
+  type MothershipStreamV1ReplayEndEnvelope,
+  MothershipStreamV1ReplayEndKind,
+  MothershipStreamV1RunKind,
+} from '@/lib/mothership/generated/mothership-stream-v1'
 import {
   isContractStreamEventEnvelope,
   isSyntheticFilePreviewEventEnvelope,
@@ -51,6 +55,17 @@ describe('stream session contract parser', () => {
       }
       expect(isContractStreamEventEnvelope(event)).toBe(true)
     }
+  })
+
+  it('rejects the replay-end control frame as a live stream event', () => {
+    // D121.
+    const event: MothershipStreamV1ReplayEndEnvelope = {
+      ...BASE_ENVELOPE,
+      type: 'run',
+      payload: { kind: MothershipStreamV1ReplayEndKind, reason: 'stalled', textLength: 6 },
+    }
+    expect(isContractStreamEventEnvelope(event)).toBe(false)
+    expect(parsePersistedStreamEventEnvelope(event).ok).toBe(false)
   })
 
   it.each(['run', 'complete'])('validates activity acknowledgement on %s boundaries', (type) => {

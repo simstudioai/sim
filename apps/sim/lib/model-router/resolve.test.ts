@@ -27,6 +27,7 @@ import {
   addAutoRoutingCost,
   resolveAutoModel,
 } from '@/lib/model-router/resolve'
+import { ModelRouterRequest } from '@/lib/mothership/generated/model-router'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -171,6 +172,21 @@ describe('resolveAutoModel', () => {
     expect(result.tier).toBe('2')
     expect(result.decidedBy).toBe('llm')
     expect(result.billableRoutingCost).toBeCloseTo(0.002)
+  })
+
+  it('sends a request body the worker contract accepts', async () => {
+    // The worker answers 400 to a body its contract rejects, e.g. a tier id outside its alphabet.
+    mockFetchWorker.mockResolvedValue(routerResponse(null, false, 503))
+    await resolveAutoModel({
+      ctx,
+      blockId: 'b1',
+      signals: makeSignals(),
+      fallbackModel: 'claude-sonnet-5',
+    })
+    const init = mockFetchWorker.mock.lastCall?.[1] as RequestInit | undefined
+    const parsed = ModelRouterRequest.safeParse(JSON.parse(String(init?.body)))
+    expect(parsed.error).toBeUndefined()
+    expect(parsed.data?.candidates.map((c) => c.id)).toEqual(['1', '2', '3'])
   })
 
   it('does not bill when the response omits billable (fail-safe)', async () => {

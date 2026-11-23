@@ -474,7 +474,7 @@ export type AbortRequest = z.infer<typeof AbortRequest>;
  * durable log for a reader whose cursor fell off sim's replay ring. Read-only: the owner,
  * its emitter, its lease and its parked calls are untouched. The SSE leg restores what
  * the receipt lacks, follows the log, and ends with `complete` at a terminal or with one
- * `run` frame of kind `replay_end` otherwise.
+ * `MothershipStreamV1ReplayEndEnvelope` (mothership-stream-v1.ts) otherwise.
  */
 export const StreamReplayRequest = z.strictObject({
   streamId: z.uuid(),
@@ -484,23 +484,6 @@ export const StreamReplayRequest = z.strictObject({
   ...ResponseReceiptSchema.shape,
 });
 export type StreamReplayRequest = z.infer<typeof StreamReplayRequest>;
-
-/**
- * A replay leg that ended before the run's terminal. `parked`: the run waits on tool
- * results the owner's leg handed sim. `cap`: the connection reached its length cap;
- * replay again. `stalled`: no instance drives the run (stale heartbeat, not parked);
- * replay again later, once a takeover can have resumed it.
- * `textLength` is the main text this leg's log reached — diagnostic only. A later
- * replay sends sim's OWN received length as `receivedTextChars`, never this value: the
- * log trails live text, and resending from the durable end is what exposes divergence.
- * Replayed tool activity is presentation only (`replay: true`) and never authorizes
- * execution.
- */
-export interface StreamReplayEnd extends StreamTextCompletion {
-  kind: "replay_end";
-  reason: "parked" | "cap" | "stalled";
-  textLength: number;
-}
 
 /** Accepted Stop intent is distinct from an observed terminal worker run. */
 export interface AbortResponse {
