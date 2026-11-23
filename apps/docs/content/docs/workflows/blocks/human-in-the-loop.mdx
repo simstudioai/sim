@@ -76,7 +76,7 @@ HITL blocks are excluded from the selected-output picker because pause data is i
 
 ## Resume with the v2 API
 
-A v2 execute call can return `data.status: "paused"`. Read `contextId` from `data.output.data._resume` and the paused run's ID from `data.runId`:
+A v2 execute call can return `data.status: "paused"`. Read the run to resume from `data.paused.runId`, and the `contextId` of a waiting `human` point from `data.paused.points`:
 
 ```bash
 curl -X POST 'https://www.sim.ai/api/v2/workflows/WORKFLOW_ID/runs/RUN_ID/resume' \
@@ -102,12 +102,13 @@ For an originally synchronous run, the response waits for the resumed execution 
     "error": null,
     "startedAt": "2026-10-13T10:00:00.000Z",
     "endedAt": "2026-10-13T10:00:01.234Z",
-    "durationMs": 1234
+    "durationMs": 1234,
+    "paused": null
   }
 }
 ```
 
-A later Human block can pause the resumed run again, returning new pause data. The resumed attempt has its own `runId`.
+A later Human block can pause the resumed run again. The response then has `status: "paused"` and new `paused.points`, and `paused.runId` names the run to resume next: the run you resumed, not the attempt's own `runId`.
 
 ### Asynchronous and originally streaming runs
 
