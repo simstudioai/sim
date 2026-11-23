@@ -232,6 +232,20 @@ describe('sim workflows source apply', () => {
     expect(readFileSync(file, 'utf8')).toContain('Variables: added limit; modified region')
   })
 
+  it('names a name or description change in --summary-file, which no count shows', async () => {
+    setTerminal(false)
+    const answer = outcome({ dryRun: true })
+    answer.data.diff.blocks.added = []
+    answer.data.diff.edges = { added: 0, removed: 0 }
+    Object.assign(answer.data.diff, { meta: ['name', 'description'] })
+    request.mockResolvedValue(answer)
+    const file = join(dir, 'plan.md')
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--summary-file', file)
+
+    expect(readFileSync(file, 'utf8')).toContain('Metadata: name, description')
+  })
+
   it('prints the whole next command in a table, never clipping the flag it names', async () => {
     setTerminal(false)
     contextMockState.output = 'table'

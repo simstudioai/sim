@@ -288,6 +288,27 @@ describe('workflows source status', () => {
     expect(readFileSync(file, 'utf8')).toContain('applying never sends it: functions/notes.js')
   })
 
+  it('lists the plan errors in --summary-file, not only their count', async () => {
+    mockRequest.mockResolvedValue(
+      dryRun([
+        {
+          code: 'E_UNRESOLVED_BLOCK',
+          severity: 'error',
+          message: 'No block named score.',
+          file: 'workflow.ts',
+          line: 4,
+        },
+      ])
+    )
+    const file = join(root, 'status.md')
+
+    await run(root, 'status', '--summary-file', file)
+
+    expect(readFileSync(file, 'utf8')).toContain(
+      '`E_UNRESOLVED_BLOCK` workflow.ts:4: No block named score.'
+    )
+  })
+
   it('does not report a recorded function file as deleted once no codeFile() names it but it is still on disk', async () => {
     write(
       root,

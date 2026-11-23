@@ -59,6 +59,19 @@ import { AGENTS_POINTER_MARKER, agentsPointer, type PrimerKind, primerFor } from
 const TSCONFIG_FILE = 'tsconfig.json'
 /** Where agents look first: the nearest `AGENTS.md` above the file they edit. */
 const ROOT_AGENTS_FILE = 'AGENTS.md'
+/**
+ * A file the user may own, read so a symbolic link they point at their own guide counts as theirs
+ * (empty text, which is never replaced) instead of refusing the whole refresh.
+ */
+async function readUserOwnedText(dir: string, path: string): Promise<string | null> {
+  try {
+    return await readSourceText(dir, path)
+  } catch (error) {
+    if (error instanceof SourceDirError && error.code === 'SOURCE_SYMLINK') return ''
+    throw error
+  }
+}
+
 /** Type-checks the source against every current block, for a block the default one leaves out. */
 export const TSCONFIG_FULL_FILE = 'tsconfig.full.json'
 /** The SDK file whose first line names the catalog the declarations were generated from. */
@@ -802,7 +815,7 @@ export async function sourceTreeChange(
       readSourceText(dir, TSCONFIG_FILE),
       readSourceText(dir, TSCONFIG_FULL_FILE),
       sdkCacheIndex(catalog),
-      readSourceText(dir, ROOT_AGENTS_FILE),
+      readUserOwnedText(dir, ROOT_AGENTS_FILE),
     ])
   if (rootAgents === null || rootAgents.startsWith(AGENTS_POINTER_MARKER)) {
     write.push([ROOT_AGENTS_FILE, agentsPointer(profile.kind)])

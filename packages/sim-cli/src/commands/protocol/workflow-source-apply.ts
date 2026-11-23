@@ -288,6 +288,7 @@ function planMarkdown(data: SourceApplyData, creating: boolean, deployment: Depl
     ...(variableChanges.length > 0
       ? ['', `Variables: ${variableChanges.map(markdownCell).join('; ')}`]
       : []),
+    ...(data.diff.meta?.length ? ['', `Metadata: ${data.diff.meta.join(', ')}`] : []),
     ...(changes.length > 0
       ? [
           '',

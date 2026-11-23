@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { COOKBOOK_EXAMPLES } from '@sim/workflow-sdk/codegen'
@@ -203,6 +211,20 @@ describe('sim workflows source get --dir', () => {
     await get('--dir', outDir, '--force')
 
     expect(readFileSync(join(outDir, 'AGENTS.md'), 'utf8')).toBe('# My own rules\n')
+  })
+
+  it("leaves a root AGENTS.md that links to the user's own guide untouched, and still refreshes", async () => {
+    serve({ [SOURCE_PATH]: () => source() })
+    await get('--dir', outDir)
+    const guide = join(outDir, '..', 'my-guide.md')
+    writeFileSync(guide, '# Mine\n')
+    rmSync(join(outDir, 'AGENTS.md'))
+    symlinkSync(guide, join(outDir, 'AGENTS.md'))
+
+    await get('--dir', outDir, '--force')
+
+    expect(readFileSync(guide, 'utf8')).toBe('# Mine\n')
+    expect(existsSync(join(outDir, '.sim/AGENTS.md'))).toBe(true)
   })
 
   it.each(['workflow', 'workspace'] as const)(

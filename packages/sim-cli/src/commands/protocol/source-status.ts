@@ -25,7 +25,14 @@ import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
 import { CliUsageError, LocalRefusal } from './local-errors'
-import { codeSpan, type Diagnostic, findingsOutput, markdownCell, summaryMarker } from './source-ui'
+import {
+  codeSpan,
+  type Diagnostic,
+  errorBullets,
+  findingsOutput,
+  markdownCell,
+  summaryMarker,
+} from './source-ui'
 
 /** One change of a workspace apply's plan. */
 type WorkspacePlanChange = ApplyWorkspaceSourceResponse['data']['plan'][number]
@@ -142,12 +149,13 @@ const SERVER_WORDS = {
 /**
  * A status as the Markdown a step summary or `--summary-file` holds: the local changes, what
  * changed on the server (the drift a scheduled job opens an issue for), the plan's one line and
- * the next command.
+ * the next command; the plan's error findings follow it, as an apply's summary lists them.
  */
 function statusMarkdown<Plan>(
   heading: string,
   report: StatusReport<Plan>,
-  planLine: (plan: Plan) => string
+  planLine: (plan: Plan) => string,
+  findings: readonly Diagnostic[]
 ): string {
   const lines = [`### Sim status: ${markdownCell(heading)}`, '']
   if (report.local.length === 0) lines.push('No local changes.')
@@ -187,6 +195,8 @@ function statusMarkdown<Plan>(
     lines.push(`Server not checked${report.note ? `: ${markdownCell(report.note)}` : '.'}`)
   }
   if (report.plan) lines.push('', markdownCell(planLine(report.plan)))
+  const errors = findings.filter((finding) => finding.severity === 'error')
+  if (errors.length > 0) lines.push('', '**Errors**', '', ...errorBullets(errors))
   if (report.next) lines.push('', `Next: ${codeSpan(report.next.command)}`)
   return lines.join('\n')
 }
@@ -205,7 +215,7 @@ export function printStatusReport<Plan>(
   findings: readonly Diagnostic[],
   summaryFile?: string
 ): void {
-  publishSummary(() => statusMarkdown(heading, report, planLine), {
+  publishSummary(() => statusMarkdown(heading, report, planLine, findings), {
     file: summaryFile,
     marker: summaryMarker(report.dir),
   })
