@@ -269,6 +269,7 @@ const blockConfigsByType: Record<string, unknown> = {
 
 vi.mock('@/blocks/utils', () => ({
   getModelOptions: mockGetModelOptions,
+  MODEL_OPTION_SOURCES: new Map([[mockGetModelOptions, { auto: false }]]),
 }))
 
 vi.mock('@/tools/utils', () => toolsUtilsMock)

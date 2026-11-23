@@ -8,10 +8,11 @@ import {
   getAgentModelOptions,
   getModelCapabilityCondition,
   getProviderCredentialSubBlocks,
-  getSerializedModelProviderId,
   normalizeFileInput,
   RESPONSE_FORMAT_WAND_CONFIG,
+  resolveModelProviderId,
 } from '@/blocks/utils'
+import { DEFAULT_BLOCK_MODEL } from '@/providers/default-model'
 import {
   getBaseModelProviders,
   getEvaluationModels,
@@ -24,14 +25,10 @@ import {
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
-  isAutoModel,
   supportsTemperature,
 } from '@/providers/models'
 
 const logger = createLogger('AgentBlock')
-
-/** Model the agent block falls back to when `model` is unset or the auto pseudo-model. */
-const AGENT_FALLBACK_MODEL = 'claude-sonnet-5-5'
 
 const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
@@ -130,7 +127,7 @@ Return ONLY the JSON array.`,
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5-5',
+      defaultValue: DEFAULT_BLOCK_MODEL,
       options: getAgentModelOptions,
       commandSearchable: true,
     },
@@ -428,10 +425,7 @@ Return ONLY the JSON array.`,
     ],
     config: {
       tool: (params: Record<string, any>) => {
-        const model = params.model || AGENT_FALLBACK_MODEL
-        // sim-auto has no provider of its own until the pool resolves it at execution time.
-        const lookupModel = isAutoModel(model) ? AGENT_FALLBACK_MODEL : model
-        return getSerializedModelProviderId(lookupModel, AGENT_FALLBACK_MODEL)
+        return resolveModelProviderId(params.model)
       },
       params: (params: Record<string, any>) => {
         const normalizedFiles = normalizeFileInput(params.files)

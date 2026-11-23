@@ -46,7 +46,7 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/secrets/application/use-cases', () => secretsUseCasesMock)
-vi.mock('@/blocks/utils', () => ({ getModelOptions: vi.fn(() => []) }))
+vi.mock('@/blocks/utils', () => ({ MODEL_OPTION_SOURCES: new Map() }))
 vi.mock('@/tools/utils', () => toolsUtilsMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'

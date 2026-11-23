@@ -35,6 +35,7 @@ import {
   OpenAIIcon,
   OpenRouterIcon,
   SakanaIcon,
+  SimAutoIcon,
   TogetherIcon,
   TypeSafeIcon,
   VertexIcon,
@@ -101,6 +102,8 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   'azure-anthropic': AzureIcon,
   /** Not a registry provider — a BYOK credential kind the breakdown can also emit. */
   'azure-openai': AzureIcon,
+  /** Not a provider: the hosted Auto model, which the breakdown keeps as its own row. */
+  'sim-auto': SimAutoIcon,
 }
 
 interface UsageConsumerRowProps {

@@ -170,6 +170,20 @@ describe('validateHallucination', () => {
     expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
+  it('fails with the unresolved-auto error instead of sending sim-auto to Ollama', async () => {
+    const actual = await vi.importActual<typeof import('@/providers/utils')>('@/providers/utils')
+    providersUtilsMockFns.mockGetProviderFromModel.mockImplementation(actual.getProviderFromModel)
+
+    const result = await validateHallucination({
+      ...createInput(new ResolvedSecretTraceRegistry()),
+      model: 'sim-auto',
+    })
+
+    expect(result.passed).toBe(false)
+    expect(result.error).toContain('sim-auto has no provider until the model router resolves it')
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
   describe('with a Vertex AI model', () => {
     const vertexInput = (registry: ResolvedSecretTraceRegistry) => ({
       ...createInput(registry),
