@@ -110,6 +110,12 @@ const PATH_REDIRECTS: DocsRedirect[] = [
   { source: '/building-agents/agents', destination: '/agents', permanent: true },
   // form deployment removed
   { source: '/deployment/form', destination: '/workflows/deployment', permanent: true },
+  // workspace as code moved into the workflows-as-code section
+  {
+    source: '/workflows/workspace-code',
+    destination: '/workflows/code/workspace',
+    permanent: true,
+  },
   // copilot deprecated and removed
   { source: '/copilot', destination: '/chat', permanent: true },
   { source: '/copilot/:path*', destination: '/chat', permanent: true },

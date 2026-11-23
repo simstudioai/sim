@@ -14188,175 +14188,161 @@
           "meta": null,
           "sha256": "b9179e0bca4639a77dbc99a0802c9c18305b65cce5c37ce114b8e215f26070a0",
           "bytes": 134,
-          "line": 6
+          "line": 10
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "6367a903928d88d568ec633957ade0b5f874989ac59a1cf31c58287830c6c777",
           "bytes": 170,
-          "line": 19
+          "line": 23
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "61a29fb19683034ec35a9a6cb6caa3a94bbb9b4fd1e8c545fbbd933478ad0844",
           "bytes": 241,
-          "line": 33
+          "line": 37
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "bc4f2b365fb6d27a0afb6b8ebcdd56e94301c40741300e10ba249e11708274fd",
           "bytes": 172,
-          "line": 45
+          "line": 49
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "dc652d6ae196b4ad1d37da8dcdee9ae36e1798498e10f94882a117410d43e45f",
           "bytes": 202,
-          "line": 56
+          "line": 60
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "5e0490835e43a237fec4df37f9bab2c053f332d26b38ae42ea710c1958d66fba",
           "bytes": 110,
-          "line": 67
+          "line": 71
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "2017d76c972d478c166fc271da149acdf01f3c5906a6b068e07d91b684fc2e24",
           "bytes": 65,
-          "line": 75
+          "line": 79
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "8237f3c905a4fed316c3cabae5b8cddd72c57d8e3e3abe712ebce4116246f82a",
           "bytes": 53,
-          "line": 84
+          "line": 88
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "abad6fbd8c82c1eb28d7a7f4b49f8cce9754472b20ffb2613a6a69ae8c2823b4",
           "bytes": 51,
-          "line": 92
+          "line": 96
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "7f0dad13a24bafce09cf14f505da3d6d956a0431e24845a80cd01b1a775e8374",
           "bytes": 263,
-          "line": 98
+          "line": 102
         },
         {
           "lang": "json",
           "meta": null,
           "sha256": "a19ec054796bc74549f7dbe83949c9eb6c5ae1f54cda5b5c9f8a7e1db5f99d80",
           "bytes": 349,
-          "line": 113
+          "line": 117
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "068b9eadd1fcffae232855024fdb4ff017b0f010ced2273c53f3b3fd2e898de2",
           "bytes": 236,
-          "line": 226
+          "line": 176
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "21d6503ee5e2f4362d6d086a74d41704bded199dd6f1a7a2f5760d4c06a78dab",
           "bytes": 260,
-          "line": 238
+          "line": 188
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "774f1a6b1c5e4ad85fa5551fba8a5faed7d82b3bb25e7d46336fb0b65e1e9522",
           "bytes": 220,
-          "line": 257
+          "line": 207
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "736d071516b05af975232c48c7e23065fc0334fc07c541ada21a806ea43f84e7",
           "bytes": 109,
-          "line": 270
+          "line": 220
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "019796d6002868ad852ec9b9bba75bff42f7f8f6eb2073dfb897aa359065721a",
           "bytes": 159,
-          "line": 276
+          "line": 226
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "3a91f6de422f9407871de6fa5bac996f2337001079def7f966bd0068086d7c63",
           "bytes": 199,
-          "line": 285
+          "line": 235
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "cdbd2c99596ad694d9ebd9eca43740e8c7371fabba9eca7cc580c16ae96bc800",
           "bytes": 166,
-          "line": 302
+          "line": 252
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "3edb250258fdf417424a8f185dd601a1a6374ce8b93dd553276cfef39875f959",
           "bytes": 323,
-          "line": 317
+          "line": 267
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "1d949072a36a628c98e3d17961acc9c59f07edcc89f63413f212adc3baec879e",
           "bytes": 290,
-          "line": 326
+          "line": 276
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "4cc080decc18686ffbbfe9c5c51c621d23d2b8de9f189ed8145973189681900b",
           "bytes": 219,
-          "line": 336
+          "line": 286
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "ab8b2eb4638d04f81b66e3eba3d9acfe49e6ae2531094ed48d0d3468537c188b",
           "bytes": 160,
-          "line": 343
+          "line": 293
         },
         {
           "lang": "bash",
           "meta": "title=\"nightly-digest.sh\"",
           "sha256": "25d588b87d9f49723f0b1e41edadedfb33ec1eb28460b9b8574d2dfef87a7870",
           "bytes": 747,
-          "line": 352
-        },
-        {
-          "lang": "yaml",
-          "meta": "title=\".github/workflows/sim-workspace.yml\"",
-          "sha256": "9e7ef199fcc3626b482f4377b15d500c8cf417675cdf19fbdcf9188cce424963",
-          "bytes": 1136,
-          "line": 382
-        },
-        {
-          "lang": "bash",
-          "meta": null,
-          "sha256": "3b675df64318861fe48f8c955db2eaee667edaafd4389e2f4bb220fcf5445fee",
-          "bytes": 75,
-          "line": 427
+          "line": 302
         }
       ],
       "links": [

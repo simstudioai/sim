@@ -354,7 +354,7 @@ describe('login command', () => {
     expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
     const output = vi.mocked(console.log).mock.calls.flat().join('\n')
     expect(output).toContain('API key key-id was created on your account')
-    expect(output).toContain('Revoke "CLI (2026-11-11 09:30:00Z)" in Settings → API keys.')
+    expect(output).toContain('Revoke "CLI (2026-11-11 09:30:00Z)" in Settings → Sim API keys.')
   })
 
   it('stores nothing when the issued expiry is not the one requested', async () => {

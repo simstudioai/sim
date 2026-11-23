@@ -1,0 +1,57 @@
+---
+title: Workflows as code
+description: Read and edit workflows and whole workspaces as TypeScript files, check them before saving, and review changes as diffs.
+---
+
+import { Callout } from '@/components/ui/callout'
+
+Every workflow can be read and written as one TypeScript file, and a whole workspace as a directory of files. The file and the workflow builder show the same workflow: edit either one and the other follows. Use it to review agent changes as a diff, keep workflows in git, or let a coding agent such as Claude Code build and change them for you.
+
+<Callout type="info">
+Workflows as code is in preview. When it is enabled, the workflow builder shows a read-only **Code** tab and the [CLI](/cli) gains the `sim workflows source` and `sim workspaces source` commands. On a self-hosted deployment, set [`WORKFLOW_CODE`](/platform/self-hosting/environment-variables#preview-features). On Sim Cloud it is enabled per organization, workspace or user. Where it is off, the **Code** tab is not shown and a source command answers `403` with "Workflows as code is in preview and not enabled for this workspace".
+</Callout>
+
+## Workflow or workspace
+
+- **A workflow** is one `workflow.ts` plus its function code files. Use `sim workflows source`.
+- **A workspace** is a directory with a folder for each kind of resource: tables, knowledge bases, files, custom tools, skills, MCP servers, secrets and credential bindings, deployments and workflows. Each workflow is written exactly as above. One apply creates the resources before the workflows that use them, so a coding agent can build a working setup from scratch. Use `sim workspaces source`.
+
+The file states what the workflow runs: its blocks, their settings, the connections between them, branches, loops, and variables. Layout and other builder-only details stay in the stored workflow, so the file stays short and a change to one setting is a one-line diff. Nothing in the file runs on your machine: Sim reads it statically, checks it against your workspace, and saves it as the workflow draft. Deploying stays a separate step.
+
+## The loop
+
+Both commands follow the same five steps:
+
+```bash
+sim workflows source get <workflowId> --dir ./support-triage
+# edit ./support-triage/workflow.ts
+sim workflows source check --dir ./support-triage
+sim workflows source status --dir ./support-triage
+sim workflows source apply --dir ./support-triage --dry-run
+sim workflows source apply --dir ./support-triage --yes
+```
+
+`get` writes the directory, `check` compiles it on your machine, `status` shows what changed and what to run next, a dry run checks everything a save checks, and `apply --yes` saves the draft.
+
+## Terms
+
+- **As code** names the feature; **source** names its files and commands.
+- A **workflow directory** is the directory `sim workflows source get` writes; a **workspace directory** is the one `sim workspaces source get` writes.
+- **Get** reads from Sim and **apply** writes to Sim. Neither is a sync: [fork, push and pull](/cli/workflow-sync) are a different feature.
+- **Check** compiles offline. A **dry run** asks the server and saves nothing. The **plan** is what a dry run prints.
+- **Stale** means an apply was refused because the server changed what you read (exit `5`). **Drift** means the server changed since the get (`status` exits `12`). A **conflict** is a resource changed on both sides.
+- A **resource key** is the file or folder name of a table, skill or other resource. A **block key** is a block's name lowercased with whitespace and dots removed, as in `$ref.triageagent.content`.
+
+## For coding agents [#for-coding-agents]
+
+Claude Code, Cursor, Codex and other coding agents work from a directory that `get` writes. `get` prints a primer and writes the full guide to `.sim/AGENTS.md`. See [Use with coding agents](/workflows/code/coding-agents).
+
+## Related docs
+
+- [Get started](/workflows/code/get-started): change one setting and see it in the builder
+- [Edit a workflow](/workflows/code/edit)
+- [Manage a workspace as code](/workflows/code/workspace)
+- [Run in CI](/workflows/code/ci)
+- [File syntax](/workflows/code/syntax)
+- [Exit codes](/workflows/code/exit-codes), [diagnostic codes](/workflows/code/diagnostics) and [limits](/workflows/code/limits)
+- [CLI workflow commands](/cli/workflows#workflows-as-code) and [workspace commands](/cli/workspaces#workspace-as-code)

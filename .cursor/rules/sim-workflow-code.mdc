@@ -28,6 +28,14 @@ workspace directory).
 | `apps/sim/blocks/sdk-names/<type>.json` | Frozen SDK builder names, one file per block type |
 | `apps/sim/app/workspace/**/panel/components/code/` | The read-only Code tab |
 
+Public docs live in `apps/docs/content/docs/workflows/code/`. The exit-code, diagnostic-code, limit
+and per-kind layout tables of `exit-codes.mdx`, `diagnostics.mdx`, `limits.mdx` and `directory.mdx` sit between
+`workflow-code-docs` markers and come from their owners (`source-exit-codes.ts`, SYNTAX.md and `workspace-code`'s
+`diagnostics/codes.ts` TSDoc, the `*_LIMITS` constants, `WORKSPACE_KIND_SPECS`): edit the owner, then run
+`bun run generate:workflow-code-docs` (`check:workflow-code-docs` fails on drift, a diagnostic code a page names that
+no engine emits, a limit or diagnostic code with no docs entry, and a `typescript@x.y.z` pin other than the CLI's).
+A limit also needs a label in the generator's `WORKFLOW_LIMIT_LABELS` or `WORKSPACE_LIMIT_LABELS`.
+
 Dependencies point one way: `packages/workflow-types` → `packages/workflow-code` →
 `packages/workspace-code` and `packages/workflow-sdk` → the CLI and `apps/sim`. `check:boundaries` keeps both engines and `packages/table-cells` pure (no
 Node built-ins, `eval`, `globalThis`, dynamic import): they run in the browser, the CLI and the
