@@ -50,6 +50,7 @@ describe('Code tab', () => {
               files: { 'workflow.ts': `// read ${sourceReads.length}` },
               lock: { version: 1, blocks: {}, variables: {} },
               base: {
+                version: 1,
                 workflowId: WORKFLOW_ID,
                 workspaceId: WORKSPACE_ID,
                 fingerprint: `f${sourceReads.length}`,
