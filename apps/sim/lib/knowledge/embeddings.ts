@@ -73,6 +73,7 @@ function resolveConfiguredEmbeddingModel(): string {
  * a working width is recoverable and one that could not be created is not.
  */
 function resolveConfiguredEmbeddingDimensions(model: string): KbEmbeddingDimensions {
+  // env-number-normalized: only tested for unset here; the width itself is read through envNumber below
   const raw = env.EMBEDDING_OUTPUT_DIMS
   if (raw === undefined || String(raw).trim() === '') return defaultKbEmbeddingDimensions(model)
 
@@ -111,6 +112,7 @@ function resolveConfiguredEmbeddingDimensions(model: string): KbEmbeddingDimensi
  */
 export async function getConfiguredKbEmbedding(): Promise<KbEmbeddingTarget> {
   const model = resolveConfiguredEmbeddingModel()
+  // env-number-normalized: only tested for unset here; resolveConfiguredEmbeddingDimensions reads the width through envNumber
   const configured = env.EMBEDDING_OUTPUT_DIMS
   const stated = configured !== undefined && String(configured).trim() !== ''
 

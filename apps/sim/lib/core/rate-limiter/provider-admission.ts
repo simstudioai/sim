@@ -41,6 +41,7 @@ const HOSTED_RERANK_REQUEST_BURST = 16
 const DEFAULT_REQUEST_BURST = 2
 
 function hostedRerankRequestsPerMinute(): number {
+  // env-number-normalized: parsed with Number() below, and an invalid value throws rather than falling back
   const configured =
     env.KB_CONFIG_HOSTED_RERANK_REQUESTS_PER_MINUTE ?? env.KB_CONFIG_RERANK_REQUESTS_PER_MINUTE
   if (configured === undefined) return 600
