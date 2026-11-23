@@ -2,13 +2,12 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { z } from 'zod'
 import { WORKER_STREAM_IDLE_TIMEOUT_MS } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ReplayEndKind,
-  type MothershipStreamV1ReplayEndPayload,
-  MothershipStreamV1ReplayEndReason,
+  MothershipStreamV1ReplayEndPayloadSchema,
+  type MothershipStreamV1ReplayEndReason,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { StreamReplayRequest } from '@/lib/mothership/generated/protocol'
 import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
@@ -16,8 +15,8 @@ import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import {
   isTerminalStreamStatus,
   type PersistedStreamEventEnvelope,
-  parsePersistedStreamEventEnvelope,
 } from '@/lib/mothership/request/session/contract'
+import { parseIngestedStreamEventEnvelope } from '@/lib/mothership/request/session/contract-shadow'
 import { toReplayEnvelope } from '@/lib/mothership/request/session/types'
 import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { FatalSseEventError, processSSEStream } from '@/lib/mothership/request/worker/parser'
@@ -98,12 +97,6 @@ export async function openRunReplay(params: {
   return response.body
 }
 
-const ReplayEndPayloadSchema = z.object({
-  kind: z.literal(MothershipStreamV1ReplayEndKind),
-  reason: z.enum(MothershipStreamV1ReplayEndReason),
-  textLength: z.number().int().nonnegative(),
-}) satisfies z.ZodType<MothershipStreamV1ReplayEndPayload>
-
 /**
  * The end a `replay_end` frame reports: its reason, `closed` for a frame this build
  * cannot parse (an unknown reason, a missing length), or `null` for any other frame. It is worker-to-Sim control, never a
@@ -113,7 +106,7 @@ function replayEnd(value: unknown): RunReplayEnd | null {
   if (!isRecordLike(value) || value.type !== MothershipStreamV1EventType.run) return null
   const payload = toRecord(value.payload)
   if (payload.kind !== MothershipStreamV1ReplayEndKind) return null
-  const parsed = ReplayEndPayloadSchema.safeParse(payload)
+  const parsed = MothershipStreamV1ReplayEndPayloadSchema.safeParse(payload)
   if (parsed.success) return parsed.data.reason
   logger.warn('Run replay ended with a malformed replay-end frame', {
     reason: payload.reason,
@@ -142,7 +135,7 @@ async function readRunReplay(
         end = control
         return true
       }
-      const parsed = parsePersistedStreamEventEnvelope(raw)
+      const parsed = parseIngestedStreamEventEnvelope(raw)
       if (!parsed.ok) throw new FatalSseEventError(`Invalid run replay event: ${parsed.message}`)
       if (!onEvent(parsed.event)) return true
       if (parsed.event.type === MothershipStreamV1EventType.complete) {

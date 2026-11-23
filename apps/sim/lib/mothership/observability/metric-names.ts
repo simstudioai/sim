@@ -5,6 +5,7 @@
 
 export const Metric = {
   CopilotDegradedCount: 'copilot.degraded.count',
+  CopilotStreamContractDisagreements: 'copilot.stream_contract.disagreements',
   CopilotToolCalls: 'copilot.tool.calls',
   CopilotToolDuration: 'copilot.tool.duration',
 } as const

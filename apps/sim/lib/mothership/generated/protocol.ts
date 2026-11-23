@@ -271,27 +271,36 @@ export const ChatPayloadSchema = z
       ctx.addIssue({ code: "custom", message: "Assistant context requires Assistant mode" });
   });
 
+// The stream fields mothership-stream-v1 payloads share. Each is `?: T | undefined`, so
+// `.optional()`; the stream file spreads these shapes into its payload schemas.
+
 /** A pause or terminal acknowledges all preceding activity only after the receiver handles it. */
-export interface StreamActivityCheckpoint {
-  activityReceipt?: StreamActivityReceipt | undefined;
-}
+export const StreamActivityCheckpointSchema = z.object({
+  activityReceipt: ActivityReceiptSchema.optional(),
+});
+export type StreamActivityCheckpoint = z.infer<typeof StreamActivityCheckpointSchema>;
 
 /** Main-assistant text position within this run, measured in UTF-16 code units. */
-export interface StreamTextPosition {
-  textOffset?: number | undefined;
-}
+export const StreamTextPositionSchema = z.object({
+  textOffset: z.number().int().nonnegative().safe().optional(),
+});
+export type StreamTextPosition = z.infer<typeof StreamTextPositionSchema>;
 
 /** Successful completion states the complete main-answer size, including any replayed prefix. */
-export interface StreamTextCompletion {
-  textLength?: number | undefined;
-}
+export const StreamTextCompletionSchema = z.object({
+  textLength: z.number().int().nonnegative().safe().optional(),
+});
+export type StreamTextCompletion = z.infer<typeof StreamTextCompletionSchema>;
 
-/** Replayed tool activity is presentation only; it never authorizes execution or approval. */
-export interface StreamToolReplay {
-  replay?: true | undefined;
-  /** Requested operation target, authorized independently by Sim. */
-  workspaceId?: string | undefined;
-}
+/**
+ * Replayed tool activity is presentation only; it never authorizes execution or approval.
+ * `workspaceId` is the requested operation target, authorized independently by Sim.
+ */
+export const StreamToolReplaySchema = z.object({
+  replay: z.literal(true).optional(),
+  workspaceId: z.string().optional(),
+});
+export type StreamToolReplay = z.infer<typeof StreamToolReplaySchema>;
 
 /**
  * How long the worker waits for one handed tool call's result, measured from the hand-off.
@@ -299,19 +308,17 @@ export interface StreamToolReplay {
  * re-run inherits what remains) and settles the call, cancellation included, by
  * `deadlineMs - TOOL_DEADLINE_SETTLE_MARGIN_MS`: approval wait, pickup, execution and lease
  * extensions all fit inside it. Sim policy may only end a call sooner. Absent = the
- * receiver's own bounds.
+ * receiver's own bounds. `waitTimeoutMs`, for a workflow tool (`run_workflow`,
+ * `run_workflow_until_block`, `run_from_block`, `run_block`) on a Sim that declares
+ * {@link WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY}: how long Sim waits for the call's run to
+ * settle once it starts waiting on it. A run still going then keeps going and the call settles
+ * with a {@link WorkflowToolRunningResult}. Absent = held until the run settles.
  */
-export interface StreamToolDeadline {
-  deadlineMs?: number | undefined;
-  /**
-   * For a workflow tool (`run_workflow`, `run_workflow_until_block`, `run_from_block`,
-   * `run_block`) on a Sim that declares {@link WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY}: how long
-   * Sim waits for the call's run to settle once it starts waiting on it. A run still going then
-   * keeps going and the call settles with a {@link WorkflowToolRunningResult}. Absent = held
-   * until the run settles.
-   */
-  waitTimeoutMs?: number | undefined;
-}
+export const StreamToolDeadlineSchema = z.object({
+  deadlineMs: z.number().int().positive().optional(),
+  waitTimeoutMs: z.number().int().positive().optional(),
+});
+export type StreamToolDeadline = z.infer<typeof StreamToolDeadlineSchema>;
 
 /**
  * Room between Sim settling a call and the worker's own bound for it: Sim's resume-gate

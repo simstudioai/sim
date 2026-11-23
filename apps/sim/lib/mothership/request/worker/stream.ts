@@ -17,12 +17,8 @@ import {
   flushThinkingBlock,
 } from '@/lib/mothership/request/handlers/types'
 import { getCopilotTracer } from '@/lib/mothership/request/otel'
-import {
-  AbortReason,
-  eventToStreamEvent,
-  hasAbortMarker,
-  parsePersistedStreamEventEnvelope,
-} from '@/lib/mothership/request/session'
+import { AbortReason, eventToStreamEvent, hasAbortMarker } from '@/lib/mothership/request/session'
+import { parseIngestedStreamEventEnvelope } from '@/lib/mothership/request/session/contract-shadow'
 import {
   forgetToolCallEvent,
   shouldSkipToolCallEvent,
@@ -373,7 +369,7 @@ export async function runStreamLoop(
         }
 
         await options.assertControllerOwnership?.()
-        const parsedEvent = parsePersistedStreamEventEnvelope(raw)
+        const parsedEvent = parseIngestedStreamEventEnvelope(raw)
         if (!parsedEvent.ok) {
           const detail = [parsedEvent.message, ...(parsedEvent.errors ?? [])]
             .filter(Boolean)

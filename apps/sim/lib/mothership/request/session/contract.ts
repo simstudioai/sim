@@ -189,7 +189,10 @@ function isStreamScope(value: unknown): value is MothershipStreamV1StreamScope {
 // already performs strict schema validation; the client only needs enough
 // structural checking to safely dispatch inside the switch statement.
 
-const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(Object.values(MothershipStreamV1EventType))
+/** The event types the contract names; a frame of any other type is invalid. */
+export const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(
+  Object.values(MothershipStreamV1EventType)
+)
 
 function isValidEnvelopeShell(value: unknown): value is JsonRecord & {
   v: 1
