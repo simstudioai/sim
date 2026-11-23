@@ -116,9 +116,13 @@ const REFUSAL_WHERE: Record<(typeof EDIT_REFUSALS)[number]['where'], string> = {
   'edited code file': 'in a function file changed since the get',
 }
 
-/** Help shared by both check commands: what fails, and the strict flags. */
-export const STRICT_HELP = `Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or
-no cached catalog (run the get once). With --output json, stdout is one document that also lists
+/**
+ * Help shared by both check commands: what fails, and the strict flags. `noCatalog` says what a
+ * check with no cached block catalog does, which differs by kind.
+ */
+export function strictHelp(noCatalog: string): string {
+  return `Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or
+${noCatalog}. With --output json, stdout is one document that also lists
 every finding under diagnostics.
 
 These warnings, which an apply saves as written, fail the check as errors on every block the lock
@@ -127,8 +131,8 @@ ${[...STRICT_CODES].map((code) => `  ${code}`).join(',\n')}.
 --strict fails on them in every block, except ${[...STORED_EXEMPT_CODES].join(', ')} on a block the
 lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails
 on none of them. In every mode, as the server refuses them: ${EDIT_REFUSALS.map(
-  ({ warning, refusal, where }) => `${warning} is the error ${refusal} ${REFUSAL_WHERE[where]}`
-).join('; ')}. A block counts as changed when the lock does not bind it, when the source moved it
+    ({ warning, refusal, where }) => `${warning} is the error ${refusal} ${REFUSAL_WHERE[where]}`
+  ).join('; ')}. A block counts as changed when the lock does not bind it, when the source moved it
 into another container, or when it compiles differently than in the source the last get or
 apply printed (.sim/stored-edges.json records a digest of each block). That last comparison
 needs the catalog the source was printed with in the cache: without it, a bound block that did
@@ -138,6 +142,7 @@ a warning cap left findings out: the server may infer that block was renamed and
 reference, and refuses it otherwise.
 ${[...EDIT_SCOPED_CODES].join(', ')} is reported only on blocks the lock does not bind, and with
 --strict on every block.`
+}
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
 export function strictFlags(command: Command): Command {
