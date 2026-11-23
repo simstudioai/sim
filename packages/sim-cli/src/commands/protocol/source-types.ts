@@ -74,6 +74,8 @@ interface Finished {
   signal: NodeJS.Signals | null
   stdout: string
   stderr: string
+  /** Whether stdout passed {@link MAX_OUTPUT_BYTES} and the rest was left out. */
+  stdoutCut: boolean
 }
 
 /**
@@ -96,10 +98,11 @@ function run(
       killSignal: 'SIGKILL',
       windowsHide: true,
     })
-    const output = { stdout: '', stderr: '' }
+    const output = { stdout: '', stderr: '', stdoutCut: false }
     for (const stream of ['stdout', 'stderr'] as const) {
       child[stream]?.setEncoding('utf8').on('data', (chunk: string) => {
         if (output[stream].length < MAX_OUTPUT_BYTES) output[stream] += chunk
+        else if (stream === 'stdout') output.stdoutCut = true
       })
     }
     child.once('error', (error) =>
@@ -136,6 +139,21 @@ async function installedTsc(): Promise<string> {
   const root = typescriptRoot()
   const tsc = tscPath(root)
   if (existsSync(tsc)) return tsc
+  try {
+    await installTypescript(root)
+  } catch (error) {
+    if (error instanceof TypesUnavailable) throw error
+    // The cache folder could not be written (permissions, a full disk).
+    throw new TypesUnavailable(
+      `TypeScript could not be installed into ${root} (${getErrorMessage(error)}).`
+    )
+  }
+  return tsc
+}
+
+/** Installs the pinned release into `root` (see {@link installedTsc}). */
+async function installTypescript(root: string): Promise<void> {
+  const tsc = tscPath(root)
   const parent = dirname(root)
   await mkdir(parent, { recursive: true })
   const staging = await mkdtemp(join(parent, `.${SOURCE_TYPESCRIPT_VERSION}-`))
@@ -187,7 +205,6 @@ async function installedTsc(): Promise<string> {
   } finally {
     await rm(staging, { recursive: true, force: true })
   }
-  return tsc
 }
 
 /** An error tsc printed at a file position. */
@@ -208,7 +225,7 @@ const PROJECT_ERROR = /^error (TS\d+): (.*)$/
  */
 function parseTscOutput(stdout: string): { located: LocatedTscError[]; project: string[] } {
   const located: LocatedTscError[] = []
-  const project: string[] = []
+  const project: Array<{ message: string }> = []
   let last: { message: string } | undefined
   for (const line of stdout.split(/\r?\n/)) {
     const at = LOCATED_ERROR.exec(line)
@@ -224,12 +241,12 @@ function parseTscOutput(stdout: string): { located: LocatedTscError[]; project: 
       last = error
     } else if (global) {
       last = { message: `${global[1]}: ${global[2]}` }
-      project.push(last.message)
+      project.push(last)
     } else if (last && /^\s/.test(line) && line.trim()) {
       last.message += ` ${line.trim()}`
     }
   }
-  return { located, project }
+  return { located, project: project.map(({ message }) => message) }
 }
 
 /** The type check's outcome: whether it ran, and its findings. */
@@ -252,7 +269,18 @@ async function tscErrors(root: string): Promise<ReturnType<typeof parseTscOutput
       cwd: root,
     }
   )
-  const errors = parseTscOutput(finished.stdout)
+  // Output past the cap ends mid-line: parse whole lines only, and say what was left out, as an
+  // error no filter drops, so a cut list never reads as a clean check.
+  const errors = parseTscOutput(
+    finished.stdoutCut
+      ? finished.stdout.slice(0, finished.stdout.lastIndexOf('\n'))
+      : finished.stdout
+  )
+  if (finished.stdoutCut) {
+    errors.project.push(
+      'TypeScript reported more errors than a check lists; fix these and check again to see the rest.'
+    )
+  }
   if (finished.code !== 0 && errors.located.length === 0 && errors.project.length === 0) {
     const said = (finished.stderr || finished.stdout).trim().split('\n')[0] ?? ''
     throw new TypesUnavailable(

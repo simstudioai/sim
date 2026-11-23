@@ -19,7 +19,7 @@ import { knowledgeCodec } from '@sim/workspace-code/kinds/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
-import { provideTypescript } from '../../test/typescript'
+import { provideTscPrinting, provideTypescript } from '../../test/typescript'
 import { runWorkflowSourceCheck, runWorkspaceSource } from '../../test/workspace-source-command'
 import { blobBytes, blobDigests } from './workspace-source-blobs'
 import { kindFolders } from './workspace-source-dir'
@@ -1339,6 +1339,65 @@ describe('the type check of workspaces source check', () => {
     const env = readFileSync(join(rootDir, 'npm-env'), 'utf8')
     expect(env).toContain(`PATH=${bin}`)
     expect(env).not.toContain('sk-sim-secret')
+  })
+
+  it('warns and passes on the compile alone when the TypeScript cache cannot be written', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+    await get()
+    rmSync(join(rootDir, 'config/cache/typescript'), { recursive: true })
+    writeFileSync(join(rootDir, 'config/cache/typescript'), 'not a folder')
+
+    await runWorkspaceSource('check', dir)
+
+    expect(result()).toMatchObject({ checked: ['compile'], errors: 0 })
+    expect(result().diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'W_TYPES_UNCHECKED',
+        message: expect.stringContaining('TypeScript could not be installed into'),
+      })
+    )
+  })
+
+  it('fails rather than passing when TypeScript prints more than a check keeps', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+    await get()
+    rmSync(join(rootDir, 'config/cache/typescript'), { recursive: true })
+    const flood =
+      "tables/leads.ts(2,1): error TS2322: Type 'string' is not assignable to type 'number'.\n"
+    provideTscPrinting(
+      join(rootDir, 'config'),
+      flood.repeat(Math.ceil((1.2 * 1024 * 1024) / flood.length))
+    )
+
+    await runWorkspaceSource('check', dir)
+
+    expect(result()).toMatchObject({ checked: ['compile', 'types'], errors: 1 })
+    expect(result().diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'E_TYPE',
+        message: expect.stringContaining('more errors than a check lists'),
+      }),
+    ])
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('keeps the whole message chain of a project error', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+    await get()
+    rmSync(join(rootDir, 'config/cache/typescript'), { recursive: true })
+    provideTscPrinting(
+      join(rootDir, 'config'),
+      "error TS5110: Option 'module' must be set.\n  Set it in tsconfig.json.\n"
+    )
+
+    await runWorkspaceSource('check', dir)
+
+    expect(result().diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'E_TYPE',
+        message: "TS5110: Option 'module' must be set. Set it in tsconfig.json.",
+      }),
+    ])
   })
 
   it('skips the type check with --no-types', async () => {
