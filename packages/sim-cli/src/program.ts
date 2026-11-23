@@ -22,7 +22,7 @@ import { cliVersion } from './version'
 /** Root program description, shared by `--help` and the generated docs. */
 export const PROGRAM_DESCRIPTION = 'Talk to the Sim API from your terminal'
 
-export const HELP_EPILOGUE = `
+const HELP_NOTES = `
 Profiles work like the AWS CLI: settings live in ~/.sim/config, keys in
 ~/.sim/credentials (0600), or under SIM_CONFIG_DIR when it is set. Select one
 with -P, --profile, or SIM_PROFILE.
@@ -40,7 +40,10 @@ Workflow, knowledge-base and workspace IDs are bare UUIDs. Table IDs carry a
 tbl_ prefix and file IDs a wf_ one, so wf_ never names a workflow. An audit-log
 or custom-tool ID can open with a dash, which reads as a flag; put -- in front
 of it, as in sim audit-logs get -- -HlDcD1z76nK6R4crsUp0.
+`
 
+/** The worked examples a person reads; a coding agent is pointed at `sim cli search` instead. */
+const HELP_EXAMPLES = `
 Examples:
   $ sim cli search "cancel a workflow run"  Find the command for a task
   $ sim login                          Authorize the default profile
@@ -58,6 +61,8 @@ Examples:
   $ sim knowledge import ./kb.simkb.zip --name "Docs (copy)"
   $ sim whoami --profile dev
 `
+
+export const HELP_EPILOGUE = `${HELP_NOTES}${HELP_EXAMPLES}`
 
 /**
  * Printed above group-level help when a coding agent runs the CLI.
@@ -218,7 +223,10 @@ export function buildProgram(
   attachSecretCommands(program)
   attachSourcePermissionCommands(program)
 
-  program.addHelpText('after', options.helpText ?? HELP_EPILOGUE)
+  program.addHelpText('after', () => {
+    if (options.helpText !== undefined) return options.helpText
+    return detectCodingAgent(env) !== undefined ? HELP_NOTES : HELP_EPILOGUE
+  })
   program.addHelpText('beforeAll', ({ command }) =>
     detectCodingAgent(env) !== undefined && command.commands.length > 0 ? AGENT_DISCOVERY_NOTE : ''
   )

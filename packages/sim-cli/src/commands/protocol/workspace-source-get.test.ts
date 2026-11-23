@@ -186,6 +186,22 @@ describe('workspaces source get', () => {
     expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toBe('# Our rules\n')
   })
 
+  it('names the edit loop instead of printing the primer, which --primer prints', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+
+    await get()
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed).not.toHaveProperty('primer')
+    expect(printed.editLoop[0]).toMatch(/^sim workspaces source check --dir /)
+
+    vi.mocked(console.log).mockClear()
+    await get('--primer')
+
+    const { primer } = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(readFileSync(join(dir, '.sim/AGENTS.md'), 'utf8').startsWith(primer)).toBe(true)
+  })
+
   it('writes the workspace primer atop the guide, and the deep dives to the advanced guide it names', async () => {
     serve({ 'tables/leads.ts': LEADS })
 

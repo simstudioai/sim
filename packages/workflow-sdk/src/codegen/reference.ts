@@ -8,7 +8,12 @@
 import { compareStrings, escapeRegExp } from '@sim/utils/string'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { suggestBuilder } from '@sim/workflow-code'
-import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '@sim/workflow-code/catalog/view'
+import {
+  catalogBlock,
+  catalogBuilder,
+  catalogBuilderPaths,
+  catalogBuildersOfType,
+} from '@sim/workflow-code/catalog/view'
 import { SDK_CORE_EXPORTS } from '@sim/workflow-code/sdk'
 import { CORE_DTS } from './core-text.generated'
 import { builderTypes, operationLabel, type ParamFact, type ParamFacts } from './generate'
@@ -25,6 +30,8 @@ export interface BuilderReference {
   operation?: string
   /** An older block version's builder, kept so stored workflows print; write the current one. */
   legacy: boolean
+  /** The block type that replaces a legacy block's, and the builders written for it. */
+  replacement?: { blockType: string; builders: string[] }
   /** What `core.d.ts` says of a builder it declares itself (`response`, `fn`), as prose. */
   doc?: string
   /** The call, as the declarations type it. */
@@ -70,6 +77,31 @@ function withoutToolSegment(query: string): string {
   return path.join('.')
 }
 
+/** At most this many replacement builders are named; a namespace is looked up for the rest. */
+const MAX_REPLACEMENT_BUILDERS = 6
+
+/**
+ * The block type that replaces a sunset block type, with the current builders written for it:
+ * the ones for the same `operation` when the replacement has them, else its first few.
+ */
+function replacementOf(
+  catalog: BlockCatalog,
+  blockType: string,
+  operation: string | undefined
+): BuilderReference['replacement'] {
+  const replacedBy = catalogBlock(catalog, blockType)?.lifecycle?.sunset?.replacedBy
+  if (!replacedBy) return undefined
+  const current = catalogBuildersOfType(catalog, replacedBy)
+    .filter(([path]) => !isLegacyBuilder(path))
+    .map(([path, builder]) => ({ path, operation: builder.operation }))
+  const sameOperation = operation ? current.filter((entry) => entry.operation === operation) : []
+  const builders = (sameOperation.length > 0 ? sameOperation : current)
+    .map((entry) => entry.path)
+    .sort(compareStrings)
+    .slice(0, MAX_REPLACEMENT_BUILDERS)
+  return { blockType: replacedBy, builders }
+}
+
 /** The reference of the catalog builder `key`, or `null` when the catalog has none. */
 export function describeBuilder(catalog: BlockCatalog, key: string): BuilderReference | null {
   const entry = builderEntry(catalog, key)
@@ -84,12 +116,14 @@ export function describeBuilder(catalog: BlockCatalog, key: string): BuilderRefe
   const tool = types.tool
     ? `${entry.path.slice(0, -1).join('.')}.${TOOL_NAMESPACE}.${(types.tool.at(-1) ?? '').replace(/^export function /, '')}`
     : null
+  const replacement = replacementOf(catalog, entry.builder.type, entry.builder.operation)
   return {
     key,
     blockType: entry.builder.type,
     summary: types.summary,
     ...(entry.builder.operation ? { operation: entry.builder.operation } : {}),
     legacy: isLegacyBuilder(key),
+    ...(replacement ? { replacement } : {}),
     ...(entry.special ? docOf(key) : {}),
     signature,
     tool,
@@ -255,13 +289,9 @@ function paramLine(param: ParamFact): string {
   return `${param.key}: ${shortType(param.type)}${fallback}`
 }
 
-/**
- * A few lines for the source primer: the call with its required params filled in, the required
- * params with their types, the optional ones by name, and the outputs.
- */
-export function builderSnippet(reference: BuilderReference): string {
+/** An example call of the builder with its required params filled in (`gate` first when it has no default). */
+function builderCall(reference: BuilderReference): string {
   const required = reference.params.common.filter((param) => param.required)
-  const optional = reference.params.common.filter((param) => !param.required)
   const gate = reference.params.gate
   const variant = gate
     ? (gate.variants.find((v) => gate.default !== undefined && v.values.includes(gate.default)) ??
@@ -276,7 +306,21 @@ export function builderSnippet(reference: BuilderReference): string {
       .filter((param) => param.required)
       .map((param) => `${param.key}: ${exampleValue(param.type)}`),
   ]
-  const call = `${reference.key}('Name', ${args.length > 0 ? `{ ${args.join(', ')} }` : '{}'})`
+  return `${reference.key}('Name', ${args.length > 0 ? `{ ${args.join(', ')} }` : '{}'})`
+}
+
+/**
+ * A few lines for the source primer: the call with its required params filled in, the required
+ * params with their types, the optional ones by name, and the outputs.
+ */
+export function builderSnippet(
+  reference: BuilderReference,
+  maxOptional = MAX_SNIPPET_OPTIONAL
+): string {
+  const required = reference.params.common.filter((param) => param.required)
+  const optional = reference.params.common.filter((param) => !param.required)
+  const gate = reference.params.gate
+  const call = builderCall(reference)
   const lines = [`- \`${reference.key}\` (${reference.summary}): \`const x = ${call}\``]
   if (required.length > 0) lines.push(`  required: ${required.map(paramLine).join('; ')}`)
   if (gate) {
@@ -288,7 +332,7 @@ export function builderSnippet(reference: BuilderReference): string {
     lines.push(`  ${gate.key}${fallback} picks the rest: ${variants.join('; ')}`)
   }
   if (optional.length > 0) {
-    const shown = optional.slice(0, MAX_SNIPPET_OPTIONAL).map((param) => param.key)
+    const shown = optional.slice(0, maxOptional).map((param) => param.key)
     const more = optional.length > shown.length ? `, +${optional.length - shown.length} more` : ''
     lines.push(`  optional: ${shown.join(', ')}${more}`)
   }
@@ -315,9 +359,7 @@ export function renderBuilderReference(reference: BuilderReference): string {
     .filter(Boolean)
     .join(', ')
   const lines = [`${reference.key} — ${reference.summary} (${where})`]
-  if (reference.legacy) {
-    lines.push('Legacy: an older block version. Write the current builder instead.')
-  }
+  if (reference.legacy) lines.push(legacyNote(reference))
   if (reference.doc) lines.push('', reference.doc)
   lines.push('', reference.signature)
   if (reference.tool) lines.push(`${reference.tool}  (as an agent tool)`)
@@ -342,5 +384,89 @@ export function renderBuilderReference(reference: BuilderReference): string {
   }
   lines.push('', `Outputs (${reference.outputName}):`)
   lines.push(...(reference.outputs.length > 0 ? reference.outputs : ['  (none)']))
+  return lines.join('\n')
+}
+
+/** The note on a legacy builder: it is an older block version, and which builder replaces it. */
+function legacyNote(reference: BuilderReference): string {
+  const { replacement } = reference
+  const instead =
+    replacement && replacement.builders.length > 0
+      ? `Write ${replacement.builders.map((key) => `\`${key}\``).join(' or ')} (block ${replacement.blockType}) instead.`
+      : 'Write the current builder instead.'
+  return `Legacy: an older block version. ${instead}`
+}
+
+/** What `sim workflows source params <builder>` prints by default for one builder, and its JSON. */
+export interface CompactBuilderReference
+  extends Pick<
+    BuilderReference,
+    'key' | 'blockType' | 'summary' | 'operation' | 'legacy' | 'replacement' | 'doc'
+  > {
+  /** An example call with the required params filled in. */
+  call: string
+  required: Array<{ key: string; type: string; default?: unknown }>
+  /** The param that picks which others apply, with the ones each choice requires. */
+  gate?: {
+    key: string
+    default?: unknown
+    variants: Array<{ values: unknown[]; required: string[] }>
+  }
+  /** Optional params by name; `params --full` lists their types, docs and defaults. */
+  optional: string[]
+  coreParams: string[]
+  /** The call as `core.d.ts` types it, for a builder with required params the list above omits. */
+  signature?: string
+  /** The output type's top-level members, by name. */
+  outputs: string[]
+}
+
+/** The few hundred bytes of a builder an agent needs to write a call: see {@link CompactBuilderReference}. */
+export function compactBuilder(reference: BuilderReference): CompactBuilderReference {
+  const required = reference.params.common.filter((param) => param.required)
+  const gate = reference.params.gate
+  return {
+    key: reference.key,
+    blockType: reference.blockType,
+    summary: reference.summary,
+    ...(reference.operation ? { operation: reference.operation } : {}),
+    legacy: reference.legacy,
+    ...(reference.replacement ? { replacement: reference.replacement } : {}),
+    ...(reference.doc ? { doc: reference.doc } : {}),
+    call: builderCall(reference),
+    required: required.map((param) => ({
+      key: param.key,
+      type: shortType(param.type),
+      ...(param.default !== undefined ? { default: param.default } : {}),
+    })),
+    ...(gate
+      ? {
+          gate: {
+            key: gate.key,
+            ...(gate.default !== undefined ? { default: gate.default } : {}),
+            variants: gate.variants.map((variant) => ({
+              values: variant.values,
+              required: variant.params.filter((param) => param.required).map((param) => param.key),
+            })),
+          },
+        }
+      : {}),
+    optional: reference.params.common.filter((param) => !param.required).map((param) => param.key),
+    coreParams: [...reference.coreParams],
+    ...(reference.coreParams.length > 0 ? { signature: reference.signature } : {}),
+    outputs: outputNames(reference.outputs),
+  }
+}
+
+/** The text `params` prints by default: the legacy note, the snippet, and where the rest is. */
+export function renderCompactBuilder(reference: BuilderReference): string {
+  const lines = []
+  if (reference.legacy) lines.push(legacyNote(reference))
+  if (reference.doc) lines.push(reference.doc)
+  lines.push(builderSnippet(reference, Number.POSITIVE_INFINITY))
+  if (reference.coreParams.length > 0) lines.push(`  signature: ${reference.signature}`)
+  lines.push(
+    `Every param's type, enum, default and doc: \`sim workflows source params ${reference.key} --full\`.`
+  )
   return lines.join('\n')
 }

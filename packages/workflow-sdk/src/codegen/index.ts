@@ -22,9 +22,12 @@ export {
   type BuilderLookup,
   type BuilderReference,
   builderSnippet,
+  type CompactBuilderReference,
+  compactBuilder,
   describeBuilder,
   lookupBuilder,
   renderBuilderReference,
+  renderCompactBuilder,
 } from './reference'
 export { SOURCE_COMPILER_OPTIONS, typecheckCommand } from './tsconfig'
 export {

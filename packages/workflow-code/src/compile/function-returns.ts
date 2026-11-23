@@ -66,6 +66,8 @@ const NUMBER_METHODS: ReadonlySet<string> = new Set([
   'getTime',
   'charCodeAt',
 ])
+/** Methods that return their receiver's kind: a string's `slice` is a string, an array's an array. */
+const SAME_KIND_METHODS: ReadonlySet<string> = new Set(['slice', 'concat'])
 const ARRAY_METHODS: ReadonlySet<string> = new Set(['map', 'filter', 'split', 'flat', 'flatMap'])
 const STATIC_KINDS: Readonly<Record<string, JsKind>> = {
   'Number.isFinite': 'boolean',
@@ -157,6 +159,12 @@ function collectBindings(program: Node): Bindings {
       const name = boundName(node.id)
       if (name !== null) declare(name, node.init ?? null)
       else for (const child of childNodes(node.id)) walkPatternNames(child, (n) => declare(n, null))
+    } else if (
+      node.type === 'ImportSpecifier' ||
+      node.type === 'ImportDefaultSpecifier' ||
+      node.type === 'ImportNamespaceSpecifier'
+    ) {
+      declare(node.local.name, null)
     } else if (node.type === 'FunctionDeclaration' && node.id) {
       declare(node.id.name, null)
     } else if (isFunctionNode(node) && 'params' in node) {
@@ -271,7 +279,8 @@ class Inference {
 
   private call(callee: Node): JsKind | undefined {
     if (callee.type === 'Identifier') {
-      if (callee.name === 'String') return 'string'
+      if (callee.name === 'String') return this.isBuiltin(callee.name) ? 'string' : undefined
+      if (!this.isBuiltin(callee.name)) return undefined
       if (NUMBER_FUNCTIONS.has(callee.name)) return 'number'
       if (BOOLEAN_FUNCTIONS.has(callee.name)) return 'boolean'
       return undefined
@@ -279,38 +288,84 @@ class Inference {
     const method = memberName(callee)
     if (method === null || !('object' in callee)) return undefined
     if (callee.object.type === 'Identifier') {
-      if (callee.object.name === 'Math') return 'number'
+      if (callee.object.name === 'Math') return this.isBuiltin('Math') ? 'number' : undefined
       const known = STATIC_KINDS[`${callee.object.name}.${method}`]
-      if (known) return known
+      if (known) return this.isBuiltin(callee.object.name) ? known : undefined
     }
-    if (STRING_METHODS.has(method)) return 'string'
+    if (STRING_METHODS.has(method))
+      return this.producesString(method, callee.object) ? 'string' : undefined
+    if (SAME_KIND_METHODS.has(method)) {
+      if (this.kind(callee.object) === 'string') return 'string'
+      return this.isArray(callee.object, true) ? 'typed' : undefined
+    }
     if (BOOLEAN_METHODS.has(method)) return 'boolean'
     if (NUMBER_METHODS.has(method)) return 'number'
     if (ARRAY_METHODS.has(method)) return 'typed'
     return undefined
   }
 
+  /** Whether a global is the built-in: no local declaration or assignment shadows it. */
+  private isBuiltin(name: string): boolean {
+    return !this.bindings.initial.has(name) && !this.bindings.writes.has(name)
+  }
+
+  /**
+   * Whether `receiver.method()` certainly yields text. A method name alone proves nothing (an
+   * object can define its own `toString`), so the receiver's kind must: a string for the string
+   * methods, a number for `toFixed`, an array for `join`, a built-in `Date` for `toISOString`.
+   */
+  private producesString(method: string, receiver: Node): boolean {
+    const kind = this.kind(receiver)
+    if (method === 'toString') {
+      return kind === 'string' || kind === 'number' || kind === 'boolean' || this.isDate(receiver)
+    }
+    if (method === 'toFixed' || method === 'toPrecision') return kind === 'number'
+    if (method === 'join') return this.isArray(receiver, true)
+    if (method === 'toISOString') return this.isDate(receiver)
+    if (method === 'toLocaleString') {
+      return kind === 'number' || kind === 'string' || kind === 'boolean' || this.isDate(receiver)
+    }
+    return kind === 'string'
+  }
+
+  private isDate(node: Node): boolean {
+    return (
+      node.type === 'NewExpression' &&
+      node.callee.type === 'Identifier' &&
+      node.callee.name === 'Date' &&
+      this.isBuiltin('Date')
+    )
+  }
+
   /**
    * Whether `node` is certainly an array: a literal, an array method's result, `Object.keys`
    * (`values`, `entries`), or a local variable set to one and never reassigned. Any other object
-   * can hold anything under `length`.
+   * can hold anything under `length`. `strict` accepts only what the code proves: a call named
+   * like an array method (`map`) may be any object's own, so it proves nothing there.
    */
-  private isArray(node: Node): boolean {
+  private isArray(node: Node, strict = false): boolean {
     if (node.type === 'ArrayExpression') return true
     if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
       const method = memberName(node.callee)
       if (method === null || !('object' in node.callee)) return false
       if (node.callee.object.type === 'Identifier' && node.callee.object.name === 'Object') {
-        return method === 'keys' || method === 'values' || method === 'entries'
+        return (
+          this.isBuiltin('Object') &&
+          (method === 'keys' || method === 'values' || method === 'entries')
+        )
       }
-      return ARRAY_METHODS.has(method)
+      if (!ARRAY_METHODS.has(method)) return false
+      if (!strict) return true
+      return method === 'split'
+        ? this.kind(node.callee.object) === 'string'
+        : this.isArray(node.callee.object, true)
     }
     if (node.type !== 'Identifier') return false
     const init = this.bindings.initial.get(node.name)
     if (!init || this.bindings.writes.has(node.name) || this.resolving.has(node.name)) return false
     this.resolving.add(node.name)
     try {
-      return this.isArray(init)
+      return this.isArray(init, strict)
     } finally {
       this.resolving.delete(node.name)
     }

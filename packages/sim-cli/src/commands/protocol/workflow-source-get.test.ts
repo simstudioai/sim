@@ -184,7 +184,7 @@ describe('sim workflows source get --dir', () => {
     expect(callsTo(CATALOG_PATH)[0][1].query).toBeUndefined()
   })
 
-  it('prints the primer, which opens the guide, with a snippet for each builder the source calls and no other', async () => {
+  it('writes the primer atop the guide with a snippet for each builder the source calls and no other, printing it only with --primer', async () => {
     serve({
       [SOURCE_PATH]: () =>
         source({ 'workflow.ts': "// @sim-sdk 1\nconst mail = gmail.sendEmail('Mail', {})\n" }),
@@ -192,10 +192,23 @@ describe('sim workflows source get --dir', () => {
 
     await get('--dir', outDir)
 
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed).not.toHaveProperty('primer')
+    expect(printed.guide).toBe('.sim/AGENTS.md')
+    expect(printed.editLoop).toEqual([
+      expect.stringMatching(/^sim workflows source check --dir /),
+      expect.stringMatching(/^bunx -p typescript@[\d.]+ tsc -p /),
+      expect.stringMatching(/^sim workflows source apply --dir .* --dry-run$/),
+    ])
+    const agents = readFileSync(join(outDir, '.sim/AGENTS.md'), 'utf8')
+    expect(agents).toContain('- `gmail.sendEmail` (Gmail: Send Email)')
+    expect(agents).not.toContain('`slack.sendMessage`')
+
+    vi.mocked(console.log).mockClear()
+    await get('--dir', outDir, '--primer')
+
     const { primer } = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
-    expect(readFileSync(join(outDir, '.sim/AGENTS.md'), 'utf8').startsWith(primer)).toBe(true)
-    expect(primer).toContain('- `gmail.sendEmail` (Gmail: Send Email)')
-    expect(primer).not.toContain('`slack.sendMessage`')
+    expect(agents.startsWith(primer)).toBe(true)
   })
 
   it('writes a root AGENTS.md pointing at the guide, and never replaces one it did not write', async () => {
