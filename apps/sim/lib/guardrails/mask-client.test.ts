@@ -1,10 +1,11 @@
 import { resetUrlsMock, urlsMockFns } from '@sim/testing'
 import { createRouteContext } from '@sim/testing/helpers/http'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
 import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
 import { NextRequest } from 'next/server'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetUrlsMock)
 
@@ -168,5 +169,36 @@ describe('maskPIIBatchViaHttp', () => {
       expect(presidioTexts).toEqual([[text]])
       expect(masked).toEqual(['mail <EMAIL> \u{1F600} done'])
     })
+  })
+})
+
+describe('maskPIIBatchViaHttp with PII_MASK_CHUNK_CONCURRENCY set', () => {
+  afterEach(() => {
+    resetEnvMock()
+    vi.resetModules()
+  })
+
+  it('masks when the deployment sets the chunk concurrency (env values arrive as strings)', async () => {
+    mockToken.mockResolvedValue('tok')
+    mockBaseUrl.mockReturnValue('http://app.internal:3000')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: { body: string }) => {
+        const { texts } = JSON.parse(init.body) as { texts: string[] }
+        return new Response(JSON.stringify({ masked: texts.map((t) => `M(${t})`) }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      })
+    )
+    setEnv({ PII_MASK_CHUNK_CONCURRENCY: '8' })
+    vi.resetModules()
+    const { maskPIIBatchViaHttp: maskWithConfiguredConcurrency } = await import(
+      '@/lib/guardrails/mask-client'
+    )
+
+    const { masked } = await maskWithConfiguredConcurrency(['a', 'b'], [])
+
+    expect(masked).toEqual(['M(a)', 'M(b)'])
   })
 })
