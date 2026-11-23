@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { findRawNumericReads, numericEnvNames } from './check-env-numbers'
 
 const NUMERIC = new Set(['PII_MASK_CHUNK_CONCURRENCY', 'COST_MULTIPLIER'])
-const IMPORT = "import { env, envNumber } from '@/lib/core/config/env'\n"
+const IMPORT =
+  "import { env, envNumber } from '@/lib/core/config/env'; import { resolveCostMultiplier } from '@/lib/core/config/cost-multiplier'\n"
 
 const lines = (body: string, file = 'file.ts') =>
   findRawNumericReads(file, `${IMPORT}${body}`, NUMERIC).map((hit) => hit.line - 2)
@@ -75,6 +76,43 @@ const b = resolveCostMultiplier(env.COST_MULTIPLIER, isProd)`)
       read('apps/sim/lib/billing/costs.ts', 'import { env as appEnv } from "@/lib/core/config/env"')
     ).toBe(1)
     expect(read('apps/sim/lib/billing/costs.ts', "import { env as appEnv } from './env'")).toBe(0)
+  })
+
+  it('does not trust a local function that only shares a normalizer name', () => {
+    expect(
+      findRawNumericReads(
+        'file.ts',
+        "import { env } from '@/lib/core/config/env'\nconst envNumber = (value: unknown) => value\nconst a = envNumber(env.COST_MULTIPLIER, 1)",
+        NUMERIC
+      )
+    ).toHaveLength(1)
+  })
+
+  it('follows an aliased normalizer and a normalizer reached through a namespace import', () => {
+    expect(
+      findRawNumericReads(
+        'file.ts',
+        "import { env, envNumber as toNumber } from '@/lib/core/config/env'\nconst a = toNumber(env.COST_MULTIPLIER, 1)",
+        NUMERIC
+      )
+    ).toEqual([])
+    expect(
+      findRawNumericReads(
+        'file.ts',
+        "import * as config from '@/lib/core/config/env'\nconst a = config.envNumber(config.env.COST_MULTIPLIER, 1)",
+        NUMERIC
+      )
+    ).toEqual([])
+  })
+
+  it('reads through a namespace import of the config module', () => {
+    expect(
+      findRawNumericReads(
+        'file.ts',
+        "import * as config from '@/lib/core/config/env'\nconst a = config.env.COST_MULTIPLIER",
+        NUMERIC
+      )
+    ).toHaveLength(1)
   })
 
   it('accepts an annotation within two lines above, and no farther', () => {

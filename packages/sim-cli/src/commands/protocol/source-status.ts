@@ -165,13 +165,10 @@ function statusMarkdown<Plan>(
   }
   lines.push('')
   if (report.server === 'checked') {
-    if (report.drift.length === 0 && report.conflicts.length === 0) {
-      lines.push(
-        report.note
-          ? `The server check was incomplete: ${markdownCell(report.note)}`
-          : 'The server changed nothing this directory read.'
-      )
+    if (report.drift.length === 0 && report.conflicts.length === 0 && !report.note) {
+      lines.push('The server changed nothing this directory read.')
     }
+    if (report.note) lines.push(`The server check was incomplete: ${markdownCell(report.note)}`, '')
     if (report.drift.length > 0) {
       lines.push('**Changed on the server since the directory was read**', '')
       for (const entry of report.drift) {

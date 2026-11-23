@@ -499,7 +499,20 @@ describe('workspaces source status', () => {
       })
     )
     write('workflows/w7/workflow.ts', `${INGEST}// edited\n`)
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(
+      dryRun(
+        [],
+        [
+          {
+            code: 'W_SERVER_CHANGED',
+            severity: 'warning',
+            message: 'm',
+            kind: 'table',
+            key: 'leads',
+          },
+        ]
+      )
+    )
 
     const summary = join(dir, 'status.md')
     await run('status', '--summary-file', summary)
@@ -509,9 +522,9 @@ describe('workspaces source status', () => {
     expect(sent['workflows/w8/workflow.ts']).toBeUndefined()
     expect(sent['workflows/w8/.sim/base.json']).toBe(INGEST_BASE)
     expect(printed().note).toContain('More workflow folders than one dry run compares')
-    expect(readFileSync(summary, 'utf8')).toContain(
-      'The server check was incomplete: More workflow folders'
-    )
+    const markdown = readFileSync(summary, 'utf8')
+    expect(markdown).toContain('The server check was incomplete: More workflow folders')
+    expect(markdown).toContain('- table leads: changed on the server')
   })
 
   it('reports drift when the server changed a resource left alone here, exit 12, and names a get', async () => {

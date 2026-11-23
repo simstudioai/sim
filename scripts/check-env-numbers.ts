@@ -12,7 +12,7 @@
  *
  * So every read of a numeric variable through the `env` this repo's config exports (`env.NAME`,
  * `env['NAME']`, `const { NAME } = env`) fails this check unless it is the first argument of
- * `envNumber` or of a function in {@link NORMALIZERS}, which parse their argument that way. A read
+ * `envNumber` or of a function in {@link NORMALIZERS}, imported from their module, which parse their argument that way. A read
  * its consumer parses itself, for a reason `envNumber` cannot express (an invalid value must
  * throw, or must stay distinct from an unset one), takes `// env-number-normalized: <reason>` on
  * one of the two lines above it.
@@ -36,26 +36,27 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage'
 const ANNOTATION = '// env-number-normalized:'
 const ANNOTATION_REACH = 2
 
-/** Functions that take the raw value as their first argument and return a normalized number. */
-const NORMALIZERS = new Set(['envNumber', 'resolveCostMultiplier'])
-
 /** The module that exports the app's `env`, from the repo root. */
 const ENV_MODULE = 'apps/sim/lib/core/config/env'
 
-/** Whether `specifier`, imported by `file` (from the repo root), names the module behind `env`. */
-function importsEnvModule(file: string, specifier: string): boolean {
+/**
+ * The functions that take the raw value as their first argument and return a normalized number,
+ * by the module that exports them. A call only counts when its callee is bound by an import of
+ * that module (or is the module's own declaration), so a local function of the same name does not.
+ */
+const NORMALIZERS: ReadonlyArray<{ module: string; name: string }> = [
+  { module: ENV_MODULE, name: 'envNumber' },
+  { module: 'apps/sim/lib/core/config/cost-multiplier', name: 'resolveCostMultiplier' },
+]
+
+/** The repo-root path an import `specifier` from `file` resolves to, without its extension. */
+function resolveSpecifier(file: string, specifier: string): string | null {
   const target = specifier.startsWith('@/')
     ? path.posix.join('apps/sim', specifier.slice(2))
     : specifier.startsWith('.')
       ? path.posix.join(path.posix.dirname(file), specifier)
       : null
-  return target !== null && target.replace(/\.(ts|tsx)$/, '') === ENV_MODULE
-}
-
-export interface RawNumericRead {
-  line: number
-  name: string
-  text: string
+  return target === null ? null : target.replace(/\.(ts|tsx)$/, '')
 }
 
 /** The variables the schema declares as numbers (`z.number()`, `z.coerce.number()`, any chain). */
@@ -99,32 +100,65 @@ function declaresNumber(expression: ts.Expression): boolean {
   return false
 }
 
-/** The local names this file binds the app's `env` object to. */
-function envBindings(file: string, sourceFile: ts.SourceFile): Set<string> {
-  const names = new Set<string>()
+/** What a file's imports bind: the app's `env`, namespaces over its module, and the normalizers. */
+interface Bindings {
+  env: Set<string>
+  namespaces: Set<string>
+  normalizers: Set<string>
+  /** Namespaces over a normalizer's module, by the name they reach it as. */
+  normalizerNamespaces: Map<string, Set<string>>
+}
+
+function importBindings(file: string, sourceFile: ts.SourceFile): Bindings {
+  const bindings: Bindings = {
+    env: new Set(),
+    namespaces: new Set(),
+    normalizers: new Set(),
+    normalizerNamespaces: new Map(),
+  }
+  const own = resolveSpecifier(file, `./${path.posix.basename(file)}`)
+  for (const normalizer of NORMALIZERS) {
+    if (normalizer.module === own) bindings.normalizers.add(normalizer.name)
+  }
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
       continue
-    if (!importsEnvModule(file, statement.moduleSpecifier.text)) continue
+    const resolved = resolveSpecifier(file, statement.moduleSpecifier.text)
     const named = statement.importClause?.namedBindings
-    if (!named || !ts.isNamedImports(named)) continue
+    if (resolved === null || !named) continue
+    if (ts.isNamespaceImport(named)) {
+      if (resolved === ENV_MODULE) bindings.namespaces.add(named.name.text)
+      for (const normalizer of NORMALIZERS) {
+        if (normalizer.module === resolved) {
+          const names = bindings.normalizerNamespaces.get(named.name.text) ?? new Set<string>()
+          names.add(normalizer.name)
+          bindings.normalizerNamespaces.set(named.name.text, names)
+        }
+      }
+      continue
+    }
     for (const element of named.elements) {
-      if ((element.propertyName ?? element.name).text === 'env' && !element.isTypeOnly) {
-        names.add(element.name.text)
+      if (element.isTypeOnly) continue
+      const imported = (element.propertyName ?? element.name).text
+      if (resolved === ENV_MODULE && imported === 'env') bindings.env.add(element.name.text)
+      if (NORMALIZERS.some((item) => item.module === resolved && item.name === imported)) {
+        bindings.normalizers.add(element.name.text)
       }
     }
   }
-  return names
+  return bindings
 }
 
-/** Whether `node` is the first argument of a call to one of {@link NORMALIZERS}. */
-function isNormalized(node: ts.Node): boolean {
+/** Whether `node` is the first argument of a call to a normalizer this file imported. */
+function isNormalized(node: ts.Node, bindings: Bindings): boolean {
   const parent = node.parent
+  if (!ts.isCallExpression(parent) || parent.arguments[0] !== node) return false
+  const callee = parent.expression
+  if (ts.isIdentifier(callee)) return bindings.normalizers.has(callee.text)
   return (
-    ts.isCallExpression(parent) &&
-    parent.arguments[0] === node &&
-    ts.isIdentifier(parent.expression) &&
-    NORMALIZERS.has(parent.expression.text)
+    ts.isPropertyAccessExpression(callee) &&
+    ts.isIdentifier(callee.expression) &&
+    bindings.normalizerNamespaces.get(callee.expression.text)?.has(callee.name.text) === true
   )
 }
 
@@ -135,8 +169,8 @@ export function findRawNumericReads(
   numeric: ReadonlySet<string>
 ): RawNumericRead[] {
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
-  const bindings = envBindings(file, sourceFile)
-  if (bindings.size === 0) return []
+  const bindings = importBindings(file, sourceFile)
+  if (bindings.env.size === 0 && bindings.namespaces.size === 0) return []
   const lines = source.split('\n')
   const found: RawNumericRead[] = []
 
@@ -148,18 +182,23 @@ export function findRawNumericReads(
     if (!annotated) found.push({ line: line + 1, name, text: lines[line].trim() })
   }
 
-  const isEnv = (node: ts.Expression): boolean => ts.isIdentifier(node) && bindings.has(node.text)
+  const isEnv = (node: ts.Expression): boolean =>
+    (ts.isIdentifier(node) && bindings.env.has(node.text)) ||
+    (ts.isPropertyAccessExpression(node) &&
+      node.name.text === 'env' &&
+      ts.isIdentifier(node.expression) &&
+      bindings.namespaces.has(node.expression.text))
 
   const visit = (node: ts.Node): void => {
     if (ts.isPropertyAccessExpression(node) && isEnv(node.expression)) {
-      if (numeric.has(node.name.text) && !isNormalized(node)) report(node, node.name.text)
+      if (numeric.has(node.name.text) && !isNormalized(node, bindings)) report(node, node.name.text)
     } else if (
       ts.isElementAccessExpression(node) &&
       isEnv(node.expression) &&
       ts.isStringLiteralLike(node.argumentExpression)
     ) {
       const name = node.argumentExpression.text
-      if (numeric.has(name) && !isNormalized(node)) report(node, name)
+      if (numeric.has(name) && !isNormalized(node, bindings)) report(node, name)
     } else if (
       ts.isVariableDeclaration(node) &&
       ts.isObjectBindingPattern(node.name) &&
