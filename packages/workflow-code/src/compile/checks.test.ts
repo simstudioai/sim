@@ -549,6 +549,20 @@ describe('an SDK export the file did not import', () => {
   })
 })
 
+describe('a builder written as its block type', () => {
+  it('names the builder for a bare call and a namespaced one', () => {
+    const bare = run("const h = humanInTheLoop('Review', {})")
+    expect(findings(bare, 'E_UNKNOWN_BUILDER')[0]?.hint).toBe('Did you mean human?')
+    const dotted = run("const h = slack.send_message('Tell', {})")
+    expect(findings(dotted, 'E_UNKNOWN_BUILDER')[0]?.hint).toBe('Did you mean slack.sendMessage?')
+  })
+
+  it('leaves a call that is no builder an unsupported call', () => {
+    const result = run("const h = fetch('https://x')")
+    expect(findings(result, 'E_UNKNOWN_BUILDER')).toEqual([])
+  })
+})
+
 describe('a misspelled required param', () => {
   it('reports the unknown param once, without a second W_REQUIRED_MISSING for its suggestion', () => {
     const result = run("const a = api('A', { urll: 'https://x' })")

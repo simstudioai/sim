@@ -17,6 +17,10 @@ import {
   timestamp,
 } from '../output/render'
 import { printTraceSpans } from '../output/trace'
+import { withResumeNext } from './paused-run'
+
+/** Result fields holding a command to run, printed whole (a clipped flag would make it wrong). */
+const RUN_COMMAND_FIELDS: ReadonlySet<string> = new Set(['next'])
 
 interface RenderResultOptions {
   expandedTrace?: boolean
@@ -437,7 +441,10 @@ export function renderResult(
   // The single-key unwrap exists for the human table: `{ mcpServer: {...} }` rendered as-is
   // printed nothing. Machine formats print the API's data verbatim, so `--output json`
   // matches the OpenAPI shape the docs and the agent reference card are generated from.
-  const data = format === 'json' || format === 'yaml' ? raw : unwrapResource(raw)
+  const data = withResumeNext(
+    operation,
+    format === 'json' || format === 'yaml' ? raw : unwrapResource(raw)
+  )
   if (spec.itemsPath) {
     const items = at(data, spec.itemsPath)
     if (!Array.isArray(items)) {
@@ -467,7 +474,7 @@ export function renderResult(
       ? inferredFields(data, spec.dataKeys === true)
       : []
 
-  printRecord(format, fields, data)
+  printRecord(format, fields, data, RUN_COMMAND_FIELDS)
   if (spec.expandedTrace && options.expandedTrace) {
     const traceSpans = at(data, 'traceSpans')
     if (!Array.isArray(traceSpans)) {

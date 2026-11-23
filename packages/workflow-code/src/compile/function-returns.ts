@@ -1,12 +1,14 @@
 /**
- * What a Function block's `result` fields hold, read from the object literal its JavaScript code
- * returns (`return { total: subtotal + tax, tier: 'gold' }`), so a bare reference to one in a JSON
- * field is not reported as untyped when the code says it is a number, boolean, array or object.
+ * What a Function block's `result` holds, read from the JavaScript code: the whole value
+ * (`return new Date().toISOString()` is text, `return [1, 2]` is not), and the fields of the object
+ * literal it returns (`return { total: subtotal + tax, tier: 'gold' }`), so a bare reference to
+ * either in a JSON field is typed when the code says whether it is text.
  *
- * The reading is deliberately narrow: every `return` outside a nested function must return an
- * object literal, and a field counts only when each of them sets it to an expression whose kind
- * is certain (a literal, arithmetic, a comparison, `String(…)`, the `.length` of a string or an
- * array, a local variable never
+ * The reading is deliberately narrow. The whole value counts only when every `return` outside a
+ * nested function yields an expression of one kind and the code ends in a `return` or `throw`
+ * (falling off the end returns nothing). A field counts only when every `return` is an object
+ * literal and each sets it to an expression whose kind is certain (a literal, arithmetic, a
+ * comparison, `String(…)`, the `.length` of a string or an array, a local variable never
  * reassigned to another kind, …). Anything else stays unknown, and the reference keeps its
  * warning: a wrong "typed" would store a string bare and break the JSON at run time.
  */
@@ -109,8 +111,16 @@ const COMPARISON: ReadonlySet<string> = new Set([
   'instanceof',
 ])
 
-/** Each function block's returned field kinds, read once per compiled block object. */
-const cache = new WeakMap<CanonicalBlock, ReadonlyMap<string, ReturnedKind> | null>()
+/** What a Function's code returns: the whole value's kind, and the kinds of an object's fields. */
+interface ReturnedKinds {
+  /** The kind of `result` itself, when every `return` agrees on one and none can be skipped. */
+  whole: ReturnedKind | undefined
+  /** The fields every `return` sets, when each returns an object literal; empty otherwise. */
+  fields: ReadonlyMap<string, ReturnedKind>
+}
+
+/** Each function block's returned kinds, read once per compiled block object. */
+const cache = new WeakMap<CanonicalBlock, ReturnedKinds | null>()
 
 function isFunctionNode(node: Node): boolean {
   return (
@@ -435,8 +445,29 @@ function returnedFields(
   return fields
 }
 
-/** The field kinds a function body's returns agree on, or `null` when any return is no literal. */
-function readReturns(code: string): ReadonlyMap<string, ReturnedKind> | null {
+/**
+ * The kind of the whole returned value: what every `return` yields, when they agree and the code
+ * cannot finish without one (it ends in a `return` or `throw`), since falling off the end returns
+ * nothing.
+ */
+function wholeKind(
+  program: Node,
+  returns: ReadonlyArray<Node | null | undefined>,
+  inference: Inference
+): ReturnedKind | undefined {
+  const last = program.type === 'Program' ? program.body.at(-1) : undefined
+  if (last?.type !== 'ReturnStatement' && last?.type !== 'ThrowStatement') return undefined
+  let agreed: JsKind | undefined
+  for (const [index, argument] of returns.entries()) {
+    const kind = inference.kind(argument)
+    agreed = index === 0 ? kind : merge(agreed, kind)
+    if (agreed === undefined) return undefined
+  }
+  return agreed === undefined ? undefined : agreed === 'string' ? 'string' : 'typed'
+}
+
+/** The field kinds a function body's returns agree on, or none when any return is no literal. */
+function readReturns(code: string): ReturnedKinds | null {
   let program: Node
   try {
     const file = parse(toCodeFile(code, 'javascript'), {
@@ -456,9 +487,13 @@ function readReturns(code: string): ReadonlyMap<string, ReturnedKind> | null {
   })
   if (returns.length === 0) return null
   const inference = new Inference(collectBindings(program))
+  const whole = wholeKind(program, returns, inference)
+  const objects = returns.filter((argument) => argument?.type === 'ObjectExpression')
+  const kinds = new Map<string, ReturnedKind>()
+  if (objects.length !== returns.length) return { whole, fields: kinds }
   let agreed: Map<string, JsKind | undefined> | null = null
-  for (const argument of returns) {
-    if (argument?.type !== 'ObjectExpression') return null
+  for (const argument of objects) {
+    if (argument?.type !== 'ObjectExpression') continue
     const fields = returnedFields(argument, inference)
     if (agreed === null) {
       agreed = fields
@@ -468,36 +503,38 @@ function readReturns(code: string): ReadonlyMap<string, ReturnedKind> | null {
       agreed.set(key, fields.has(key) ? merge(kind, fields.get(key)) : undefined)
     }
   }
-  const kinds = new Map<string, ReturnedKind>()
   for (const [key, kind] of agreed ?? []) {
     if (kind !== undefined) kinds.set(key, kind === 'string' ? 'string' : 'typed')
   }
-  return kinds
+  return { whole, fields: kinds }
 }
 
 /**
- * The kind of `result.<field>` of a JavaScript Function block, from the object literal its code
- * returns; `undefined` for any other block, path or language, or when the code does not say.
+ * The kind of a JavaScript Function block's `result` (path `['result']`), from what every
+ * `return` yields, or of `result.<field>`, from the object literal its code returns; `undefined`
+ * for any other block, path or language, or when the code does not say.
  */
 function functionResultKind(
   block: CanonicalBlock,
   path: readonly string[]
 ): ReturnedKind | undefined {
-  if (block.type !== FUNCTION_TYPE || path.length !== 2 || path[0] !== 'result') return undefined
-  let fields = cache.get(block)
-  if (fields === undefined) {
+  if (block.type !== FUNCTION_TYPE || path.length < 1 || path.length > 2 || path[0] !== 'result') {
+    return undefined
+  }
+  let kinds = cache.get(block)
+  if (kinds === undefined) {
     const code = getOwn(block.params, 'code')
     const language = getOwn(block.params, 'language')
     const javascript =
       language === undefined ||
       (language.kind === 'value' && (language.value === 'javascript' || language.value === ''))
-    fields =
+    kinds =
       javascript && code?.kind === 'value' && typeof code.value === 'string'
         ? readReturns(code.value)
         : null
-    cache.set(block, fields)
+    cache.set(block, kinds)
   }
-  return fields?.get(path[1])
+  return path.length === 1 ? kinds?.whole : kinds?.fields.get(path[1] ?? '')
 }
 
 /**

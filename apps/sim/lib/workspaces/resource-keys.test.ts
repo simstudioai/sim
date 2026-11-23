@@ -8,6 +8,12 @@ describe('resourceKeyBase', () => {
     expect(resourceKeyBase('table', 'Leads (EU)!')).toBe('leads-eu')
   })
 
+  it('keeps the underscores of a name, the spelling its author types', () => {
+    expect(resourceKeyBase('table', 'daily_totals')).toBe('daily_totals')
+    expect(resourceKeyBase('table', 'Daily_Totals (v2)')).toBe('daily_totals-v2')
+    expect(resourceKeyBase('table', '_scratch_')).toBe('scratch')
+  })
+
   it('keys a name with no slug characters by its kind', () => {
     expect(resourceKeyBase('knowledge-base', '***')).toBe('knowledge-base')
     expect(resourceKeyBase('credential', '')).toBe('credential')

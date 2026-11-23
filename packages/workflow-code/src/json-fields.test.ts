@@ -317,3 +317,129 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
     expect(untyped("return { v: 'one' }", 'v', printed)).toEqual([])
   })
 })
+
+describe('W_JSON_REF_UNTYPED on the whole of an output that can hold text', () => {
+  const WHOLE_IMPORTS = "import { api, fn, trigger, workflow } from '@sim/workflow-sdk'"
+
+  /** Compiles a Function block with `code` whose whole `result` a JSON body uses bare. */
+  function compile(code: string, ref = 'score.result', stored?: CanonicalWorkflow) {
+    const text = `// @sim-sdk 1\n${WHOLE_IMPORTS}\n\nexport default workflow('Test', {}, () => {
+  const start = trigger.start('Start')
+  const score = fn('Score', { code: ${JSON.stringify(code)} })
+  const next = api('Next', { url: 'https://x', body: { v: ${ref} } })
+  start.to(score)
+  score.to(next)
+})\n`
+    return compileWorkflow({
+      entry: { path: 'workflow.ts', text },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      ...(stored ? { stored } : {}),
+    })
+  }
+
+  const untyped = (code: string, ref?: string, stored?: CanonicalWorkflow) =>
+    compile(code, ref, stored).diagnostics.filter((d) => d.code === 'W_JSON_REF_UNTYPED')
+
+  const body = (code: string) => compile(code).workflow?.blocks.next?.params.body
+
+  it('quotes a result every return makes text, so the string cannot break the JSON', () => {
+    const code = 'return new Date().toISOString().slice(0, 10)'
+    expect(untyped(code)).toEqual([])
+    expect(body(code)).toEqual({ kind: 'value', value: '{\n  "v": "<score.result>"\n}' })
+    expect(untyped("if ($ref.start.x) return 'a'\nreturn `b${1}`")).toEqual([])
+  })
+
+  it('leaves bare a result every return makes a number, boolean, array or object', () => {
+    for (const code of [
+      'return 1 + 2',
+      'return $ref.start.n > 3',
+      'return [1, 2]',
+      "return { a: 'x' }",
+      'if ($ref.start.x) return 1\nreturn true',
+    ]) {
+      expect(untyped(code), code).toEqual([])
+      expect(body(code), code).toEqual({ kind: 'value', value: '{\n  "v": <score.result>\n}' })
+    }
+  })
+
+  it('warns when nothing certain says whether the result is text', () => {
+    // An unread value, text in one return and not another, a path that returns nothing, and no return.
+    expect(untyped('return $ref.start.v')).toHaveLength(1)
+    expect(untyped("if ($ref.start.x) return 'a'\nreturn 1")).toHaveLength(1)
+    expect(untyped("if ($ref.start.x) return 'a'\nconst y = 2")).toHaveLength(1)
+    expect(untyped('if ($ref.start.x) return\nreturn 1')).toHaveLength(1)
+    expect(untyped('const y = 2')).toHaveLength(1)
+    expect(untyped('return { v: 1 ', 'score.result')).toHaveLength(1)
+  })
+
+  it('warns on an HTTP response body, which is text unless the response says it is JSON', () => {
+    const text = `// @sim-sdk 1\nimport { api, trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Test', {}, () => {
+  const start = trigger.start('Start')
+  const get = api('Get', { url: 'https://x' })
+  const next = api('Next', { url: 'https://x', body: { v: get.data, s: get.status } })
+  start.to(get)
+  get.to(next)
+})\n`
+    const result = compileWorkflow({
+      entry: { path: 'workflow.ts', text },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+    })
+    expect(
+      result.diagnostics.filter((d) => d.code === 'W_JSON_REF_UNTYPED').map((d) => d.message)
+    ).toEqual([expect.stringContaining('<get.data>')])
+  })
+
+  it('on an apply, stays quiet on an unchanged JSON field, and warns once the code stops saying', () => {
+    const read = 'return $ref.start.v'
+    const printed = compile(read).workflow
+    if (!printed) throw new Error('the source did not compile')
+    expect(untyped(read, 'score.result', printed)).toEqual([])
+
+    const typed = compile('return 1').workflow
+    if (!typed) throw new Error('the source did not compile')
+    expect(untyped(read, 'score.result', typed)).toHaveLength(1)
+  })
+
+  describe('an output the catalog types any', () => {
+    const catalog: BlockCatalog = {
+      ...TEST_CATALOG,
+      blocks: {
+        ...TEST_CATALOG.blocks,
+        service: {
+          ...TEST_CATALOG.blocks.function,
+          type: 'service',
+          outputs: { id: { type: 'any' }, tags: { type: 'json' } },
+        } as CatalogBlock,
+      },
+    }
+    const service: CanonicalBlock = {
+      key: 'svc',
+      name: 'Svc',
+      type: 'service',
+      parent: null,
+      enabled: true,
+      locked: false,
+      triggerMode: false,
+      advancedMode: false,
+      errorPort: false,
+      retry: null,
+      params: {},
+      modes: {},
+    }
+    const kind = (token: string) =>
+      refValueKind(token, {
+        catalog,
+        block: (key) => (key === 'svc' ? service : undefined),
+        variable: () => undefined,
+      })
+
+    it('is untyped, since it may be text, while a json output stays typed', () => {
+      expect(kind('<svc.id>')).toBe('untyped')
+      expect(kind('<svc.tags>')).toBe('typed')
+    })
+  })
+})

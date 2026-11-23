@@ -181,6 +181,35 @@ describe('workspace resource keys against PostgreSQL', () => {
     expect(new Set(keys)).toEqual(new Set(['invoices', 'invoices-2', 'invoices-3']))
   })
 
+  it('keys a name with underscores by its own spelling, apart from the hyphenated one', async () => {
+    const underscored = generateId()
+    const hyphenated = generateId()
+    await insertTable(underscored, workspaceId, 'daily_totals', at(40))
+    await insertTable(hyphenated, workspaceId, 'daily-totals', at(41))
+
+    expect(await keyOf('table', hyphenated)).toBe('daily-totals')
+    expect(await keyOf('table', underscored)).toBe('daily_totals')
+    expect(await idOf('table', 'daily_totals')).toBe(underscored)
+  })
+
+  it('suffixes an underscored name whose key is taken, and leaves a persisted hyphen key alone', async () => {
+    const legacy = generateId()
+    const first = generateId()
+    const second = generateId()
+    await insertTable(legacy, workspaceId, 'weekly-totals', at(42))
+    expect(await keyOf('table', legacy)).toBe('weekly-totals')
+    await db
+      .update(userTableDefinitions)
+      .set({ name: 'weekly_totals' })
+      .where(eq(userTableDefinitions.id, legacy))
+    await insertTable(first, workspaceId, 'monthly_totals', at(43))
+    await insertTable(second, workspaceId, 'Monthly_Totals!', at(44))
+
+    expect(await keyOf('table', legacy)).toBe('weekly-totals')
+    expect(await keyOf('table', first)).toBe('monthly_totals')
+    expect(await keyOf('table', second)).toBe('monthly_totals-2')
+  })
+
   it('keeps every kind’s key through a rename', async () => {
     const ids = {
       table: generateId(),

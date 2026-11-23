@@ -233,7 +233,8 @@ function compileToolCall(
           hint:
             suggestBuilder(
               [path.root, ...path.rest].filter((segment) => segment !== 'tool').join('.'),
-              catalogBuilderPaths(ctx.catalog)
+              catalogBuilderPaths(ctx.catalog),
+              ctx.catalog
             ) ?? 'Write namespace.tool.method(params, options), or raw(tool).',
         }),
         blockKey: site.decl.key,

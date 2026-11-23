@@ -2459,6 +2459,7 @@ To read what a block is set to, use \`sim workflows outline\` or \`sim workflows
       { header: 'resume at', path: 'paused.resumeAt', format: 'timestamp' },
       { header: 'blocked on', path: 'paused.blockedOnBlockId' },
       { header: 'pause points', path: 'paused.pausePointCount' },
+      { header: 'next', path: 'next' },
       { header: 'error', path: 'error.message' },
     ],
   },

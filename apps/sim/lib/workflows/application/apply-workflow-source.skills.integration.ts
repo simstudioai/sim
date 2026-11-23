@@ -297,7 +297,7 @@ check(
     const written = edit(
       edit(source.files, 'skills: []', "skills: [skill('listed-only')]"),
       'tools: []',
-      "tools: [customTool('listed-lookup')]"
+      "tools: [customTool('listed_lookup')]"
     )
     written['workflow.ts'] = written['workflow.ts'].replace(
       /^import \{ /m,
@@ -313,7 +313,7 @@ check(
     ])
     expect(manifest.skills).toContainEqual({ key: 'listed-only', id: skillId, name: 'Listed only' })
     expect(manifest.customTools).toContainEqual({
-      key: 'listed-lookup',
+      key: 'listed_lookup',
       id: toolId,
       name: 'listed_lookup',
     })

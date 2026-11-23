@@ -72,6 +72,7 @@ afterEach(() => {
 
 interface RunPayload {
   status: string
+  output?: unknown
   paused?: {
     contextId?: string | null
     pauseKind?: string | null
@@ -156,6 +157,20 @@ describe('workflows runs wait', () => {
     expect(process.exitCode).toBe(3)
     expect(errored.join('\n')).toContain(
       'sim workflows runs resume run_1 --workflow 00000000-0000-4000-8000-00000000000a --context ctx_9'
+    )
+  })
+
+  it('names the same resume command the run record prints in next, from the output links', async () => {
+    respondWith({
+      status: 'paused',
+      output: { data: { _resume: { contextId: 'ctx_9', executionId: 'exec_9' } } },
+      paused: { pauseKind: 'human', contextId: 'ctx_other' },
+    })
+
+    await wait()
+
+    expect(errored.join('\n')).toContain(
+      'sim workflows runs resume exec_9 --workflow 00000000-0000-4000-8000-00000000000a --context ctx_9'
     )
   })
 
