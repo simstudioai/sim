@@ -114,10 +114,11 @@ Atlassian service account tokens should be rotated by creating a replacement, ad
 2. Create a replacement token with the same or narrower scopes.
 3. Add the replacement as a new Sim service-account credential.
 4. Select the replacement credential in each affected workflow.
-5. Run controlled read and write tests against approved resources.
-6. Confirm that scheduled, webhook, and manually triggered workflows use the replacement credential.
-7. Revoke the old token in Atlassian.
-8. Record the rotation date, operator, test result, and next expiration date.
+5. Deploy each affected workflow so scheduled and webhook runs use the replacement credential.
+6. Run controlled read and write tests against approved resources.
+7. Confirm that scheduled, webhook, and manually triggered workflows use the replacement credential.
+8. Revoke the old token in Atlassian.
+9. Record the rotation date, operator, test result, and next expiration date.
 
 Atlassian administrators should rotate a token before its displayed expiration and immediately after suspected exposure, an ownership change, or a material reduction in the agent’s responsibilities.
 
