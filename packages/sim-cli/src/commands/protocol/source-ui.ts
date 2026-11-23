@@ -323,18 +323,9 @@ export function codeSpan(text: string): string {
   return `${fence} ${line} ${fence}`
 }
 
-/** The error findings of a summary as list items, capped at {@link SUMMARY_ROWS}. */
-export function errorBullets(
-  diagnostics: ReadonlyArray<{
-    severity: string
-    code: string
-    message: string
-    file?: string
-    line?: number
-  }>
-): string[] {
-  return diagnostics
-    .filter((finding) => finding.severity === 'error')
+/** The error findings of a summary (already filtered to errors) as list items, capped at {@link SUMMARY_ROWS}. */
+export function errorBullets(errors: ReadonlyArray<Diagnostic>): string[] {
+  return errors
     .slice(0, SUMMARY_ROWS)
     .map(
       (finding) =>

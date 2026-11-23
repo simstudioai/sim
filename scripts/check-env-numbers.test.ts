@@ -24,7 +24,7 @@ describe('numeric env names', () => {
 })
 
 describe('raw numeric env reads', () => {
-  it('reports the read that reached mapWithConcurrency raw before #10326', () => {
+  it('reports a raw numeric read that reaches a consumer unnormalized', () => {
     expect(
       lines(`const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
 await mapWithConcurrency(items, CHUNK_CONCURRENCY, run)`)

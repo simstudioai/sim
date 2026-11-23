@@ -94,7 +94,6 @@ function printFindings(data: SourceApplyData, findings: FindingsOutput, notes: S
   }
 }
 
-/** One line naming what the apply changes, shown before asking to confirm it. */
 /** What changed in the workflow's variables, one entry per kind of change. */
 function variableChangeList(variables: SourceApplyData['diff']['variables']): string[] {
   return [
@@ -105,6 +104,7 @@ function variableChangeList(variables: SourceApplyData['diff']['variables']): st
   ]
 }
 
+/** One line naming what the apply changes, shown before asking to confirm it. */
 function diffSummary(data: SourceApplyData): string {
   const { blocks, edges, variables } = data.diff
   if (data.diff.noop) return 'No graph changes (names, order or comments may still be saved).'
@@ -299,7 +299,7 @@ function planMarkdown(data: SourceApplyData, creating: boolean, deployment: Depl
             : []),
         ]
       : []),
-    ...(errors.length > 0 ? ['', '**Errors**', '', ...errorBullets(data.diagnostics)] : []),
+    ...(errors.length > 0 ? ['', '**Errors**', '', ...errorBullets(errors)] : []),
     ...(needsRedeployment ? ['', 'The live deployment now differs from the draft.'] : []),
   ].join('\n')
 }

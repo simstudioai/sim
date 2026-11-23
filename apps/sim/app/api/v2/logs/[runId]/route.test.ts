@@ -205,6 +205,45 @@ describe('GET /api/v2/logs/[runId]', () => {
     expect((await response.json()).data.failure).toMatchObject({ blockId: 'b' })
   })
 
+  it('reads a run error recorded as an object with a message', async () => {
+    const failedBlock = (blockId: string, name: string) => ({
+      id: `span-${blockId}`,
+      blockId,
+      name,
+      type: 'agent',
+      duration: 10,
+      status: 'error',
+      startTime: '2026-08-06T00:00:00.000Z',
+      endTime: '2026-08-06T00:00:01.000Z',
+      output: { error: `${name} failed` },
+    })
+    mocks.execute.mockResolvedValue({
+      log: { ...log, status: 'failed', level: 'error' },
+      workflowFolderPath: '/agents',
+      executionData: {
+        traceSpans: [
+          {
+            id: 'workflow-execution',
+            name: 'Workflow Execution',
+            type: 'workflow',
+            duration: 1000,
+            status: 'error',
+            startTime: '2026-08-06T00:00:00.000Z',
+            endTime: '2026-08-06T00:00:01.000Z',
+            children: [failedBlock('a', 'Agent A'), failedBlock('b', 'Agent B')],
+          },
+        ],
+        error: { message: 'Agent B: timeout' },
+      },
+    })
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+
+    expect((await response.json()).data.failure).toMatchObject({ blockId: 'b' })
+  })
+
   it('reports no failure for a cancelled run that kept error spans', async () => {
     mocks.execute.mockResolvedValue({
       log: { ...log, status: 'cancelled', level: 'error' },

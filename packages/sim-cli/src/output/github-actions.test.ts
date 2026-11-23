@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { embedStore } from '../embed-context'
 import { annotationLine, annotationPath, publishSummary } from './github-actions'
 
@@ -56,12 +56,11 @@ describe('summaries', () => {
   })
 
   it('builds nothing when no summary is asked for', () => {
-    publishSummary(
-      () => {
-        throw new Error('built')
-      },
-      { env: {} }
-    )
+    const build = vi.fn(() => 'summary')
+
+    publishSummary(build, { env: {} })
+
+    expect(build).not.toHaveBeenCalled()
   })
 
   it('reports a summary it cannot build and writes nothing, leaving the command to finish', () => {

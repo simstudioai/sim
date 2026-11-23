@@ -252,9 +252,11 @@ const RESULT_NOTES: Readonly<
    * portable artifact), so the pointer to where the bindings can be read goes to stderr.
    */
   exportWorkflow: (_payload, _body, flags) =>
-    flags.includeWorkspaceBindings === true
-      ? 'note: a credential always prints as null here: that is the export, not an unset block. Read what blocks are set to with `sim workflows outline <workflowId>` or `sim workflows state get <workflowId>`.'
-      : 'note: a table, child workflow, knowledge base or other workspace binding prints as null here, and a credential always does: that is the export, not an unset block. Read what blocks are set to with `sim workflows outline <workflowId>` or `sim workflows state get <workflowId>`.',
+    `note: ${
+      flags.includeWorkspaceBindings === true
+        ? 'a credential always prints as null here'
+        : 'a table, child workflow, knowledge base or other workspace binding prints as null here, and a credential always does'
+    }: that is the export, not an unset block. Read what blocks are set to with \`sim workflows outline <workflowId>\` or \`sim workflows state get <workflowId>\`.`,
 }
 
 /** Writes the operation's result note to stderr, when it has one and the result calls for it. */

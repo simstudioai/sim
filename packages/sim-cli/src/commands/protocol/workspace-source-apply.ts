@@ -991,7 +991,7 @@ function planMarkdown(data: ApplyData, workspaceId: string): string {
           ...(changes.length > rows.length ? [`\n…and ${changes.length - rows.length} more.`] : []),
         ]
       : []),
-    ...(errors.length > 0 ? ['', '**Errors**', '', ...errorBullets(data.diagnostics)] : []),
+    ...(errors.length > 0 ? ['', '**Errors**', '', ...errorBullets(errors)] : []),
   ]
   return lines.join('\n')
 }

@@ -18,8 +18,8 @@
  * one of the two lines above it.
  *
  * The numeric names come from the schema, so a variable declared numeric later is covered without
- * touching this file. Parsed with the TypeScript AST: strings and comments never count. The tree
- * was swept when this landed, so there is no baseline.
+ * touching this file. Parsed with the TypeScript AST: strings and comments never count. There is
+ * no baseline.
  *
  * Usage: bun run check:env-numbers
  */

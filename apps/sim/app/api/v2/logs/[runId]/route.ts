@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { type CostLedger, traceSpansSchema } from '@/lib/api/contracts/logs'
 import { type V2LogDetail, v2GetLogContract, v2LogStatusSchema } from '@/lib/api/contracts/v2/logs'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
@@ -28,12 +29,11 @@ function buildCostProjection(
 
 /** The error string a run recorded for itself, when it recorded one. */
 function runErrorOf(executionData: Record<string, unknown>): string | undefined {
-  const finalOutput = executionData.finalOutput
+  const { error, finalOutput } = executionData
   const candidates = [
-    executionData.error,
-    finalOutput && typeof finalOutput === 'object'
-      ? (finalOutput as Record<string, unknown>).error
-      : undefined,
+    error,
+    isRecordLike(error) ? error.message : undefined,
+    isRecordLike(finalOutput) ? finalOutput.error : undefined,
   ]
   return candidates.find((value): value is string => typeof value === 'string' && value !== '')
 }
