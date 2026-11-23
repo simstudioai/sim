@@ -354,7 +354,11 @@ class Inference {
           (method === 'keys' || method === 'values' || method === 'entries')
         )
       }
-      return !strict && ARRAY_METHODS.has(method)
+      if (!ARRAY_METHODS.has(method)) return false
+      if (!strict) return true
+      return method === 'split'
+        ? this.kind(node.callee.object) === 'string'
+        : this.isArray(node.callee.object, true)
     }
     if (node.type !== 'Identifier') return false
     const init = this.bindings.initial.get(node.name)

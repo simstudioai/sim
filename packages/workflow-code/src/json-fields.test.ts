@@ -214,6 +214,8 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
     expect(
       untyped("const o = { map: () => 'text' }\nreturn { v: o.map().join(',') }", 'v')
     ).toHaveLength(1)
+    expect(untyped("return { v: 'a,b'.split(',').join('-') }", 'v')).toEqual([])
+    expect(untyped('return { v: [1, 2].map((n) => n * 2).join(",") }', 'v')).toEqual([])
     expect(untyped('return { v: new Date().toString() }', 'v')).toEqual([])
     expect(untyped("return { v: 'a'.toLocaleString() }", 'v')).toEqual([])
     expect(untyped('return { v: (5).toFixed(2) }', 'v')).toEqual([])
