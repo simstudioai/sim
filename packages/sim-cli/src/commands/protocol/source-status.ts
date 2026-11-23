@@ -25,7 +25,7 @@ import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
 import { CliUsageError, LocalRefusal } from './local-errors'
-import { type Diagnostic, findingsOutput, markdownCell, summaryMarker } from './source-ui'
+import { codeSpan, type Diagnostic, findingsOutput, markdownCell, summaryMarker } from './source-ui'
 
 /** One change of a workspace apply's plan. */
 type WorkspacePlanChange = ApplyWorkspaceSourceResponse['data']['plan'][number]
@@ -187,7 +187,7 @@ function statusMarkdown<Plan>(
     lines.push(`Server not checked${report.note ? `: ${markdownCell(report.note)}` : '.'}`)
   }
   if (report.plan) lines.push('', markdownCell(planLine(report.plan)))
-  if (report.next) lines.push('', `Next: \`${report.next.command}\``)
+  if (report.next) lines.push('', `Next: ${codeSpan(report.next.command)}`)
   return lines.join('\n')
 }
 

@@ -314,6 +314,15 @@ export function markdownCell(text: string): string {
   return safeOneLine(text).replaceAll('\\', '\\\\').replaceAll('|', '\\|')
 }
 
+/** `text` as one Markdown code span, fenced with more backticks than it contains, on one line. */
+export function codeSpan(text: string): string {
+  const line = safeOneLine(text)
+  const longest = Math.max(0, ...[...line.matchAll(/`+/g)].map((run) => run[0].length))
+  if (longest === 0) return `\`${line}\``
+  const fence = '`'.repeat(longest + 1)
+  return `${fence} ${line} ${fence}`
+}
+
 /** The error findings of a summary as list items, capped at {@link SUMMARY_ROWS}. */
 export function errorBullets(
   diagnostics: ReadonlyArray<{

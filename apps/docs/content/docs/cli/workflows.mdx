@@ -385,7 +385,7 @@ References:
 Order:
   Operations run in phases whatever their order in the batch: deletes first, then
   extract_from_subflow, adds, insert_into_subflow and edits; operations of one type keep the
-  order given. A delete plus an add with the same name therefore replaces the block in one batch.
+  order given, except insert_into_subflow, which runs a parent before its children. A delete plus an add with the same name therefore replaces the block in one batch.
 Run logs:
   `sim logs list --workflow <workflowId>` lists a workflow's runs; `sim logs get <runId> --trace
   --no-include-workflow-state` shows each block's resolved inputs, outputs and errors.

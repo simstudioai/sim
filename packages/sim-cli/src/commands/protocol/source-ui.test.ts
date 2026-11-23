@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { markdownCell, summaryMarker } from './source-ui'
+import { codeSpan, markdownCell, summaryMarker } from './source-ui'
 
 describe('summaryMarker', () => {
   it('gives directories whose names differ only in punctuation different markers', () => {
@@ -16,5 +16,15 @@ describe('summaryMarker', () => {
 describe('markdownCell', () => {
   it('escapes a backslash before a pipe, so an already-escaped pipe cannot reopen the cell', () => {
     expect(markdownCell('foo\\|bar')).toBe('foo\\\\\\|bar')
+  })
+})
+
+describe('codeSpan', () => {
+  it('leaves a plain command in single backticks', () => {
+    expect(codeSpan('sim get --dir ./a')).toBe('`sim get --dir ./a`')
+  })
+
+  it('fences a command containing backticks with more of them, on one line', () => {
+    expect(codeSpan('sim get --dir a`b\nc')).toBe('`` sim get --dir a`b c ``')
   })
 })
