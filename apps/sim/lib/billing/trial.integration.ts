@@ -12,12 +12,16 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PRO_TRIAL_DAYS, PRO_TRIAL_USAGE_LIMIT_DOLLARS } from '@/lib/billing/constants'
 import { syncUsageLimitsFromSubscription, updateUserUsageLimit } from '@/lib/billing/core/usage'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
-import { enforceOneTrialPerCard, getProTrialCheckoutParams } from '@/lib/billing/trial'
+import {
+  enforceOneTrialPerCard,
+  enforceOneTrialPerCardForCheckout,
+  getProTrialCheckoutParams,
+} from '@/lib/billing/trial'
 
 const { stripeStub } = vi.hoisted(() => ({
   stripeStub: {
     paymentMethods: { retrieve: vi.fn() },
-    subscriptions: { update: vi.fn() },
+    subscriptions: { retrieve: vi.fn(), update: vi.fn() },
   },
 }))
 
@@ -83,6 +87,10 @@ function trialingStripeSubscription(
   } as Stripe.Subscription
 }
 
+function payer(userId: string): { plan: string; referenceId: string } {
+  return { plan: PRO_PLAN, referenceId: userId }
+}
+
 function useCard(fingerprint: string | null): void {
   if (fingerprint) fingerprints.push(fingerprint)
   stripeStub.paymentMethods.retrieve.mockResolvedValue({
@@ -101,6 +109,7 @@ async function readLimit(userId: string): Promise<number> {
 
 beforeEach(() => {
   stripeStub.paymentMethods.retrieve.mockReset()
+  stripeStub.subscriptions.retrieve.mockReset()
   stripeStub.subscriptions.update.mockReset()
   stripeStub.subscriptions.update.mockResolvedValue({})
 })
@@ -202,7 +211,10 @@ describe('enforceOneTrialPerCard', () => {
     useCard(fingerprint)
 
     expect(
-      await enforceOneTrialPerCard(trialingStripeSubscription(stripeSubscriptionId, 'pm_1'), userId)
+      await enforceOneTrialPerCard(
+        trialingStripeSubscription(stripeSubscriptionId, 'pm_1'),
+        payer(userId)
+      )
     ).toBe(true)
 
     expect(stripeStub.subscriptions.update).not.toHaveBeenCalled()
@@ -221,8 +233,8 @@ describe('enforceOneTrialPerCard', () => {
     useCard(`fp_${generateId()}`)
     const trial = trialingStripeSubscription(stripeSubscriptionId, 'pm_1')
 
-    expect(await enforceOneTrialPerCard(trial, userId)).toBe(true)
-    expect(await enforceOneTrialPerCard(trial, userId)).toBe(true)
+    expect(await enforceOneTrialPerCard(trial, payer(userId))).toBe(true)
+    expect(await enforceOneTrialPerCard(trial, payer(userId))).toBe(true)
     expect(stripeStub.subscriptions.update).not.toHaveBeenCalled()
   })
 
@@ -239,7 +251,7 @@ describe('enforceOneTrialPerCard', () => {
     expect(
       await enforceOneTrialPerCard(
         trialingStripeSubscription(firstSubscriptionId, 'pm_1'),
-        firstUserId
+        payer(firstUserId)
       )
     ).toBe(true)
     await db.delete(subscription).where(eq(subscription.referenceId, firstUserId))
@@ -256,7 +268,7 @@ describe('enforceOneTrialPerCard', () => {
     expect(
       await enforceOneTrialPerCard(
         trialingStripeSubscription(secondSubscriptionId, 'pm_2'),
-        secondUserId
+        payer(secondUserId)
       )
     ).toBe(false)
     expect(stripeStub.subscriptions.update).toHaveBeenCalledExactlyOnceWith(
@@ -278,7 +290,10 @@ describe('enforceOneTrialPerCard', () => {
     })
 
     expect(
-      await enforceOneTrialPerCard(trialingStripeSubscription(stripeSubscriptionId, null), userId)
+      await enforceOneTrialPerCard(
+        trialingStripeSubscription(stripeSubscriptionId, null),
+        payer(userId)
+      )
     ).toBe(false)
     expect(stripeStub.subscriptions.update).toHaveBeenCalledOnce()
   })
@@ -298,12 +313,18 @@ describe('enforceOneTrialPerCard', () => {
 
     useCard(firstCard)
     expect(
-      await enforceOneTrialPerCard(trialingStripeSubscription(firstSubscriptionId, 'pm_1'), userId)
+      await enforceOneTrialPerCard(
+        trialingStripeSubscription(firstSubscriptionId, 'pm_1'),
+        payer(userId)
+      )
     ).toBe(true)
 
     useCard(`fp_${generateId()}`)
     expect(
-      await enforceOneTrialPerCard(trialingStripeSubscription(racingSubscriptionId, 'pm_2'), userId)
+      await enforceOneTrialPerCard(
+        trialingStripeSubscription(racingSubscriptionId, 'pm_2'),
+        payer(userId)
+      )
     ).toBe(false)
     expect(stripeStub.subscriptions.update).toHaveBeenCalledExactlyOnceWith(
       racingSubscriptionId,
@@ -313,9 +334,55 @@ describe('enforceOneTrialPerCard', () => {
 
     useCard(firstCard)
     expect(
-      await enforceOneTrialPerCard(trialingStripeSubscription(firstSubscriptionId, 'pm_1'), userId)
+      await enforceOneTrialPerCard(
+        trialingStripeSubscription(firstSubscriptionId, 'pm_1'),
+        payer(userId)
+      )
     ).toBe(true)
     expect(stripeStub.subscriptions.update).toHaveBeenCalledOnce()
+  })
+
+  it('keeps exactly one of two checkouts racing on one account', async () => {
+    const userId = await createUser()
+    const racing = [`sub_${generateId()}`, `sub_${generateId()}`]
+    for (const stripeSubscriptionId of racing) {
+      await addSubscription(userId, {
+        status: 'trialing',
+        trialStart: new Date(),
+        stripeSubscriptionId,
+      })
+    }
+    const cards = racing.map(() => `fp_${generateId()}`)
+    fingerprints.push(...cards)
+    stripeStub.paymentMethods.retrieve.mockImplementation(async (id: string) => ({
+      id,
+      card: { fingerprint: cards[Number(id.slice(3))] },
+    }))
+
+    const kept = await Promise.all(
+      racing.map((stripeSubscriptionId, index) =>
+        enforceOneTrialPerCard(
+          trialingStripeSubscription(stripeSubscriptionId, `pm_${index}`),
+          payer(userId)
+        )
+      )
+    )
+
+    expect(kept.filter(Boolean)).toHaveLength(1)
+    expect(stripeStub.subscriptions.update).toHaveBeenCalledOnce()
+  })
+
+  it('leaves a trial on any plan other than Pro alone', async () => {
+    const userId = await createUser()
+
+    expect(
+      await enforceOneTrialPerCard(trialingStripeSubscription(`sub_${generateId()}`, 'pm_1'), {
+        plan: 'team_6000',
+        referenceId: userId,
+      })
+    ).toBe(false)
+    expect(stripeStub.paymentMethods.retrieve).not.toHaveBeenCalled()
+    expect(stripeStub.subscriptions.update).not.toHaveBeenCalled()
   })
 
   it('leaves a checkout that did not start a trial alone', async () => {
@@ -324,10 +391,65 @@ describe('enforceOneTrialPerCard', () => {
     expect(
       await enforceOneTrialPerCard(
         { id: `sub_${generateId()}`, status: 'active' } as Stripe.Subscription,
-        userId
+        payer(userId)
       )
     ).toBe(false)
     expect(stripeStub.paymentMethods.retrieve).not.toHaveBeenCalled()
+    expect(stripeStub.subscriptions.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('enforceOneTrialPerCardForCheckout', () => {
+  it("judges a completed checkout's trial by the subscription Sim recorded for it", async () => {
+    const fingerprint = `fp_${generateId()}`
+    useCard(fingerprint)
+    const firstUserId = await createUser()
+    const firstSubscriptionId = `sub_${generateId()}`
+    await addSubscription(firstUserId, {
+      status: 'trialing',
+      trialStart: new Date(),
+      stripeSubscriptionId: firstSubscriptionId,
+    })
+    await enforceOneTrialPerCard(
+      trialingStripeSubscription(firstSubscriptionId, 'pm_1'),
+      payer(firstUserId)
+    )
+
+    const userId = await createUser()
+    const stripeSubscriptionId = `sub_${generateId()}`
+    await addSubscription(userId, {
+      status: 'trialing',
+      trialStart: new Date(),
+      stripeSubscriptionId,
+    })
+    stripeStub.subscriptions.retrieve.mockResolvedValue(
+      trialingStripeSubscription(stripeSubscriptionId, 'pm_2')
+    )
+
+    await enforceOneTrialPerCardForCheckout({
+      mode: 'subscription',
+      subscription: stripeSubscriptionId,
+    } as Stripe.Checkout.Session)
+
+    expect(stripeStub.subscriptions.update).toHaveBeenCalledExactlyOnceWith(
+      stripeSubscriptionId,
+      { trial_end: 'now' },
+      { idempotencyKey: `end-ineligible-trial:${stripeSubscriptionId}` }
+    )
+  })
+
+  it('fails, so the webhook retries, for a trial Sim has not recorded yet', async () => {
+    const stripeSubscriptionId = `sub_${generateId()}`
+    stripeStub.subscriptions.retrieve.mockResolvedValue(
+      trialingStripeSubscription(stripeSubscriptionId, 'pm_1')
+    )
+
+    await expect(
+      enforceOneTrialPerCardForCheckout({
+        mode: 'subscription',
+        subscription: stripeSubscriptionId,
+      } as Stripe.Checkout.Session)
+    ).rejects.toThrow('is not recorded yet')
     expect(stripeStub.subscriptions.update).not.toHaveBeenCalled()
   })
 })

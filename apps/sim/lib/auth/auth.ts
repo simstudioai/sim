@@ -1656,7 +1656,7 @@ export const auth = betterAuth({
                 // it; `onEvent` runs the check again on the retried checkout webhook.
                 const keptTrial = await enforceOneTrialPerCard(
                   stripeSubscription,
-                  subscription.referenceId
+                  subscription
                 ).catch((error: unknown) => {
                   logger.error(
                     '[onSubscriptionComplete] Trial card check failed; retrying via onEvent',
@@ -1665,7 +1665,8 @@ export const auth = betterAuth({
                       error: toError(error).message,
                     }
                   )
-                  return stripeSubscription.status === 'trialing'
+                  // Unconfirmed until the retry settles it, so the welcome email promises no trial.
+                  return false
                 })
 
                 if (!planFromStripe) {
