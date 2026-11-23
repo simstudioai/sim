@@ -209,14 +209,13 @@ function isBarrel(file: string): boolean {
   return /(?:^|\/)index\.tsx?$/.test(file)
 }
 
-/** The specifier of `import('x')` or `require('x')`, in either AST shape Babel produces. */
+/** The specifier of `import('x')` or `require('x')`. */
 function dynamicSpecifier(node: Node): string | undefined {
   if (node.type === 'ImportExpression') return stringValue(node.source)
   if (node.type !== 'CallExpression') return undefined
   const callee = node.callee as Node
-  const isImportOrRequire =
-    callee.type === 'Import' || (callee.type === 'Identifier' && callee.name === 'require')
-  return isImportOrRequire ? stringValue((node.arguments as Node[])[0]) : undefined
+  const isRequire = callee.type === 'Identifier' && callee.name === 'require'
+  return isRequire ? stringValue((node.arguments as Node[])[0]) : undefined
 }
 
 /** The specifier of a static `import`, `import x = require()`, or `export … from`. */
@@ -273,9 +272,7 @@ function isBarrelReExport(node: Node, specifier: string, reExported: Set<string>
 
 /** The specifier of a type-position `import('./x').T`. */
 function importTypeSpecifier(node: Node): string | undefined {
-  if (node.type !== 'TSImportType') return undefined
-  const argument = node.argument as Node
-  return stringValue(argument.type === 'TSLiteralType' ? argument.literal : argument)
+  return node.type === 'TSImportType' ? stringValue(node.source) : undefined
 }
 
 function findRelativeImports(file: string, program: Node): Violation[] {

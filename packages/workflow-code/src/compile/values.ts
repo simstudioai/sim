@@ -1,7 +1,6 @@
 import type {
   ArrayExpression,
   CallExpression,
-  Expression,
   MemberExpression,
   Node,
   ObjectExpression,
@@ -533,7 +532,10 @@ function singleStringArgument(
   return { text, node: argument }
 }
 
-function flattenMembers(node: MemberExpression): { root: Expression; members: MemberExpression[] } {
+function flattenMembers(node: MemberExpression): {
+  root: MemberExpression['object']
+  members: MemberExpression[]
+} {
   const members: MemberExpression[] = [node]
   let object = node.object
   while (object.type === 'MemberExpression') {
