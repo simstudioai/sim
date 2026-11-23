@@ -204,4 +204,34 @@ describe('sim workflows source params', () => {
       },
     })
   })
+
+  it('names only the replacement builders for the same operation, and few of them', async () => {
+    const catalog = JSON.parse(FIXTURE_TEXT)
+    catalog.blocks.old_block = {
+      ...catalog.blocks.human_in_the_loop_v2,
+      type: 'old_block',
+      lifecycle: { hidden: true, sunset: { status: 'legacy', replacedBy: 'new_block' } },
+    }
+    catalog.blocks.new_block = { ...catalog.blocks.human_in_the_loop_v2, type: 'new_block' }
+    catalog.builders['legacy.old.send'] = { type: 'old_block', operation: 'send' }
+    for (let index = 0; index < 20; index++) {
+      catalog.builders[`next.op${index}`] = { type: 'new_block', operation: `op${index}` }
+    }
+    catalog.builders['next.send'] = { type: 'new_block', operation: 'send' }
+    cacheCatalogText(
+      join(dir, 'config'),
+      WORKSPACE_ID,
+      JSON.stringify({ ...catalog, hash: 'd'.repeat(64) })
+    )
+    writeBase()
+
+    await params('legacy.old.send')
+
+    const { builder } = stdoutJson() as { builder: { replacement: { builders: string[] } } }
+    expect(builder.replacement.builders).toEqual(['next.send'])
+
+    vi.mocked(console.log).mockClear()
+    await params('legacy.old.send', '--full')
+    expect(stdoutJson()).toMatchObject({ builder: { replacement: { builders: ['next.send'] } } })
+  })
 })

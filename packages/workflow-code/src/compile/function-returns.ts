@@ -337,7 +337,10 @@ class Inference {
       const method = memberName(node.callee)
       if (method === null || !('object' in node.callee)) return false
       if (node.callee.object.type === 'Identifier' && node.callee.object.name === 'Object') {
-        return method === 'keys' || method === 'values' || method === 'entries'
+        return (
+          this.isBuiltin('Object') &&
+          (method === 'keys' || method === 'values' || method === 'entries')
+        )
       }
       return ARRAY_METHODS.has(method)
     }

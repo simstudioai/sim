@@ -77,14 +77,28 @@ function withoutToolSegment(query: string): string {
   return path.join('.')
 }
 
-/** The block type that replaces a sunset block type, with the current builders written for it. */
-function replacementOf(catalog: BlockCatalog, blockType: string): BuilderReference['replacement'] {
+/** At most this many replacement builders are named; a namespace is looked up for the rest. */
+const MAX_REPLACEMENT_BUILDERS = 6
+
+/**
+ * The block type that replaces a sunset block type, with the current builders written for it:
+ * the ones for the same `operation` when the replacement has them, else its first few.
+ */
+function replacementOf(
+  catalog: BlockCatalog,
+  blockType: string,
+  operation: string | undefined
+): BuilderReference['replacement'] {
   const replacedBy = catalogBlock(catalog, blockType)?.lifecycle?.sunset?.replacedBy
   if (!replacedBy) return undefined
-  const builders = catalogBuildersOfType(catalog, replacedBy)
-    .map(([path]) => path)
-    .filter((path) => !isLegacyBuilder(path))
+  const current = catalogBuildersOfType(catalog, replacedBy)
+    .filter(([path]) => !isLegacyBuilder(path))
+    .map(([path, builder]) => ({ path, operation: builder.operation }))
+  const sameOperation = operation ? current.filter((entry) => entry.operation === operation) : []
+  const builders = (sameOperation.length > 0 ? sameOperation : current)
+    .map((entry) => entry.path)
     .sort(compareStrings)
+    .slice(0, MAX_REPLACEMENT_BUILDERS)
   return { blockType: replacedBy, builders }
 }
 
@@ -102,7 +116,7 @@ export function describeBuilder(catalog: BlockCatalog, key: string): BuilderRefe
   const tool = types.tool
     ? `${entry.path.slice(0, -1).join('.')}.${TOOL_NAMESPACE}.${(types.tool.at(-1) ?? '').replace(/^export function /, '')}`
     : null
-  const replacement = replacementOf(catalog, entry.builder.type)
+  const replacement = replacementOf(catalog, entry.builder.type, entry.builder.operation)
   return {
     key,
     blockType: entry.builder.type,
