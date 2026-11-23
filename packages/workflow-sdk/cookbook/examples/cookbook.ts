@@ -72,10 +72,12 @@ export default workflow('Cookbook', { description: 'One example of each common b
     filterInput: { all: [{ field: 'status', op: 'eq', value: 'open' }] },
     limit: 50,
   })
-  // Upsert: updates the row whose conflictColumn (a unique column, by name) matches data, else
-  // inserts one, so a second run for the same order updates it. table.insertRow takes the same
-  // data without conflictColumn and adds a row every run. data is keyed by column name: a column
-  // declared as `phone: column.string({ name: 'mobile' })` is written as { mobile: ... }.
+  // Upsert: replaces the row whose conflictColumn (a unique column, by name) matches data, else
+  // inserts one, so a second run for the same order rewrites it and a column missing from data
+  // is cleared (table.updateRowsByFilter changes only the columns it names). table.insertRow
+  // takes the same data without conflictColumn and adds a row every run. data is keyed by column
+  // name: a column declared as `phone: column.string({ name: 'mobile' })` is written as
+  // { mobile: ... }.
   const save = table.upsertRow('Save Order', {
     tableId: table('orders'),
     data: { orderId: start.orderId, status: 'open' },

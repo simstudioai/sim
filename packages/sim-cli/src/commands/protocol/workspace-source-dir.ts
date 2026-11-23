@@ -10,6 +10,7 @@ import { compareStrings } from '@sim/utils/string'
 import type { WorkflowInput } from '@sim/workflow-code'
 import { SOURCE_CODE_DIR, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import {
+  SDK_MAJOR,
   SOURCE_COMPILER_OPTIONS,
   typecheckCommand,
   WORKSPACE_COOKBOOK,
@@ -136,6 +137,8 @@ The primer above is enough to edit; read a section here when a step needs it. De
 
 A resource's key is its file or folder name (in \`${KIND_DIRS.secret}\` and \`${KIND_DIRS.credential}\`, the entry's name), and a workflow names it by that key.
 
+Every \`.ts\` file below, a deployment included, starts with the line \`// @sim-sdk ${SDK_MAJOR}\` (without it: \`E_DECL_HEADER\`); a one-line form here shows only the call.
+
 ${APPLY_ORDER.map((kind) => `- ${WORKSPACE_KIND_SPECS[kind].guide}`).join('\n')}
 
 One apply creates resources before the workflows that use them, so a workflow may name a key this directory declares before it exists. \`.sim/sdk/workspace.d.ts\` types the keys the server held at the last get and the ones this directory declares, with each workflow's inputs: \`sim workspaces source check\` (or \`sim workflows source check\` in a workflow folder) regenerates it from the files, so run it before \`tsc\` after adding a resource or a workflow input. The dry run is the authority.
@@ -144,9 +147,11 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Edit loop in detail
 
+Batch it: write every file first, then run steps 2 and 5 (and any test run) as one chained command, \`sim workspaces source check --dir . && sim workspaces source apply --dir . --yes\`, and fix what it reports in the next step. Each non-zero exit stops the chain. Steps 3 and 4, and the dry run, are for a person, CI, or a change you want reviewed first.
+
 1. Edit the files.
 2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key (skills included) or table column, a child workflow's inputs, and an env name \`${KIND_DIRS.secret}\` lacks (a warning); and checks each \`${KIND_DIRS.table}/<key>.rows.jsonl\` line against its table as the apply would. It fails (exit 1) on errors and on ${STRICT_FINDINGS_CLAUSE} in a block you added (\`--strict\`: in every block), regenerates \`.sim/sdk/workspace.d.ts\` and adds the blocks the workflows now use to \`tsconfig.json\`. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
-3. Run \`${typecheckCommand()}\` after every edit, before any dry run or apply, and fix what it reports: it takes about a second and catches what step 2 and the dry run do not (such as a reference to a start input the trigger does not declare). It type-checks the files with the TypeScript release the declarations are built for. \`tsconfig.json\` includes only the blocks the workflows used at the last check or get, which keeps it fast: a builder from another block fails with \`has no exported member\` until you run step 2 (or check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). \`sim workflows source params <builder>\` prints one builder's params and outputs; do not read the declarations whole. The dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
+3. Run \`${typecheckCommand()}\` after step 2 (chain it) and fix what it reports: it takes about a second and catches what step 2 and the dry run do not (such as a reference to a start input the trigger does not declare). It type-checks the files with the TypeScript release the declarations are built for. \`tsconfig.json\` includes only the blocks the workflows used at the last check or get, which keeps it fast: a builder from another block fails with \`has no exported member\` until you run step 2 (or check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). \`sim workflows source params <builder>\` prints one builder's params and outputs; do not read the declarations whole. The dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
 4. \`sim workspaces source status --dir .\` before applying: your changes by resource (\`sim workspaces source diff --dir .\` shows the edits), what changed on the server since the get (a workflow edited in the editor included), the conflicts, and the command to run next. Exit 0 nothing changed, ${SOURCE_LOCAL_CHANGES_EXIT_CODE} only your edits, ${SOURCE_DRIFT_EXIT_CODE} the server changed since (\`--offline\`: skip the server). Then \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
 5. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored; it prints the plan it applied (without \`--yes\` and a terminal it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}, writing nothing).
 

@@ -196,9 +196,9 @@ describe('sim workflows source get --dir', () => {
     expect(printed).not.toHaveProperty('primer')
     expect(printed.guide).toBe('.sim/AGENTS.md')
     expect(printed.editLoop).toEqual([
-      expect.stringMatching(/^sim workflows source check --dir /),
-      expect.stringMatching(/^bunx -p typescript@[\d.]+ tsc -p /),
-      expect.stringMatching(/^sim workflows source apply --dir .* --dry-run$/),
+      expect.stringMatching(
+        /^sim workflows source check --dir (\S+) && sim workflows source apply --dir \1 --yes$/
+      ),
     ])
     const agents = readFileSync(join(outDir, '.sim/AGENTS.md'), 'utf8')
     expect(agents).toContain('- `gmail.sendEmail` (Gmail: Send Email)')
@@ -246,7 +246,7 @@ describe('sim workflows source get --dir', () => {
       const program = buildProgram()
       const named = [
         ...`${sourcePrimer(kind)}${agentsPointer(kind)}`.matchAll(/`(sim [^`]+)`/g),
-      ].map((match) => match[1])
+      ].flatMap((match) => match[1].split(' && '))
       expect(named.length).toBeGreaterThan(0)
       for (const line of named) {
         let command: Command = program
