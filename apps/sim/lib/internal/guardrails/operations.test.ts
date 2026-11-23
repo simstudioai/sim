@@ -150,6 +150,29 @@ describe('executeGuardrailsValidation', () => {
     expect(mocks.validateHallucination).not.toHaveBeenCalled()
   })
 
+  it('never treats sim-auto as a Vertex model, so a saved Vertex credential cannot make it throw', async () => {
+    await expect(
+      executeGuardrailsValidation(
+        {
+          validationType: 'hallucination',
+          input: 'claim',
+          knowledgeBaseId: 'knowledge-1',
+          model: 'sim-auto',
+          vertexCredential: 'credential-1',
+          workflowId: 'workflow-1',
+        },
+        {
+          actorUserId: 'user-1',
+          executionContext: { workflowId: 'workflow-1', workspaceId: 'workspace-1' },
+          headers: new Headers(),
+          requestId: 'request-1',
+        }
+      )
+    ).resolves.toMatchObject({ output: { passed: true } })
+    expect(mocks.authorizeCredential).not.toHaveBeenCalled()
+    expect(mocks.validateHallucination).toHaveBeenCalledOnce()
+  })
+
   it('does not conceal cancellation during hallucination authorization', async () => {
     const controller = new AbortController()
     const abortError = new DOMException('Operation aborted', 'AbortError')

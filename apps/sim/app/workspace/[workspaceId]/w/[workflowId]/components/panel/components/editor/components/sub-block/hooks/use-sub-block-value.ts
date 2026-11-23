@@ -4,8 +4,8 @@ import { isEqual } from 'es-toolkit'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
+import { resolveModelProviderId } from '@/blocks/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { getProviderFromModel } from '@/providers/utils'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -193,8 +193,8 @@ export function useSubBlockValue<T = any>(
           const currentApiKeyValue = useSubBlockStore.getState().getValue(blockId, 'apiKey')
           if (currentApiKeyValue && currentApiKeyValue !== '') {
             const oldModelValue = storeValue as string
-            const oldProvider = oldModelValue ? getProviderFromModel(oldModelValue) : null
-            const newProvider = getProviderFromModel(newValue)
+            const oldProvider = oldModelValue ? resolveModelProviderId(oldModelValue) : null
+            const newProvider = resolveModelProviderId(newValue)
             if (oldProvider !== newProvider) {
               collaborativeSetSubblockValue(blockId, 'apiKey', '')
             }

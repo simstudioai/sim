@@ -27,4 +27,14 @@ describe('llmChatTool.operation', () => {
     expect(input.apiKey).toBe('credential')
     expect(params.context).toBe('secret-value')
   })
+
+  it('refuses sim-auto, which only the model router resolves, rather than calling Ollama', () => {
+    expect(() =>
+      llmChatTool.operation.input({
+        model: 'sim-auto',
+        systemPrompt: 'Translate to French',
+        context: 'hello',
+      })
+    ).toThrow('sim-auto has no provider until the model router resolves it')
+  })
 })

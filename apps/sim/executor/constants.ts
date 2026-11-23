@@ -5,6 +5,7 @@ import {
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import type { LoopType, ParallelType } from '@/lib/workflows/types'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
+import { DEFAULT_BLOCK_MODEL } from '@/providers/default-model'
 
 /**
  * Runtime-injected keys for trigger blocks that should be hidden from logs/display.
@@ -227,7 +228,7 @@ export const HTTP = {
 } as const
 
 export const AGENT = {
-  DEFAULT_MODEL: 'claude-sonnet-5-5',
+  DEFAULT_MODEL: DEFAULT_BLOCK_MODEL,
   get DEFAULT_FUNCTION_TIMEOUT() {
     return getMaxExecutionTimeout()
   },
@@ -242,13 +243,13 @@ export const MCP = {
 } as const
 
 export const ROUTER = {
-  DEFAULT_MODEL: 'claude-sonnet-5-5',
+  DEFAULT_MODEL: DEFAULT_BLOCK_MODEL,
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
 } as const
 
 export const EVALUATOR = {
-  DEFAULT_MODEL: 'claude-sonnet-5-5',
+  DEFAULT_MODEL: DEFAULT_BLOCK_MODEL,
   DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,

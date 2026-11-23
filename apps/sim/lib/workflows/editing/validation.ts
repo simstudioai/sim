@@ -40,7 +40,7 @@ import {
 import { validateToolBindingAuthoring } from '@/lib/workflows/tool-input/authoring'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getModelOptions } from '@/blocks/utils'
+import { MODEL_OPTION_SOURCES } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
 import {
@@ -986,16 +986,19 @@ export function validateValueForSubBlockType(
     case 'short-input':
     case 'long-input':
     case 'combobox': {
-      const usesProviderCatalog =
-        fieldName === 'model' && subBlockConfig.options === getModelOptions
+      const modelSource =
+        fieldName === 'model' ? MODEL_OPTION_SOURCES.get(subBlockConfig.options) : undefined
 
-      if (usesProviderCatalog) {
+      if (modelSource) {
         const stringValue = typeof value === 'string' ? value : String(value)
         const trimmed = stringValue.trim()
-        // sim-auto is a valid model value on hosted Sim only (mirrors the
-        // options array the agent reads: it is absent from self-hosted
-        // snapshots, so writes of it there are rejected as unknown).
-        if (trimmed !== '' && isAutoModel(trimmed) && isHostedDeployment) {
+        // A reference or {{ENV_VAR}} names its model only at execution time.
+        if (containsReference(trimmed)) {
+          return { valid: true, value: trimmed }
+        }
+        // sim-auto is valid only where the source offers Auto, which it does on hosted Sim
+        // only; writes of it anywhere else are rejected as unknown.
+        if (isAutoModel(trimmed) && modelSource.auto && isHostedDeployment) {
           return { valid: true, value: trimmed.toLowerCase() }
         }
         if (trimmed !== '' && !isKnownModelId(trimmed) && !isCustomModelId(trimmed)) {

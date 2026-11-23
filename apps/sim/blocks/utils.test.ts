@@ -1,7 +1,7 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { oauthUtilsMock } from '@sim/testing/mocks/oauth-utils.mock'
 import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetEnvFlagsMock)
 
@@ -26,6 +26,9 @@ const { mockProviders } = vi.hoisted(() => ({
       litellm: { models: [] as string[], isLoading: false },
       openrouter: { models: [] as string[], isLoading: false },
       fireworks: { models: [] as string[], isLoading: false },
+      'ollama-cloud': { models: [] as string[], isLoading: false },
+      together: { models: [] as string[], isLoading: false },
+      baseten: { models: [] as string[], isLoading: false },
     },
   },
 }))
@@ -62,16 +65,20 @@ import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-
 import { S3Icon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import {
+  getAgentModelOptions,
   getApiKeyCondition,
+  getModelOptions,
+  getModelOptionsWithAuto,
   getProviderCredentialSubBlocks,
   getSelectedBedrockCredential,
-  getSerializedModelProviderId,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
   requiresProviderFamilyCredentials,
+  resolveModelProviderId,
   withSavedCredential,
 } from '@/blocks/utils'
+import { DEFAULT_BLOCK_MODEL } from '@/providers/default-model'
 import { getProviderFromModel } from '@/providers/utils'
 
 const BASE_CLOUD_MODELS: Record<string, string> = {
@@ -213,6 +220,9 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       litellm: { models: [], isLoading: false },
       openrouter: { models: [], isLoading: false },
       fireworks: { models: [], isLoading: false },
+      'ollama-cloud': { models: [], isLoading: false },
+      together: { models: [], isLoading: false },
+      baseten: { models: [], isLoading: false },
     }
     mockGetHostedModels.mockReturnValue([])
     mockGetProviderModels.mockReturnValue([])
@@ -323,33 +333,78 @@ describe('parseOptionalBooleanInput', () => {
   })
 })
 
-describe('getSerializedModelProviderId', () => {
+describe('model options', () => {
+  const ids = (options: { id: string }[]) => options.map(({ id }) => id)
+
+  const empty = { models: [] as string[], isLoading: false }
+  const originalProviders = mockProviders.value
+
+  beforeEach(() => {
+    mockProviders.value = {
+      base: { models: ['gpt-4o'], isLoading: false },
+      ollama: empty,
+      'ollama-cloud': empty,
+      vllm: empty,
+      litellm: empty,
+      openrouter: empty,
+      fireworks: empty,
+      together: empty,
+      baseten: empty,
+    }
+  })
+
+  afterEach(() => {
+    mockProviders.value = originalProviders
+    setEnvFlags({ isHosted: false })
+  })
+
+  it('offers Auto on hosted Sim only to blocks that resolve it through the model router', () => {
+    setEnvFlags({ isHosted: true })
+
+    expect(ids(getModelOptions())).toEqual(['gpt-4o'])
+    expect(ids(getModelOptionsWithAuto())).toEqual(['gpt-4o', 'sim-auto'])
+    expect(ids(getAgentModelOptions())).toEqual(['gpt-4o', 'sim-auto'])
+  })
+
+  it('never offers Auto on self-hosted Sim', () => {
+    expect(ids(getModelOptionsWithAuto())).toEqual(['gpt-4o'])
+    expect(ids(getAgentModelOptions())).toEqual(['gpt-4o'])
+  })
+})
+
+describe('resolveModelProviderId', () => {
   const resolver = vi.mocked(getProviderFromModel)
 
   beforeEach(() => {
     resolver.mockReset()
     resolver.mockImplementation(((model: string) => {
       if (model.startsWith('openrouter/')) return 'openrouter'
-      if (model === 'gpt-4o') return 'openai'
-      if (model === 'claude-sonnet-5') return 'anthropic'
+      if (model === DEFAULT_BLOCK_MODEL) return 'anthropic'
       throw new Error(`No provider found for model: ${model}`)
     }) as unknown as typeof getProviderFromModel)
   })
 
   it('resolves a gateway model that the base model map deliberately omits', () => {
-    expect(getSerializedModelProviderId('openrouter/meta-llama/llama-4-maverick')).toBe(
-      'openrouter'
-    )
+    expect(resolveModelProviderId('openrouter/meta-llama/llama-4-maverick')).toBe('openrouter')
   })
 
-  it('uses the fallback model when the model is still an unresolved reference', () => {
-    expect(getSerializedModelProviderId('openrouter/<variable.vllm>')).toBe('openai')
+  it('uses the default block model when the model is unset or still an unresolved reference', () => {
+    expect(resolveModelProviderId('openrouter/<variable.vllm>')).toBe('anthropic')
+    expect(resolveModelProviderId(undefined)).toBe('anthropic')
     expect(resolver).not.toHaveBeenCalledWith('openrouter/<variable.vllm>')
   })
 
+  it('looks up sim-auto as the model it falls back to, never as itself', () => {
+    expect(resolveModelProviderId('sim-auto')).toBe('anthropic')
+    expect(resolveModelProviderId(' SIM-AUTO ')).toBe('anthropic')
+    expect(resolver).toHaveBeenCalledWith(DEFAULT_BLOCK_MODEL)
+    expect(resolver).not.toHaveBeenCalledWith('sim-auto')
+    expect(resolver).not.toHaveBeenCalledWith(' SIM-AUTO ')
+  })
+
   it('never throws when the resolver rejects the model', () => {
-    expect(() => getSerializedModelProviderId('totally-unknown-model')).not.toThrow()
-    expect(getSerializedModelProviderId('totally-unknown-model')).toBe('openai')
+    expect(() => resolveModelProviderId('totally-unknown-model')).not.toThrow()
+    expect(resolveModelProviderId('totally-unknown-model')).toBe('openai')
   })
 })
 
