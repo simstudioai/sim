@@ -1,0 +1,147 @@
+---
+slug: atlassian-service-accounts-ai-agents-jira-confluence
+title: 'Atlassian Service Accounts for AI Agents in Jira and Confluence'
+seoTitle: 'Atlassian Service Accounts for AI Agents'
+description: 'Learn how to create, scope, connect, rotate, audit, and revoke Atlassian service accounts for AI agents that use Jira and Confluence.'
+date: 2026-11-23
+updated: 2026-11-23
+authors:
+  - andrew
+readingTime: 7
+tags: [AI Agents, Atlassian, Security, Jira, Confluence, Sim]
+ogImage: /library/atlassian-service-accounts-ai-agents-jira-confluence/cover.jpg
+draft: false
+faq:
+  - q: "Can one Atlassian service account access both Jira and Confluence?"
+    a: "An Atlassian service account can access both Jira and Confluence when an administrator grants it access to both products, the required token scopes, and the necessary project and space permissions."
+  - q: "Do API token scopes replace Jira project and Confluence space permissions?"
+    a: "Atlassian API token scopes do not replace Jira project permissions or Confluence space permissions because both the token and the service account must be authorized for the requested operation."
+  - q: "Should every AI agent have its own Atlassian service account?"
+    a: "Each AI agent should have its own Atlassian service account when it has a distinct owner, risk level, environment, data boundary, or revocation lifecycle."
+  - q: "Can an AI agent use a personal Atlassian API token?"
+    a: "An AI agent may be technically able to use a personal Atlassian API token, but IT should use a dedicated service account for production access so ownership and audit attribution do not depend on an employee."
+  - q: "How often should an Atlassian service account token be rotated?"
+    a: "An Atlassian service account token should be rotated before its configured expiration and immediately after suspected exposure, an owner change, or a change in the agent’s approved access."
+  - q: "What should IT do if an Atlassian service account token is exposed?"
+    a: "Atlassian administrators should revoke the exposed token immediately, disable affected agent workflows, issue a replacement with reviewed scopes, inspect relevant activity, and document the incident."
+  - q: "Should production and test agents use the same Atlassian service account?"
+    a: "Production and test agents should use separate Atlassian service accounts so test activity cannot reach production projects or spaces and either environment can be revoked independently."
+  - q: "Can multiple workflows use the same Atlassian service account?"
+    a: "Multiple workflows can use one Atlassian service account when they share the same owner, purpose, environment, and access boundary, but separate identities are safer when those factors differ."
+  - q: "Where should Sim store an Atlassian service account token?"
+    a: "Sim should store an Atlassian service account token in a managed workspace credential rather than in prompts, block inputs, workflow descriptions, or external spreadsheets."
+  - q: "What should an Atlassian service account be named?"
+    a: "An Atlassian service account should be named for its platform, approved job, and environment so administrators can identify its purpose during audits and incidents."
+---
+
+## TL;DR
+
+Atlassian service accounts give AI agents a dedicated identity for Jira and Confluence, so IT teams can grant, rotate, audit, and revoke access without depending on an employee’s account. As of November 2026, Atlassian organization administrators can [manage service accounts centrally](https://support.atlassian.com/user-management/docs/manage-your-service-accounts/), grant app access, and create authentication credentials for integrations.
+
+API scopes limit what a token can request, while Jira permissions and Confluence space or content permissions determine which resources the account can actually access. Sim fits teams that need to connect that scoped identity to Jira and Confluence workflow actions through a managed service-account credential.
+
+## How do you give AI agents Atlassian service accounts for Jira and Confluence?
+
+Atlassian administrators give an AI agent a service account by creating the account in Atlassian Administration, granting only the required Jira and Confluence access, issuing a restricted API token, and storing that credential in the agent platform.
+
+1. Open Atlassian Administration and select the organization that owns the relevant Jira or Confluence site.
+2. Follow Atlassian’s [service account management procedure](https://support.atlassian.com/user-management/docs/manage-your-service-accounts/) to create a dedicated identity with a descriptive name such as “Sim Jira triage production.”
+3. Grant the service account access only to the Jira and Confluence products it needs.
+4. Add the account to narrowly scoped Jira roles or groups and Confluence spaces. Do not grant organization administrator or site administrator access for routine agent work.
+5. Create an API token by following Atlassian’s [service account token procedure](https://support.atlassian.com/user-management/docs/manage-api-tokens-for-service-accounts/).
+6. Select only the API scopes required by the agent’s operations. Read-only agents should not receive write scopes.
+7. Store the service account identity and token in Sim as a managed workspace credential rather than placing the token in prompts, workflow text, or block inputs.
+8. Connect the credential to the Jira or Confluence block, test the smallest permitted action, and confirm that an unauthorized action fails.
+9. Record the account owner, approved purpose, accessible projects and spaces, token expiration, and rotation date in the team’s credential register.
+
+Atlassian API scopes and product permissions are separate controls. A token with a write scope cannot edit an issue or page unless the service account also has permission to edit that resource.
+
+## What is an Atlassian service account?
+
+An Atlassian service account is a centrally managed identity intended for an application or integration rather than an individual employee. Atlassian describes it as [an account that is not associated with a person](https://support.atlassian.com/user-management/docs/understand-service-accounts/).
+
+A service account gives IT a stable owner for Jira and Confluence activity. Its access can remain independent of employee password changes, role changes, and departures. Administrators can assign product access, restrict projects and spaces, issue API tokens, and revoke the account when the integration is retired.
+
+The service account should have a name that identifies the platform, job, and environment. Names such as “Sim Confluence answers production” are more useful in access reviews than generic names such as “automation account.”
+
+## Why should an AI agent use an Atlassian service account instead of a personal API token?
+
+An AI agent should use an Atlassian service account because a dedicated identity creates a clear security boundary and avoids tying production access to one employee.
+
+Personal tokens create avoidable operational risks. The integration may stop when the employee leaves, loses product access, or revokes the token. Audit records also attribute every agent action to that person, making it harder to distinguish human activity from automated activity.
+
+A dedicated service account lets IT apply least privilege to the agent itself. It also makes ownership, token rotation, incident response, and offboarding more predictable. For broader identity policy, see [AI Agent Identity, Credential Management, and Audit Trails: Enterprise Guide](https://www.sim.ai/library/ai-agent-identity-credentials-audit-trails-enterprise-guide).
+
+## Which Jira and Confluence permissions does an AI agent need?
+
+Atlassian service accounts need only the API scopes, product access, and resource permissions required for their approved jobs. Jira documents separate permissions for [space access and administration](https://support.atlassian.com/jira-cloud-administration/docs/permissions-for-company-managed-projects/), [work item actions](https://support.atlassian.com/jira-cloud-administration/docs/work-item-permissions/), and [comments](https://support.atlassian.com/jira-cloud-administration/docs/voters-watchers-comment-and-attachment-permissions/). Confluence applies permissions at global, space, and content levels, as explained in its [permissions structure](https://support.atlassian.com/confluence-cloud/docs/what-are-confluence-cloud-permissions-and-restrictions/).
+
+| Agent job | API access | Minimum Jira or Confluence permission | Access that is usually unnecessary |
+|---|---|---|---|
+| Read Jira work items for triage | Jira read access | Browse permission for the approved Jira space | Edit or delete work items and space administration |
+| Add a Jira comment | Jira read and write access | Browse and Add comments permissions | Delete work items and space administration |
+| Add or change Jira labels | Jira read and write access | Browse and Edit work items permissions | Manage sprints and space administration |
+| Assign Jira work items | Jira read and write access | Browse and Assign work items permissions, subject to assignment rules | Space administration |
+| Look up Confluence pages for answers | Confluence read access | View permission for the approved spaces and content | Add, edit, delete, export, and space administration |
+| Create or update Confluence pages | Confluence read and write access | View plus permission to add or edit content in the approved space | Delete content and space administration |
+
+As of November 2026, administrators should review Confluence access against Atlassian’s [space permission guidance](https://support.atlassian.com/confluence-cloud/docs/manage-permissions-on-the-space-level/) and any content restrictions on the pages the agent needs.
+
+Permission names alone do not prove least privilege. IT should test the credential against an allowed Jira space or Confluence space and a deliberately disallowed one before deploying the agent.
+
+## How do you connect an Atlassian service account to Sim?
+
+Sim connects an Atlassian service account to Jira and Confluence through a managed credential selected by the relevant integration block. The [Sim Atlassian service account guide](https://docs.sim.ai/integrations/atlassian-service-account) lists the supported credential fields, scope requirements, validation behavior, and rotation procedure.
+
+1. Create the service account and token in Atlassian before configuring the workflow.
+2. Open Integrations in the Sim workspace, then select Jira, Jira Service Management, or Confluence.
+3. Select Add to Sim, then Add service account.
+4. Enter the scoped API token and Atlassian site domain, then add a display name and description that identify the job and environment.
+5. Resolve any validation error before continuing.
+6. Select that credential in each Jira or Confluence block that should run as the service account.
+7. Test a read operation first, then test each approved write operation separately.
+8. Deploy the workflow only after confirming that the account cannot reach an unapproved project or space.
+
+Sim should hold the credential as a managed workspace secret. The token should never be copied into an Agent prompt, Custom Tool definition, webhook payload, or workflow description.
+
+For implementation patterns rather than identity setup, see [Best AI Agents for Jira Triage and Datadog Incident Response](https://www.sim.ai/library/best-ai-agents-jira-triage-datadog-incident-response) and [How Do You Build an AI Agent That Answers Questions From Confluence?](https://www.sim.ai/library/confluence-knowledge-base-ai-agent-guide).
+
+## How do you rotate an Atlassian service account token without interrupting an AI agent?
+
+Atlassian service account tokens should be rotated by creating a replacement, adding it to Sim as a new credential, moving affected workflows to the replacement, and revoking the old token only after validation succeeds.
+
+1. Identify every Sim workflow that uses the credential.
+2. Create a replacement token with the same or narrower scopes.
+3. Add the replacement as a new Sim service-account credential.
+4. Select the replacement credential in each affected workflow.
+5. Run controlled read and write tests against approved resources.
+6. Confirm that scheduled, webhook, and manually triggered workflows use the replacement credential.
+7. Revoke the old token in Atlassian.
+8. Record the rotation date, operator, test result, and next expiration date.
+
+Atlassian administrators should rotate a token before its displayed expiration and immediately after suspected exposure, an ownership change, or a material reduction in the agent’s responsibilities.
+
+## How do you audit and offboard an Atlassian service account used by an AI agent?
+
+Atlassian administrators should audit a service account by reconciling its approved purpose with its current scopes, product access, Jira roles, Confluence permissions, tokens, and recorded activity. Atlassian’s [audit log guidance](https://support.atlassian.com/security-and-access-policies/docs/view-audit-log-activities/) explains how available records are organized and notes that organization-level event availability depends on the organization’s subscription.
+
+Use this review checklist:
+
+1. Confirm that the named business and technical owners still work in the relevant roles.
+2. Confirm that every accessible Jira project and Confluence space is still required.
+3. Compare token scopes with the operations the agent currently performs.
+4. Remove unused groups, Jira roles, product access, and Confluence permissions.
+5. Review available Atlassian organization and product audit records for unexpected administrative or content activity.
+6. Review the corresponding Sim workflow runs for unexpected tools, targets, or failures.
+7. Check token creation, expiration, and last rotation dates.
+8. Confirm that the service account is not shared with an unrelated application.
+
+When an agent is retired, disable its Sim workflows first, revoke every Atlassian token, remove product and resource access, retain required audit records, and then remove the service account according to the organization’s retention policy.
+
+## Should Sim and n8n share the same Atlassian service account?
+
+Sim and n8n should normally use separate Atlassian service accounts because separate identities preserve attribution and let IT revoke one platform without disrupting the other.
+
+n8n supports Jira authentication through credentials configured for its Jira node and trigger, as described in its [Jira credential documentation](https://docs.n8n.io/integrations/builtin/credentials/jira). Reusing one service account across Sim and n8n would combine two platforms, multiple workflows, and potentially different administrators behind one audit identity.
+
+If an organization temporarily shares an account during migration, it should issue separate tokens for Sim and n8n, document the exception, and set a deadline to split the identities. Separate service accounts remain the stronger production design.
