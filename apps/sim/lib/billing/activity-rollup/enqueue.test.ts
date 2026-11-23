@@ -1,14 +1,20 @@
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { triggerAvailabilityMock } from '@sim/testing/mocks/trigger-availability.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { runActivityRollupPass } = vi.hoisted(() => ({ runActivityRollupPass: vi.fn() }))
 
 vi.mock('@/lib/billing/activity-rollup/pass', () => ({ runActivityRollupPass }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: async () => true }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/core/async-jobs/scheduled-pass', () => ({ startScheduledPass: vi.fn() }))
-vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => false }))
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
 
 import { runActivityRollupMaintenance } from '@/lib/billing/activity-rollup/enqueue'
+
+beforeEach(() => {
+  featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
+})
 
 afterEach(() => {
   resetEnvMock()

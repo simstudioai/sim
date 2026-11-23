@@ -1,16 +1,11 @@
 import chalk from 'chalk'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { hasProgressTerminal, styles } from './presentation'
 
 beforeEach(() => {
   vi.stubEnv('FORCE_COLOR', undefined)
   vi.stubEnv('NO_COLOR', undefined)
   vi.stubEnv('TERM', 'xterm-256color')
-})
-
-afterEach(() => {
-  vi.unstubAllEnvs()
-  vi.restoreAllMocks()
 })
 
 describe('styles', () => {
