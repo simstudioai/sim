@@ -1183,6 +1183,7 @@ describe('the type check of workspaces source check', () => {
                 workflows: [],
                 skills: [],
                 customTools: [],
+                mcpServers: [],
                 env: [],
                 truncated: false,
               },
