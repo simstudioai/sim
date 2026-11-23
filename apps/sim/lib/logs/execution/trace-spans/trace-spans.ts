@@ -233,6 +233,8 @@ interface FailedSpanCandidate {
   endedAt: number
   /** The block log's error, which the span builder merges into its output. */
   recordedError: string | undefined
+  /** A Function block's thrown message alone, which its failed output also carries. */
+  recordedErrorMessage: string | undefined
 }
 
 /** The innermost unhandled-error block spans: a container whose failure came from a block inside it yields that block. */
@@ -257,6 +259,10 @@ function collectFailedBlockSpans(nodes: unknown, into: FailedSpanCandidate[]): v
         recordedError:
           isRecordLike(span.output) && typeof span.output.error === 'string'
             ? span.output.error
+            : undefined,
+        recordedErrorMessage:
+          isRecordLike(span.output) && typeof span.output.errorMessage === 'string'
+            ? span.output.errorMessage
             : undefined,
       })
     }
@@ -287,6 +293,32 @@ function collectFailedBlockSpans(nodes: unknown, into: FailedSpanCandidate[]): v
  * was compacted, or is unavailable.
  */
 export function findFailedTraceBlock(spans: unknown, runError?: string): FailedTraceBlock | null {
+  return selectFailedSpan(spans, runError)?.block ?? null
+}
+
+/** A failed run's block with the error its output recorded, as a log read leads with it. */
+export interface TraceFailure extends FailedTraceBlock {
+  /** The block's error as recorded: a Function's leads with the line and code that threw. */
+  error: string | null
+  /** A Function's thrown message alone, null for any other block. */
+  errorMessage: string | null
+}
+
+/**
+ * {@link findFailedTraceBlock} with the error the block recorded, so a reader of a run's log sees
+ * what failed before the rest of the record. Null on the same conditions.
+ */
+export function findTraceFailure(spans: unknown, runError?: string): TraceFailure | null {
+  const failed = selectFailedSpan(spans, runError)
+  if (!failed) return null
+  return {
+    ...failed.block,
+    error: failed.recordedError ?? null,
+    errorMessage: failed.recordedErrorMessage ?? null,
+  }
+}
+
+function selectFailedSpan(spans: unknown, runError?: string): FailedSpanCandidate | null {
   const candidates: FailedSpanCandidate[] = []
   collectFailedBlockSpans(spans, candidates)
   const pool = runError
@@ -294,10 +326,10 @@ export function findFailedTraceBlock(spans: unknown, runError?: string): FailedT
         (span) => errorNamesBlock(runError, span.block.blockName) || span.recordedError === runError
       )
     : candidates
-  if (pool.length <= 1) return pool[0]?.block ?? null
+  if (pool.length <= 1) return pool[0] ?? null
   if (!pool.every((span) => Number.isFinite(span.endedAt))) return null
   const [first, second] = pool.sort((a, b) => a.endedAt - b.endedAt)
-  return first.endedAt < second.endedAt ? first.block : null
+  return first.endedAt < second.endedAt ? first : null
 }
 
 interface DurationBearingSpan {

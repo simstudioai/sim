@@ -4,7 +4,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'
 import { getPublicLog } from '@/lib/logs/application/get-public-log'
 import { logOperations } from '@/lib/logs/application/operations'
-import { withSpanDurationMs } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { findTraceFailure, withSpanDurationMs } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { projectLogFiles } from '@/lib/logs/files'
 
 export const revalidate = 0
@@ -24,6 +24,31 @@ function buildCostProjection(
   if (costTotal != null) return { total: Number(costTotal), items: costLedger?.items ?? null }
   if (costLedger) return { total: costLedger.total, items: costLedger.items }
   return null
+}
+
+/** The error string a run recorded for itself, when it recorded one. */
+function runErrorOf(executionData: Record<string, unknown>): string | undefined {
+  const finalOutput = executionData.finalOutput
+  const candidates = [
+    executionData.error,
+    finalOutput && typeof finalOutput === 'object'
+      ? (finalOutput as Record<string, unknown>).error
+      : undefined,
+  ]
+  return candidates.find((value): value is string => typeof value === 'string' && value !== '')
+}
+
+/**
+ * Where the run failed. The run's own error names the block when several failed in the same
+ * instant; a run error that names none of them leaves the trace's own answer, which is still
+ * right when only one block failed.
+ */
+function failureOf(executionData: Record<string, unknown>): V2LogDetail['failure'] {
+  const runError = runErrorOf(executionData)
+  return (
+    (runError ? findTraceFailure(executionData.traceSpans, runError) : null) ??
+    findTraceFailure(executionData.traceSpans)
+  )
 }
 
 /**
@@ -52,6 +77,7 @@ export const GET = defineV2JsonRoute({
       startedAt: log.startedAt.toISOString(),
       endedAt: log.endedAt ? log.endedAt.toISOString() : null,
       totalDurationMs: log.totalDurationMs,
+      failure: failureOf(executionData),
       files: projectLogFiles(log),
       executedByEmail: log.executedByEmail,
       workflow: {
