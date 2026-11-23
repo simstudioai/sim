@@ -629,7 +629,8 @@ failures in `workflow_source_applied`, `workflow_source_dry_run` and `workspace_
 - Function code is one verbatim file per block: no imports, no shared modules, and `$ref`/`$env`
   are untyped globals in JavaScript. Source has no loops or helpers that generate blocks; the
   compiler accepts only the printed grammar.
-- Nothing runs locally. Checks happen on apply (or `--dry-run`); `tsc -p .` checks types only.
+- Nothing in the source runs. `source check` compiles and type-checks it offline; the server's
+  checks happen on apply (or `--dry-run`).
 - A comment inside an expression is hoisted to its enclosing anchor (`W_COMMENT_MOVED`).
 - Chat in the product does not write through source yet.
 

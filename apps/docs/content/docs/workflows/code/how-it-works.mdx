@@ -9,7 +9,7 @@ A source file is a declaration, not a program. Sim reads it, compares it with th
 
 `workflow.ts` is TypeScript so that your editor can complete and type-check it, but no command executes it. Sim parses the file and reads each `const x = builder('Name', {…})` as one block, each `.to()` as one connection, and each param as one setting. That is why the file holds declarations only: a helper function, a loop that creates blocks, or an import from anything but `@sim/workflow-sdk` has no value Sim could read without running it, so it is refused with `E_UNSUPPORTED_SYNTAX` and a hint.
 
-`check` runs this compiler on your machine, the same one the server runs, against the block catalog the last `get` cached. Function code under `functions/` is not run either: it is stored as the Function block's code and runs in Sim, like code typed into the workflow builder.
+`check` runs this compiler on your machine, the same one the server runs, against the block catalog the last `get` cached, then type-checks the directory with the TypeScript release the generated declarations are built for. Function code under `functions/` is not run either: it is stored as the Function block's code and runs in Sim, like code typed into the workflow builder.
 
 ## From a file to a saved draft
 

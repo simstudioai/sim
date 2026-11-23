@@ -34,7 +34,7 @@ import {
 } from '../packages/sim-cli/src/commands/protocol/source-exit-codes'
 import { DIAGNOSTIC_CODES } from '../packages/workflow-code/src/diagnostics/codes'
 import { SOURCE_LIMITS } from '../packages/workflow-code/src/limits'
-import { typecheckCommand } from '../packages/workflow-sdk/src/codegen/tsconfig'
+import { SOURCE_TYPESCRIPT_VERSION } from '../packages/workflow-sdk/src/codegen/tsconfig'
 import { WORKSPACE_DIAGNOSTIC_CODES } from '../packages/workspace-code/src/diagnostics/codes'
 import { APPLY_ORDER } from '../packages/workspace-code/src/kind'
 import { WORKSPACE_SOURCE_LIMITS } from '../packages/workspace-code/src/limits'
@@ -254,6 +254,8 @@ const WORKFLOW_GROUP_LEAD: Record<string, string> = {
   Canonicalize: 'Reading the stored workflow in a get.',
   Materialize: 'Matching the compiled file to the stored blocks.',
   Apply: 'Saving the workflow draft.',
+  'Type check':
+    '`sim workflows source check` and `sim workspaces source check` type-checking the directory with TypeScript after the compile. The server never reports these.',
 }
 
 /** One error per code `documented` names that `exported` does not hold, and per code it lacks. */
@@ -477,11 +479,7 @@ function checkProse(errors: string[]): void {
       if (!known.has(match[1])) errors.push(`${rel} names ${match[1]}, which no engine emits`)
     }
   }
-  const pinned = /typescript@(\d+\.\d+\.\d+)/.exec(typecheckCommand())?.[1]
-  if (!pinned) {
-    errors.push('typecheckCommand() no longer names a typescript@x.y.z release')
-    return
-  }
+  const pinned = SOURCE_TYPESCRIPT_VERSION
   for (const file of walkMdx(DOCS_DIR)) {
     for (const match of fs.readFileSync(file, 'utf8').matchAll(/typescript@(\d+\.\d+\.\d+)/g)) {
       if (match[1] !== pinned) {

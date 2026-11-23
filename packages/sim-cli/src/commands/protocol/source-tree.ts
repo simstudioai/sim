@@ -375,24 +375,31 @@ export async function loadWorkspaceTypes(
 
 /**
  * Regenerates `workspace.d.ts` from the stored manifest the last get kept beside it and what the
- * directory declares now (`local`), so `tsc` types a key added since without a request. A
- * directory with no kept manifest (no get has written its types) is left as it is.
+ * directory declares now (`local`), so a check types a key added since without a request. Without
+ * a kept manifest (the get could not list the workspace's resources), it types what the directory
+ * declares, as that get did, and removes the file when it declares nothing. A manifest that does
+ * not parse leaves the file as it is.
  */
 export async function refreshWorkspaceTypes(dir: string, local: LocalDeclarations): Promise<void> {
   const [manifest, current] = await Promise.all([
     readSourceText(dir, WORKSPACE_MANIFEST_FILE),
     readSourceText(dir, WORKSPACE_TYPES_FILE),
   ])
-  if (manifest === null) return
-  let stored: unknown
-  try {
-    stored = JSON.parse(manifest)
-  } catch {
-    return
+  let stored: WorkspaceManifest | null = null
+  if (manifest !== null) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(manifest)
+    } catch {
+      return
+    }
+    if (!isRecordLike(parsed)) return
+    stored = parsed
   }
-  if (!isRecordLike(stored)) return
   const types = workspaceTypesFrom(stored, local)
-  if (types && types.text !== current) {
+  if (types === null) {
+    if (current !== null) await updateSourceDir(dir, { write: [], remove: [WORKSPACE_TYPES_FILE] })
+  } else if (types.text !== current) {
     await updateSourceDir(dir, { write: [[WORKSPACE_TYPES_FILE, types.text]] })
   }
 }

@@ -17,6 +17,7 @@ import { SimApiError } from '../../http/client'
 import { buildProgram } from '../../program'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
+import { provideTypescript } from '../../test/typescript'
 import { digest } from './source-dir'
 import {
   AGENTS_POINTER_MARKER,
@@ -154,6 +155,7 @@ beforeEach(() => {
   rootDir = mkdtempSync(join(tmpdir(), 'sim-source-'))
   outDir = join(rootDir, 'out')
   vi.stubEnv('SIM_CONFIG_DIR', join(rootDir, 'config'))
+  provideTypescript(join(rootDir, 'config'))
   vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 
@@ -316,6 +318,52 @@ describe('sim workflows source get --dir', () => {
 
     expect(existsSync(join(outDir, '.sim/sdk/blocks/gmail_v2.d.ts'))).toBe(true)
     expect(typecheck('tsconfig.json')).toMatch(unknownParam)
+  })
+
+  it('type-checks the directory in the check, with the blocks the edit added', async () => {
+    const workflow = [
+      '// @sim-sdk 1',
+      "import { trigger, workflow } from '@sim/workflow-sdk'",
+      '',
+      "export default workflow('W', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      '})',
+      '',
+    ].join('\n')
+    serve({ [SOURCE_PATH]: () => source({ 'workflow.ts': workflow }, []) })
+    await get('--dir', outDir)
+    writeFileSync(
+      join(outDir, 'workflow.ts'),
+      workflow
+        .replace('{ trigger, workflow }', '{ gmail, trigger, workflow }')
+        .replace(
+          "  const start = trigger.start('Start', {})\n",
+          "  const start = trigger.start('Start', {})\n  const mail = gmail.sendEmail('Mail', {\n    to: 'a@b.c',\n    subject: 's',\n    body: start.missing,\n  })\n  start.to(mail)\n"
+        )
+    )
+    contextMockFns.mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: WORKSPACE_ID,
+      output: 'json',
+    })
+    const check = new Command('source')
+    attachWorkflowSourceCheck(check)
+    check.commands.forEach((command) => command.exitOverride())
+    await check.parseAsync(['node', 'source', 'check', '--dir', outDir])
+
+    expect(process.exitCode).toBe(1)
+    process.exitCode = undefined
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed.checked).toEqual(['compile', 'types'])
+    expect(
+      (printed.diagnostics as Array<{ code: string }>).filter(({ code }) => code === 'E_TYPE')
+    ).toEqual([
+      expect.objectContaining({
+        file: 'workflow.ts',
+        line: 9,
+        message: expect.stringMatching(/^TS2339: Property 'missing' does not exist/),
+      }),
+    ])
   })
 
   it('writes the example workflows beside the guide, outside what the tsconfig files type-check', async () => {

@@ -29,15 +29,9 @@ Edit `workflow.ts`, then compile it on your machine with Sim's compiler:
 sim workflows source check --dir ./support-triage
 ```
 
-`check` makes no request. It needs the block catalog the last `get` cached in `~/.sim/cache/source-catalog/`; with none cached it exits `1` and tells you to run `get` once. It exits `1` on an error, and on the warnings `sim workflows source check --help` lists (a missing required field, an unknown option, an unwired condition or router branch, a literal secret and more) in a block you added since the get. `--strict` fails on these in every block, except an unwired branch on a block the get printed; `--no-strict` never fails on a warning. It also adds the blocks the workflow now uses to `tsconfig.json`.
+`check` makes no request. It needs the block catalog the last `get` cached in `~/.sim/cache/source-catalog/`; with none cached it exits `1` and tells you to run `get` once. It exits `1` on an error, and on the warnings `sim workflows source check --help` lists (a missing required field, an unknown option, an unwired condition or router branch, a literal secret and more) in a block you added since the get. `--strict` fails on these in every block, except an unwired branch on a block the get printed; `--no-strict` never fails on a warning.
 
-Your editor type-checks the file against the generated declarations, and this checks it from the command line with the TypeScript release the declarations are built for:
-
-```bash
-bunx -p typescript@7.0.2 tsc -p ./support-triage
-```
-
-Use `-p ./support-triage/tsconfig.full.json` to type-check against every block.
+Then it adds the blocks the workflow now uses to `tsconfig.json` and type-checks the directory with it, using the TypeScript release the generated declarations are built for, as your editor does. Each type error is an `E_TYPE` error at its line, with TypeScript's own code (`TS2339: …`) at the start of the message. A type error is left out on a line the compile already reports an error on, and in a file still as the last get or apply wrote it, where the dry run decides. The first check installs that release with `npm` into `~/.sim/cache/typescript/`, once; offline before then, `check` warns `W_TYPES_UNCHECKED` and passes or fails on the compile alone. `--no-types` skips the type check. `tsconfig.full.json` includes every block, for an editor.
 
 ## 3. See what changed
 

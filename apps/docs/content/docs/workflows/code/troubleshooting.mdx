@@ -96,6 +96,10 @@ The file holds a form Sim cannot read without running it, such as a helper funct
 
 A builder or param name the block catalog does not have. The hint suggests the closest name. `sim workflows source params <builder>` prints a builder's params and outputs, and a namespace such as `gmail` lists its builders.
 
+### `E_TYPE` and `W_TYPES_UNCHECKED` [#e-type]
+
+`E_TYPE` is a type error `check` found after the compile; its message starts with TypeScript's own code, such as `TS2339: Property 'emial' does not exist`. Fix it at the line it names: it usually reads an output or input the block does not declare, or passes a value of the wrong type. `W_TYPES_UNCHECKED` means the type check did not run, most often because the first `check` on this machine could not install TypeScript offline. The compile's findings still stand; run `check` once with network access, or pass `--no-types`.
+
 ### `W_REQUIRED_MISSING` [#w-required-missing]
 
 A required field is empty, or holds `todo()`. Fill it in, or use `env.NAME` for a value you keep in an environment variable.

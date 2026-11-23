@@ -11,7 +11,6 @@ import {
   describeBuilder,
   referencedBuilders,
   SDK_MAJOR,
-  typecheckCommand,
 } from '@sim/workflow-sdk/codegen'
 import {
   RATE_LIMITED_EXIT_CODE,
@@ -55,7 +54,7 @@ const WORKFLOW_PRIMER = `# Sim workflow source: primer
 
 \`${SOURCE_ENTRY_FILE}\` is a Sim workflow as TypeScript; the server compiles it statically and nothing in it runs. Commands read the workflow id from \`${SOURCE_BASE_FILE}\`; run them from this directory.
 
-**Edit loop**: write every file, then run one chained command and fix what it reports next: \`sim workflows source check --dir . && sim workflows source apply --dir . --yes && sim workflows run <workflowId> --manual --input '{…}'\`. A non-zero exit stops the chain. Apply re-checks the source and its base, so \`apply --dry-run\` is only the review for people and CI. Add \`${typecheckCommand()}\` after \`check\` for type errors. Apply saves the draft in canonical form: read \`${SOURCE_ENTRY_FILE}\` again before the next edit.
+**Edit loop**: write every file, then run one chained command and fix what it reports next: \`sim workflows source check --dir . && sim workflows source apply --dir . --yes && sim workflows run <workflowId> --manual --input '{…}'\`. A non-zero exit stops the chain. \`check\` compiles and type-checks (no separate \`tsc\`). Apply re-checks the source and its base, so \`apply --dry-run\` is only the review for people and CI. Apply saves the draft in canonical form: read \`${SOURCE_ENTRY_FILE}\` again before the next edit.
 
 - **Deletes**: removing a block or a variable needs \`apply --allow-delete\` (\`E_APPLY_BLOCK_DELETE\` / \`E_APPLY_VARIABLE_DELETE\`).
 - **Deploy**: apply saves a draft; \`apply --deploy\` also deploys it, or \`sim workflows deploy <workflowId>\` publishes the saved draft later.
@@ -70,7 +69,7 @@ const WORKSPACE_PRIMER = `# Sim workspace source: primer
 
 This directory is a Sim workspace as files (\`tables/\`, \`workflows/<key>/workflow.ts\`, …); nothing in it runs. Commands read the workspace id from \`${SOURCE_BASE_FILE}\`; run them from this directory. Every \`.ts\` file, \`deployments/\` too, starts with \`// @sim-sdk ${SDK_MAJOR}\`.
 
-**Edit loop**: write every file, then run one chained command and fix what it reports next: \`sim workspaces source check --dir . && sim workspaces source apply --dir . --yes\` (add a \`sim workflows run\` to test). A non-zero exit stops the chain. Apply re-checks the source and its base, so \`apply --dry-run\` is only the review for people and CI. Add \`${typecheckCommand()}\` after \`check\` for type errors. Apply rewrites the directory: read a file again before the next edit.
+**Edit loop**: write every file, then run one chained command and fix what it reports next: \`sim workspaces source check --dir . && sim workspaces source apply --dir . --yes\` (add a \`sim workflows run\` to test). A non-zero exit stops the chain. \`check\` compiles and type-checks (no separate \`tsc\`). Apply re-checks the source and its base, so \`apply --dry-run\` is only the review for people and CI. Apply rewrites the directory: read a file again before the next edit.
 
 - **Deletes**: a file or folder missing from a kind's folder, or a removed table column, workflow block or variable, is a delete: refused without \`apply --allow-delete\`, and it cannot be undone.
 - **Deploy**: \`deployments/<workflow key>.ts\` (\`defineDeployment({ live: 'draft' })\`) deploys that workflow on apply; without one, apply never deploys.

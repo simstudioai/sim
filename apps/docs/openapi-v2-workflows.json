@@ -19401,7 +19401,9 @@
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
                         "E_NAME_TAKEN",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `W_CANON_UNRESOLVED_ID`."
                     },
@@ -19876,7 +19878,9 @@
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
                         "E_NAME_TAKEN",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -20841,7 +20845,9 @@
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
                         "E_NAME_TAKEN",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -21782,7 +21788,9 @@
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
                         "E_NAME_TAKEN",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -26828,7 +26836,9 @@
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },
@@ -27412,7 +27422,9 @@
                       "E_APPLY_INVALID_SCHEDULE",
                       "E_APPLY_BLOCK_DELETE",
                       "E_APPLY_VARIABLE_DELETE",
-                      "E_WORKFLOW_META_INVALID"
+                      "E_WORKFLOW_META_INVALID",
+                      "E_TYPE",
+                      "W_TYPES_UNCHECKED"
                     ],
                     "description": "Diagnostic code."
                   },
@@ -27826,7 +27838,9 @@
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },
@@ -28690,7 +28704,9 @@
                       "E_APPLY_INVALID_SCHEDULE",
                       "E_APPLY_BLOCK_DELETE",
                       "E_APPLY_VARIABLE_DELETE",
-                      "E_WORKFLOW_META_INVALID"
+                      "E_WORKFLOW_META_INVALID",
+                      "E_TYPE",
+                      "W_TYPES_UNCHECKED"
                     ],
                     "description": "Diagnostic code."
                   },
@@ -29104,7 +29120,9 @@
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
                         "E_APPLY_VARIABLE_DELETE",
-                        "E_WORKFLOW_META_INVALID"
+                        "E_WORKFLOW_META_INVALID",
+                        "E_TYPE",
+                        "W_TYPES_UNCHECKED"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },

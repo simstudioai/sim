@@ -986,7 +986,8 @@ const EVERY_WITHHELD_BUILDER = [
   '',
 ].join('\n')
 
-const check = (...flags: string[]) => sim('workflows', 'source', 'check', '--dir', dir, ...flags)
+const check = (...flags: string[]) =>
+  sim('workflows', 'source', 'check', '--dir', dir, '--no-types', ...flags)
 
 function checked(): { errors: number; warnings: number; diagnostics: unknown[] } {
   return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
@@ -1126,7 +1127,8 @@ describe('checking wiring between blocks the lock binds', () => {
     process.exitCode = undefined
   })
 
-  const check = (...flags: string[]) => sim('workflows', 'source', 'check', '--dir', dir, ...flags)
+  const check = (...flags: string[]) =>
+    sim('workflows', 'source', 'check', '--dir', dir, '--no-types', ...flags)
 
   function codes(): string[] {
     const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')

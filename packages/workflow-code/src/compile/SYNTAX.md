@@ -543,3 +543,10 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_WORKFLOW_META_INVALID` | The `workflow('…')` name is empty or over 255 characters, or its description is over 50,000 characters: limits the workflow API holds every workflow to. |
 | `E_APPLY_INVALID_SCHEDULE` | An added or changed schedule whose cron, timezone or interval deploy would refuse. |
 | `W_TABLE_UNKNOWN_COLUMN` | A table row write whose data names a key that is not a column of the table; the run drops it. The hint names the nearest column. |
+
+**Type check** (`source check` only)
+
+| Code | Meaning |
+|---|---|
+| `E_TYPE` | TypeScript (the release the declarations are built for) reported an error; the message starts with its `TS` code. A type error on a line the compile already reports an error on, or in a file still as the last get or apply wrote it, is left out. |
+| `W_TYPES_UNCHECKED` | The type check did not run: TypeScript could not be installed (offline, or no `npm`) or did not start. The other findings stand; pass `--no-types` to skip it. |

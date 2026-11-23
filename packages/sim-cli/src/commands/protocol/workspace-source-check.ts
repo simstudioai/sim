@@ -29,6 +29,7 @@ import {
 } from './source-dir'
 import { credentialRefused, unreachableReason } from './source-status'
 import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
+import { TYPES_HELP, type TypesOptions, typeCheck, typesFlag } from './source-types'
 import { verboseFlag } from './source-ui'
 import { assertWorkspaceDir } from './workspace-source-dir'
 
@@ -36,7 +37,7 @@ const CHECK_HELP = `
 Compiles every workflows/<key>/workflow.ts (and the function files each names) with the compiler
 the server runs, against the workspace's block catalog the last get cached (in a fresh clone with
 no cache, such as CI, it downloads the catalog once with the profile's credentials). No other
-request is made. It checks, against what the directory declares:
+request is made to Sim. It checks, against what the directory declares:
   - env names (secrets.ts), with a did-you-mean
   - credential keys (credentials.ts)
   - the keys of tables, knowledge bases, skills, custom tools, MCP servers and workflows, with a
@@ -50,8 +51,9 @@ request is made. It checks, against what the directory declares:
   - block names whose words mix Latin with Cyrillic, Greek, Armenian or Cherokee letters
 The dry run still checks what only the server knows (stored values, MCP tool names, model ids,
 deployments, credential bindings), so run it before applying. A check also regenerates
-.sim/sdk/workspace.d.ts from the declarations (so tsc types a key added since the get, and each
+.sim/sdk/workspace.d.ts from the declarations (so a key added since the get is typed, and each
 workflow's inputs) and adds the blocks the workflows now use to the CLI's tsconfig.json.
+${TYPES_HELP}
 
 ${strictHelp("no cached catalog that could not be downloaded (a check downloads it once when none is cached, with the profile's credentials)")}`
 
@@ -93,21 +95,26 @@ export function attachWorkspaceSourceCheck(source: Command): void {
   const [command, connect] = apiCommand(source, 'check', ['getSourceCatalog'])
   absoluteDirOption(command)
   verboseFlag(
-    strictFlags(
-      command.option(
-        '--dir <dir>',
-        `Workspace source directory: the kind folders and ${WORKSPACE_BASE_FILE}`,
-        '.'
+    typesFlag(
+      strictFlags(
+        command.option(
+          '--dir <dir>',
+          `Workspace source directory: the kind folders and ${WORKSPACE_BASE_FILE}`,
+          '.'
+        )
       )
     )
   )
     .allowExcessArguments(false)
     .description(
-      'Compile every workflow of a workspace source directory locally, without the server'
+      'Compile and type-check every workflow of a workspace source directory locally, without the server'
     )
     .addHelpText('after', `${CHECK_HELP}\n${SOURCE_DIR_BUSY_HELP}`)
     .action(
-      async (options: { dir: string; verbose?: boolean } & StrictOptions, command: Command) => {
+      async (
+        options: { dir: string; verbose?: boolean } & StrictOptions & TypesOptions,
+        command: Command
+      ) => {
         const profile = profileFrom(command)
         const base = toRecord(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
         await assertWorkspaceDir(options.dir)
@@ -167,6 +174,10 @@ export function attachWorkspaceSourceCheck(source: Command): void {
             withWorkflowInputs(declarations.local, declarations.workflowInputs)
           )
           await refreshWorkspaceTsconfigs(options.dir, workspaceId)
+          const types = await typeCheck(options.dir, {
+            enabled: options.types !== false,
+            compiled: findings,
+          })
           reportCheck(
             profile.output,
             findings,
@@ -176,6 +187,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
               bound: WORKSPACE_ANSWER_BOUND,
               unlisted,
               dir: options.dir,
+              types,
             }
           )
         })

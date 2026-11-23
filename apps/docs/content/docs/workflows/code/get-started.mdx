@@ -33,10 +33,9 @@ Open `workflow.ts` and change one value, such as an agent's `model` or a message
 
 ```bash
 sim workflows source check --dir ./support-triage
-bunx -p typescript@7.0.2 tsc -p ./support-triage
 ```
 
-`check` compiles the file on your machine, and `tsc` type-checks it. Each problem prints with its line, the code around it, and a hint.
+`check` compiles the file on your machine and type-checks it. Each problem prints with its line, the code around it, and a hint. The first check installs the TypeScript release the declarations are built for, once.
 
 ## 5. See what changed
 

@@ -1,5 +1,6 @@
 import { toRecord } from '@sim/utils/object'
 import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
+import { KIND_DIRS } from '@sim/workspace-code'
 import type { Command } from 'commander'
 import { profileFrom } from '../../context'
 import { CliUsageError } from './local-errors'
@@ -29,19 +30,21 @@ import {
   refreshTsconfigs,
   refreshWorkspaceTypes,
 } from './source-tree'
+import { TYPES_HELP, type TypesOptions, typeCheck, typesFlag } from './source-types'
 import { verboseFlag } from './source-ui'
 import { requireEntry, WORKFLOW_TREE } from './workflow-dir'
 
 const CHECK_HELP = `
 Compiles workflow.ts (and the function files it names) with the compiler the server runs, against
 the workspace's block catalog the last get or create cached, and prints the findings as the dry run
-does. No request is made. It covers the source itself (syntax, builders, params, references,
+does. No request is made to Sim. It covers the source itself (syntax, builders, params, references,
 wiring). In a workflow folder of a workspace directory (workflows/<key>), it reads the workspace's
 .sim/base.json and also checks env names, resource keys and table columns against what the
 directory declares. The dry run still checks what only the server knows (stored values,
 deployment), so run it before applying. A check also adds the blocks the source now uses to the
-CLI's tsconfig.json, so tsc type-checks a block the edit added; in a workspace directory it also
-regenerates .sim/sdk/workspace.d.ts, so tsc types each workflow's inputs as its files declare them.
+CLI's tsconfig.json, so a block the edit added is typed; in a workspace directory it also
+regenerates .sim/sdk/workspace.d.ts from the files, so each key and workflow input they declare is.
+${TYPES_HELP}
 
 ${strictHelp('no cached catalog (run the get once)')}`
 
@@ -52,19 +55,24 @@ ${strictHelp('no cached catalog (run the get once)')}`
  */
 export function attachWorkflowSourceCheck(source: Command): void {
   verboseFlag(
-    strictFlags(
-      absoluteDirOption(source.command('check')).option(
-        '--dir <dir>',
-        'Source directory: workflow.ts, functions/* and .sim/',
-        '.'
+    typesFlag(
+      strictFlags(
+        absoluteDirOption(source.command('check')).option(
+          '--dir <dir>',
+          'Source directory: workflow.ts, functions/* and .sim/',
+          '.'
+        )
       )
     )
   )
     .allowExcessArguments(false)
-    .description('Compile a workflow source directory locally, without the server')
+    .description('Compile and type-check a workflow source directory locally, without the server')
     .addHelpText('after', CHECK_HELP)
     .action(
-      async (options: { dir: string; verbose?: boolean } & StrictOptions, command: Command) => {
+      async (
+        options: { dir: string; verbose?: boolean } & StrictOptions & TypesOptions,
+        command: Command
+      ) => {
         const profile = profileFrom(command)
         await assertSourceDirKind(options.dir, 'workflow')
         const base = toRecord(await readSourceJson(options.dir, SOURCE_BASE_FILE))
@@ -117,6 +125,11 @@ export function attachWorkflowSourceCheck(source: Command): void {
             { incremental: true }
           )
         }
+        const types = await typeCheck(workspace ? workspace.root : options.dir, {
+          enabled: options.types !== false,
+          ...(workspace ? { scope: `${KIND_DIRS.workflow}/${workspace.key}/` } : {}),
+          compiled: findings,
+        })
         reportCheck(
           profile.output,
           findings,
@@ -125,6 +138,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
             verbose: options.verbose === true,
             unlisted,
             dir: options.dir,
+            types,
           }
         )
       }

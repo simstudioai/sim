@@ -563,6 +563,21 @@ const APPLY_DIAGNOSTIC_CODES = [
 export type ApplyDiagnosticCode = (typeof APPLY_DIAGNOSTIC_CODES)[number]
 
 /**
+ * The type check `sim workflows source check` and `sim workspaces source check` run after the
+ * compile: the pinned TypeScript release over the directory's `tsconfig.json`. The server never
+ * reports them.
+ */
+const TYPE_CHECK_CODES = [
+  /** TypeScript reported an error; the message starts with its `TS` code (`TS2322: …`). */
+  'E_TYPE',
+  /**
+   * The type check did not run: the pinned TypeScript release could not be installed (offline, or
+   * no `npm`) or did not start. The compile's findings still stand.
+   */
+  'W_TYPES_UNCHECKED',
+] as const
+
+/**
  * Every code, as a value: the wire contracts' enum, so a client matching on a code is checked
  * against the vocabulary.
  */
@@ -573,6 +588,7 @@ export const DIAGNOSTIC_CODES = [
   ...CANONICALIZE_DIAGNOSTIC_CODES,
   ...MATERIALIZE_DIAGNOSTIC_CODES,
   ...APPLY_DIAGNOSTIC_CODES,
+  ...TYPE_CHECK_CODES,
 ] as const
 
 /** Whether a tuple of codes lists one of them twice. */

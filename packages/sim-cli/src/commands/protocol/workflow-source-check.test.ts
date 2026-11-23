@@ -32,7 +32,7 @@ async function check(): Promise<void> {
   const source = new Command('source')
   attachWorkflowSourceCheck(source)
   source.commands.forEach((command) => command.exitOverride())
-  await source.parseAsync(['node', 'source', 'check', '--dir', dir])
+  await source.parseAsync(['node', 'source', 'check', '--dir', dir, '--no-types'])
 }
 
 function cacheCatalog(): void {
@@ -159,7 +159,7 @@ async function checkIn(folder: string, ...flags: string[]): Promise<void> {
   const source = new Command('source')
   attachWorkflowSourceCheck(source)
   source.commands.forEach((command) => command.exitOverride())
-  await source.parseAsync(['node', 'source', 'check', '--dir', folder, ...flags])
+  await source.parseAsync(['node', 'source', 'check', '--dir', folder, '--no-types', ...flags])
 }
 
 /** `CLEAN` plus an API block with an unknown method: `W_UNKNOWN_OPTION` on block `call`. */
@@ -266,7 +266,7 @@ describe('sim workflows source check', () => {
 
     await check()
 
-    expect(result()).toMatchObject({ checked: 'compile', errors: 0, warnings: 0 })
+    expect(result()).toMatchObject({ checked: ['compile'], errors: 0, warnings: 0 })
     expect(process.exitCode).toBeUndefined()
     expect(contextMockFns.mockRequest).not.toHaveBeenCalled()
   })
